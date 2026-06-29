@@ -1,0 +1,13 @@
+﻿[
+  {
+    "name": "qrId",
+    "label": "QR Code",
+    "type": "select",
+    "required": true,
+    "options": {
+      "rpc": "GenXQR-list-qrs",
+      "label": "name",
+      "value": "id"
+    }
+  }
+]

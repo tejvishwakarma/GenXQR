@@ -1,0 +1,14 @@
+{
+  "url": "/v1/qr",
+  "method": "GET",
+  "qs": {
+    "page": 1,
+    "limit": 1
+  },
+  "response": {
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    },
+    "valid": "{{body.success}}"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "GenXQR-watch-qr-deleted",
+  "label": "Watch QR Code Deletions",
+  "description": "Triggers instantly when a QR code is permanently deleted from your account.",
+  "type": "trigger",
+  "connection": "GenXQR-api-key",
+  "webhook": "GenXQR-qr-deleted"
+}

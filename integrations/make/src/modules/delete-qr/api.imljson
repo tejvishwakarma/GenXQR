@@ -1,0 +1,14 @@
+{
+  "url": "/v1/qr/{{parameters.qrId}}",
+  "method": "DELETE",
+  "response": {
+    "output": {
+      "deleted": true,
+      "id": "{{parameters.qrId}}"
+    },
+    "error": {
+      "filter": "{{statusCode != 204 and statusCode != 404}}",
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "GenXQR-watch-qr-created",
+  "label": "Watch New QR Codes",
+  "description": "Triggers instantly when a new QR code is created in your account.",
+  "type": "trigger",
+  "connection": "GenXQR-api-key",
+  "webhook": "GenXQR-qr-created"
+}

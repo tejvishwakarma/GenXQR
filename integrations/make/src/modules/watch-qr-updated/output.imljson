@@ -1,0 +1,7 @@
+[
+  { "name": "id", "label": "QR Code ID", "type": "text" },
+  { "name": "name", "label": "Name", "type": "text" },
+  { "name": "slug", "label": "Slug", "type": "text" },
+  { "name": "isActive", "label": "Active", "type": "boolean" },
+  { "name": "updatedAt", "label": "Updated At", "type": "date" }
+]

@@ -1,0 +1,47 @@
+{
+  "name": "n8n-nodes-GenXQR",
+  "version": "1.0.0",
+  "description": "n8n community node for GenXQR — create, manage, and track dynamic QR codes.",
+  "keywords": ["n8n", "n8n-community-node-package", "qr-code", "GenXQR", "qr", "dynamic-qr"],
+  "license": "MIT",
+  "author": {
+    "name": "GenXQR",
+    "url": "https://genxqr.in"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GenXQR/n8n-nodes-GenXQR.git"
+  },
+  "main": "dist/nodes/GenXQR/GenXQR.node.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "lint": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/GenXQRApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/GenXQR/GenXQR.node.js",
+      "dist/nodes/GenXQR/GenXQRTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "20.11.0",
+    "gulp": "5.0.0",
+    "n8n-workflow": "1.30.0",
+    "typescript": "5.5.4"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

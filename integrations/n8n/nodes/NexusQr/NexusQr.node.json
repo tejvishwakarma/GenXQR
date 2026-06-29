@@ -1,0 +1,18 @@
+{
+	"node": "n8n-nodes-base.GenXQR",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Marketing & Growth"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://genxqr.in/api-docs"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://genxqr.in/api-docs"
+			}
+		]
+	}
+}

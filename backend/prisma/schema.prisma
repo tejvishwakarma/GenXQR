@@ -1,0 +1,720 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  emailVerified           Boolean                  @default(false)
+  passwordHash            String?
+  name                    String
+  avatarUrl               String?
+  googleId                String?                  @unique
+  driveConnected          Boolean                  @default(false)
+  driveFolderId           String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  lastLoginAt             DateTime?
+  role                    Role                     @default(USER)
+  driveAccessToken        String?
+  driveRefreshToken       String?
+  driveTokenExpiresAt     DateTime?
+  notificationPrefs       Json?
+  apiKeys                 ApiKey[]
+  auditLogs               AuditLog[]
+  emailVerificationTokens EmailVerificationToken[]
+  invoices                Invoice[]
+  notifications           Notification[]
+  passwordResetTokens     PasswordResetToken[]
+  qrCodes                 QRCode[]
+  refreshTokens           RefreshToken[]
+  subscription            Subscription?
+  supportTickets          SupportTicket[]
+  teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
+  teamMemberships         TeamMember[]
+  teamsOwned              Team[]                   @relation("UserTeamsOwned")
+  webhooks                Webhook[]
+
+  @@index([email])
+  @@map("users")
+}
+
+model Plan {
+  id              String         @id @default(cuid())
+  name            PlanName       @unique
+  displayName     String
+  priceMonthlyINR Int
+  priceYearlyINR  Int
+  priceMonthlyUSD Int
+  priceYearlyUSD  Int
+  dynamicQRLimit  Int
+  scanLimit       Int
+  fileStorageGB   Int
+  teamSeatsLimit  Int
+  apiCallsLimit   Int
+  features        Json
+  subscriptions   Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  planId             String
+  status             SubscriptionStatus
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  invoices           Invoice[]
+  plan               Plan               @relation(fields: [planId], references: [id])
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+model QRCode {
+  id                  String             @id @default(cuid())
+  userId              String?
+  type                QRType
+  category            QRCategory
+  name                String
+  slug                String             @unique
+  tags                String[]
+  isActive            Boolean            @default(true)
+  scanCount           Int                @default(0)
+  isPasswordProtected Boolean            @default(false)
+  passwordHash        String?
+  activeFrom          DateTime?
+  activeUntil         DateTime?
+  scanLimit           Int?
+  fallbackUrl         String?
+  abTestEnabled       Boolean            @default(false)
+  abTestSplitPct      Int                @default(50)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  lastScannedAt       DateTime?
+  fbPixelId           String?
+  gaId                String?
+  gtmId               String?
+  abVariants          ABTestVariant[]
+  abuseReports        AbuseReport[]
+  user                User?              @relation(fields: [userId], references: [id])
+  content             QRContent?
+  design              QRDesign?
+  files               QRFile[]
+  scanDailies         QRScanDaily[]
+  scans               QRScan[]
+  smartRoutes         SmartRoutingRule[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([type])
+  @@index([createdAt])
+  @@map("qr_codes")
+}
+
+model QRContent {
+  id        String   @id @default(cuid())
+  qrId      String   @unique
+  data      Json
+  updatedAt DateTime @updatedAt
+  qrCode    QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@map("qr_content")
+}
+
+model QRDesign {
+  id                 String   @id @default(cuid())
+  qrId               String   @unique
+  primaryColor       String   @default("#000000")
+  secondaryColor     String   @default("#ffffff")
+  backgroundColor    String   @default("#ffffff")
+  foregroundColor    String   @default("#000000")
+  dotStyle           String   @default("square")
+  cornerSquareStyle  String   @default("square")
+  cornerDotStyle     String   @default("square")
+  gradientEnabled    Boolean  @default(false)
+  gradientType       String?
+  gradientColor1     String?
+  gradientColor2     String?
+  logoUrl            String?
+  logoSize           Int      @default(40)
+  logoMargin         Int      @default(5)
+  hideBackgroundDots Boolean  @default(true)
+  frameStyle         String?
+  frameText          String?
+  frameColor         String?
+  paletteId          String?
+  fontTitle          String   @default("Inter")
+  fontBody           String   @default("Inter")
+  welcomeScreenUrl   String?
+  updatedAt          DateTime @updatedAt
+  qrCode             QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@map("qr_design")
+}
+
+model QRFile {
+  id            String   @id @default(cuid())
+  qrId          String
+  fileType      FileType
+  fileName      String
+  fileUrl       String
+  mimeType      String
+  sizeBytes     BigInt
+  thumbnailUrl  String?
+  driveFileId   String?
+  driveBackedUp Boolean  @default(false)
+  uploadedAt    DateTime @default(now())
+  qrCode        QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@map("qr_files")
+}
+
+model QRScan {
+  id          String     @id @default(cuid())
+  qrId        String
+  scannedAt   DateTime   @default(now())
+  ip          String
+  country     String?
+  countryCode String?
+  city        String?
+  region      String?
+  lat         Float?
+  lng         Float?
+  deviceType  DeviceType @default(UNKNOWN)
+  os          String?
+  browser     String?
+  userAgent   String?
+  referrer    String?
+  abVariantId String?
+  qrCode      QRCode     @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@index([qrId, scannedAt])
+  @@index([qrId, country])
+  @@index([scannedAt])
+  @@map("qr_scans")
+}
+
+model QRScanDaily {
+  id     String   @id @default(cuid())
+  qrId   String
+  date   DateTime @db.Date
+  count  Int      @default(0)
+  qrCode QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@unique([qrId, date])
+  @@index([qrId, date])
+  @@map("qr_scan_daily")
+}
+
+model SmartRoutingRule {
+  id             String   @id @default(cuid())
+  qrId           String
+  priority       Int
+  conditionType  String
+  conditionValue Json
+  targetUrl      String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  qrCode         QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@index([qrId, priority])
+  @@map("smart_routing_rules")
+}
+
+model ABTestVariant {
+  id        String   @id @default(cuid())
+  qrId      String
+  name      String
+  targetUrl String
+  splitPct  Int
+  scanCount Int      @default(0)
+  createdAt DateTime @default(now())
+  qrCode    QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@map("ab_test_variants")
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  lastUsedAt DateTime?
+  callCount  Int       @default(0)
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  entityId   String?
+  entityType String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+  category   String   @default("system")
+  userAgent  String?
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([category, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Webhook {
+  id         String            @id @default(cuid())
+  userId     String
+  name       String
+  url        String
+  events     String[]
+  secret     String
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  /// Opaque external id (e.g. Zapier subscription id) echoed back on subscribe
+  externalId String?
+  /// null = user-created via dashboard; "zapier" | "make" | "n8n" for integration-owned hooks
+  source     String?
+  deliveries WebhookDelivery[]
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, source])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  webhookId     String
+  event         String
+  payload       Json
+  statusCode    Int?
+  responseBody  String?
+  success       Boolean
+  attemptedAt   DateTime  @default(now())
+  /// Retry state — incremented on each failed redelivery attempt
+  attemptNumber Int       @default(1)
+  lastError     String?
+  maxAttempts   Int       @default(5)
+  /// Set when delivery fails and further attempts remain; cleared once success or exhausted
+  nextRetryAt   DateTime?
+  webhook       Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, attemptedAt])
+  @@index([success, nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+model RefreshToken {
+  id        String    @id
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+model Invoice {
+  id             String       @id @default(cuid())
+  userId         String
+  subscriptionId String
+  amount         Int
+  currency       String       @default("INR")
+  status         String
+  planName       PlanName
+  billingCycle   String
+  periodStart    DateTime
+  periodEnd      DateTime
+  createdAt      DateTime     @default(now())
+  payuPaymentId  String?
+  payuTxnId      String?      @unique
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("invoices")
+}
+
+model SupportTicket {
+  id         String         @id @default(cuid())
+  userId     String
+  subject    String
+  message    String
+  status     TicketStatus   @default(OPEN)
+  priority   TicketPriority @default(MEDIUM)
+  assignedTo String?
+  adminNotes String?
+  resolvedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  category   String         @default("general")
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("support_tickets")
+}
+
+model AbuseReport {
+  id         String    @id @default(cuid())
+  qrId       String
+  reportedBy String?
+  reason     String
+  url        String?
+  isResolved Boolean   @default(false)
+  resolvedBy String?
+  adminNotes String?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  qrCode     QRCode    @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@index([qrId])
+  @@index([isResolved])
+  @@map("abuse_reports")
+}
+
+model Blocklist {
+  id          String   @id @default(cuid())
+  type        String
+  value       String
+  reason      String?
+  addedBy     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  /// How many times this email has been deleted/blocked by an admin.
+  /// Once this reaches 3 the entry becomes permanently banned and cannot be removed.
+  blockCount  Int      @default(1)
+  isPermanent Boolean  @default(false)
+
+  @@unique([type, value])
+  @@index([type, isActive])
+  @@map("blocklist")
+}
+
+model LimitAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  limitType String
+  threshold Int
+  periodKey String
+  sentAt    DateTime @default(now())
+
+  @@unique([userId, limitType, threshold, periodKey])
+  @@index([userId])
+  @@map("limit_alerts")
+}
+
+model RenewalReminder {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  userId         String
+  /// "7_days" | "3_days" | "1_day" | "expired" | "manual"
+  reminderType   String
+  /// YYYY-MM-DD of currentPeriodEnd for auto; YYYY-MM-DD of send date for manual
+  periodKey      String
+  sentAt         DateTime @default(now())
+  /// "sent" | "failed"
+  status         String
+  error          String?
+
+  @@unique([subscriptionId, reminderType, periodKey])
+  @@index([subscriptionId])
+  @@index([userId])
+  @@index([sentAt])
+  @@map("renewal_reminders")
+}
+
+model EmailLog {
+  id       String   @id @default(cuid())
+  userId   String?
+  to       String
+  subject  String
+  template String
+  status   String
+  error    String?
+  provider String   @default("resend")
+  sentAt   DateTime @default(now())
+
+  @@index([sentAt])
+  @@index([status])
+  @@map("email_logs")
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+model Team {
+  id        String       @id @default(cuid())
+  name      String
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  ownerId   String
+  invites   TeamInvite[]
+  members   TeamMember[]
+  owner     User         @relation("UserTeamsOwned", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(VIEWER)
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model TeamInvite {
+  id          String    @id @default(cuid())
+  teamId      String
+  email       String
+  token       String    @unique
+  invitedBy   String
+  role        TeamRole  @default(VIEWER)
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+  expiresAt   DateTime?
+  lastSentAt  DateTime  @default(now())
+  resendCount Int       @default(0)
+  inviter     User      @relation("UserTeamInvitesSent", fields: [invitedBy], references: [id], onDelete: Cascade)
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([email])
+  @@map("team_invites")
+}
+
+model StaticQRGeneration {
+  id        String   @id @default(cuid())
+  type      String
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("static_qr_generations")
+}
+
+model JobPosting {
+  id           String           @id @default(cuid())
+  title        String
+  department   String?
+  location     String?
+  type         String
+  description  String
+  status       JobStatus        @default(OPEN)
+  postedAt     DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  applications JobApplication[]
+
+  @@index([status])
+  @@index([postedAt])
+  @@map("job_postings")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType @default(SYSTEM)
+  title     String
+  body      String
+  actionUrl String?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model JobApplication {
+  id          String            @id @default(cuid())
+  jobId       String?
+  jobTitle    String
+  name        String
+  email       String
+  phone       String?
+  linkedin    String?
+  experience  String?
+  coverLetter String
+  cvFilename  String
+  status      ApplicationStatus @default(NEW)
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  cvMimeType  String?
+  cvPath      String?
+  job         JobPosting?       @relation(fields: [jobId], references: [id])
+
+  @@index([status])
+  @@index([jobId])
+  @@index([createdAt])
+  @@map("job_applications")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PlanName {
+  FREE
+  STARTER
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  TRIALING
+  PAUSED
+}
+
+enum QRType {
+  URL
+  PDF
+  VIDEO
+  LINKS
+  SOCIAL_MEDIA
+  VCARD
+  IMAGE_GALLERY
+  BUSINESS
+  APP
+  MP3
+  MENU
+  WIFI
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  COUPON
+}
+
+enum QRCategory {
+  STATIC
+  DYNAMIC
+}
+
+enum FileType {
+  PDF
+  MP3
+  VIDEO
+  IMAGE
+}
+
+enum DeviceType {
+  MOBILE
+  TABLET
+  DESKTOP
+  UNKNOWN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum NotificationType {
+  SYSTEM
+  FEATURE
+  BILLING
+  LIMIT
+  TEAM
+}
+
+enum JobStatus {
+  OPEN
+  PAUSED
+  FILLED
+  CLOSED
+}
+
+enum ApplicationStatus {
+  NEW
+  REVIEWING
+  SHORTLISTED
+  REJECTED
+  HIRED
+}

@@ -1,0 +1,12 @@
+﻿{
+  "baseUrl": "https://genxqr.in",
+  "headers": {
+    "Authorization": "Bearer {{connection.apiKey}}",
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "GenXQR-Make/1.0"
+  },
+  "log": {
+    "sanitize": ["request.headers.Authorization"]
+  }
+}

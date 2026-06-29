@@ -1,0 +1,5 @@
+{
+  "type": "json",
+  "valid": "{{body.event == 'qr.created'}}",
+  "output": "{{body.data}}"
+}

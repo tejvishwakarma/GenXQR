@@ -1,0 +1,21 @@
+{
+  "url": "/v1/qr",
+  "method": "POST",
+  "body": {
+    "name": "{{parameters.name}}",
+    "type": "{{parameters.type}}",
+    "category": "DYNAMIC",
+    "tags": "{{parameters.tags[]}}",
+    "content": {
+      "data": {
+        "url": "{{parameters.destinationUrl}}"
+      }
+    }
+  },
+  "response": {
+    "output": "{{body.data}}",
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "GenXQR",
+  "short_name": "GenXQR",
+  "description": "Generate, track and analyze QR codes for every use case",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["productivity", "utilities", "business"],
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Generate QR Code",
+      "short_name": "Generate",
+      "url": "/generate",
+      "icons": [{ "src": "/vite.svg", "sizes": "any" }]
+    }
+  ]
+}

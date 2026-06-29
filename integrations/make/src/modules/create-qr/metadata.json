@@ -1,0 +1,7 @@
+{
+  "name": "GenXQR-create-qr",
+  "label": "Create QR Code",
+  "description": "Creates a dynamic QR code that redirects to the given URL. The destination can be changed later without reprinting.",
+  "type": "action",
+  "connection": "GenXQR-api-key"
+}

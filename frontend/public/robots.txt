@@ -1,0 +1,14 @@
+﻿User-agent: *
+Allow: /
+
+# Disallow dashboard and auth pages from search engine indexing
+Disallow: /app/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /admin/
+
+# Sitemap location
+Sitemap: https://genxqr.io/sitemap.xml

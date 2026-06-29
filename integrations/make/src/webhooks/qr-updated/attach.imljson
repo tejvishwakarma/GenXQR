@@ -1,0 +1,18 @@
+{
+  "url": "/v1/webhooks",
+  "method": "POST",
+  "body": {
+    "url": "{{webhook.url}}",
+    "event": "qr.updated",
+    "source": "make",
+    "name": "Make — qr.updated"
+  },
+  "response": {
+    "data": {
+      "webhookId": "{{body.data.id}}"
+    },
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

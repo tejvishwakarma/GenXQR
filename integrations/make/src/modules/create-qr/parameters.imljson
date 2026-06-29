@@ -1,0 +1,43 @@
+[
+  {
+    "name": "name",
+    "label": "Name",
+    "type": "text",
+    "required": true,
+    "help": "Internal label for this QR code."
+  },
+  {
+    "name": "type",
+    "label": "Type",
+    "type": "select",
+    "required": true,
+    "default": "URL",
+    "options": [
+      { "label": "URL", "value": "URL" },
+      { "label": "WhatsApp", "value": "WHATSAPP" },
+      { "label": "Instagram", "value": "INSTAGRAM" },
+      { "label": "Facebook", "value": "FACEBOOK" }
+    ]
+  },
+  {
+    "name": "destinationUrl",
+    "label": "Destination URL",
+    "type": "url",
+    "required": true,
+    "help": "The URL users are sent to when they scan this QR code."
+  },
+  {
+    "name": "tags",
+    "label": "Tags",
+    "type": "array",
+    "spec": [
+      {
+        "name": "value",
+        "label": "Tag",
+        "type": "text"
+      }
+    ],
+    "required": false,
+    "help": "Optional tags for organisation (max 10)."
+  }
+]

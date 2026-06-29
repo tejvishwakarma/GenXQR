@@ -1,0 +1,9 @@
+﻿[
+  {
+    "name": "apiKey",
+    "label": "API Key",
+    "type": "text",
+    "required": true,
+    "help": "Create an API key at <a href='https://genxqr.in/app/api-keys' target='_blank'>genxqr.in/app/api-keys</a>. Requires a PRO plan or higher. The key begins with <code>nxqr_</code>."
+  }
+]

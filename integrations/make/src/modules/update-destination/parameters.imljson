@@ -1,0 +1,20 @@
+﻿[
+  {
+    "name": "qrId",
+    "label": "QR Code",
+    "type": "select",
+    "required": true,
+    "options": {
+      "rpc": "GenXQR-list-qrs",
+      "label": "name",
+      "value": "id"
+    },
+    "help": "Select the QR code to update."
+  },
+  {
+    "name": "destinationUrl",
+    "label": "New Destination URL",
+    "type": "url",
+    "required": true
+  }
+]

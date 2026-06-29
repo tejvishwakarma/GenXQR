@@ -1,0 +1,24 @@
+{
+  "name": "GenXQR",
+  "label": "GenXQR",
+  "version": "1.0.0",
+  "description": "Create and manage dynamic QR codes, track scans in real time, and automate workflows — all from Make.",
+  "basePath": "https://genxqr.in",
+  "categories": ["productivity", "marketing"],
+  "audience": "public",
+  "samples": {
+    "trigger_qr_scanned": {
+      "id": "scan_01HPAX",
+      "qrId": "qr_01HPAX",
+      "qrSlug": "product-brochure",
+      "qrName": "Product Brochure",
+      "scannedAt": "2026-04-17T10:30:00.000Z",
+      "country": "India",
+      "countryCode": "IN",
+      "city": "Mumbai",
+      "deviceType": "MOBILE",
+      "os": "iOS",
+      "browser": "Safari"
+    }
+  }
+}

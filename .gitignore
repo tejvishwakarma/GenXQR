@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+*.swp
+*.swo
+
+# Prisma
+backend/prisma/migrations/
+
+# Uploads / temp / runtime data
+uploads/
+tmp/
+backend/data/
+
+# WSL / local dev scripts (contain dev credentials, machine-specific)
+backend/scripts/
+
+# Leftover terminal sessions saved as files
+backend/l*
+
+# Temporary error / build log dumps
+frontend/err.txt
+frontend/pnpm_err.txt
+frontend/tsc_errors.txt
+
+# AI assistant context (machine-local)
+.claude/
+
+# Planning / internal docs
+Planning/
+
+backend.env.txt
+Cloudflare Origin Certificate.txt
+*.env.txt
+*Certificate*.txt
+
+# Testing files
+tests/

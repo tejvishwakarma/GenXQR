@@ -1,0 +1,7 @@
+{
+  "name": "GenXQR-update-destination",
+  "label": "Update QR Destination",
+  "description": "Changes where a dynamic QR code redirects to. The printed QR stays the same — no reprinting required.",
+  "type": "action",
+  "connection": "GenXQR-api-key"
+}

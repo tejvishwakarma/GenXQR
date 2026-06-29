@@ -1,0 +1,15 @@
+{
+  "url": "/v1/qr",
+  "method": "GET",
+  "qs": {
+    "page": 1,
+    "limit": 50,
+    "sort": "updatedAt"
+  },
+  "response": {
+    "output": "{{body.data}}",
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

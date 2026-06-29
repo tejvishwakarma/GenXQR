@@ -1,0 +1,24 @@
+{
+  "name": "genx-qr",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev:frontend": "pnpm --filter genxqr-frontend dev",
+    "dev:backend": "pnpm --filter @genx-qr/backend dev",
+    "build:frontend": "pnpm --filter genxqr-frontend build",
+    "build:backend": "pnpm --filter @genx-qr/backend build",
+    "db:generate": "pnpm --filter @genx-qr/backend db:generate",
+    "db:migrate": "pnpm --filter @genx-qr/backend db:migrate",
+    "db:push": "pnpm --filter @genx-qr/backend db:push",
+    "db:studio": "pnpm --filter @genx-qr/backend db:studio",
+    "wsl:sync-ip": "pnpm --filter @genx-qr/backend wsl:sync-ip",
+    "wsl:start": "pnpm --filter @genx-qr/backend wsl:start"
+  },
+  "pnpm": {
+    "overrides": {
+      "caniuse-lite": ">=1.0.30001779",
+      "browserslist": ">=4.24.4"
+    }
+  }
+}

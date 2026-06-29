@@ -1,0 +1,9 @@
+{
+  "url": "/v1/webhooks/{{webhook.data.webhookId}}",
+  "method": "DELETE",
+  "response": {
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

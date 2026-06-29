@@ -1,0 +1,8 @@
+{
+  "name": "GenXQR-watch-qr-scanned",
+  "label": "Watch QR Scans",
+  "description": "Triggers instantly when any of your QR codes is scanned. Includes location, device, and browser data.",
+  "type": "trigger",
+  "connection": "GenXQR-api-key",
+  "webhook": "GenXQR-qr-scanned"
+}

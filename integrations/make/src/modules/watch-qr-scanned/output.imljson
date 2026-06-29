@@ -1,0 +1,15 @@
+[
+  { "name": "id", "label": "Scan ID", "type": "text" },
+  { "name": "qrId", "label": "QR Code ID", "type": "text" },
+  { "name": "qrSlug", "label": "QR Code Slug", "type": "text" },
+  { "name": "qrName", "label": "QR Code Name", "type": "text" },
+  { "name": "scannedAt", "label": "Scanned At", "type": "date" },
+  { "name": "country", "label": "Country", "type": "text" },
+  { "name": "countryCode", "label": "Country Code", "type": "text" },
+  { "name": "city", "label": "City", "type": "text" },
+  { "name": "region", "label": "Region", "type": "text" },
+  { "name": "deviceType", "label": "Device Type", "type": "text" },
+  { "name": "os", "label": "Operating System", "type": "text" },
+  { "name": "browser", "label": "Browser", "type": "text" },
+  { "name": "referrer", "label": "Referrer URL", "type": "url" }
+]

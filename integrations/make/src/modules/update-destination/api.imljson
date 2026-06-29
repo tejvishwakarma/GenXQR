@@ -1,0 +1,17 @@
+{
+  "url": "/v1/qr/{{parameters.qrId}}",
+  "method": "PATCH",
+  "body": {
+    "content": {
+      "data": {
+        "url": "{{parameters.destinationUrl}}"
+      }
+    }
+  },
+  "response": {
+    "output": "{{body.data}}",
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "url": "/v1/qr/{{parameters.qrId}}/toggle",
+  "method": "PATCH",
+  "response": {
+    "output": "{{body.data}}",
+    "error": {
+      "message": "[{{statusCode}}] {{body.error}}"
+    }
+  }
+}
