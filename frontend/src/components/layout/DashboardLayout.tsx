@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { UserAvatar } from "@/components/ui/UserAvatar"
 import {
   apiFetch, clearClientSession, exchangeOAuthCode, getBillingUsage, getCurrentUser,
   getSubscription, isImpersonatingSessionActive, stopImpersonationSession,
@@ -23,6 +24,7 @@ import { SupportModal } from "@/components/SupportModal"
 
 const navItems: { label: string; href: string; icon: ReactElement; badge?: string }[] = [
   { label: "Dashboard", href: "/app/dashboard", icon: <LayoutDashboard size={18} /> },
+  { label: "My QR Codes", href: "/app/qr-codes", icon: <QrCode size={18} /> },
   { label: "Create QR", href: "/app/create", icon: <PlusCircle size={18} /> },
   { label: "Analytics", href: "/app/analytics", icon: <BarChart3 size={18} /> },
   { label: "Bulk Generate", href: "/app/bulk-generate", icon: <Layers size={18} /> },
@@ -47,6 +49,29 @@ export function DashboardLayout() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const isActive = (href: string) => location.pathname === href
   const { theme, toggleTheme } = useTheme()
+
+  // ─── Real-time global QR search ─────────────────────────────────────────────
+  // Mirror the box from the URL query so this box and the QR page's own search
+  // stay in sync, and the box clears when navigating away from a search context.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get("q") ?? ""
+    setSearchQuery((cur) => (cur === q ? cur : q))
+  }, [location.search])
+
+  // Search as you type: debounce, then drive the URL query on the QR list page.
+  // Off the list page we only navigate once there's a query (don't yank the user
+  // away on an empty box); on the page we replace history to avoid per-keystroke spam.
+  useEffect(() => {
+    const onQrPage = location.pathname === "/app/qr-codes"
+    const q = searchQuery.trim()
+    const currentQ = new URLSearchParams(location.search).get("q") ?? ""
+    if (q === currentQ) return
+    if (!q && !onQrPage) return
+    const t = setTimeout(() => {
+      navigate(q ? `/app/qr-codes?q=${encodeURIComponent(q)}` : "/app/qr-codes", { replace: onQrPage })
+    }, 250)
+    return () => clearTimeout(t)
+  }, [searchQuery, location.pathname, location.search, navigate])
 
   // True while we're mid-exchange of a Google OAuth one-time code.
   // Prevents the auth guard and TanStack queries from firing before the token is stored.
@@ -113,7 +138,6 @@ export function DashboardLayout() {
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"
   const displayName = user?.name ?? "User"
   const displayEmail = user?.email ?? ""
-  const initials = displayName.charAt(0).toUpperCase()
 
   const { data: sessionUserData } = useQuery({
     queryKey: ["session-user"],
@@ -281,7 +305,7 @@ export function DashboardLayout() {
           <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.4)]">
             <QrCode size={18} className="text-white" />
           </div>
-          <span className="text-zinc-900 dark:text-white font-bold text-lg">Nexus<span className="gradient-text">QR</span></span>
+          <span className="text-zinc-900 dark:text-white font-bold text-lg">GenX<span className="gradient-text">QR</span></span>
         </Link>
       </div>
 
@@ -419,12 +443,7 @@ export function DashboardLayout() {
           onClick={() => setProfileMenuOpen(!profileMenuOpen)}
           className="w-full flex items-center gap-3 p-2 -m-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
         >
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-violet-400 text-sm font-semibold shrink-0">
-            {displayAvatarUrl
-              ? <img src={displayAvatarUrl} alt={displayName} className="w-full h-full object-cover" />
-              : initials
-            }
-          </div>
+          <UserAvatar src={displayAvatarUrl} name={displayName} className="w-8 h-8 text-sm" />
           <div className="flex-1 min-w-0 text-left">
             <div className="text-zinc-900 dark:text-white text-sm font-medium truncate">{displayName}</div>
             <div className="text-zinc-500 text-xs truncate">{displayEmail}</div>

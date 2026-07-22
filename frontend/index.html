@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark" dir="ltr">
+<html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -42,10 +42,9 @@
     <!-- Inline theme init: prevents flash of wrong theme before React mounts -->
     <script>
       (function () {
-        // Theme
+        // Theme — light is the default; only go dark if the user explicitly chose it.
         var stored = localStorage.getItem('theme');
-        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        var dark = stored ? stored === 'dark' : prefersDark;
+        var dark = stored === 'dark';
         document.documentElement.classList.toggle('dark', dark);
         // RTL language direction
         var lang = localStorage.getItem('GenXQR_lang') || '';

@@ -198,6 +198,7 @@ export default function QRAnalyticsPage() {
 
   const deviceTotal = analytics?.byDevice.reduce((s, d) => s + d.count, 0) ?? 0
   const countryTotal = analytics?.byCountry.reduce((s, c) => s + c.count, 0) || 1
+  const cityTotal = analytics?.byCity.reduce((s, c) => s + c.count, 0) || 1
   const osTotal = analytics?.byOS.reduce((s, o) => s + o.count, 0) || 1
   const browserTotal = analytics?.byBrowser.reduce((s, b) => s + b.count, 0) || 1
 
@@ -466,6 +467,48 @@ export default function QRAnalyticsPage() {
             </Card>
           </div>
 
+          {/* Top Locations (city / region) */}
+          <Card>
+            <CardHeader><CardTitle className="text-base">Top Locations</CardTitle></CardHeader>
+            <CardContent>
+              {analytics.byCity.length > 0 ? (
+                <div className="space-y-3">
+                  {analytics.byCity.slice(0, 10).map((c, i) => {
+                    const pct = Math.round((c.count / cityTotal) * 100)
+                    const flag = c.countryCode ? (COUNTRY_FLAGS[c.countryCode] ?? "🌐") : "🌐"
+                    const place = [c.city, c.region].filter(Boolean).join(", ")
+                    return (
+                      <div key={`${c.city}-${c.region}-${c.countryCode}-${i}`} className="flex items-center gap-3">
+                        <span className="text-zinc-600 text-xs font-mono w-4 shrink-0 text-right">{i + 1}</span>
+                        <span className="text-lg w-6 text-center shrink-0">{flag}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-zinc-800 dark:text-zinc-200 text-sm truncate">
+                              {place || "Unknown"}
+                              {c.country && <span className="text-zinc-500 dark:text-zinc-600 text-xs ml-1">{c.country}</span>}
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className="text-zinc-500 text-xs">{c.count.toLocaleString()}</span>
+                              <span className="text-zinc-700 dark:text-zinc-700 text-xs bg-zinc-200 dark:bg-zinc-800 rounded px-1.5 py-0.5">{pct}%</span>
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${pct}%`, background: i === 0 ? "#7c3aed" : i === 1 ? "#6366f1" : "#4f46e5" }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32 text-zinc-600 text-sm">No city-level data yet</div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* ── OS + Browser ────────────────────────────────────────────── */}
           <div className="grid lg:grid-cols-2 gap-6">
 
@@ -558,11 +601,18 @@ export default function QRAnalyticsPage() {
                               <span className="text-base">
                                 {scan.countryCode ? (COUNTRY_FLAGS[scan.countryCode] ?? "🌐") : "🌐"}
                               </span>
-                              <div>
-                                <span className="text-zinc-800 dark:text-zinc-200">{scan.city ?? scan.country ?? "Unknown"}</span>
-                                {scan.country && scan.city && (
-                                  <span className="text-zinc-500 dark:text-zinc-600 text-xs ml-1">{scan.country}</span>
-                                )}
+                              <div className="min-w-0">
+                                {(() => {
+                                  const place = [scan.city, scan.region, scan.country].filter(Boolean)
+                                  const primary = place[0] ?? "Unknown"
+                                  const secondary = place.slice(1).join(", ")
+                                  return (
+                                    <>
+                                      <span className="text-zinc-800 dark:text-zinc-200">{primary}</span>
+                                      {secondary && <span className="text-zinc-500 dark:text-zinc-600 text-xs ml-1">{secondary}</span>}
+                                    </>
+                                  )
+                                })()}
                               </div>
                             </div>
                           </td>

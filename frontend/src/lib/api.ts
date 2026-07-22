@@ -510,6 +510,24 @@ export interface AdminMetrics {
 export const fetchAdminDashboard = () =>
   adminFetch<{ success: boolean; data: AdminMetrics }>("/admin-api/dashboard")
 
+// Admin — System Health (SUPER_ADMIN only)
+export interface SystemHealthProbe { status: "up" | "down"; latencyMs: number | null }
+export interface SystemHealth {
+  overall: "healthy" | "degraded" | "down"
+  database: SystemHealthProbe
+  redis: SystemHealthProbe
+  queue: { status: "up" | "down"; waiting: number; active: number; failed: number; delayed: number }
+  process: {
+    uptimeSec: number
+    memoryMB: { rss: number; heapUsed: number; heapTotal: number }
+    nodeVersion: string
+    environment: string
+  }
+  checkedAt: string
+}
+export const fetchAdminSystemHealth = () =>
+  adminFetch<{ success: boolean; data: SystemHealth }>("/admin-api/system-health")
+
 // Admin — Users
 export interface AdminUser {
   id: string; name: string; email: string; role: string
@@ -1201,6 +1219,13 @@ export interface GeoBreakdown { country: string; countryCode: string | null; cou
 export interface DeviceBreakdown { deviceType: string; count: number }
 export interface OSBreakdown { os: string; count: number }
 export interface BrowserBreakdown { browser: string; count: number }
+export interface LocationBreakdown {
+  city: string
+  region: string | null
+  country: string | null
+  countryCode: string | null
+  count: number
+}
 export interface RecentScan {
   id: string
   scannedAt: string
@@ -1208,6 +1233,7 @@ export interface RecentScan {
   country: string | null
   countryCode: string | null
   city: string | null
+  region: string | null
   deviceType: string
   os: string | null
   browser: string | null
@@ -1224,6 +1250,7 @@ export interface QRAnalytics {
   byOS: OSBreakdown[]
   byBrowser: BrowserBreakdown[]
   byCountry: GeoBreakdown[]
+  byCity: LocationBreakdown[]
   recentScans: RecentScan[]
 }
 

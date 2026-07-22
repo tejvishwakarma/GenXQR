@@ -28,12 +28,21 @@ export interface BrowserBreakdown {
   count: number
 }
 
+export interface LocationBreakdown {
+  city: string
+  region: string | null
+  country: string | null
+  countryCode: string | null
+  count: number
+}
+
 export interface RecentScan {
   id: string
   scannedAt: string
   ip: string
   country: string | null
   city: string | null
+  region: string | null
   deviceType: string
   os: string | null
   browser: string | null
@@ -50,6 +59,7 @@ export interface QRAnalyticsResult {
   byOS: OSBreakdown[]
   byBrowser: BrowserBreakdown[]
   byCountry: GeoBreakdown[]
+  byCity: LocationBreakdown[]
   recentScans: RecentScan[]
 }
 
@@ -95,6 +105,7 @@ export async function getQRAnalytics(
     osRows,
     browserRows,
     countryRows,
+    cityRows,
     recentScanRows,
   ] = await Promise.all([
     // Total scan count from the denormalised column (fast)
@@ -158,6 +169,15 @@ export async function getQRAnalytics(
       take: 20,
     }),
 
+    // City / location breakdown — the actual place a QR was scanned
+    prisma.qRScan.groupBy({
+      by: ["city", "region", "country", "countryCode"],
+      where: { qrId, city: { not: null }, scannedAt: { gte: rangeStart } },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      take: 20,
+    }),
+
     // Recent scans (last 50)
     prisma.qRScan.findMany({
       where: { qrId },
@@ -169,6 +189,7 @@ export async function getQRAnalytics(
         ip: true,
         country: true,
         city: true,
+        region: true,
         deviceType: true,
         os: true,
         browser: true,
@@ -213,12 +234,20 @@ export async function getQRAnalytics(
       countryCode: r.countryCode ?? null,
       count: r._count.id,
     })),
+    byCity: cityRows.map((r) => ({
+      city: r.city ?? "Unknown",
+      region: r.region ?? null,
+      country: r.country ?? null,
+      countryCode: r.countryCode ?? null,
+      count: r._count.id,
+    })),
     recentScans: recentScanRows.map((s) => ({
       id: s.id,
       scannedAt: s.scannedAt.toISOString(),
       ip: s.ip,
       country: s.country,
       city: s.city,
+      region: s.region,
       deviceType: s.deviceType,
       os: s.os,
       browser: s.browser,

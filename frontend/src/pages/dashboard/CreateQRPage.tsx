@@ -2107,7 +2107,10 @@ export default function CreateQRPage() {
             <div className={previewTab === "scan" ? "" : "hidden"}>
               <LandingPreview
                 type={selectedType}
-                control={control}
+                // react-hook-form's Control is invariant in its field-values type, so a
+                // concrete Control<FormValues> isn't assignable to the preview's
+                // form-agnostic prop. Cast at this boundary; runtime behaviour is unaffected.
+                control={control as unknown as import("react").ComponentProps<typeof LandingPreview>["control"]}
                 vcardData={vcardData}
                 primaryColor={pageAccentColor}
                 socialLinks={socialLinks}

@@ -59,6 +59,7 @@ import ExpiredPage from "@/pages/scan/ExpiredPage"
 
 // Dashboard Pages
 import DashboardPage from "@/pages/dashboard/DashboardPage"
+import MyQRCodesPage from "@/pages/dashboard/MyQRCodesPage"
 import CreateQRPage from "@/pages/dashboard/CreateQRPage"
 import QRAnalyticsPage from "@/pages/dashboard/QRAnalyticsPage"
 import QRDetailPage from "@/pages/dashboard/QRDetailPage"
@@ -147,6 +148,7 @@ function App() {
         <Route path="/app" element={<DashboardLayout />}>
           <Route index element={<Navigate to="/app/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="qr-codes" element={<MyQRCodesPage />} />
           <Route path="create" element={<CreateQRPage />} />
           <Route path="qr/:id" element={<QRDetailPage />} />
           <Route path="qr/:id/analytics" element={<QRAnalyticsPage />} />

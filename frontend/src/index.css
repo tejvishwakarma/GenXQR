@@ -184,6 +184,15 @@
     color: #ffffff;
   }
 
+  /* Native date/time pickers: render the calendar/clock indicator in a light
+     tone so it stays visible on dark inputs (default is dark-on-dark). */
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"],
+  .dark input[type="month"] {
+    color-scheme: dark;
+  }
+
   .label-text {
     @apply text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5 block;
   }

@@ -19,6 +19,7 @@ import { SocialIcon } from "@/components/ui/social-icon"
 
 export interface LandingPreviewProps {
   type: string
+  // LandingPreview is form-agnostic (only reads values via useWatch), so it accepts any form's Control.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   control: Control<any, any, any>
   vcardData: VCardData

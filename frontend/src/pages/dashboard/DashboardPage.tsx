@@ -14,16 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { listQRs, deleteQR, toggleQR, duplicateQR, getGlobalAnalytics, getQrBaseUrl, getBillingUsage, getSubscription, type QRCode } from "@/lib/api"
+import { QRTypeIcon } from "@/lib/qrTypeIcon"
 
 // â”€â”€â”€ Label / icon maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-const TYPE_ICON: Record<string, string> = {
-  URL: "🔗", PDF: "📄", VIDEO: "🎬", LINKS: "🔗",
-  SOCIAL_MEDIA: "👥", VCARD: "👤", IMAGE_GALLERY: "🖼️",
-  BUSINESS: "🏢", APP: "📱", MP3: "🎵", MENU: "🍽️",
-  WIFI: "📶", WHATSAPP: "💬", INSTAGRAM: "📸",
-  FACEBOOK: "📘", COUPON: "🏷️",
-}
 
 const TYPE_LABEL: Record<string, string> = {
   URL: "URL", PDF: "PDF", VIDEO: "Video", LINKS: "Multi-Link",
@@ -691,7 +684,7 @@ export default function DashboardPage() {
                 <Link to={`/app/qr/${qr.id}/analytics`} key={qr.id}>
                   <div className={`px-6 py-3 flex items-center gap-3 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors ${i < arr.length - 1 ? "border-b border-zinc-100 dark:border-zinc-800" : ""}`}>
                     <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-base">
-                      {TYPE_ICON[qr.type] ?? "🔲"}
+                      <QRTypeIcon type={qr.type} size={16} className="text-violet-500 dark:text-violet-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-zinc-900 dark:text-zinc-200 text-sm font-medium truncate">{qr.name}</div>
@@ -818,7 +811,7 @@ export default function DashboardPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-lg">
-                            {TYPE_ICON[qr.type] ?? "🔲"}
+                            <QRTypeIcon type={qr.type} size={16} className="text-violet-500 dark:text-violet-400" />
                           </div>
                           <div>
                             <div className="text-zinc-900 dark:text-white text-sm font-medium">{qr.name}</div>

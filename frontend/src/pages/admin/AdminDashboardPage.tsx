@@ -7,9 +7,10 @@ import {
 import {
   Users, QrCode, Scan, DollarSign, HardDrive, TrendingUp, RefreshCw,
   ArrowUpRight, Crown, Activity, Clock,
+  Database, Server, Layers, HeartPulse, CheckCircle2, AlertTriangle, XCircle,
 } from "lucide-react"
 import {
-  fetchAdminDashboard, fetchAdminSignups, fetchAdminScans,
+  fetchAdminDashboard, fetchAdminSignups, fetchAdminScans, fetchAdminSystemHealth,
 } from "@/lib/api"
 
 const PLAN_COLORS: Record<string, string> = {
@@ -71,9 +72,119 @@ function KPICard({ icon, label, value, sub, gradient, iconBg, href }: KPICardPro
   return inner
 }
 
+/** Reads the current admin's role from the stored access token (client-side gate only). */
+function currentRole(): string | null {
+  try {
+    const token = localStorage.getItem("access_token")
+    if (!token) return null
+    const payload = JSON.parse(atob(token.split(".")[1] ?? "")) as { role?: string }
+    return payload.role ?? null
+  } catch {
+    return null
+  }
+}
+
+function formatUptime(sec: number): string {
+  const days = Math.floor(sec / 86400)
+  const hrs = Math.floor((sec % 86400) / 3600)
+  const mins = Math.floor((sec % 3600) / 60)
+  const parts: string[] = []
+  if (days) parts.push(`${days}d`)
+  if (hrs) parts.push(`${hrs}h`)
+  parts.push(`${mins}m`)
+  return parts.join(" ")
+}
+
+const OVERALL_STYLES = {
+  healthy:  { label: "All systems operational", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30", Icon: CheckCircle2 },
+  degraded: { label: "Degraded",                cls: "bg-amber-500/15 text-amber-300 border-amber-500/30",       Icon: AlertTriangle },
+  down:     { label: "Outage",                  cls: "bg-red-500/15 text-red-300 border-red-500/30",             Icon: XCircle },
+} as const
+
+function ServiceRow({ icon, name, up, detail }: { icon: React.ReactNode; name: string; up: boolean; detail?: string }) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-zinc-800/50 rounded-xl">
+      <div className="flex items-center gap-2.5">
+        <span className="text-zinc-400">{icon}</span>
+        <span className="text-white text-sm font-medium">{name}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {detail && <span className="text-zinc-500 text-xs">{detail}</span>}
+        <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border font-medium ${up ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-red-500/15 text-red-300 border-red-500/30"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${up ? "bg-emerald-400" : "bg-red-400"}`} />
+          {up ? "Up" : "Down"}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function HealthStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 bg-zinc-800/50 rounded-xl">
+      <p className="text-zinc-500 text-[11px] uppercase tracking-wide">{label}</p>
+      <p className="text-white text-sm font-semibold mt-0.5 truncate">{value}</p>
+    </div>
+  )
+}
+
+function SystemHealthPanel() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "system-health"],
+    queryFn: fetchAdminSystemHealth,
+    refetchInterval: 15_000,
+  })
+  const h = data?.data
+  if (isLoading && !h) {
+    return <div className="h-56 bg-zinc-900 rounded-2xl border border-zinc-800 animate-pulse" />
+  }
+  if (!h) return null
+  const overall = OVERALL_STYLES[h.overall]
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <HeartPulse size={18} className="text-rose-400" />
+          <p className="text-white font-semibold">System Health</p>
+        </div>
+        <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border font-medium ${overall.cls}`}>
+          <overall.Icon size={13} />
+          {overall.label}
+        </span>
+      </div>
+
+      <div className="grid sm:grid-cols-3 gap-3">
+        <ServiceRow icon={<Database size={16} />} name="Database" up={h.database.status === "up"}
+          detail={h.database.latencyMs != null ? `${h.database.latencyMs}ms` : undefined} />
+        <ServiceRow icon={<Server size={16} />} name="Redis" up={h.redis.status === "up"}
+          detail={h.redis.latencyMs != null ? `${h.redis.latencyMs}ms` : undefined} />
+        <ServiceRow icon={<Layers size={16} />} name="Scan Queue" up={h.queue.status === "up"}
+          detail={h.queue.status === "up" ? `${h.queue.waiting} queued` : undefined} />
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+        <HealthStat label="Uptime" value={formatUptime(h.process.uptimeSec)} />
+        <HealthStat label="Memory (RSS)" value={`${h.process.memoryMB.rss} MB`} />
+        <HealthStat label="Node" value={h.process.nodeVersion} />
+        <HealthStat label="Environment" value={h.process.environment} />
+      </div>
+
+      {h.queue.status === "up" && (h.queue.active > 0 || h.queue.delayed > 0 || h.queue.failed > 0) && (
+        <div className="flex flex-wrap items-center gap-2 mt-3 text-xs">
+          <span className="text-zinc-500">Queue:</span>
+          <span className="px-2 py-0.5 rounded-full border font-medium bg-blue-500/15 text-blue-300 border-blue-500/30">{h.queue.active} active</span>
+          <span className="px-2 py-0.5 rounded-full border font-medium bg-amber-500/15 text-amber-300 border-amber-500/30">{h.queue.delayed} delayed</span>
+          <span className="px-2 py-0.5 rounded-full border font-medium bg-red-500/15 text-red-300 border-red-500/30">{h.queue.failed} failed</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminDashboardPage() {
   const [range, setRange] = useState(30)
   const [lastRefresh, setLastRefresh] = useState(() => new Date())
+  const isSuperAdmin = currentRole() === "SUPER_ADMIN"
 
   const { data: dash, isLoading, refetch } = useQuery({
     queryKey: ["admin", "dashboard"],
@@ -210,6 +321,9 @@ export default function AdminDashboardPage() {
           href="/admin/revenue"
         />
       </div>
+
+      {/* System Health — SUPER_ADMIN only */}
+      {isSuperAdmin && <SystemHealthPanel />}
 
       {/* Range selector */}
       <div className="flex items-center gap-2">

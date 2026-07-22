@@ -126,11 +126,15 @@ export default function SettingsPage() {
   })
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl ?? null)
+  const [avatarErrored, setAvatarErrored] = useState(false)
 
   useEffect(() => {
     const serverUrl = sessionUserData?.data?.avatarUrl
     if (serverUrl !== undefined) setAvatarUrl(serverUrl ?? null)
   }, [sessionUserData?.data?.avatarUrl])
+
+  // Fall back to the initial if the avatar image fails to load; retry on change.
+  useEffect(() => { setAvatarErrored(false) }, [avatarUrl])
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -191,8 +195,8 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-5 mb-6">
               <div className="relative w-16 h-16 rounded-2xl overflow-hidden bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-violet-400 text-2xl font-bold shrink-0">
-                {avatarUrl
-                  ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                {avatarUrl && !avatarErrored
+                  ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" onError={() => setAvatarErrored(true)} />
                   : user.initial
                 }
                 {avatarUploadState.loading && (

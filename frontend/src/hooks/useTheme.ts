@@ -7,7 +7,7 @@ const DASHBOARD_THEME_KEY = "dashboard-theme"
 function getDashboardTheme(): Theme {
   const stored = localStorage.getItem(DASHBOARD_THEME_KEY) as Theme | null
   if (stored === "light" || stored === "dark") return stored
-  return "dark"
+  return "light"
 }
 
 /**
