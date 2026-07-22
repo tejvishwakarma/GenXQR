@@ -60,7 +60,11 @@ router.get(
         },
       })
 
-      if (!qr || !qr.isActive) {
+      // Password-protected QRs must never serve content from this unauthenticated
+      // endpoint. Content is only released after a successful password check via
+      // POST /r/:slug/password. Returning 404 here avoids leaking the protected
+      // destination/credentials to anyone who knows the slug.
+      if (!qr || !qr.isActive || qr.isPasswordProtected) {
         res.status(404).json({ success: false, error: "QR code not found" })
         return
       }

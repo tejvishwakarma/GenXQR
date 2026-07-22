@@ -7,9 +7,11 @@ export const redis = new Redis(env.REDIS_URL, {
   enableReadyCheck: true,
   lazyConnect: true,
   retryStrategy: (times) => {
-    if (times > 5) {
-      logger.error("Redis: maximum retry attempts exceeded")
-      return null
+    // Retry indefinitely with a capped backoff. Returning null here would stop
+    // reconnection for the entire process lifetime, so a brief Redis blip would
+    // permanently break rate limiting and the scan queue until a manual restart.
+    if (times % 10 === 0) {
+      logger.warn(`Redis: reconnect still failing after ${times} attempts`)
     }
     return Math.min(times * 200, 2000)
   },

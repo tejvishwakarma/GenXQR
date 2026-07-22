@@ -34,6 +34,9 @@ import { sendEmail, buildBroadcastEmail } from "../services/email.service.js"
 import { hashPassword } from "../utils/password.js"
 import { broadcastNotification } from "../services/notification.service.js"
 import type { NotificationType } from "@prisma/client"
+import { env } from "../config/env.js"
+import { redis } from "../redis/client.js"
+import { scanQueue } from "../services/scan.service.js"
 
 const router: IRouter = Router()
 
@@ -108,6 +111,98 @@ router.get(
       res.json({
         success: true,
         data: { totalUsers, activeSubscriptions, totalQRCodes, scansToday, totalScans, mrr, storageGB, recentSignups },
+      })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── System health ──────────────────────────────────────────────────────────
+
+/**
+ * Bounds a probe so a hung/partitioned dependency reports "down" quickly instead
+ * of leaving the whole request (and the dashboard UI) hanging on stale data.
+ */
+function withTimeout<T>(probe: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    probe,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("probe timed out")), ms)),
+  ])
+}
+
+const HEALTH_PROBE_TIMEOUT_MS = 3000
+
+/**
+ * GET /admin-api/system-health
+ * Live status of core infrastructure (database, Redis, scan queue) plus API
+ * process metrics. SUPER_ADMIN only — exposes internal operational detail.
+ * Each probe is isolated so one failure never takes down the whole response.
+ */
+router.get(
+  "/system-health",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const callerRole = (req.user as unknown as AccessTokenPayload).role
+      if (callerRole !== "SUPER_ADMIN") {
+        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
+        return
+      }
+
+      // Database liveness + round-trip latency
+      let database: { status: "up" | "down"; latencyMs: number | null } = { status: "down", latencyMs: null }
+      try {
+        const start = Date.now()
+        await withTimeout(prisma.$queryRaw`SELECT 1`, HEALTH_PROBE_TIMEOUT_MS)
+        database = { status: "up", latencyMs: Date.now() - start }
+      } catch { /* leave as down */ }
+
+      // Redis liveness + round-trip latency
+      let redisHealth: { status: "up" | "down"; latencyMs: number | null } = { status: "down", latencyMs: null }
+      try {
+        const start = Date.now()
+        const pong = await withTimeout(redis.ping(), HEALTH_PROBE_TIMEOUT_MS)
+        redisHealth = { status: pong === "PONG" ? "up" : "down", latencyMs: Date.now() - start }
+      } catch { /* leave as down */ }
+
+      // Scan queue depth (BullMQ)
+      let queue: { status: "up" | "down"; waiting: number; active: number; failed: number; delayed: number } = {
+        status: "down", waiting: 0, active: 0, failed: 0, delayed: 0,
+      }
+      try {
+        const counts = await withTimeout(
+          scanQueue.getJobCounts("waiting", "active", "failed", "delayed"),
+          HEALTH_PROBE_TIMEOUT_MS,
+        )
+        queue = {
+          status: "up",
+          waiting: counts["waiting"] ?? 0,
+          active: counts["active"] ?? 0,
+          failed: counts["failed"] ?? 0,
+          delayed: counts["delayed"] ?? 0,
+        }
+      } catch { /* leave as down */ }
+
+      const mem = process.memoryUsage()
+      const toMB = (bytes: number): number => Math.round(bytes / 1_048_576)
+      const processInfo = {
+        uptimeSec: Math.round(process.uptime()),
+        memoryMB: { rss: toMB(mem.rss), heapUsed: toMB(mem.heapUsed), heapTotal: toMB(mem.heapTotal) },
+        nodeVersion: process.version,
+        environment: env.NODE_ENV,
+      }
+
+      // Overall: the database is critical (down => down); any other failure => degraded.
+      const overall: "healthy" | "degraded" | "down" =
+        database.status === "down"
+          ? "down"
+          : redisHealth.status === "up" && queue.status === "up"
+            ? "healthy"
+            : "degraded"
+
+      res.json({
+        success: true,
+        data: { overall, database, redis: redisHealth, queue, process: processInfo, checkedAt: new Date().toISOString() },
       })
     } catch (err) {
       next(err)
@@ -261,6 +356,13 @@ router.patch(
         role !== undefined
       ) {
         res.status(403).json({ success: false, error: "Only SUPER_ADMINs can modify another SUPER_ADMIN" })
+        return
+      }
+
+      // Only SUPER_ADMINs may assign roles at all. Without this, a plain ADMIN could
+      // promote any account (e.g. a sockpuppet USER) to SUPER_ADMIN and escalate.
+      if (role !== undefined && adminPayload.role !== "SUPER_ADMIN") {
+        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can change user roles" })
         return
       }
 

@@ -406,6 +406,17 @@ export async function verifyAndActivateSubscription(
     throw new AppError(400, "Invalid plan in payment response")
   }
 
+  // Idempotency + replay protection: a PayU txnid may be consumed exactly once.
+  // The /payu-success callback is public and every field feeding the signature is
+  // static for a completed payment, so a captured valid callback could otherwise be
+  // replayed to renew a paid plan indefinitely. If an invoice already exists for this
+  // txnid, the subscription was already activated — stop here.
+  const alreadyProcessed = await prisma.invoice.findUnique({ where: { payuTxnId: txnid } })
+  if (alreadyProcessed) {
+    logger.warn("PayU callback replay ignored (txnid already processed)", { userId, txnid })
+    return
+  }
+
   // 2. Find target plan
   const plan = await prisma.plan.findUniqueOrThrow({ where: { name: planName } })
 
@@ -415,33 +426,37 @@ export async function verifyAndActivateSubscription(
     ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
     : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
 
-  // 4. Upsert subscription
-  const existingSub = await prisma.subscription.findUnique({ where: { userId } })
-  const sub = existingSub
-    ? await prisma.subscription.update({
-        where: { userId },
-        data: { planId: plan.id, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false },
-      })
-    : await prisma.subscription.create({
-        data: { userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
-      })
-
-  // 5. Create invoice (store amount in paise for display consistency)
+  // 4 + 5. Activate the subscription and record the invoice atomically. The unique
+  // constraint on Invoice.payuTxnId makes concurrent replays safe: if two callbacks
+  // race past the check above, the second invoice insert throws P2002 and the entire
+  // transaction — including the subscription renewal — rolls back.
   const amountPaise = PLAN_PRICES_INR[planName][billingCycle] * 100
-  await prisma.invoice.create({
-    data: {
-      userId,
-      subscriptionId: sub.id,
-      payuPaymentId: mihpayid,
-      payuTxnId: txnid,
-      amount: amountPaise,
-      currency: "INR",
-      status: "paid",
-      planName,
-      billingCycle,
-      periodStart: now,
-      periodEnd,
-    },
+  await prisma.$transaction(async (tx) => {
+    const existingSub = await tx.subscription.findUnique({ where: { userId } })
+    const sub = existingSub
+      ? await tx.subscription.update({
+          where: { userId },
+          data: { planId: plan.id, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false },
+        })
+      : await tx.subscription.create({
+          data: { userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
+        })
+
+    await tx.invoice.create({
+      data: {
+        userId,
+        subscriptionId: sub.id,
+        payuPaymentId: mihpayid,
+        payuTxnId: txnid,
+        amount: amountPaise,
+        currency: "INR",
+        status: "paid",
+        planName,
+        billingCycle,
+        periodStart: now,
+        periodEnd,
+      },
+    })
   })
 
   logger.info("Subscription activated via PayU", { userId, planName, billingCycle, txnid })

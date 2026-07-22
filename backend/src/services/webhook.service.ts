@@ -1,4 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto"
+import { lookup } from "node:dns/promises"
+import net from "node:net"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
@@ -54,6 +56,55 @@ function validateWebhookUrl(urlStr: string): void {
     const privatePattern = /^(localhost|::1|0\.0\.0\.0|127(\.\d+){3}|10(\.\d+){3}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|192\.168(\.\d+){2}|169\.254(\.\d+){2}|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d+){2})$/
     if (privatePattern.test(host)) {
       throw new AppError(400, "Webhook URL must not target a private or loopback address")
+    }
+  }
+}
+
+/**
+ * Returns true if the given IP literal is loopback, link-local, private (RFC 1918),
+ * CGNAT, or IPv6 ULA/link-local. Handles IPv4-mapped IPv6 addresses.
+ */
+function isPrivateIp(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number)
+    if (a === 0 || a === 127 || a === 10) return true
+    if (a === 169 && b === 254) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    if (a === 100 && b >= 64 && b <= 127) return true // CGNAT (RFC 6598)
+    return false
+  }
+  const lower = ip.toLowerCase()
+  if (lower === "::1" || lower === "::") return true
+  if (lower.startsWith("fe80")) return true // link-local
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true // unique local
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(lower)
+  if (mapped?.[1]) return isPrivateIp(mapped[1])
+  return false
+}
+
+/**
+ * Resolves the URL's host at delivery time and rejects if ANY resolved address is
+ * internal. This defeats DNS-rebinding and public-hostname-pointing-at-internal-IP
+ * bypasses that a hostname-string check (validateWebhookUrl) cannot catch. Applied
+ * in production only, to keep local-receiver testing possible in development.
+ */
+async function assertPublicHost(parsed: URL): Promise<void> {
+  if (env.NODE_ENV !== "production") return
+  const host = parsed.hostname.replace(/^\[|\]$/g, "") // strip IPv6 brackets
+  let addresses: string[]
+  if (net.isIP(host)) {
+    addresses = [host]
+  } else {
+    const resolved = await lookup(host, { all: true })
+    addresses = resolved.map((entry) => entry.address)
+  }
+  if (addresses.length === 0) {
+    throw new AppError(400, "Webhook URL host could not be resolved")
+  }
+  for (const address of addresses) {
+    if (isPrivateIp(address)) {
+      throw new AppError(400, "Webhook URL must not resolve to a private, loopback, or link-local address")
     }
   }
 }
@@ -287,6 +338,10 @@ export async function attemptDelivery(input: AttemptDeliveryInput): Promise<void
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS)
     try {
+      // Re-validate the resolved host at delivery time (defeats DNS-rebinding),
+      // and refuse to follow redirects so a public endpoint cannot bounce us to
+      // an internal target.
+      await assertPublicHost(new URL(url))
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -297,6 +352,7 @@ export async function attemptDelivery(input: AttemptDeliveryInput): Promise<void
           "User-Agent": "GenXQR-Webhooks/1.0",
         },
         body,
+        redirect: "manual",
         signal: controller.signal,
       })
       statusCode = res.status

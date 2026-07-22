@@ -66,7 +66,9 @@ router.get(
             res.status(400).send("Invalid destination URL")
             return
           }
-          const escapedUrl = url.replace(/'/g, "\\'").replace(/</g, "&lt;")
+          // escapeForJS correctly escapes backslash, quotes, and angle brackets so
+          // the URL cannot break out of the single-quoted JS string literal below.
+          const escapedUrl = escapeForJS(url)
           // escapeForJS is the defence-in-depth layer; format is already enforced by the
           // Zod schema on these fields, but we escape here too for belt-and-suspenders.
           const safeGaId   = gaId       ? escapeForJS(gaId)       : null

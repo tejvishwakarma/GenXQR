@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express"
 import { z } from "zod"
 import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
+import { signOAuthState, verifyOAuthState } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import {
   getDriveAuthUrl,
@@ -32,10 +33,11 @@ router.get("/status", requireAuth, async (req, res, next) => {
  * GET /api/gdrive/connect
  * Redirects the user to Google's OAuth2 consent page.
  */
-router.get("/connect", requireAuth, (_req, res, next) => {
+router.get("/connect", requireAuth, (req, res, next) => {
   try {
     const url = getDriveAuthUrl()
-    res.json({ success: true, data: { url } })
+    const stateParam = signOAuthState(uid(req))
+    res.json({ success: true, data: { url: `${url}&state=${encodeURIComponent(stateParam)}` } })
   } catch (err) {
     next(err)
   }
@@ -58,8 +60,15 @@ router.get("/callback", async (req, res, next) => {
       return res.redirect(`${env.FRONTEND_URL}/app/settings?drive=error&reason=missing_params`)
     }
 
-    // The user ID is passed through the state parameter
-    const userId = Buffer.from(state, "base64url").toString("utf8")
+    // The user ID is carried in a server-signed, short-lived state token. Verifying
+    // the signature guarantees the flow can only complete for the user who started
+    // it — a forged/expired/tampered state is rejected here.
+    let userId: string
+    try {
+      userId = verifyOAuthState(state).sub
+    } catch {
+      return res.redirect(`${env.FRONTEND_URL}/app/settings?drive=error&reason=invalid_state`)
+    }
     await connectDrive(userId, code)
     return res.redirect(`${env.FRONTEND_URL}/app/settings?drive=connected`)
   } catch (err) {
@@ -75,9 +84,9 @@ router.get("/callback", async (req, res, next) => {
 router.get("/auth-url", requireAuth, (_req, res, next) => {
   try {
     const url = getDriveAuthUrl()
-    // Encode userId in state so the callback can identify the user
-    const stateParam = Buffer.from(_req.user ? uid(_req) : "").toString("base64url")
-    const fullUrl = url + `&state=${stateParam}`
+    // Bind the flow to the authenticated user with a signed, short-lived state token.
+    const stateParam = signOAuthState(uid(_req))
+    const fullUrl = url + `&state=${encodeURIComponent(stateParam)}`
     res.json({ success: true, data: { url: fullUrl } })
   } catch (err) {
     next(err)
