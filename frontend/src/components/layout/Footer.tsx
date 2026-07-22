@@ -43,7 +43,7 @@ export function Footer() {
                 <QrCode className="w-4.5 h-4.5 text-white" size={18} />
               </div>
               <span className="text-white font-bold text-lg">
-                Nexus<span className="gradient-text">QR</span>
+                GenX<span className="gradient-text">QR</span>
               </span>
             </Link>
             <p className="text-zinc-400 text-sm leading-relaxed max-w-xs mb-6">

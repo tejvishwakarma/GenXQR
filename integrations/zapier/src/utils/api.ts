@@ -21,7 +21,7 @@ export function apiUrl(z: ZObject, path: string): string {
  * Zapier's default behaviour surfaces HTTP errors as task history entries; this
  * normalises the message so users see the API's error string rather than raw JSON.
  */
-export async function nexusRequest<T = unknown>(
+export async function genxqrRequest<T = unknown>(
   z: ZObject,
   bundle: Bundle,
   options: HttpRequestOptions & { url: string },

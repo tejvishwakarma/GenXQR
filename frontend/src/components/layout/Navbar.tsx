@@ -33,7 +33,7 @@ export function Navbar() {
               <QrCode className="w-4.5 h-4.5 text-white" size={18} />
             </div>
             <span className="text-white font-bold text-lg tracking-tight">
-              Nexus<span className="gradient-text">QR</span>
+              GenX<span className="gradient-text">QR</span>
             </span>
           </Link>
 

@@ -1,5 +1,5 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 import { subscribeHook, unsubscribeHook, unwrapHookPayload } from "./common"
 
 const EVENT = "qr.scanned"
@@ -10,13 +10,13 @@ const EVENT = "qr.scanned"
  * Returns an empty list if the user has no QR codes yet.
  */
 async function performList(z: ZObject, bundle: Bundle): Promise<Record<string, unknown>[]> {
-  const qrList = await nexusRequest<Array<{ id: string; slug: string; name: string }>>(z, bundle, {
+  const qrList = await genxqrRequest<Array<{ id: string; slug: string; name: string }>>(z, bundle, {
     url: apiUrl(z, "/v1/qr"),
     params: { page: 1, limit: 1, sort: "updatedAt" },
   })
   if (!qrList.length) return []
   const target = qrList[0]!
-  const scans = await nexusRequest<Array<Record<string, unknown>>>(z, bundle, {
+  const scans = await genxqrRequest<Array<Record<string, unknown>>>(z, bundle, {
     url: apiUrl(z, `/v1/qr/${target.id}/scans`),
     params: { limit: 3 },
   })

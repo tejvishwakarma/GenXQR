@@ -1,5 +1,5 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 
 const URL_TYPES = ["URL", "WHATSAPP", "INSTAGRAM", "FACEBOOK"] as const
 
@@ -23,7 +23,7 @@ async function perform(z: ZObject, bundle: Bundle): Promise<Record<string, unkno
     content: { data: { url: destinationUrl } },
   }
 
-  return nexusRequest<Record<string, unknown>>(z, bundle, {
+  return genxqrRequest<Record<string, unknown>>(z, bundle, {
     method: "POST",
     url: apiUrl(z, "/v1/qr"),
     body,

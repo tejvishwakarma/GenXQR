@@ -81,7 +81,7 @@ export default function LoginPage() {
             <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.4)]">
               <QrCode size={20} className="text-white" />
             </div>
-            <span className="text-white font-bold text-xl">Nexus<span className="gradient-text">QR</span></span>
+            <span className="text-white font-bold text-xl">GenX<span className="gradient-text">QR</span></span>
           </Link>
 
           <span className="section-header mb-6 w-fit animate-fade-in">
@@ -162,7 +162,7 @@ export default function LoginPage() {
               <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.4)]">
                 <QrCode size={20} className="text-white" />
               </div>
-              <span className="text-white font-bold text-xl">Nexus<span className="gradient-text">QR</span></span>
+              <span className="text-white font-bold text-xl">GenX<span className="gradient-text">QR</span></span>
             </Link>
             <h1 className="text-xl sm:text-2xl font-bold text-white mt-6 mb-2">Welcome back</h1>
             <p className="text-zinc-400 text-sm">Sign in to your GenXQR account</p>

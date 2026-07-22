@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type {
 	IHookFunctions,
 	IWebhookFunctions,
@@ -166,24 +166,36 @@ export class GenXQRTrigger implements INodeType {
 			const webhookData = this.getWorkflowStaticData('node');
 			const secret = webhookData.webhookSecret as string | undefined;
 
-			if (secret) {
-				const signatureHeader = req.headers['x-GenXQR-signature'] as string | undefined;
-				if (!signatureHeader) {
-					throw new NodeApiError(this.getNode(), {}, {
-						message: 'Missing X-GenXQR-Signature header',
-					});
-				}
+			// Fail closed: when verification is enabled we must have a secret to check
+			// against. Without this guard a missing secret would silently accept any
+			// unsigned or forged payload.
+			if (!secret) {
+				throw new NodeApiError(this.getNode(), {}, {
+					message: 'Webhook secret is not configured; cannot verify signature. Reconnect the trigger, or disable signature verification.',
+				});
+			}
 
-				// Header format: "sha256=<hex>"
-				const expectedSig = signatureHeader.replace(/^sha256=/, '');
-				const rawBody = JSON.stringify(body);
-				const computedSig = createHmac('sha256', secret).update(rawBody).digest('hex');
+			// Node.js lowercases all incoming header names, so this must be lowercase
+			// to match the backend's "X-GenXQR-Signature" header.
+			const signatureHeader = req.headers['x-genxqr-signature'] as string | undefined;
+			if (!signatureHeader) {
+				throw new NodeApiError(this.getNode(), {}, {
+					message: 'Missing X-GenXQR-Signature header',
+				});
+			}
 
-				if (computedSig !== expectedSig) {
-					throw new NodeApiError(this.getNode(), {}, {
-						message: 'Invalid webhook signature — payload may have been tampered with',
-					});
-				}
+			// Header format: "sha256=<hex>". Compare in constant time so the check
+			// cannot leak the expected signature via response timing.
+			const expectedSig = signatureHeader.replace(/^sha256=/, '');
+			const rawBody = JSON.stringify(body);
+			const computedSig = createHmac('sha256', secret).update(rawBody).digest('hex');
+			const expectedBuf = Buffer.from(expectedSig, 'hex');
+			const computedBuf = Buffer.from(computedSig, 'hex');
+
+			if (expectedBuf.length !== computedBuf.length || !timingSafeEqual(expectedBuf, computedBuf)) {
+				throw new NodeApiError(this.getNode(), {}, {
+					message: 'Invalid webhook signature — payload may have been tampered with',
+				});
 			}
 		}
 

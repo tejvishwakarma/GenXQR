@@ -1,4 +1,4 @@
-﻿{
+{
   "baseUrl": "https://genxqr.in",
   "headers": {
     "Authorization": "Bearer {{connection.apiKey}}",

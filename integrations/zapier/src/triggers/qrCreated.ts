@@ -1,11 +1,11 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 import { subscribeHook, unsubscribeHook, unwrapHookPayload } from "./common"
 
 const EVENT = "qr.created"
 
 async function performList(z: ZObject, bundle: Bundle): Promise<Record<string, unknown>[]> {
-  const qrs = await nexusRequest<Array<Record<string, unknown>>>(z, bundle, {
+  const qrs = await genxqrRequest<Array<Record<string, unknown>>>(z, bundle, {
     url: apiUrl(z, "/v1/qr"),
     params: { page: 1, limit: 3, sort: "createdAt" },
   })

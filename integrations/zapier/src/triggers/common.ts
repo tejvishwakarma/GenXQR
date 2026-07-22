@@ -1,5 +1,5 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 
 /**
  * Shared REST Hook subscribe/unsubscribe helpers.
@@ -7,7 +7,7 @@ import { apiUrl, nexusRequest } from "../utils/api"
  */
 
 export async function subscribeHook(z: ZObject, bundle: Bundle, event: string): Promise<{ id: string }> {
-  const hook = await nexusRequest<{ id: string }>(z, bundle, {
+  const hook = await genxqrRequest<{ id: string }>(z, bundle, {
     method: "POST",
     url: apiUrl(z, "/v1/webhooks"),
     body: {

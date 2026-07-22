@@ -1,8 +1,8 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 
 async function listQRsDropdown(z: ZObject, bundle: Bundle): Promise<Array<Record<string, unknown>>> {
-  return nexusRequest<Array<Record<string, unknown>>>(z, bundle, {
+  return genxqrRequest<Array<Record<string, unknown>>>(z, bundle, {
     url: apiUrl(z, "/v1/qr"),
     params: { page: 1, limit: 50, sort: "updatedAt" },
   })
@@ -10,7 +10,7 @@ async function listQRsDropdown(z: ZObject, bundle: Bundle): Promise<Array<Record
 
 async function perform(z: ZObject, bundle: Bundle): Promise<Record<string, unknown>> {
   const { qrId, destinationUrl } = bundle.inputData as { qrId: string; destinationUrl: string }
-  return nexusRequest<Record<string, unknown>>(z, bundle, {
+  return genxqrRequest<Record<string, unknown>>(z, bundle, {
     method: "PATCH",
     url: apiUrl(z, `/v1/qr/${encodeURIComponent(qrId)}`),
     body: { content: { data: { url: destinationUrl } } },

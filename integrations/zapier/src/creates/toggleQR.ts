@@ -1,9 +1,9 @@
 import type { ZObject, Bundle } from "zapier-platform-core"
-import { apiUrl, nexusRequest } from "../utils/api"
+import { apiUrl, genxqrRequest } from "../utils/api"
 
 async function perform(z: ZObject, bundle: Bundle): Promise<Record<string, unknown>> {
   const { qrId } = bundle.inputData as { qrId: string }
-  return nexusRequest<Record<string, unknown>>(z, bundle, {
+  return genxqrRequest<Record<string, unknown>>(z, bundle, {
     method: "PATCH",
     url: apiUrl(z, `/v1/qr/${encodeURIComponent(qrId)}/toggle`),
   })

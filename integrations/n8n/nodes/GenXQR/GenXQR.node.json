@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-base.GenXQR",
+	"node": "n8n-nodes-GenXQR.GenXQR",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Marketing & Growth"],
