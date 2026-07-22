@@ -14,9 +14,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "node --env-file=.env prisma/seed.mjs",
-    "geo:update": "node scripts/update-geo-db.mjs",
-    "wsl:sync-ip": "node scripts/sync-wsl-ip.mjs",
-    "wsl:start": "wsl -d Debian bash scripts/wsl-start-win.sh"
+    "geo:update": "node scripts/update-geo-db.mjs"
   },
   "prisma": {
     "seed": "node --env-file=.env prisma/seed.mjs"

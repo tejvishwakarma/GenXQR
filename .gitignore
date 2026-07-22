@@ -9,6 +9,11 @@ build/
 .next/
 out/
 
+# Archives / backups (don't commit large binary snapshots)
+*.zip
+*.tar
+*.tar.gz
+
 # Environment variables — NEVER commit these
 .env
 .env.local
@@ -32,8 +37,8 @@ Thumbs.db
 *.swp
 *.swo
 
-# Prisma
-backend/prisma/migrations/
+# Prisma — migrations ARE source of truth and must be committed (prisma migrate
+# deploy replays them to build production). Do not ignore them.
 
 # Uploads / temp / runtime data
 uploads/

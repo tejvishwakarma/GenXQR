@@ -69,8 +69,7 @@ genx-qr/                         ← Repository root
 │   │   └── migrations/           ← Auto-generated Prisma migration files
 │   ├── scripts/
 │   │   ├── update-geo-db.mjs     ← Downloads MaxMind GeoLite2 DB
-│   │   ├── sync-wsl-ip.mjs       ← Syncs WSL IP into .env for dev
-│   │   └── wsl-start-win.sh      ← Starts Postgres + Redis inside WSL Debian
+│   │   └── vault-setup.sh        ← One-time HashiCorp Vault config (prod secrets)
 │   ├── src/
 │   │   ├── index.ts              ← Server entry: DB connect, workers, listen
 │   │   ├── app.ts                ← Express app: middleware, routes, static files
@@ -882,10 +881,10 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Memory restart at 512 MB per worker
 - Graceful shutdown: 5-second kill timeout
 
-**Dev infra (Windows + WSL):**
-- PostgreSQL and Redis run inside WSL2 Debian
-- `backend/scripts/wsl-start-win.sh` — starts services in WSL
-- `backend/scripts/sync-wsl-ip.mjs` — updates `DATABASE_URL` in `.env` with current WSL IP (changes on restart)
+**Dev infra (Docker):**
+- PostgreSQL + Redis run as dedicated GenXQR containers via `docker-compose.yml` at the repo root (`genxqr_postgres` on host port **5433**, `genxqr_redis` on **6380**). Isolated from any other project on the machine.
+- Compose credentials come from the gitignored root `.env` (see `.env.example`); `backend/.env` connects via stable `localhost:5433` / `localhost:6380` — no WSL-IP syncing.
+- Start with `pnpm db:up` (or `docker compose up -d`); `pnpm dev` brings the stack up then runs both servers. On Windows, Docker runs inside WSL, so the scripts invoke `wsl -d Debian docker compose`.
 
 ---
 
@@ -893,16 +892,18 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 
 ### Root workspace (run from repo root)
 ```bash
+pnpm dev                   # db:up (containers) + frontend + backend in parallel
 pnpm dev:frontend          # Start Vite dev server (port 5173)
-pnpm dev:backend           # Start backend with tsx watch (port 3001)
+pnpm dev:backend           # Start backend with tsx watch (port 4000)
 pnpm build:frontend        # tsc + vite build
 pnpm build:backend         # tsc to dist/
+pnpm db:up                 # Start Postgres + Redis containers (waits until healthy)
+pnpm db:down               # Stop the containers
+pnpm db:logs               # Tail container logs
 pnpm db:generate           # prisma generate (after schema changes)
 pnpm db:migrate            # prisma migrate dev
 pnpm db:push               # prisma db push (schema sync without migration)
 pnpm db:studio             # Prisma Studio GUI
-pnpm wsl:sync-ip           # Sync WSL IP into backend .env
-pnpm wsl:start             # Start Postgres + Redis in WSL
 ```
 
 ### Backend-specific (run from `backend/`)
@@ -960,7 +961,7 @@ pnpm preview               # vite preview (serves dist/)
 
 7. **Vite proxy bypass for `/r/`**: Sub-paths like `/r/:slug/expired` and `/r/:slug/password` are SPA routes. The Vite proxy has a `bypass()` function that returns `/index.html` for paths with more than 2 segments under `/r/`, letting React Router handle them.
 
-8. **WSL IP changes**: Running PostgreSQL inside WSL2 means the IP changes on every reboot. Run `pnpm wsl:sync-ip` after restarting WSL to update `DATABASE_URL` in `backend/.env`.
+8. **Dev DB/Redis are Dockerized**: Postgres + Redis run as dedicated GenXQR containers (`docker-compose.yml`, ports 5433/6380). `backend/.env` uses stable `localhost` addresses — no WSL-IP syncing. Start via `pnpm db:up`. (On Windows, Docker runs inside WSL, so scripts call `wsl -d Debian docker compose`.)
 
 9. **Prisma `.js` imports in ESM**: Because the backend is `"type": "module"`, all internal imports must use `.js` extension (e.g., `import { prisma } from "./db/prisma.js"`) even though the actual file is `.ts`. TypeScript resolves these correctly.
 

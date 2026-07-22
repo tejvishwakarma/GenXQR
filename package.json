@@ -4,16 +4,19 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
+    "dev": "pnpm db:up && pnpm dev:servers",
+    "dev:servers": "pnpm --parallel --filter genxqr-frontend --filter @genx-qr/backend dev",
     "dev:frontend": "pnpm --filter genxqr-frontend dev",
     "dev:backend": "pnpm --filter @genx-qr/backend dev",
     "build:frontend": "pnpm --filter genxqr-frontend build",
     "build:backend": "pnpm --filter @genx-qr/backend build",
+    "db:up": "wsl -d Debian docker compose --env-file .env up -d --wait",
+    "db:down": "wsl -d Debian docker compose --env-file .env down",
+    "db:logs": "wsl -d Debian docker compose --env-file .env logs -f",
     "db:generate": "pnpm --filter @genx-qr/backend db:generate",
     "db:migrate": "pnpm --filter @genx-qr/backend db:migrate",
     "db:push": "pnpm --filter @genx-qr/backend db:push",
-    "db:studio": "pnpm --filter @genx-qr/backend db:studio",
-    "wsl:sync-ip": "pnpm --filter @genx-qr/backend wsl:sync-ip",
-    "wsl:start": "pnpm --filter @genx-qr/backend wsl:start"
+    "db:studio": "pnpm --filter @genx-qr/backend db:studio"
   },
   "pnpm": {
     "overrides": {

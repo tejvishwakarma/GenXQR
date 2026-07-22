@@ -1,0 +1,41 @@
+# Local development infrastructure for GenXQR — its OWN isolated Postgres + Redis.
+# Dedicated ports (5433 / 6380) avoid colliding with other projects on this machine.
+# Credentials are supplied by the gitignored root .env (see .env.example) so no
+# secret is committed. Start with:  docker compose up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: genxqr_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - genxqr_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    container_name: genxqr_redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - genxqr_redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  genxqr_pgdata:
+  genxqr_redisdata:
