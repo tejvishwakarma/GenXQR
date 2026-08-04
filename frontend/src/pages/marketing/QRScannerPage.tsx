@@ -1,9 +1,13 @@
 import { Camera, Upload, AlertCircle, CheckCircle2, X, ExternalLink, Copy, FlipHorizontal, Wifi, Phone, Mail, MessageSquare, User, MapPin, Globe, Lock, Eye, EyeOff, Download, FileText } from "lucide-react"
 import React, { useRef, useState, useEffect, useCallback } from "react"
-import jsQR from "jsqr"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, MktCard } from "@/components/marketing/ui"
 import { PageHero } from "@/components/marketing/PageHero"
+import {
+  decodeImageData, parseQRData,
+  type ParsedQR, type ParsedVCard, type ParsedWiFi, type ParsedURL,
+  type ParsedSMS, type ParsedTel, type ParsedEmail, type ParsedWhatsApp, type ParsedText,
+} from "@/lib/qrDecode"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,185 +16,6 @@ type ScanMode = "idle" | "camera" | "upload"
 interface ScanResult {
   text: string
   timestamp: Date
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function isURL(text: string): boolean {
-  try { new URL(text); return true } catch { return false }
-}
-
-/** ITU-R BT.601 luminance grayscale. Returns a new ImageData. */
-function toGrayscale(src: ImageData): ImageData {
-  const data = new Uint8ClampedArray(src.data)
-  for (let i = 0; i < data.length; i += 4) {
-    const l = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
-    data[i] = l; data[i + 1] = l; data[i + 2] = l
-  }
-  return new ImageData(data, src.width, src.height)
-}
-
-/**
- * Otsu's method: find the optimal global threshold that maximises
- * inter-class variance between dark modules and light background.
- * Works purely on pixel values — no canvas filters, no async, no browser quirks.
- */
-function otsuThreshold(grayData: Uint8ClampedArray): number {
-  const hist = new Int32Array(256)
-  for (let i = 0; i < grayData.length; i += 4) hist[grayData[i]]++
-
-  const total = grayData.length / 4
-  let sum = 0
-  for (let i = 0; i < 256; i++) sum += i * hist[i]
-
-  let sumB = 0, wB = 0, max = 0, threshold = 128
-  for (let i = 0; i < 256; i++) {
-    wB += hist[i]
-    if (wB === 0) continue
-    const wF = total - wB
-    if (wF === 0) break
-    sumB += i * hist[i]
-    const mB = sumB / wB
-    const mF = (sum - sumB) / wF
-    const between = wB * wF * (mB - mF) ** 2
-    if (between > max) { max = between; threshold = i }
-  }
-  return threshold
-}
-
-/** Hard-threshold a grayscale ImageData at `t`. Returns a new ImageData. */
-function applyThreshold(gray: ImageData, t: number): ImageData {
-  const data = new Uint8ClampedArray(gray.data)
-  for (let i = 0; i < data.length; i += 4) {
-    const v = data[i] <= t ? 0 : 255
-    data[i] = v; data[i + 1] = v; data[i + 2] = v
-  }
-  return new ImageData(data, gray.width, gray.height)
-}
-
-/**
- * Multi-pass QR decode — handles black/white, colored, inverted, and
- * low-contrast QR codes entirely in pixel space (no canvas filters).
- *
- *  Pass 1 — raw RGBA, attemptBoth          → standard QR codes
- *  Pass 2 — luminance grayscale, attemptBoth → colored foreground/background
- *  Pass 3 — Otsu binarization, attemptBoth  → low-contrast / pastel colors
- */
-function decodeImageData(imageData: ImageData): string | null {
-  const { width: w, height: h } = imageData
-
-  const p1 = jsQR(imageData.data, w, h, { inversionAttempts: "attemptBoth" })
-  if (p1?.data) return p1.data
-
-  const gray = toGrayscale(imageData)
-  const p2 = jsQR(gray.data, w, h, { inversionAttempts: "attemptBoth" })
-  if (p2?.data) return p2.data
-
-  const threshold = otsuThreshold(gray.data)
-  const binary = applyThreshold(gray, threshold)
-  const p3 = jsQR(binary.data, w, h, { inversionAttempts: "attemptBoth" })
-  return p3?.data ?? null
-}
-
-// ── QR Type Parsing ────────────────────────────────────────────────────────
-
-interface VCardData {
-  type: "vcard"
-  fullName?: string
-  phones: string[]
-  emails: string[]
-  org?: string
-  title?: string
-  address?: string
-  url?: string
-  note?: string
-  raw: string
-}
-interface WiFiData  { type: "wifi";     ssid: string; password?: string; security: "WPA" | "WEP" | "nopass"; hidden?: boolean }
-interface URLData   { type: "url";      url: string }
-interface SMSData   { type: "sms";      phone: string; body?: string }
-interface TelData   { type: "tel";      phone: string }
-interface EmailData { type: "email";    address: string; subject?: string; body?: string }
-interface WAppData  { type: "whatsapp"; phone: string; message?: string; url: string }
-interface TextData  { type: "text";     text: string }
-type ParsedQR = VCardData | WiFiData | URLData | SMSData | TelData | EmailData | WAppData | TextData
-
-function parseVCard(raw: string): VCardData {
-  const field = (re: RegExp) => { const m = re.exec(raw); return m ? m[1].trim() : undefined }
-  const phones: string[] = []
-  const emails: string[] = []
-  let m: RegExpExecArray | null
-  const telRe = /^TEL[^:\r\n]*:(.+)$/gm
-  while ((m = telRe.exec(raw)) !== null) phones.push(m[1].trim())
-  const emlRe = /^EMAIL[^:\r\n]*:(.+)$/gm
-  while ((m = emlRe.exec(raw)) !== null) emails.push(m[1].trim())
-  const addrM = /^ADR[^:\r\n]*:(.+)$/m.exec(raw)
-  const address = addrM ? addrM[1].split(";").map(p => p.trim()).filter(Boolean).join(", ") : undefined
-  return {
-    type: "vcard",
-    fullName: field(/^FN:(.+)$/m),
-    phones, emails,
-    org:   field(/^ORG:(.+)$/m),
-    title: field(/^TITLE:(.+)$/m),
-    address,
-    url:   field(/^URL:(.+)$/im),
-    note:  field(/^NOTE:(.+)$/m),
-    raw,
-  }
-}
-
-function parseWiFi(raw: string): WiFiData {
-  const get = (key: string) => {
-    const m = new RegExp(`[;:]${key}:([^;]*)`, "i").exec(raw)
-    return m ? m[1].trim() : undefined
-  }
-  const sec = (get("T") ?? "nopass").toUpperCase()
-  return {
-    type: "wifi",
-    ssid: get("S") ?? "Unknown",
-    password: get("P") || undefined,
-    security: (sec === "WPA" || sec === "WEP" ? sec : "nopass") as WiFiData["security"],
-    hidden: get("H")?.toLowerCase() === "true",
-  }
-}
-
-function parseSMS(raw: string): SMSData {
-  if (/^smsto:/i.test(raw)) {
-    const inner = raw.replace(/^smsto:/i, "")
-    const idx = inner.indexOf(":")
-    return idx === -1
-      ? { type: "sms", phone: inner.trim() }
-      : { type: "sms", phone: inner.slice(0, idx).trim(), body: inner.slice(idx + 1).trim() }
-  }
-  const inner = raw.replace(/^sms:/i, "")
-  const q = inner.indexOf("?")
-  if (q === -1) return { type: "sms", phone: inner.trim() }
-  return { type: "sms", phone: inner.slice(0, q).trim(), body: new URLSearchParams(inner.slice(q + 1)).get("body") ?? undefined }
-}
-
-function parseMailto(raw: string): EmailData {
-  const inner = raw.replace(/^mailto:/i, "")
-  const q = inner.indexOf("?")
-  if (q === -1) return { type: "email", address: inner.trim() }
-  const params = new URLSearchParams(inner.slice(q + 1))
-  return { type: "email", address: inner.slice(0, q).trim(), subject: params.get("subject") ?? undefined, body: params.get("body") ?? undefined }
-}
-
-function parseQRData(text: string): ParsedQR {
-  const t = text.trim()
-  if (/^BEGIN:VCARD/i.test(t)) return parseVCard(t)
-  if (/^WIFI:/i.test(t))        return parseWiFi(t)
-  if (/^(sms:|smsto:)/i.test(t)) return parseSMS(t)
-  if (/^tel:/i.test(t))          return { type: "tel", phone: t.replace(/^tel:/i, "").trim() }
-  if (/^mailto:/i.test(t))       return parseMailto(t)
-  if (/^https?:\/\/wa\.me\//i.test(t)) {
-    try {
-      const u = new URL(t)
-      return { type: "whatsapp", phone: u.pathname.replace(/^\//, ""), message: u.searchParams.get("text") ?? undefined, url: t }
-    } catch { /* fallthrough */ }
-  }
-  if (isURL(t)) return { type: "url", url: t }
-  return { type: "text", text: t }
 }
 
 // ── Local presentational primitive ─────────────────────────────────────────
@@ -234,7 +59,7 @@ function FieldRow({ icon, label, value }: { icon: React.ReactNode; label: string
   )
 }
 
-function VCardView({ data }: { data: VCardData }) {
+function VCardView({ data }: { data: ParsedVCard }) {
   const saveVCF = () => {
     const blob = new Blob([data.raw], { type: "text/vcard" })
     const blobUrl = URL.createObjectURL(blob)
@@ -274,7 +99,7 @@ function VCardView({ data }: { data: VCardData }) {
   )
 }
 
-function WiFiView({ data }: { data: WiFiData }) {
+function WiFiView({ data }: { data: ParsedWiFi }) {
   const [showPass, setShowPass] = useState(false)
   return (
     <div className="space-y-1">
@@ -308,7 +133,7 @@ function WiFiView({ data }: { data: WiFiData }) {
   )
 }
 
-function URLView({ data }: { data: URLData }) {
+function URLView({ data }: { data: ParsedURL }) {
   const [copied, setCopied] = useState(false)
   const copy = () => { navigator.clipboard.writeText(data.url); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   let domain = ""
@@ -331,7 +156,7 @@ function URLView({ data }: { data: URLData }) {
   )
 }
 
-function SMSView({ data }: { data: SMSData }) {
+function SMSView({ data }: { data: ParsedSMS }) {
   const href = `sms:${data.phone}${data.body ? `?body=${encodeURIComponent(data.body)}` : ""}`
   return (
     <div className="space-y-1">
@@ -346,7 +171,7 @@ function SMSView({ data }: { data: SMSData }) {
   )
 }
 
-function TelView({ data }: { data: TelData }) {
+function TelView({ data }: { data: ParsedTel }) {
   return (
     <div>
       <div className="bg-paper rounded-xl p-5 mb-4 border border-line text-center">
@@ -359,7 +184,7 @@ function TelView({ data }: { data: TelData }) {
   )
 }
 
-function EmailView({ data }: { data: EmailData }) {
+function EmailView({ data }: { data: ParsedEmail }) {
   const qs = [
     data.subject ? `subject=${encodeURIComponent(data.subject)}` : "",
     data.body    ? `body=${encodeURIComponent(data.body)}` : "",
@@ -379,7 +204,7 @@ function EmailView({ data }: { data: EmailData }) {
   )
 }
 
-function WAppView({ data }: { data: WAppData }) {
+function WAppView({ data }: { data: ParsedWhatsApp }) {
   return (
     <div className="space-y-1">
       {data.phone   && <FieldRow icon={<Phone size={14} />}         label="Phone"   value={`+${data.phone}`} />}
@@ -393,7 +218,7 @@ function WAppView({ data }: { data: WAppData }) {
   )
 }
 
-function TextView({ data }: { data: TextData }) {
+function TextView({ data }: { data: ParsedText }) {
   const [copied, setCopied] = useState(false)
   const copy = () => { navigator.clipboard.writeText(data.text); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   return (

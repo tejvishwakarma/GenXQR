@@ -7,7 +7,7 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, FileText, Video, Globe,
   Users, Image, Building2, Smartphone, Music, List, Facebook, Tag,
   ChevronRight, ChevronLeft, ChevronDown, Check, Palette, Settings2, ArrowLeft,
-  Upload, Loader2, X, Clock,
+  Upload, Loader2, X, Clock, ScanLine,
 } from "lucide-react"
 import * as Tabs from "@radix-ui/react-tabs"
 import * as SelectPrimitive from "@radix-ui/react-select"
@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils"
 import { createQR, updateQR, getQR, uploadFile, getSubscription, getBillingUsage, ApiError, type CreateQRPayload, type UploadedFileInfo, type QRCode, type QRFile } from "@/lib/api"
 import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } from "./VCardEditor"
 import LandingPreview from "./LandingPreview"
+import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
+import type { ParsedQR } from "@/lib/qrDecode"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -590,6 +592,8 @@ export default function CreateQRPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [expiryDate, setExpiryDate] = useState<string>("")
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importNotice, setImportNotice] = useState<string | null>(null)
 
   // Subscription info — needed to gate expiry picker and set max date
   const { data: subData } = useQuery({
@@ -636,6 +640,70 @@ export default function CreateQRPage() {
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm<FormValues>({
     defaultValues: DEFAULT_VALUES,
   })
+
+  /**
+   * Pre-fills the creation form from a QR code decoded elsewhere (e.g. a photo
+   * of an existing static/third-party code). This never touches the code that
+   * was scanned — it only seeds a brand-new dynamic QR with the same content.
+   */
+  function handleImportedQR(parsed: ParsedQR) {
+    setShowImportModal(false)
+    setImportNotice(null)
+
+    switch (parsed.type) {
+      case "url":
+        setSelectedType("url")
+        reset({ ...DEFAULT_VALUES, url: parsed.url })
+        setStep(1)
+        break
+      case "wifi": {
+        const securityMap: Record<string, string> = { WPA: "wpa2", WEP: "wep", nopass: "none" }
+        setSelectedType("wifi")
+        reset({
+          ...DEFAULT_VALUES,
+          ssid: parsed.ssid,
+          wifi_password: parsed.password ?? "",
+          security: securityMap[parsed.security] ?? "wpa2",
+        })
+        setStep(1)
+        break
+      }
+      case "whatsapp":
+        setSelectedType("whatsapp")
+        reset({ ...DEFAULT_VALUES, phone: parsed.phone, message: parsed.message ?? "" })
+        setStep(1)
+        break
+      case "vcard": {
+        const [firstName, ...rest] = (parsed.fullName ?? "").split(" ")
+        setSelectedType("vcard")
+        reset({ ...DEFAULT_VALUES })
+        setVcardData({
+          ...DEFAULT_VCARD_DATA,
+          firstName: firstName ?? "",
+          lastName: rest.join(" "),
+          phones: parsed.phones.length ? parsed.phones.map((p) => ({ value: p, label: "mobile" })) : DEFAULT_VCARD_DATA.phones,
+          emails: parsed.emails.length ? parsed.emails.map((e) => ({ value: e, label: "work" })) : DEFAULT_VCARD_DATA.emails,
+          websites: parsed.url ? [{ value: parsed.url, label: "website" }] : DEFAULT_VCARD_DATA.websites,
+          address: parsed.address ?? "",
+          company: parsed.org ?? "",
+          profession: parsed.title ?? "",
+          summary: parsed.note ?? "",
+        })
+        setStep(1)
+        break
+      }
+      default: {
+        // sms, tel, email, plain text — no matching GenXQR QR type to auto-fill
+        // into yet. Surface what was decoded so the user can copy it manually.
+        const raw =
+          parsed.type === "tel"   ? parsed.phone :
+          parsed.type === "sms"   ? `${parsed.phone}${parsed.body ? ` — ${parsed.body}` : ""}` :
+          parsed.type === "email" ? parsed.address :
+          parsed.text
+        setImportNotice(`Decoded a ${parsed.type} code — GenXQR doesn't have a matching QR type for that yet. Here's what it contained: "${raw}"`)
+      }
+    }
+  }
 
   // Fetch existing QR when editing
   const { data: existingQR } = useQuery({
@@ -991,7 +1059,35 @@ export default function CreateQRPage() {
             {/* STEP 1 — Select Type */}
             {step === 0 && (
               <div>
-                <h2 className="text-zinc-900 dark:text-white font-semibold text-lg mb-4">Select QR Code Type</h2>
+                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                  <h2 className="text-zinc-900 dark:text-white font-semibold text-lg">Select QR Code Type</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                  >
+                    <ScanLine size={13} />
+                    Import from existing QR
+                  </button>
+                </div>
+
+                {importNotice && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3.5">
+                    <ScanLine size={15} className="text-violet-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-zinc-700 dark:text-zinc-300 text-xs leading-relaxed break-words">{importNotice}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setImportNotice(null)}
+                      className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors shrink-0"
+                      aria-label="Dismiss"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex gap-2 mb-5 flex-wrap">
                   {["all", "basic", "file", "page"].map((cat) => (
                     <button
@@ -2223,6 +2319,13 @@ export default function CreateQRPage() {
           </div>
         </div>
       </Tabs.Root>
+
+      {showImportModal && (
+        <ImportQRModal
+          onClose={() => setShowImportModal(false)}
+          onImported={handleImportedQR}
+        />
+      )}
     </div>
   )
 }
