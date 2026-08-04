@@ -4,9 +4,9 @@ import { Footer } from "./Footer"
 
 export function MarketingLayout() {
   return (
-    <div className="dark min-h-screen flex flex-col bg-zinc-950">
+    <div className="min-h-screen flex flex-col bg-paper">
       <Navbar />
-      <main className="flex-1 pt-16">
+      <main className="flex-1">
         <Outlet />
       </main>
       <Footer />

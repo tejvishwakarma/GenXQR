@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -25,9 +25,6 @@
     --muted: 240 4.8% 95.9%;
     --muted-foreground: 240 3.8% 46.1%;
 
-    --accent: 263 70% 50%;
-    --accent-foreground: 0 0% 100%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
@@ -36,6 +33,20 @@
     --ring: 263 70% 50%;
 
     --radius: 0.75rem;
+
+    /* ── Marketing redesign tokens (homepage v2), RGB channels for /opacity ── */
+    --mkt-paper: 251 250 247;
+    --mkt-surface: 255 255 255;
+    --mkt-ink: 20 19 26;
+    --mkt-ink-soft: 81 77 91;
+    --mkt-ink-faint: 139 135 148;
+    --mkt-line: 233 230 223;
+    --mkt-accent: 91 75 255;
+    --mkt-accent-ink: 46 37 150;
+    --mkt-accent-soft: 237 235 255;
+    --mkt-band: 20 19 26;
+    --mkt-band-fg: 251 250 247;
+    --mkt-band-line: 42 40 51;
   }
 
   /* ── Dark theme ────────────────────────────────────── */
@@ -58,15 +69,26 @@
     --muted: 240 4% 14%;
     --muted-foreground: 240 5% 55%;
 
-    --accent: 263 70% 50%;
-    --accent-foreground: 240 5% 96%;
-
     --destructive: 0 72% 51%;
     --destructive-foreground: 240 5% 96%;
 
     --border: 240 4% 16%;
     --input: 240 4% 16%;
     --ring: 263 70% 50%;
+
+    /* ── Marketing redesign tokens (homepage v2), dark theme ── */
+    --mkt-paper: 11 10 17;
+    --mkt-surface: 20 19 30;
+    --mkt-ink: 243 242 248;
+    --mkt-ink-soft: 173 169 186;
+    --mkt-ink-faint: 118 114 132;
+    --mkt-line: 38 36 51;
+    --mkt-accent: 124 110 255;
+    --mkt-accent-ink: 91 75 255;
+    --mkt-accent-soft: 32 29 54;
+    --mkt-band: 22 21 31;
+    --mkt-band-fg: 243 242 248;
+    --mkt-band-line: 44 42 58;
   }
 }
 
@@ -280,5 +302,26 @@
   .bg-dots {
     background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
     background-size: 24px 24px;
+  }
+
+  /* Marketing redesign (homepage v2): QR module-grid dot texture (uses currentColor) */
+  .mkt-qr-grid {
+    background-image: radial-gradient(currentColor 1px, transparent 1.6px);
+    background-size: 15px 15px;
+  }
+  .mkt-mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent);
+    mask-image: linear-gradient(to bottom, black 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -1,8 +1,7 @@
-import { Link } from "react-router-dom"
-import { ArrowRight, BookOpenText, Clock3, Tag } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { ArrowRight, Clock3 } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
+import { MktContainer, Reveal, MktButton, Eyebrow, FinderGlyph } from "@/components/marketing/ui"
+import { PageHero } from "@/components/marketing/PageHero"
 
 const categories = ["All", "Product", "Analytics", "Growth", "Engineering", "Security"]
 
@@ -62,102 +61,103 @@ const posts = [
 
 export default function BlogPage() {
   return (
-    <div className="pt-16 pb-24 px-4 animate-fade-in">
+    <div>
       <SEOMeta
         title="Blog"
         description="Insights, guides, and product updates from GenXQR on QR strategy, analytics, growth, and engineering."
         url="/blog"
       />
 
-      <div className="max-w-7xl mx-auto">
-        <section className="pt-8 text-center mb-12">
-          <span className="section-header">
-            <BookOpenText size={14} />
-            Insights and updates
-          </span>
-          <h1 className="text-4xl md:text-6xl font-bold text-white mt-6 mb-5">
-            GenXQR <span className="gradient-text">Blog</span>
-          </h1>
-          <p className="text-zinc-400 text-lg max-w-3xl mx-auto">
-            Product deep-dives, campaign playbooks, and technical notes to help you create better QR experiences.
-          </p>
-        </section>
+      <PageHero
+        eyebrow="Insights and updates"
+        title={<>GenXQR <span className="text-accent">Blog</span></>}
+        intro="Product deep-dives, campaign playbooks, and technical notes to help you create better QR experiences."
+      />
 
-        <section className="mb-12">
-          <div className="flex flex-wrap gap-2 justify-center">
+      <section className="pb-4">
+        <MktContainer>
+          <Reveal className="flex flex-wrap gap-2 justify-center">
             {categories.map((category) => (
               <span
                 key={category}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-zinc-800 bg-zinc-900/60 text-zinc-300 text-xs"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-line bg-paper-pure text-ink-soft text-xs"
               >
-                <Tag size={12} className="text-violet-400" />
+                <FinderGlyph size={11} className="text-accent" />
                 {category}
               </span>
             ))}
-          </div>
-        </section>
+          </Reveal>
+        </MktContainer>
+      </section>
 
-        <section className="mb-10">
-          <Card className="glass-card border-zinc-800 p-8">
-            <CardContent className="p-0">
-              <div className="text-violet-400 text-xs font-semibold uppercase tracking-wider mb-3">Featured</div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">{featuredPost.title}</h2>
-              <p className="text-zinc-400 leading-relaxed mb-6 max-w-3xl">{featuredPost.excerpt}</p>
-              <div className="flex items-center gap-4 text-zinc-500 text-sm mb-6">
-                <span>{featuredPost.date}</span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock3 size={14} />
-                  {featuredPost.readTime}
-                </span>
-                <span className="text-zinc-300">{featuredPost.category}</span>
-              </div>
-              <Button variant="glow">
-                Read article
-                <ArrowRight size={16} />
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
+      <section className="py-10 md:py-14">
+        <MktContainer>
+          <Reveal className="rounded-[24px] border border-line bg-paper-pure p-8 md:p-10 shadow-card">
+            <Eyebrow>Featured</Eyebrow>
+            <h2 className="mt-4 text-2xl md:text-3xl font-bold font-display tracking-tightest text-ink">
+              {featuredPost.title}
+            </h2>
+            <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-soft">{featuredPost.excerpt}</p>
+            <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-ink-faint">
+              <span>{featuredPost.date}</span>
+              <span className="inline-flex items-center gap-1">
+                <Clock3 size={14} />
+                {featuredPost.readTime}
+              </span>
+              <span className="text-ink-soft">{featuredPost.category}</span>
+            </div>
+            <MktButton href="#" variant="ink" className="mt-7">
+              Read article
+              <ArrowRight size={16} />
+            </MktButton>
+          </Reveal>
+        </MktContainer>
+      </section>
 
-        <section className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-          {posts.map((post) => (
-            <Card key={post.title} className="p-6 card-hover">
-              <CardContent className="p-0 flex flex-col h-full">
-                <div className="text-violet-400 text-[11px] font-semibold uppercase tracking-wider mb-2">{post.category}</div>
-                <h3 className="text-white font-semibold text-lg mb-3 leading-snug">{post.title}</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed mb-5">{post.excerpt}</p>
-                <div className="mt-auto flex items-center justify-between text-zinc-500 text-xs pt-4 border-t border-zinc-800">
-                  <span>{post.date}</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Clock3 size={12} />
-                    {post.readTime}
-                  </span>
+      <section className="pb-20 md:pb-28">
+        <MktContainer>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {posts.map((post, index) => (
+              <Reveal key={post.title} delay={index * 60}>
+                <div className="group flex flex-col h-full rounded-2xl border border-line bg-paper-pure p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">{post.category}</div>
+                  <h3 className="mt-2.5 text-lg font-semibold font-display text-ink leading-snug">{post.title}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-soft">{post.excerpt}</p>
+                  <div className="mt-auto pt-5 flex items-center justify-between text-xs text-ink-faint border-t border-line">
+                    <span>{post.date}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock3 size={12} />
+                      {post.readTime}
+                    </span>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
+              </Reveal>
+            ))}
+          </div>
+        </MktContainer>
+      </section>
 
-        <section>
-          <div className="glass-card rounded-2xl p-8 md:p-10 border border-zinc-800 text-center">
-            <h2 className="text-2xl md:text-4xl font-bold text-white mb-4">Want updates in your inbox?</h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto mb-8">
+      <section className="pb-24">
+        <MktContainer>
+          <Reveal className="rounded-[28px] border border-line bg-paper-pure p-8 md:p-12 text-center">
+            <h2 className="text-2xl md:text-4xl font-bold font-display tracking-tightest text-ink">
+              Want updates in your inbox?
+            </h2>
+            <p className="mt-4 max-w-2xl mx-auto text-ink-soft">
               Follow product releases, design guides, and campaign ideas as we publish new articles.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/signup">
-                <Button size="xl" variant="glow">
-                  Get started free
-                  <ArrowRight size={16} />
-                </Button>
-              </Link>
-              <Link to="/changelog">
-                <Button size="xl" variant="secondary">View changelog</Button>
-              </Link>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <MktButton href="/signup" variant="accent" size="lg">
+                Get started free
+                <ArrowRight size={16} />
+              </MktButton>
+              <MktButton href="/changelog" variant="outline" size="lg">
+                View changelog
+              </MktButton>
             </div>
-          </div>
-        </section>
-      </div>
+          </Reveal>
+        </MktContainer>
+      </section>
     </div>
   )
 }

@@ -1,5 +1,4 @@
-import { useState } from "react"
-import type { ReactNode } from "react"
+import type { ComponentType } from "react"
 import { Link } from "react-router-dom"
 import {
   BarChart3,
@@ -12,16 +11,14 @@ import {
   Code,
   ArrowRight,
   Check,
-  Rocket,
-  ChevronDown,
   ScanLine,
   Pencil,
   MousePointerClick,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { SEOMeta } from "@/components/SEOMeta"
-import { cn } from "@/lib/utils"
+import { MktContainer, SectionHead, MktButton, MktCard, IconTile, FinderGlyph, Reveal, type IconTint } from "@/components/marketing/ui"
+import { PageHero } from "@/components/marketing/PageHero"
+import { FaqAccordion } from "@/components/marketing/FaqAccordion"
 
 // ─── JSON-LD schema ────────────────────────────────────────────────────────────
 // Deliverable 8: SoftwareApplication + FAQPage
@@ -40,28 +37,28 @@ const FEATURES_JSON_LD = [
         "name": "Free Plan",
         "price": "0",
         "priceCurrency": "INR",
-        "description": "3 QR codes, basic analytics, static and dynamic types included.",
+        "description": "Static QR codes — URL, WiFi, WhatsApp, Instagram. No account needed.",
       },
       {
         "@type": "Offer",
         "name": "Starter",
         "price": "299",
         "priceCurrency": "INR",
-        "description": "10 dynamic QR codes, full analytics, smart routing, CSV export.",
+        "description": "50 dynamic QR codes, full analytics, scheduled expiry, CSV export.",
       },
       {
         "@type": "Offer",
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "50 QR codes, A/B testing, team workspace, REST API access, webhook events.",
+        "description": "250 QR codes, A/B testing, smart routing, team seats, REST API, webhook events.",
       },
       {
         "@type": "Offer",
         "name": "Business",
         "price": "2499",
         "priceCurrency": "INR",
-        "description": "Unlimited QR codes, white-label, priority support, bulk generation.",
+        "description": "2,000 QR codes, white-label, priority support, bulk generation.",
       },
     ],
     "featureList": [
@@ -120,7 +117,7 @@ const FEATURES_JSON_LD = [
         "name": "Does GenXQR have a free plan?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR's free plan includes 3 QR codes with basic analytics and both static and dynamic types. No credit card is required. Paid plans start at ₹299/month (Starter) and include more QR codes, full scan analytics, smart routing, CSV export, and team features.",
+          "text": "Yes. GenXQR's free plan lets you create static QR codes — no credit card, no account needed. Paid plans start at ₹299/month (Starter) and add dynamic QR codes you can edit after printing, full scan analytics, CSV export, and — from the Pro plan — smart routing and team seats.",
         },
       },
     ],
@@ -132,7 +129,8 @@ const FEATURES_JSON_LD = [
 
 type Feature = {
   category: string
-  icon: ReactNode
+  icon: ComponentType<{ size?: number; className?: string }>
+  tint: IconTint
   title: string
   desc: string
   items: string[]
@@ -142,7 +140,8 @@ type Feature = {
 const features: Feature[] = [
   {
     category: "Analytics",
-    icon: <BarChart3 size={22} className="text-violet-400" />,
+    icon: BarChart3,
+    tint: "violet",
     title: "Know exactly who scanned — and from where",
     desc: "Every scan logs the timestamp, city, country, device type, OS, and browser automatically. No setup needed. Your data is waiting when you open the dashboard.",
     items: [
@@ -155,7 +154,8 @@ const features: Feature[] = [
   },
   {
     category: "Dynamic QR",
-    icon: <RefreshCw size={22} className="text-blue-400" />,
+    icon: RefreshCw,
+    tint: "blue",
     title: "Change the destination — without reprinting anything",
     desc: "Update the URL, swap the PDF, or redirect to a new offer — all from your dashboard. The printed QR code stays the same. The change goes live in under one second.",
     items: [
@@ -168,7 +168,8 @@ const features: Feature[] = [
   },
   {
     category: "Routing",
-    icon: <Globe size={22} className="text-emerald-400" />,
+    icon: Globe,
+    tint: "emerald",
     title: "One QR code, different pages for different people",
     desc: "Route each scan to a different URL based on where the person is, what device they're using, or what time they scanned. One printed QR code handles it all.",
     items: [
@@ -181,7 +182,8 @@ const features: Feature[] = [
   },
   {
     category: "Content Types",
-    icon: <Layers size={22} className="text-amber-400" />,
+    icon: Layers,
+    tint: "amber",
     title: "16 QR types — one tool covers them all",
     desc: "From a simple URL to a restaurant menu, a contact card, or a Spotify playlist — GenXQR generates the right QR type for every situation.",
     items: [
@@ -194,7 +196,8 @@ const features: Feature[] = [
   },
   {
     category: "Security",
-    icon: <Shield size={22} className="text-red-400" />,
+    icon: Shield,
+    tint: "red",
     title: "Lock, schedule, and cap your QR codes",
     desc: "Protect sensitive content behind a password, run a QR code only during a campaign window, or automatically deactivate it after a set number of scans.",
     items: [
@@ -206,7 +209,8 @@ const features: Feature[] = [
   },
   {
     category: "Team",
-    icon: <Users size={22} className="text-purple-400" />,
+    icon: Users,
+    tint: "purple",
     title: "Your whole team, one shared dashboard",
     desc: "Invite colleagues, assign Owner / Admin / Editor / Viewer roles, and manage every QR code from a shared workspace. No more emailing QR files back and forth.",
     items: [
@@ -219,7 +223,8 @@ const features: Feature[] = [
   },
   {
     category: "Developer API",
-    icon: <Code size={22} className="text-cyan-400" />,
+    icon: Code,
+    tint: "cyan",
     title: "Create and manage QR codes from your own code",
     desc: "GenXQR's REST API lets you generate, update, and monitor QR campaigns programmatically — plug it into your CMS, CRM, or automation pipeline.",
     items: [
@@ -232,7 +237,8 @@ const features: Feature[] = [
   },
   {
     category: "A/B Testing",
-    icon: <Zap size={22} className="text-violet-400" />,
+    icon: Zap,
+    tint: "violet",
     title: "Split test your campaign — automatically",
     desc: "Send a configurable percentage of scans to Variant B and compare results. The analytics tell you which destination drives more conversions — no guesswork.",
     items: [
@@ -250,27 +256,24 @@ const features: Feature[] = [
 const howItWorks = [
   {
     step: "1",
-    icon: <ScanLine size={28} />,
+    icon: ScanLine,
+    tint: "violet" as IconTint,
     title: "Pick a QR type and add your content",
     desc: "Choose from 16 content types — URL, PDF, vCard, menu, WiFi, and more. Paste your link or fill in the form. Done in under a minute.",
-    color: "text-violet-400",
-    bg: "bg-violet-500/10 border-violet-500/20",
   },
   {
     step: "2",
-    icon: <Pencil size={28} />,
+    icon: Pencil,
+    tint: "blue" as IconTint,
     title: "Style it and download",
     desc: "Customise dot style, colours, corner shapes, and add your logo. Download as PNG for print or SVG for vectors — ready for any material.",
-    color: "text-blue-400",
-    bg: "bg-blue-500/10 border-blue-500/20",
   },
   {
     step: "3",
-    icon: <MousePointerClick size={28} />,
+    icon: MousePointerClick,
+    tint: "emerald" as IconTint,
     title: "Track every scan in real time",
     desc: "From the moment the first person scans, your dashboard fills with data: city, device, time, OS. Change the destination any time without reprinting.",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/20",
   },
 ]
 
@@ -296,39 +299,15 @@ const faqs = [
   },
   {
     q: "Does GenXQR have a free plan?",
-    a: "Yes. GenXQR's free plan lets you create 3 QR codes — both static and dynamic — with basic scan analytics included. No credit card required. Paid plans start at ₹299/month (Starter) for 10 QR codes with full analytics, smart routing, CSV export, and scheduled QR codes.",
+    a: "Yes. GenXQR's free plan lets you create static QR codes instantly — no credit card, no account needed. Paid plans start at ₹299/month (Starter) for 50 dynamic QR codes with full analytics, CSV export, and scheduled activation — smart routing is available from the Pro plan.",
   },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border border-zinc-800 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-white font-semibold text-sm hover:bg-zinc-800/40 transition-colors"
-        aria-expanded={open}
-      >
-        <span>{q}</span>
-        <ChevronDown
-          size={18}
-          className={cn("text-zinc-400 shrink-0 transition-transform duration-200", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="px-6 pb-5 text-zinc-400 text-sm leading-relaxed border-t border-zinc-800">
-          <p className="pt-4">{a}</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function FeaturesPage() {
   return (
-    <div className="pt-16 pb-24 px-4">
+    <div className="bg-paper">
       {/* Deliverable 1 & 2: SEO title + meta description */}
       {/* Deliverable 8: JSON-LD schema */}
       <SEOMeta
@@ -338,166 +317,126 @@ export default function FeaturesPage() {
         jsonLd={FEATURES_JSON_LD}
       />
 
-      <div className="max-w-7xl mx-auto">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      {/*
+        Deliverable 3: H1 rewrite
+        Deliverable 5: Hero CTAs — primary + secondary
+        Deliverable 6: A/B variants (Variant A active; B & C in comments)
 
-        {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        {/*
-          Deliverable 3: H1 rewrite
-          Deliverable 5: Hero CTAs — primary + secondary
-          Deliverable 6: A/B variants (Variant A active; B & C in comments)
-
-          Variant A (active): "Every Feature You Need to Create, Track, and Control QR Campaigns"
-          Variant B: "Stop Reprinting. Start Tracking. Everything You Need in One QR Tool."
-          Variant C: "QR Codes That Work Harder — Edit, Track, Route, and Test from One Dashboard"
-        */}
-        <section className="pt-8 text-center">
-          <span className="section-header">
-            <Rocket size={14} />
-            Product features
-          </span>
-          <h1 className="text-4xl md:text-6xl font-bold text-white mt-6 mb-5">
+        Variant A (active): "Every Feature You Need to Create, Track, and Control QR Campaigns"
+        Variant B: "Stop Reprinting. Start Tracking. Everything You Need in One QR Tool."
+        Variant C: "QR Codes That Work Harder — Edit, Track, Route, and Test from One Dashboard"
+      */}
+      <PageHero
+        eyebrow="Product features"
+        title={
+          <>
             Every feature you need to{" "}
-            <span className="gradient-text">create, track, and control QR campaigns</span>
-          </h1>
-          <p className="text-zinc-400 text-lg max-w-2xl mx-auto leading-relaxed">
-            GenXQR is more than a QR generator. Edit destinations after printing, see
-            who's scanning and from where, route by device or location, and automate
-            everything via API — all in one dashboard.
-          </p>
+            <span className="text-accent">create, track, and control QR campaigns</span>
+          </>
+        }
+        intro="GenXQR is more than a QR generator. Edit destinations after printing, see who's scanning and from where, route by device or location, and automate everything via API — all in one dashboard."
+        actions={
+          <>
+            <MktButton href="/generate" variant="accent" size="lg">
+              Create Your First QR Code — Free
+              <ArrowRight size={16} />
+            </MktButton>
+            <MktButton href="/dynamic-qr" variant="outline" size="lg">
+              See how dynamic QR works →
+            </MktButton>
+          </>
+        }
+      >
+        {/* Trust bar */}
+        <div className="grid sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
+          {[
+            { label: "Edit after printing", value: "Change destinations in < 1 second" },
+            { label: "Scan analytics", value: "City · device · OS · browser" },
+            { label: "Developer-ready", value: "REST API + webhook events" },
+          ].map((point) => (
+            <MktCard key={point.label} interactive={false} className="px-4 py-4 text-left">
+              <div className="text-ink font-semibold text-sm">{point.label}</div>
+              <div className="text-ink-faint text-xs mt-1">{point.value}</div>
+            </MktCard>
+          ))}
+        </div>
+      </PageHero>
 
-          {/* Deliverable 5: Hero CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-            <Link to="/generate">
-              <Button size="xl" variant="glow">
-                Create Your First QR Code — Free
-                <ArrowRight size={16} />
-              </Button>
-            </Link>
-            <Link to="/dynamic-qr">
-              <Button size="xl" variant="secondary">
-                See how dynamic QR works →
-              </Button>
-            </Link>
-          </div>
+      {/* ── How it works ─────────────────────────────────────────────────── */}
+      {/* Deliverable 10 fix: QR Tiger has a "How it works" section; we didn't */}
+      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
+        <MktContainer>
+          <SectionHead
+            eyebrow="How it works"
+            title={<>From idea to live QR code in under two minutes</>}
+            intro="No account needed to try. No credit card required. Your first QR code is ready before your coffee gets cold."
+            align="center"
+          />
 
-          {/* Trust bar */}
-          <div className="grid sm:grid-cols-3 gap-4 mt-12 max-w-3xl mx-auto">
-            {[
-              { label: "Edit after printing", value: "Change destinations in < 1 second" },
-              { label: "Scan analytics", value: "City · device · OS · browser" },
-              { label: "Developer-ready", value: "REST API + webhook events" },
-            ].map((point) => (
-              <div key={point.label} className="glass-card rounded-xl px-4 py-4 border border-zinc-800">
-                <div className="text-zinc-200 font-semibold text-sm">{point.label}</div>
-                <div className="text-zinc-500 text-xs mt-1">{point.value}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── How it works ─────────────────────────────────────────────────── */}
-        {/* Deliverable 10 fix: QR Tiger has a "How it works" section; we didn't */}
-        <section className="mt-24">
-          <div className="text-center mb-14">
-            <span className="section-header">
-              <ScanLine size={14} />
-              How it works
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              From idea to live QR code{" "}
-              <span className="gradient-text">in under two minutes</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              No account needed to try. No credit card required. Your first QR code is
-              ready before your coffee gets cold.
-            </p>
-          </div>
-
-          <div className="relative">
-            {/* Desktop connecting line */}
-            <div className="hidden md:block absolute top-[52px] left-[16.66%] right-[16.66%] h-px bg-gradient-to-r from-violet-500/40 via-blue-500/40 to-emerald-500/40 z-0" />
-            <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative z-10">
+          <div className="mt-14 relative">
+            <div className="hidden md:block absolute top-6 left-[16.66%] right-[16.66%] h-px bg-line" />
+            <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative">
               {howItWorks.map((step, i) => (
-                <div
-                  key={step.step}
-                  className="flex flex-col items-center text-center animate-fade-in"
-                  style={{ animationDelay: `${i * 100}ms` }}
-                >
-                  <div className="relative mb-6">
-                    <div className={cn("absolute inset-0 rounded-2xl blur-xl opacity-30 scale-110", step.bg)} />
-                    <div className={cn(
-                      "relative w-[104px] h-[104px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 shadow-lg",
-                      step.bg,
-                      step.color,
-                    )}>
-                      <div className="opacity-80">{step.icon}</div>
-                      <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                        Step {step.step}
-                      </span>
-                    </div>
+                <Reveal key={step.step} delay={i * 100}>
+                  <div className="flex flex-col items-center text-center">
+                    <IconTile icon={step.icon} tint={step.tint} size="md" />
+                    <span className="mt-4 font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">
+                      Step {step.step}
+                    </span>
+                    <h3 className="mt-2 text-base font-bold font-display text-ink">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-ink-soft max-w-xs">{step.desc}</p>
                   </div>
-                  <h3 className="text-white font-bold text-base mb-2">{step.title}</h3>
-                  <p className="text-zinc-400 text-sm leading-relaxed max-w-xs">{step.desc}</p>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>
 
           <div className="text-center mt-10">
-            <Link to="/generate">
-              <Button variant="outline" size="lg">
-                Try it now — no account needed
-                <ArrowRight size={15} />
-              </Button>
-            </Link>
+            <MktButton href="/generate" variant="outline" size="lg">
+              Try it now — no account needed
+              <ArrowRight size={15} />
+            </MktButton>
           </div>
-        </section>
+        </MktContainer>
+      </section>
 
-        {/* ── Feature cards ────────────────────────────────────────────────── */}
-        {/* Deliverable 4: Full benefit-led copy rewrite of all 8 feature cards */}
-        {/* Deliverable 9: Internal links added to each relevant feature card */}
-        <section className="mt-24">
-          <div className="text-center mb-14">
-            <span className="section-header">
-              <Rocket size={14} />
-              Full feature set
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              Everything in one place.{" "}
-              <span className="gradient-text">Nothing held back.</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              Every feature below ships on a plan that costs less than a restaurant lunch —
-              starting at{" "}
-              <Link to="/pricing" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                ₹299/month
-              </Link>
-              .
-            </p>
-          </div>
+      {/* ── Feature cards ────────────────────────────────────────────────── */}
+      {/* Deliverable 4: Full benefit-led copy rewrite of all 8 feature cards */}
+      {/* Deliverable 9: Internal links added to each relevant feature card */}
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer>
+          <SectionHead
+            eyebrow="Full feature set"
+            title={<>Everything in one place. <span className="text-accent">Nothing held back.</span></>}
+            intro={
+              <>
+                Every feature below ships on a plan that costs less than a restaurant lunch — starting at{" "}
+                <Link to="/pricing" className="text-accent hover:text-accent-ink underline underline-offset-2">
+                  ₹299/month
+                </Link>
+                .
+              </>
+            }
+            align="center"
+          />
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="mt-14 grid md:grid-cols-2 gap-6">
             {features.map((feature, i) => (
-              <Card
-                key={feature.title}
-                className="p-6 card-hover animate-fade-in"
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <CardContent className="p-0">
+              <Reveal key={feature.title} delay={i * 60}>
+                <MktCard className="p-7 h-full">
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center shrink-0 border border-zinc-700">
-                      {feature.icon}
-                    </div>
+                    <IconTile icon={feature.icon} tint={feature.tint} />
                     <div className="flex-1">
-                      <div className="text-[11px] text-violet-400 font-semibold uppercase tracking-wider mb-1">
+                      <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent mb-1">
                         {feature.category}
                       </div>
-                      <h3 className="text-white font-bold text-base mb-2">{feature.title}</h3>
-                      <p className="text-zinc-400 text-sm leading-relaxed mb-4">{feature.desc}</p>
+                      <h3 className="text-base font-bold font-display text-ink mb-2">{feature.title}</h3>
+                      <p className="text-sm leading-relaxed text-ink-soft mb-4">{feature.desc}</p>
                       <ul className="grid sm:grid-cols-2 gap-x-5 gap-y-2 mb-4">
                         {feature.items.map((item) => (
-                          <li key={item} className="flex items-center gap-2 text-zinc-300 text-sm">
-                            <Check size={14} className="text-violet-400 shrink-0" />
+                          <li key={item} className="flex items-center gap-2 text-ink text-sm">
+                            <Check size={14} className="text-accent shrink-0" />
                             {item}
                           </li>
                         ))}
@@ -505,72 +444,66 @@ export default function FeaturesPage() {
                       {feature.link && (
                         <Link
                           to={feature.link.to}
-                          className="text-violet-400 hover:text-violet-300 text-xs font-semibold underline underline-offset-2"
+                          className="text-accent hover:text-accent-ink text-xs font-semibold underline underline-offset-2"
                         >
                           {feature.link.label}
                         </Link>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </MktCard>
+              </Reveal>
             ))}
           </div>
-        </section>
+        </MktContainer>
+      </section>
 
-        {/* ── FAQ ──────────────────────────────────────────────────────────── */}
-        {/* Deliverable 7: 5-question FAQ targeting Cluster D featured snippets */}
-        <section className="mt-24 max-w-3xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="section-header">
-              <Rocket size={14} />
-              Common questions
-            </span>
-            <h2 className="text-3xl font-bold text-white mt-4 mb-3">
-              Questions about{" "}
-              <span className="gradient-text">GenXQR features</span>
-            </h2>
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+      {/* Deliverable 7: 5-question FAQ targeting Cluster D featured snippets */}
+      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
+        <MktContainer className="max-w-3xl">
+          <SectionHead
+            eyebrow="Common questions"
+            title={<>Questions about <span className="text-accent">GenXQR features</span></>}
+            align="center"
+          />
+          <div className="mt-12">
+            <FaqAccordion items={faqs} />
           </div>
-          <div className="flex flex-col gap-3">
-            {faqs.map((faq) => (
-              <FaqItem key={faq.q} q={faq.q} a={faq.a} />
-            ))}
-          </div>
-        </section>
+        </MktContainer>
+      </section>
 
-        {/* ── Final CTA ────────────────────────────────────────────────────── */}
-        <section className="mt-20">
-          <div className="glass-card rounded-2xl p-8 md:p-10 border border-zinc-800 text-center relative overflow-hidden">
-            {/* Subtle radial glow */}
-            <div className="absolute inset-0 bg-gradient-to-b from-violet-600/10 via-transparent to-transparent pointer-events-none" />
-            <div className="relative">
-              <h2 className="text-2xl md:text-4xl font-bold text-white mb-4">
-                Your first QR code is ready{" "}
-                <span className="gradient-text">in 60 seconds</span>
-              </h2>
-              <p className="text-zinc-400 max-w-xl mx-auto mb-3">
-                Start on the free plan. Create, style, and publish your first QR code without
-                a credit card. Upgrade only when you need more codes or deeper analytics.
-              </p>
-              <p className="text-zinc-600 text-xs mb-8">
-                No credit card · Cancel any time · UPI accepted · Data export on all plans
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/generate">
-                  <Button size="xl" variant="glow">
+      {/* ── Final CTA ────────────────────────────────────────────────────── */}
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer>
+          <Reveal>
+            <div className="relative overflow-hidden rounded-[32px] bg-band px-6 py-16 md:px-16 md:py-20 text-center">
+              <FinderGlyph size={22} className="absolute top-8 right-8 text-white/15" />
+              <div className="relative">
+                <h2 className="text-2xl md:text-4xl font-bold font-display tracking-tightest leading-[1.05] text-band-fg mb-4">
+                  Your first QR code is ready in 60 seconds
+                </h2>
+                <p className="text-band-fg/70 max-w-xl mx-auto mb-3">
+                  Start on the free plan. Create, style, and publish your first QR code without
+                  a credit card. Upgrade only when you need more codes or deeper analytics.
+                </p>
+                <p className="text-band-fg/50 text-xs mb-8">
+                  No credit card · Cancel any time · UPI accepted · Data export on all plans
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <MktButton href="/generate" variant="accent" size="lg">
                     Create My First QR Code — Free
                     <ArrowRight size={16} />
-                  </Button>
-                </Link>
-                <Link to="/pricing">
-                  <Button size="xl" variant="secondary">Compare all plans</Button>
-                </Link>
+                  </MktButton>
+                  <MktButton href="/pricing" variant="outlineOnDark" size="lg">
+                    Compare all plans
+                  </MktButton>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
-
-      </div>
+          </Reveal>
+        </MktContainer>
+      </section>
     </div>
   )
 }

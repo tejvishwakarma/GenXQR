@@ -36,10 +36,31 @@ module.exports = {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
         },
+        // Marketing redesign tokens (homepage v2). The old shadcn `accent` key was
+        // never consumed by any component — replaced here with the real brand accent.
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "rgb(var(--mkt-accent) / <alpha-value>)",
+          ink: "rgb(var(--mkt-accent-ink) / <alpha-value>)",
+          soft: "rgb(var(--mkt-accent-soft) / <alpha-value>)",
         },
+        paper: {
+          DEFAULT: "rgb(var(--mkt-paper) / <alpha-value>)",
+          pure: "rgb(var(--mkt-surface) / <alpha-value>)",
+        },
+        ink: {
+          DEFAULT: "rgb(var(--mkt-ink) / <alpha-value>)",
+          soft: "rgb(var(--mkt-ink-soft) / <alpha-value>)",
+          faint: "rgb(var(--mkt-ink-faint) / <alpha-value>)",
+        },
+        line: {
+          DEFAULT: "rgb(var(--mkt-line) / <alpha-value>)",
+          dark: "rgb(var(--mkt-band-line) / <alpha-value>)",
+        },
+        band: {
+          DEFAULT: "rgb(var(--mkt-band) / <alpha-value>)",
+          fg: "rgb(var(--mkt-band-fg) / <alpha-value>)",
+        },
+        live: "#0FA968",
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
@@ -69,6 +90,14 @@ module.exports = {
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
+        display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+      },
+      maxWidth: { container: "1200px" },
+      letterSpacing: { tightest: "-0.04em" },
+      boxShadow: {
+        card: "0 1px 2px rgba(20,19,26,0.04), 0 12px 32px -12px rgba(20,19,26,0.12)",
+        lift: "0 24px 60px -20px rgba(20,19,26,0.28)",
       },
       keyframes: {
         "accordion-down": {
@@ -107,10 +136,16 @@ module.exports = {
           "0%": { transform: "translateX(0%)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        floaty: { "0%,100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-8px)" } },
+        scanline: { "0%": { transform: "translateY(0)", opacity: "0" }, "10%,90%": { opacity: "1" }, "100%": { transform: "translateY(220px)", opacity: "0" } },
+        rise: { "0%": { opacity: "0", transform: "translateY(12px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        floaty: "floaty 6s ease-in-out infinite",
+        scanline: "scanline 3.4s ease-in-out infinite",
+        rise: "rise 0.6s ease-out both",
         "fade-in": "fade-in 0.4s ease-out",
         "fade-in-up": "fade-in-up 0.5s ease-out",
         "slide-in-right": "slide-in-right 0.4s ease-out",

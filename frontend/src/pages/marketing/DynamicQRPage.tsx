@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
 import {
   ArrowRight,
-  RefreshCw,
   BarChart3,
   Globe,
   Pencil,
@@ -12,12 +11,10 @@ import {
   X,
   Smartphone,
   QrCode,
-  ChevronDown,
   Webhook,
   Server,
   Link2,
   Hash,
-  TrendingUp,
   AlertTriangle,
   Lightbulb,
   MapPin,
@@ -25,9 +22,10 @@ import {
   Monitor,
   Tablet,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { SEOMeta } from "@/components/SEOMeta"
+import { PageHero } from "@/components/marketing/PageHero"
+import { MktContainer, SectionHead, MktButton, MktCard } from "@/components/marketing/ui"
+import { FaqAccordion } from "@/components/marketing/FaqAccordion"
 import { cn } from "@/lib/utils"
 
 // ─── JSON-LD schema ────────────────────────────────────────────────────────────
@@ -352,6 +350,41 @@ const DEVICE_ICON: Record<string, React.ReactNode> = {
   Tablet:  <Tablet     size={11} />,
 }
 
+// ─── Local styling helpers (restyle-only — new design tokens) ─────────────────
+// These are NOT part of the preserved data arrays above; they only translate
+// each section's existing accent-color intent into the new light/dark-aware
+// token palette used for icon tiles, story cards, and the edit-flow steps.
+
+type Tint = "violet" | "blue" | "emerald" | "amber" | "pink" | "red"
+
+const TILE_BG: Record<Tint, string> = {
+  violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  pink: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+  red: "bg-red-500/10 text-red-600 dark:text-red-400",
+}
+
+const TILE_TEXT: Record<Tint, string> = {
+  violet: "text-violet-600 dark:text-violet-400",
+  blue: "text-blue-600 dark:text-blue-400",
+  emerald: "text-emerald-600 dark:text-emerald-400",
+  amber: "text-amber-600 dark:text-amber-400",
+  pink: "text-pink-600 dark:text-pink-400",
+  red: "text-red-600 dark:text-red-400",
+}
+
+const POWER_TINTS: Tint[] = ["violet", "blue", "emerald", "amber", "pink", "red"]
+const ROUTING_TINTS: Tint[] = ["violet", "blue", "emerald", "amber"]
+const STORY_TINTS: Tint[] = ["violet", "blue", "pink"]
+
+const STEP_STYLES: { ring: string; tile: string }[] = [
+  { ring: "bg-ink/10", tile: "border-line bg-paper-pure text-ink-faint" },
+  { ring: "bg-accent/25", tile: "border-accent/30 bg-accent-soft text-accent" },
+  { ring: "bg-live/25", tile: "border-live/30 bg-live/10 text-live" },
+]
+
 // ─── LiveScanDemo — animated analytics dashboard ───────────────────────────────
 // Competitive gap fix: QR Tiger shows a live scan counter on their dynamic QR
 // page. This component simulates real-time scan activity to prove the feature
@@ -404,46 +437,42 @@ function LiveScanDemo() {
   }, [])
 
   return (
-    <div
-      ref={sectionRef}
-      className="mt-12 max-w-2xl mx-auto animate-fade-in animate-delay-400"
-      aria-label="Live scan analytics demo"
-    >
-      <div className="glass-card rounded-2xl overflow-hidden border border-zinc-700/50 shadow-[0_0_40px_rgba(124,58,237,0.12)]">
+    <div ref={sectionRef} className="mt-8" aria-label="Live scan analytics demo">
+      <div className="rounded-2xl overflow-hidden border border-line bg-paper-pure shadow-lift">
 
         {/* Window chrome */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border-b border-zinc-800">
+        <div className="flex items-center gap-2 px-4 py-3 bg-ink border-b border-line-dark">
           <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/70" />
-          <span className="ml-3 text-zinc-500 text-xs font-mono">genxqr.streamsnatcher.com / dashboard / analytics</span>
-          <span className="ml-auto flex items-center gap-1.5 text-emerald-400 text-xs font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-2.5 h-2.5 rounded-full bg-live/70" />
+          <span className="ml-3 text-paper-pure/50 text-xs font-mono">genxqr.streamsnatcher.com / dashboard / analytics</span>
+          <span className="ml-auto flex items-center gap-1.5 text-live text-xs font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-live animate-pulse" />
             LIVE
           </span>
         </div>
 
-        <div className="p-5 bg-zinc-950/60">
+        <div className="p-5 bg-ink text-paper-pure">
 
           {/* Top stat row */}
           <div className="grid grid-cols-3 gap-3 mb-5">
             {/* Total scans — live counter */}
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 col-span-1">
-              <p className="text-zinc-500 text-[10px] font-medium uppercase tracking-widest mb-1">Total Scans</p>
-              <p className="text-white text-2xl font-bold tabular-nums transition-all duration-300">
+            <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 col-span-1">
+              <p className="text-paper-pure/40 text-[10px] font-medium uppercase tracking-widest mb-1">Total Scans</p>
+              <p className="text-paper-pure text-2xl font-bold tabular-nums transition-all duration-300">
                 {totalScans.toLocaleString("en-IN")}
               </p>
-              <p className="text-emerald-400 text-[10px] mt-1">↑ live</p>
+              <p className="text-live text-[10px] mt-1">↑ live</p>
             </div>
 
             {/* Sparkline chart */}
-            <div className="bg-zinc-900 rounded-xl p-4 border border-zinc-800 col-span-2">
-              <p className="text-zinc-500 text-[10px] font-medium uppercase tracking-widest mb-3">Scans — last 15 min</p>
+            <div className="bg-white/[0.04] rounded-xl p-4 border border-white/10 col-span-2">
+              <p className="text-paper-pure/40 text-[10px] font-medium uppercase tracking-widest mb-3">Scans — last 15 min</p>
               <div className="flex items-end gap-[3px] h-10">
                 {barHeights.map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-sm bg-violet-500/60 transition-all duration-700"
+                    className="flex-1 rounded-sm bg-accent/70 transition-all duration-700"
                     style={{ height: `${h}%` }}
                   />
                 ))}
@@ -454,16 +483,16 @@ function LiveScanDemo() {
           {/* Device breakdown */}
           <div className="grid grid-cols-3 gap-2 mb-5">
             {[
-              { label: "Mobile",  pct: 68, color: "bg-violet-500" },
-              { label: "Desktop", pct: 24, color: "bg-blue-500" },
-              { label: "Tablet",  pct: 8,  color: "bg-pink-500" },
+              { label: "Mobile",  pct: 68, color: "bg-accent" },
+              { label: "Desktop", pct: 24, color: "bg-blue-400" },
+              { label: "Tablet",  pct: 8,  color: "bg-pink-400" },
             ].map((d) => (
-              <div key={d.label} className="bg-zinc-900 rounded-xl p-3 border border-zinc-800">
+              <div key={d.label} className="bg-white/[0.04] rounded-xl p-3 border border-white/10">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-zinc-400 text-[10px]">{d.label}</span>
-                  <span className="text-white text-xs font-bold">{d.pct}%</span>
+                  <span className="text-paper-pure/50 text-[10px]">{d.label}</span>
+                  <span className="text-paper-pure text-xs font-bold">{d.pct}%</span>
                 </div>
-                <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${d.color}`} style={{ width: `${d.pct}%` }} />
                 </div>
               </div>
@@ -471,38 +500,38 @@ function LiveScanDemo() {
           </div>
 
           {/* Live scan feed */}
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800">
-              <p className="text-zinc-500 text-[10px] font-medium uppercase tracking-widest">Recent Scans</p>
-              <span className="flex items-center gap-1 text-emerald-400 text-[10px] font-semibold">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="bg-white/[0.04] rounded-xl border border-white/10 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10">
+              <p className="text-paper-pure/40 text-[10px] font-medium uppercase tracking-widest">Recent Scans</p>
+              <span className="flex items-center gap-1 text-live text-[10px] font-semibold">
+                <span className="w-1 h-1 rounded-full bg-live animate-pulse" />
                 updating live
               </span>
             </div>
-            <div className="divide-y divide-zinc-800/60">
+            <div className="divide-y divide-white/10">
               {feedItems.map((scan, i) => (
                 <div
                   key={`${scan.city}-${i}`}
                   className={cn(
                     "flex items-center gap-3 px-4 py-2.5 transition-colors duration-500",
-                    flashIdx === i ? "bg-violet-500/10" : "bg-transparent",
+                    flashIdx === i ? "bg-accent/10" : "bg-transparent",
                   )}
                 >
                   <span className="text-base leading-none">{scan.flag}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-white text-xs font-medium">{scan.city}</span>
-                    <span className="text-zinc-600 text-xs"> · {scan.country}</span>
+                    <span className="text-paper-pure text-xs font-medium">{scan.city}</span>
+                    <span className="text-paper-pure/30 text-xs"> · {scan.country}</span>
                   </div>
                   <span className={cn(
-                    "flex items-center gap-1 text-zinc-500 text-[10px] px-2 py-0.5 rounded-full border border-zinc-800",
-                    i === 0 && flashIdx === 0 && "text-violet-400 border-violet-500/30 bg-violet-500/10",
+                    "flex items-center gap-1 text-paper-pure/40 text-[10px] px-2 py-0.5 rounded-full border border-white/10",
+                    i === 0 && flashIdx === 0 && "text-accent border-accent/30 bg-accent/10",
                   )}>
                     {DEVICE_ICON[scan.device]}
                     {scan.device}
                   </span>
                   <span className={cn(
-                    "text-zinc-600 text-[10px] shrink-0 tabular-nums",
-                    i === 0 && flashIdx === 0 && "text-emerald-400",
+                    "text-paper-pure/30 text-[10px] shrink-0 tabular-nums",
+                    i === 0 && flashIdx === 0 && "text-live",
                   )}>
                     {i === 0 && flashIdx === 0 ? "just now" : scan.ago}
                   </span>
@@ -511,7 +540,7 @@ function LiveScanDemo() {
             </div>
           </div>
 
-          <p className="text-center text-zinc-700 text-[10px] mt-3">
+          <p className="text-center text-paper-pure/25 text-[10px] mt-3">
             This is what your analytics dashboard looks like — live, the moment someone scans.
           </p>
         </div>
@@ -520,37 +549,11 @@ function LiveScanDemo() {
   )
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border border-zinc-800 rounded-2xl overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-white font-medium text-sm hover:bg-zinc-900/60 transition-colors"
-        aria-expanded={open}
-      >
-        <span>{q}</span>
-        <ChevronDown
-          size={16}
-          className={cn("shrink-0 text-zinc-400 transition-transform duration-300", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="px-6 pb-5 text-zinc-400 text-sm leading-relaxed border-t border-zinc-800/60 pt-4">
-          {a}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DynamicQRPage() {
   return (
-    <div className="relative overflow-hidden">
+    <div className="bg-paper">
 
       {/* ── Deliverables 1, 2, 8: SEO + Schema ── */}
       <SEOMeta
@@ -561,98 +564,75 @@ export default function DynamicQRPage() {
       />
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative pt-20 pb-28 px-4">
-        <div className="absolute inset-0 bg-hero-glow pointer-events-none" />
-        <div className="absolute inset-0 bg-dots opacity-20 pointer-events-none" />
-        <div className="absolute top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-violet-600/8 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="max-w-4xl mx-auto text-center relative">
-          {/* Badge */}
-          <span className="section-header animate-fade-in">
-            <RefreshCw size={14} className="text-violet-400" />
-            Dynamic QR Code Generator — India's most advanced
-          </span>
-
-          {/* ── Deliverable 3: H1 (Variant A active) ── */}
-          {/*
-            A/B variants (Deliverable 6):
-            Variant A (active): keyword-forward + core benefit
-            Variant B: "Create Dynamic QR Codes — Change the Destination Any Time"
-            Variant C: "QR Codes You Can Edit, Track & Update After Printing"
-          */}
-          <h1 className="hero-text text-white mt-8 mb-6 animate-fade-in animate-delay-100">
+      <PageHero
+        eyebrow="Dynamic QR Code Generator — India's most advanced"
+        title={
+          <>
             The Dynamic QR Code{" "}
-            <span className="gradient-text">Generator That Lets You</span>
+            <span className="text-accent">Generator That Lets You</span>
             <br />
             Edit After Printing
-          </h1>
-
-          <p className="text-zinc-400 text-lg md:text-xl max-w-2xl mx-auto mb-4 leading-relaxed animate-fade-in animate-delay-200">
+          </>
+        }
+        intro={
+          <>
             Print your QR code today. Change where it leads tomorrow.{" "}
             Update the URL, swap the PDF, refresh the offer — the printed code never changes.{" "}
-            <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/features" className="text-accent hover:text-accent-ink underline underline-offset-2">
               Scan analytics
             </Link>{" "}
             included on every plan.
-          </p>
-
-          {/* ── Deliverable 5: Hero CTAs ── */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8 animate-fade-in animate-delay-300">
-            <Link to="/signup?next=/app/create">
-              <Button size="xl" variant="glow" className="group">
-                Create Your First Dynamic QR — Free
-                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
-            <Link to="/generate">
-              <Button size="xl" variant="outline">
-                Try the free generator →
-              </Button>
-            </Link>
-          </div>
-
-          <p className="text-zinc-600 text-sm mt-5 animate-fade-in animate-delay-400">
-            Dynamic QR codes from ₹299/mo · 14-day free trial · No credit card
-          </p>
-
-          {/* Live animated analytics demo — competitive gap fix vs QR Tiger */}
-          <LiveScanDemo />
-        </div>
-      </section>
+          </>
+        }
+        actions={
+          <>
+            <MktButton href="/signup?next=/app/create" variant="accent" size="lg">
+              Create Your First Dynamic QR — Free
+              <ArrowRight size={16} />
+            </MktButton>
+            <MktButton href="/generate" variant="outline" size="lg">
+              Try the free generator →
+            </MktButton>
+          </>
+        }
+      >
+        <p className="text-sm text-ink-faint">
+          Dynamic QR codes from ₹299/mo · 14-day free trial · No credit card
+        </p>
+        {/* Live animated analytics demo — competitive gap fix vs QR Tiger */}
+        <LiveScanDemo />
+      </PageHero>
 
       {/* ── 2. Static vs Dynamic comparison ─────────────────────────────────── */}
-      <section className="py-20 px-4 border-y border-zinc-800 bg-zinc-900/30">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-14">
-            <span className="section-header">
-              <Zap size={14} />
-              Static vs Dynamic — the honest comparison
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              Why static QR codes{" "}
-              <span className="gradient-text">cost businesses money</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              Static QR codes lock your destination the moment they're created.
-              One URL change means reprinting every flyer, menu, banner, and badge.{" "}
-              <Link to="/use-cases" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                See real examples →
-              </Link>
-            </p>
-          </div>
+      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
+        <MktContainer className="max-w-4xl">
+          <SectionHead
+            eyebrow="Static vs Dynamic — the honest comparison"
+            title={<>Why static QR codes <span className="text-accent">cost businesses money</span></>}
+            intro={
+              <>
+                Static QR codes lock your destination the moment they're created.
+                One URL change means reprinting every flyer, menu, banner, and badge.{" "}
+                <Link to="/use-cases" className="text-accent hover:text-accent-ink underline underline-offset-2">
+                  See real examples →
+                </Link>
+              </>
+            }
+            align="center"
+          />
 
-          <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+          <div className="mt-12 overflow-x-auto rounded-2xl border border-line">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800">
-                  <th className="text-left px-5 py-4 text-zinc-400 font-medium w-1/2">Capability</th>
+                <tr className="border-b border-line">
+                  <th className="text-left px-5 py-4 text-ink-soft font-medium w-1/2">Capability</th>
                   <th className="px-5 py-4 text-center">
-                    <span className="inline-flex items-center gap-1.5 text-zinc-400 font-medium">
+                    <span className="inline-flex items-center gap-1.5 text-ink-soft font-medium">
                       <QrCode size={14} /> Static QR
                     </span>
                   </th>
-                  <th className="px-5 py-4 text-center bg-violet-500/5">
-                    <span className="inline-flex items-center gap-1.5 text-violet-300 font-semibold">
+                  <th className="px-5 py-4 text-center bg-accent-soft">
+                    <span className="inline-flex items-center gap-1.5 text-accent font-semibold">
                       <Zap size={14} /> Dynamic QR
                     </span>
                   </th>
@@ -660,17 +640,17 @@ export default function DynamicQRPage() {
               </thead>
               <tbody>
                 {comparison.map((row, i) => (
-                  <tr key={row.feature} className={`border-b border-zinc-800/60 ${i % 2 === 0 ? "" : "bg-zinc-900/20"}`}>
-                    <td className="px-5 py-3.5 text-zinc-300">{row.feature}</td>
+                  <tr key={row.feature} className={cn("border-b border-line", i % 2 !== 0 && "bg-ink/[0.02]")}>
+                    <td className="px-5 py-3.5 text-ink">{row.feature}</td>
                     <td className="px-5 py-3.5 text-center">
                       {row.static
-                        ? <Check size={17} className="text-green-400 mx-auto" />
-                        : <X size={17} className="text-zinc-700 mx-auto" />}
+                        ? <Check size={17} className="text-live mx-auto" />
+                        : <X size={17} className="text-ink-faint/50 mx-auto" />}
                     </td>
-                    <td className="px-5 py-3.5 text-center bg-violet-500/5">
+                    <td className="px-5 py-3.5 text-center bg-accent-soft">
                       {row.dynamic
-                        ? <Check size={17} className="text-violet-400 mx-auto" />
-                        : <X size={17} className="text-zinc-700 mx-auto" />}
+                        ? <Check size={17} className="text-accent mx-auto" />
+                        : <X size={17} className="text-ink-faint/50 mx-auto" />}
                     </td>
                   </tr>
                 ))}
@@ -678,276 +658,244 @@ export default function DynamicQRPage() {
             </table>
           </div>
 
-          <p className="text-center text-zinc-600 text-xs mt-4">
+          <p className="text-center text-ink-faint text-xs mt-4">
             Need a permanent, never-changing QR code?{" "}
-            <Link to="/generate" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">
+            <Link to="/generate" className="text-ink-soft hover:text-ink underline underline-offset-2">
               Try the free static generator →
             </Link>
           </p>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 3. Edit-after-print flow ──────────────────────────────────────────── */}
-      <section className="py-28 px-4 relative overflow-hidden">
-        {/* Subtle radial glow */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_40%_at_50%_50%,rgba(124,58,237,0.06),transparent)] pointer-events-none" />
-
-        <div className="max-w-5xl mx-auto relative">
-          <div className="text-center mb-20">
-            <span className="section-header">
-              <RefreshCw size={14} />
-              How edit-after-print works
-            </span>
-            <h2 className="text-3xl md:text-5xl font-bold text-white mt-4 mb-4">
-              Already printed?{" "}
-              <span className="gradient-text">Still completely editable.</span>
-            </h2>
-            <p className="text-zinc-400 max-w-lg mx-auto text-lg">
-              The printed QR code never changes. The destination does — instantly, from your{" "}
-              <Link to="/app/dashboard" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                dashboard
-              </Link>.
-            </p>
-          </div>
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer className="max-w-5xl">
+          <SectionHead
+            eyebrow="How edit-after-print works"
+            title={<>Already printed?{" "}<span className="text-accent">Still completely editable.</span></>}
+            intro={
+              <>
+                The printed QR code never changes. The destination does — instantly, from your{" "}
+                <Link to="/app/dashboard" className="text-accent hover:text-accent-ink underline underline-offset-2">
+                  dashboard
+                </Link>.
+              </>
+            }
+            align="center"
+          />
 
           {/* Desktop: horizontal timeline — Mobile: vertical stepper */}
-          <div className="relative">
+          <div className="mt-16 relative">
 
             {/* Connecting line (desktop only) */}
-            <div className="hidden md:block absolute top-[52px] left-[16.66%] right-[16.66%] h-px bg-gradient-to-r from-zinc-700 via-violet-500/50 to-emerald-500/50 z-0" />
+            <div className="hidden md:block absolute top-[52px] left-[16.66%] right-[16.66%] h-px bg-gradient-to-r from-line via-accent/40 to-live/40 z-0" />
 
             <div className="grid md:grid-cols-3 gap-6 md:gap-8 relative z-10">
-              {editFlow.map((step, i) => (
-                <div
-                  key={step.step}
-                  className="flex flex-col items-center text-center animate-fade-in"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                >
-                  {/* Step number bubble + icon */}
-                  <div className="relative mb-6">
-                    {/* Outer glow ring */}
-                    <div className={cn(
-                      "absolute inset-0 rounded-2xl blur-xl opacity-40 scale-110",
-                      i === 0 ? "bg-zinc-500" : i === 1 ? "bg-violet-600" : "bg-emerald-500",
-                    )} />
-                    <div className={cn(
-                      "relative w-[104px] h-[104px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 shadow-lg",
-                      step.bg, step.color,
-                    )}>
-                      <div className="opacity-80">{step.icon}</div>
-                      <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Step {step.step}</span>
-                    </div>
-                    {/* Connector arrow — between steps on mobile */}
-                    {i < editFlow.length - 1 && (
-                      <div className="md:hidden absolute -bottom-8 left-1/2 -translate-x-1/2 text-zinc-700">
-                        <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
-                          <path d="M8 0v20M2 14l6 8 6-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+              {editFlow.map((step, i) => {
+                const style = STEP_STYLES[i]
+                return (
+                  <div key={step.step} className="flex flex-col items-center text-center">
+                    {/* Step number bubble + icon */}
+                    <div className="relative mb-6">
+                      {/* Outer glow ring */}
+                      <div className={cn("absolute inset-0 rounded-2xl blur-xl opacity-40 scale-110", style.ring)} />
+                      <div className={cn(
+                        "relative w-[104px] h-[104px] rounded-2xl border-2 flex flex-col items-center justify-center gap-1 shadow-lg",
+                        style.tile,
+                      )}>
+                        <div className="opacity-80">{step.icon}</div>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Step {step.step}</span>
                       </div>
-                    )}
+                      {/* Connector arrow — between steps on mobile */}
+                      {i < editFlow.length - 1 && (
+                        <div className="md:hidden absolute -bottom-8 left-1/2 -translate-x-1/2 text-line">
+                          <svg width="16" height="24" viewBox="0 0 16 24" fill="none">
+                            <path d="M8 0v20M2 14l6 8 6-8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Text */}
+                    <h3 className="text-ink font-bold text-lg mb-2 leading-snug">{step.title}</h3>
+                    <p className="text-ink-soft text-sm leading-relaxed mb-4 max-w-[240px]">{step.desc}</p>
+
+                    {/* Detail pill */}
+                    <span className={cn("inline-block text-xs font-semibold px-3 py-1.5 rounded-full border", style.tile)}>
+                      {step.detail}
+                    </span>
                   </div>
-
-                  {/* Text */}
-                  <h3 className="text-white font-bold text-lg mb-2 leading-snug">{step.title}</h3>
-                  <p className="text-zinc-400 text-sm leading-relaxed mb-4 max-w-[240px]">{step.desc}</p>
-
-                  {/* Detail pill */}
-                  <span className={cn(
-                    "inline-block text-xs font-semibold px-3 py-1.5 rounded-full border",
-                    step.bg, step.color,
-                  )}>
-                    {step.detail}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
           {/* Bottom proof bar */}
-          <div className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-zinc-500">
-            <span className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> Change takes effect in &lt; 1 second</span>
-            <span className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> No reprint required — ever</span>
-            <span className="flex items-center gap-2"><Check size={14} className="text-emerald-400" /> Every printed copy updates instantly</span>
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-ink-soft">
+            <span className="flex items-center gap-2"><Check size={14} className="text-live" /> Change takes effect in &lt; 1 second</span>
+            <span className="flex items-center gap-2"><Check size={14} className="text-live" /> No reprint required — ever</span>
+            <span className="flex items-center gap-2"><Check size={14} className="text-live" /> Every printed copy updates instantly</span>
           </div>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 4. Smart routing ─────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 border-y border-zinc-800 bg-zinc-900/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="section-header">
-              <Globe size={14} />
-              Smart routing — PRO & above
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              One QR code.{" "}
-              <span className="gradient-text">Different pages for different people.</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              Route scans automatically by city, country, device type, or time of day —
-              no code, no manual switching, no reprinting.{" "}
-              <Link to="/pricing" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                Available on PRO plans →
-              </Link>
-            </p>
-          </div>
+      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
+        <MktContainer>
+          <SectionHead
+            eyebrow="Smart routing — PRO & above"
+            title={<>One QR code.{" "}<span className="text-accent">Different pages for different people.</span></>}
+            intro={
+              <>
+                Route scans automatically by city, country, device type, or time of day —
+                no code, no manual switching, no reprinting.{" "}
+                <Link to="/pricing" className="text-accent hover:text-accent-ink underline underline-offset-2">
+                  Available on PRO plans →
+                </Link>
+              </>
+            }
+            align="center"
+          />
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {smartRoutingFeatures.map((f, i) => (
-              <Card
-                key={f.title}
-                className="card-hover p-6 animate-fade-in"
-                style={{ animationDelay: `${i * 80}ms` }}
-              >
-                <CardContent className="p-0">
-                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center mb-4 ${f.bg} ${f.color}`}>
-                    {f.icon}
-                  </div>
-                  <h3 className="text-white font-semibold text-sm mb-2">{f.title}</h3>
-                  <p className="text-zinc-400 text-xs leading-relaxed">{f.desc}</p>
-                </CardContent>
-              </Card>
+              <MktCard key={f.title}>
+                <span className={cn(
+                  "inline-grid place-items-center shrink-0 rounded-xl border border-line w-11 h-11 mb-4",
+                  TILE_BG[ROUTING_TINTS[i]],
+                )}>
+                  {f.icon}
+                </span>
+                <h3 className="text-ink font-semibold text-sm mb-2">{f.title}</h3>
+                <p className="text-ink-soft text-xs leading-relaxed">{f.desc}</p>
+              </MktCard>
             ))}
           </div>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 5. Power features ────────────────────────────────────────────────── */}
-      <section className="py-24 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="section-header">
-              <TrendingUp size={14} />
-              Built for your existing stack
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              More than a redirect —{" "}
-              <span className="gradient-text">a live data pipeline</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              GenXQR dynamic QR codes connect directly to your analytics, CRM, and automation tools.
-              Export, automate, and integrate — no workaround needed.
-            </p>
-          </div>
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer>
+          <SectionHead
+            eyebrow="Built for your existing stack"
+            title={<>More than a redirect —{" "}<span className="text-accent">a live data pipeline</span></>}
+            intro="GenXQR dynamic QR codes connect directly to your analytics, CRM, and automation tools. Export, automate, and integrate — no workaround needed."
+            align="center"
+          />
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="mt-14 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {powerFeatures.map((f, i) => (
-              <Card key={f.title} className="card-hover p-6 animate-fade-in" style={{ animationDelay: `${i * 80}ms` }}>
-                <CardContent className="p-0">
-                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center mb-4 ${f.bg} ${f.color}`}>
-                    {f.icon}
-                  </div>
-                  <h3 className="text-white font-semibold text-base mb-2">{f.title}</h3>
-                  <p className="text-zinc-400 text-sm leading-relaxed">{f.desc}</p>
-                </CardContent>
-              </Card>
+              <MktCard key={f.title}>
+                <span className={cn(
+                  "inline-grid place-items-center shrink-0 rounded-xl border border-line w-11 h-11 mb-4",
+                  TILE_BG[POWER_TINTS[i]],
+                )}>
+                  {f.icon}
+                </span>
+                <h3 className="text-ink font-semibold text-base mb-2">{f.title}</h3>
+                <p className="text-ink-soft text-sm leading-relaxed">{f.desc}</p>
+              </MktCard>
             ))}
           </div>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 6. Real stories ───────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 border-y border-zinc-800 bg-zinc-900/30">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="section-header">
-              <BarChart3 size={14} />
-              Real stories, real savings
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              Problems only{" "}
-              <span className="gradient-text">dynamic QR codes solve</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              These aren't hypothetical. They're the exact situations where a static QR code
-              would have cost real money — or caused a product recall.
-            </p>
-          </div>
+      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
+        <MktContainer className="max-w-5xl">
+          <SectionHead
+            eyebrow="Real stories, real savings"
+            title={<>Problems only{" "}<span className="text-accent">dynamic QR codes solve</span></>}
+            intro="These aren't hypothetical. They're the exact situations where a static QR code would have cost real money — or caused a product recall."
+            align="center"
+          />
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {stories.map((s, i) => (
-              <div
-                key={s.industry}
-                className={`glass-card rounded-2xl overflow-hidden border ${s.borderColor} animate-fade-in flex flex-col`}
-                style={{ animationDelay: `${i * 100}ms` }}
-              >
-                {/* ── Coloured header strip ── */}
-                <div className={`${s.headerBg} ${s.headerText} px-5 py-3 flex items-center gap-2`}>
-                  <span className="text-xs font-black uppercase tracking-widest opacity-90">{s.industry}</span>
-                </div>
-
-                {/* ── Result metric — the visual hero ── */}
-                <div className="relative px-6 pt-8 pb-6 text-center">
-                  {/* Soft radial glow behind the number */}
-                  <div className={`absolute inset-0 bg-gradient-to-b ${s.metricGlow} pointer-events-none`} />
-                  <div className={`relative text-5xl font-black tabular-nums ${s.metricColor} leading-none mb-1`}>
-                    {s.metric}
+          <div className="mt-14 grid md:grid-cols-3 gap-6">
+            {stories.map((s, i) => {
+              const tint = STORY_TINTS[i]
+              return (
+                <div
+                  key={s.industry}
+                  className="rounded-2xl border border-line bg-paper-pure overflow-hidden shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift flex flex-col"
+                >
+                  {/* ── Industry label ── */}
+                  <div className="px-5 py-3 border-b border-line">
+                    <span className={cn("text-[11px] font-mono font-bold uppercase tracking-widest", TILE_TEXT[tint])}>
+                      {s.industry}
+                    </span>
                   </div>
-                  <div className="relative text-zinc-400 text-sm font-medium">{s.metricSub}</div>
-                  <p className="relative text-zinc-500 text-xs leading-relaxed mt-3 px-1">{s.resultDetail}</p>
-                </div>
 
-                {/* ── Divider ── */}
-                <div className="mx-5 border-t border-zinc-800/80" />
-
-                {/* ── Pain / Fix context ── */}
-                <div className="grid grid-cols-2 divide-x divide-zinc-800/80 flex-1">
-                  <div className="px-4 py-4">
-                    <div className="flex items-center gap-1.5 text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-2">
-                      <AlertTriangle size={11} />
-                      Problem
+                  {/* ── Result metric — the visual hero ── */}
+                  <div className="px-6 pt-8 pb-6 text-center">
+                    <div className={cn("text-5xl font-black font-display tabular-nums leading-none mb-1", TILE_TEXT[tint])}>
+                      {s.metric}
                     </div>
-                    <p className="text-zinc-400 text-xs leading-relaxed">{s.pain.text}</p>
+                    <div className="text-ink-soft text-sm font-medium">{s.metricSub}</div>
+                    <p className="text-ink-faint text-xs leading-relaxed mt-3 px-1">{s.resultDetail}</p>
                   </div>
-                  <div className="px-4 py-4">
-                    <div className="flex items-center gap-1.5 text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-2">
-                      <Lightbulb size={11} />
-                      Fix
+
+                  {/* ── Divider ── */}
+                  <div className="mx-5 border-t border-line" />
+
+                  {/* ── Pain / Fix context ── */}
+                  <div className="grid grid-cols-2 divide-x divide-line flex-1">
+                    <div className="px-4 py-4">
+                      <div className="flex items-center gap-1.5 text-ink-faint text-[10px] font-bold uppercase tracking-wider mb-2">
+                        <AlertTriangle size={11} />
+                        Problem
+                      </div>
+                      <p className="text-ink-soft text-xs leading-relaxed">{s.pain.text}</p>
                     </div>
-                    <p className="text-zinc-400 text-xs leading-relaxed">{s.fix.text}</p>
+                    <div className="px-4 py-4">
+                      <div className="flex items-center gap-1.5 text-ink-faint text-[10px] font-bold uppercase tracking-wider mb-2">
+                        <Lightbulb size={11} />
+                        Fix
+                      </div>
+                      <p className="text-ink-soft text-xs leading-relaxed">{s.fix.text}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 7. Pricing teaser ────────────────────────────────────────────────── */}
-      <section className="py-20 px-4 border-b border-zinc-800">
-        <div className="max-w-3xl mx-auto text-center">
-          <span className="section-header">
-            <Smartphone size={14} />
-            INR pricing · 14-day free trial
-          </span>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-4">
-            Start free.{" "}
-            <span className="gradient-text">Upgrade when you're ready.</span>
-          </h2>
-          <p className="text-zinc-400 mb-10 max-w-xl mx-auto">
-            All paid plans include{" "}
-            <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-              dynamic QR codes
-            </Link>,{" "}
-            scan analytics, all 16 QR types, and no ads.
-            Pay with UPI, net banking, or card.
-          </p>
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer className="max-w-3xl text-center">
+          <SectionHead
+            eyebrow="INR pricing · 14-day free trial"
+            title={<>Start free.{" "}<span className="text-accent">Upgrade when you're ready.</span></>}
+            intro={
+              <>
+                All paid plans include{" "}
+                <Link to="/features" className="text-accent hover:text-accent-ink underline underline-offset-2">
+                  dynamic QR codes
+                </Link>,{" "}
+                scan analytics, all 16 QR types, and no ads.
+                Pay with UPI, net banking, or card.
+              </>
+            }
+            align="center"
+            className="mx-auto"
+          />
 
-          <div className="grid sm:grid-cols-3 gap-4 mb-10 text-left">
+          <div className="mt-10 grid sm:grid-cols-3 gap-4 mb-10 text-left">
             {[
               {
                 plan: "Starter",
                 price: "₹299",
-                qrs: "10 dynamic QR codes",
-                analytics: "30-day scan history",
+                qrs: "50 dynamic QR codes",
+                analytics: "90-day scan history",
                 highlight: false,
                 badge: "Most Popular",
               },
               {
                 plan: "Pro",
                 price: "₹799",
-                qrs: "50 dynamic QR codes",
+                qrs: "250 dynamic QR codes",
                 analytics: "1-year history + A/B testing",
                 highlight: true,
                 badge: null,
@@ -955,110 +903,95 @@ export default function DynamicQRPage() {
               {
                 plan: "Business",
                 price: "₹2,499",
-                qrs: "Unlimited dynamic QR codes",
-                analytics: "Teams, API, webhooks",
+                qrs: "2,000 dynamic QR codes",
+                analytics: "20 team seats, API, webhooks",
                 highlight: false,
                 badge: null,
               },
             ].map((p) => (
               <div
                 key={p.plan}
-                className={`rounded-2xl border p-5 ${
-                  p.highlight
-                    ? "border-violet-500/50 bg-violet-500/10 shadow-[0_0_24px_rgba(124,58,237,0.15)]"
-                    : "border-zinc-800 bg-zinc-900/50"
-                }`}
+                className={cn(
+                  "rounded-2xl border bg-paper-pure p-5",
+                  p.highlight ? "border-accent shadow-lift" : "border-line shadow-card",
+                )}
               >
                 {p.badge && (
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-violet-300 bg-violet-500/20 px-2 py-0.5 rounded-full mb-3 inline-block">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-accent bg-accent-soft px-2 py-0.5 rounded-full mb-3 inline-block">
                     {p.badge}
                   </span>
                 )}
-                <div className="text-white font-bold text-lg">{p.plan}</div>
-                <div className="text-2xl font-bold text-white mt-1">
-                  {p.price}<span className="text-zinc-500 text-sm font-normal">/mo</span>
+                <div className="text-ink font-bold text-lg">{p.plan}</div>
+                <div className="text-2xl font-bold text-ink mt-1">
+                  {p.price}<span className="text-ink-faint text-sm font-normal">/mo</span>
                 </div>
-                <div className="text-zinc-400 text-xs mt-2">{p.qrs}</div>
-                <div className="text-zinc-600 text-xs mt-1">{p.analytics}</div>
+                <div className="text-ink-soft text-xs mt-2">{p.qrs}</div>
+                <div className="text-ink-faint text-xs mt-1">{p.analytics}</div>
               </div>
             ))}
           </div>
 
-          <Link to="/pricing">
-            <Button variant="outline" size="lg">
-              Compare all plans &amp; features
-              <ArrowRight size={15} />
-            </Button>
-          </Link>
-        </div>
+          <MktButton href="/pricing" variant="outline" size="lg">
+            Compare all plans &amp; features
+            <ArrowRight size={15} />
+          </MktButton>
+        </MktContainer>
       </section>
 
       {/* ── 8. FAQ ───────────────────────────────────────────────────────────── */}
       {/* Deliverable 7: 5 featured-snippet-targeting questions */}
-      <section className="py-24 px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-14">
-            <span className="section-header">
-              <QrCode size={14} />
-              Common questions
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-4">
-              Dynamic QR codes — answered
-            </h2>
-            <p className="text-zinc-400 max-w-lg mx-auto text-sm">
-              Everything you need to know before creating your first dynamic QR code.
-            </p>
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer className="max-w-3xl">
+          <SectionHead
+            eyebrow="Common questions"
+            title={<>Dynamic QR codes — answered</>}
+            intro="Everything you need to know before creating your first dynamic QR code."
+            align="center"
+          />
+
+          <div className="mt-10">
+            <FaqAccordion items={faqs} />
           </div>
 
-          <div className="space-y-3">
-            {faqs.map((faq) => (
-              <FaqItem key={faq.q} q={faq.q} a={faq.a} />
-            ))}
-          </div>
-
-          <p className="text-center text-zinc-500 text-sm mt-8">
+          <p className="text-center text-ink-soft text-sm mt-8">
             More questions?{" "}
-            <Link to="/faq" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/faq" className="text-accent hover:text-accent-ink underline underline-offset-2">
               Visit the full FAQ →
             </Link>
           </p>
-        </div>
+        </MktContainer>
       </section>
 
       {/* ── 9. Final CTA ─────────────────────────────────────────────────────── */}
-      <section className="py-24 px-4 border-t border-zinc-800 bg-zinc-900/30">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="glass-card p-12 rounded-3xl relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/15 to-purple-600/5 pointer-events-none" />
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer>
+          <div className="relative overflow-hidden rounded-[32px] bg-band px-6 py-16 md:px-16 md:py-20 text-center">
+            <div className="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 h-72 w-[560px] rounded-full bg-accent/25 blur-3xl" />
             <div className="relative">
-              <h2 className="text-3xl md:text-4xl font-bold text-white leading-[1.35] mb-5">
+              <h2 className="mx-auto max-w-2xl text-3xl md:text-5xl font-bold font-display tracking-tightest leading-[1.15] text-band-fg">
                 Your QR code is printed.
                 <br />
-                <span className="gradient-text">It can still change.</span>
+                <span className="text-accent">It can still change.</span>
               </h2>
-              <p className="text-zinc-400 mb-8 max-w-md mx-auto text-sm leading-relaxed">
+              <p className="mt-4 mx-auto max-w-md text-band-fg/70 text-sm leading-relaxed">
                 Create a dynamic QR code in 60 seconds. Free trial — no credit card.
                 Dynamic QR codes from ₹299/mo after trial.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/signup?next=/app/create">
-                  <Button size="xl" variant="glow">
-                    Create Your First Dynamic QR — Free
-                    <ArrowRight size={16} />
-                  </Button>
-                </Link>
-                <Link to="/generate">
-                  <Button size="xl" variant="secondary">
-                    Try static QR first →
-                  </Button>
-                </Link>
+              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+                <MktButton href="/signup?next=/app/create" variant="accent" size="lg">
+                  Create Your First Dynamic QR — Free
+                  <ArrowRight size={16} />
+                </MktButton>
+                <MktButton href="/generate" variant="outlineOnDark" size="lg">
+                  Try static QR first →
+                </MktButton>
               </div>
-              <p className="text-zinc-700 text-xs mt-5">
+              <p className="mt-5 text-band-fg/50 text-xs">
                 No credit card · UPI &amp; net banking accepted · Cancel any time
               </p>
             </div>
           </div>
-        </div>
+        </MktContainer>
       </section>
 
     </div>

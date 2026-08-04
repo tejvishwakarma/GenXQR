@@ -53,7 +53,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: false,
   },
   STARTER: {
-    dynamicQRLimit: 25,
+    dynamicQRLimit: 50,
     scanLimitPerMonth: 5000,
     fileStorageGB: 1,
     teamSeatsLimit: 1,

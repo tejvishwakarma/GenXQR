@@ -1,8 +1,9 @@
-import { Camera, Upload, ScanLine, AlertCircle, CheckCircle2, X, ExternalLink, Copy, FlipHorizontal, Wifi, Phone, Mail, MessageSquare, User, MapPin, Globe, Lock, Eye, EyeOff, Download, FileText } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Camera, Upload, AlertCircle, CheckCircle2, X, ExternalLink, Copy, FlipHorizontal, Wifi, Phone, Mail, MessageSquare, User, MapPin, Globe, Lock, Eye, EyeOff, Download, FileText } from "lucide-react"
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import jsQR from "jsqr"
+import { SEOMeta } from "@/components/SEOMeta"
+import { MktContainer, MktCard } from "@/components/marketing/ui"
+import { PageHero } from "@/components/marketing/PageHero"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -192,15 +193,42 @@ function parseQRData(text: string): ParsedQR {
   return { type: "text", text: t }
 }
 
+// ── Local presentational primitive ─────────────────────────────────────────
+// Plain <button> (not <MktButton>) — every scanner action here is a client-side
+// JS handler (camera control, clipboard, file save), never navigation.
+
+function ActionButton({
+  onClick,
+  children,
+  className = "",
+  variant = "outline",
+}: {
+  onClick: () => void
+  children: React.ReactNode
+  className?: string
+  variant?: "outline" | "primary"
+}) {
+  const base = "inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-medium h-9 px-4 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+  const variants = {
+    outline: "border border-line bg-paper-pure text-ink hover:border-ink/30 hover:shadow-card",
+    primary: "bg-accent text-white hover:bg-accent-ink shadow-[0_12px_34px_-12px_rgba(91,75,255,0.65)]",
+  }
+  return (
+    <button type="button" onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+      {children}
+    </button>
+  )
+}
+
 // ── Result Modal Sub-views ─────────────────────────────────────────────────
 
 function FieldRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-zinc-800/60 last:border-0">
-      <div className="text-zinc-500 mt-0.5 shrink-0">{icon}</div>
+    <div className="flex items-start gap-3 py-2.5 border-b border-line last:border-0">
+      <div className="text-ink-faint mt-0.5 shrink-0">{icon}</div>
       <div className="min-w-0">
-        <p className="text-zinc-500 text-xs mb-0.5">{label}</p>
-        <p className="text-zinc-100 text-sm break-words">{value}</p>
+        <p className="text-ink-faint text-xs mb-0.5">{label}</p>
+        <p className="text-ink text-sm break-words">{value}</p>
       </div>
     </div>
   )
@@ -224,9 +252,9 @@ function VCardView({ data }: { data: VCardData }) {
           {initials}
         </div>
         <div>
-          {data.fullName && <p className="text-white text-lg font-semibold leading-tight">{data.fullName}</p>}
-          {data.title    && <p className="text-zinc-400 text-sm">{data.title}</p>}
-          {data.org      && <p className="text-zinc-500 text-sm">{data.org}</p>}
+          {data.fullName && <p className="text-ink text-lg font-semibold leading-tight">{data.fullName}</p>}
+          {data.title    && <p className="text-ink-soft text-sm">{data.title}</p>}
+          {data.org      && <p className="text-ink-faint text-sm">{data.org}</p>}
         </div>
       </div>
       {data.phones.map((p, i) => <FieldRow key={`p${i}`} icon={<Phone size={14} />} label="Phone" value={p} />)}
@@ -235,12 +263,12 @@ function VCardView({ data }: { data: VCardData }) {
       {data.url     && <FieldRow icon={<Globe size={14} />}     label="Website" value={data.url} />}
       {data.note    && <FieldRow icon={<FileText size={14} />}  label="Note"    value={data.note} />}
       <div className="flex gap-2 mt-4">
-        <Button size="sm" variant="outline" className="flex-1" onClick={() => navigator.clipboard.writeText(data.raw)}>
+        <ActionButton className="flex-1" onClick={() => navigator.clipboard.writeText(data.raw)}>
           <Copy size={14} /> Copy vCard
-        </Button>
-        <Button size="sm" variant="outline" className="flex-1" onClick={saveVCF}>
+        </ActionButton>
+        <ActionButton className="flex-1" onClick={saveVCF}>
           <Download size={14} /> Save .vcf
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -253,28 +281,28 @@ function WiFiView({ data }: { data: WiFiData }) {
       <FieldRow icon={<Wifi size={14} />} label="Network (SSID)" value={data.ssid} />
       <FieldRow icon={<Lock size={14} />} label="Security" value={data.security === "nopass" ? "Open (no password)" : data.security} />
       {data.password && (
-        <div className="flex items-start gap-3 py-2.5 border-b border-zinc-800/60">
-          <div className="text-zinc-500 mt-0.5 shrink-0"><Lock size={14} /></div>
+        <div className="flex items-start gap-3 py-2.5 border-b border-line">
+          <div className="text-ink-faint mt-0.5 shrink-0"><Lock size={14} /></div>
           <div className="flex-1 min-w-0">
-            <p className="text-zinc-500 text-xs mb-0.5">Password</p>
-            <p className="text-zinc-100 text-sm font-mono break-all">
+            <p className="text-ink-faint text-xs mb-0.5">Password</p>
+            <p className="text-ink text-sm font-mono break-all">
               {showPass ? data.password : "•".repeat(Math.min(data.password.length, 20))}
             </p>
           </div>
-          <button onClick={() => setShowPass(p => !p)} className="text-zinc-500 hover:text-zinc-300 transition-colors mt-0.5">
+          <button onClick={() => setShowPass(p => !p)} className="text-ink-faint hover:text-ink transition-colors mt-0.5">
             {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         </div>
       )}
       <div className="flex gap-2 mt-4">
         {data.password && (
-          <Button size="sm" variant="outline" className="flex-1" onClick={() => navigator.clipboard.writeText(data.password!)}>
+          <ActionButton className="flex-1" onClick={() => navigator.clipboard.writeText(data.password!)}>
             <Copy size={14} /> Copy Password
-          </Button>
+          </ActionButton>
         )}
-        <Button size="sm" variant="outline" className="flex-1" onClick={() => navigator.clipboard.writeText(data.ssid)}>
+        <ActionButton className="flex-1" onClick={() => navigator.clipboard.writeText(data.ssid)}>
           <Copy size={14} /> Copy SSID
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -287,17 +315,17 @@ function URLView({ data }: { data: URLData }) {
   try { domain = new URL(data.url).hostname } catch { domain = data.url }
   return (
     <div>
-      <div className="bg-zinc-900 rounded-xl p-4 mb-4 border border-zinc-800">
-        <p className="text-zinc-500 text-xs mb-1">{domain}</p>
-        <p className="text-zinc-100 text-sm break-all">{data.url}</p>
+      <div className="bg-paper rounded-xl p-4 mb-4 border border-line">
+        <p className="text-ink-faint text-xs mb-1">{domain}</p>
+        <p className="text-ink text-sm font-mono break-all">{data.url}</p>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" className="flex-1" onClick={copy}>
+        <ActionButton className="flex-1" onClick={copy}>
           <Copy size={14} /> {copied ? "Copied!" : "Copy URL"}
-        </Button>
-        <Button size="sm" variant="outline" className="flex-1" onClick={() => window.open(data.url, "_blank", "noopener,noreferrer")}>
+        </ActionButton>
+        <ActionButton className="flex-1" onClick={() => window.open(data.url, "_blank", "noopener,noreferrer")}>
           <ExternalLink size={14} /> Open
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -310,9 +338,9 @@ function SMSView({ data }: { data: SMSData }) {
       <FieldRow icon={<Phone size={14} />}         label="Phone Number" value={data.phone} />
       {data.body && <FieldRow icon={<MessageSquare size={14} />} label="Message" value={data.body} />}
       <div className="mt-4">
-        <Button size="sm" variant="outline" className="w-full" onClick={() => { window.location.href = href }}>
+        <ActionButton className="w-full" onClick={() => { window.location.href = href }}>
           <MessageSquare size={14} /> Send SMS
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -321,12 +349,12 @@ function SMSView({ data }: { data: SMSData }) {
 function TelView({ data }: { data: TelData }) {
   return (
     <div>
-      <div className="bg-zinc-900 rounded-xl p-5 mb-4 border border-zinc-800 text-center">
-        <p className="text-white text-2xl font-mono tracking-wider">{data.phone}</p>
+      <div className="bg-paper rounded-xl p-5 mb-4 border border-line text-center">
+        <p className="text-ink text-2xl font-mono tracking-wider">{data.phone}</p>
       </div>
-      <Button size="sm" variant="outline" className="w-full" onClick={() => { window.location.href = `tel:${data.phone}` }}>
+      <ActionButton className="w-full" onClick={() => { window.location.href = `tel:${data.phone}` }}>
         <Phone size={14} /> Call
-      </Button>
+      </ActionButton>
     </div>
   )
 }
@@ -343,9 +371,9 @@ function EmailView({ data }: { data: EmailData }) {
       {data.subject && <FieldRow icon={<FileText size={14} />}      label="Subject" value={data.subject} />}
       {data.body    && <FieldRow icon={<MessageSquare size={14} />} label="Body"    value={data.body} />}
       <div className="mt-4">
-        <Button size="sm" variant="outline" className="w-full" onClick={() => { window.location.href = href }}>
+        <ActionButton className="w-full" onClick={() => { window.location.href = href }}>
           <Mail size={14} /> Compose Email
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -357,9 +385,9 @@ function WAppView({ data }: { data: WAppData }) {
       {data.phone   && <FieldRow icon={<Phone size={14} />}         label="Phone"   value={`+${data.phone}`} />}
       {data.message && <FieldRow icon={<MessageSquare size={14} />} label="Message" value={data.message} />}
       <div className="mt-4">
-        <Button size="sm" variant="outline" className="w-full" onClick={() => window.open(data.url, "_blank", "noopener,noreferrer")}>
+        <ActionButton className="w-full" onClick={() => window.open(data.url, "_blank", "noopener,noreferrer")}>
           <ExternalLink size={14} /> Open in WhatsApp
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -370,12 +398,12 @@ function TextView({ data }: { data: TextData }) {
   const copy = () => { navigator.clipboard.writeText(data.text); setCopied(true); setTimeout(() => setCopied(false), 2000) }
   return (
     <div>
-      <div className="bg-zinc-900 rounded-xl p-4 mb-4 border border-zinc-800 max-h-48 overflow-y-auto">
-        <p className="text-zinc-100 text-sm font-mono break-all whitespace-pre-wrap">{data.text}</p>
+      <div className="bg-paper rounded-xl p-4 mb-4 border border-line max-h-48 overflow-y-auto">
+        <p className="text-ink text-sm font-mono break-all whitespace-pre-wrap">{data.text}</p>
       </div>
-      <Button size="sm" variant="outline" className="w-full" onClick={copy}>
+      <ActionButton className="w-full" onClick={copy}>
         <Copy size={14} /> {copied ? "Copied!" : "Copy Text"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }
@@ -383,14 +411,14 @@ function TextView({ data }: { data: TextData }) {
 // ── Scan Result Modal ──────────────────────────────────────────────────────
 
 const TYPE_CONFIG: Record<ParsedQR["type"], { label: string; icon: React.ReactNode; color: string }> = {
-  vcard:    { label: "Contact Card",  icon: <User size={18} />,          color: "text-blue-400"    },
-  wifi:     { label: "Wi-Fi Network", icon: <Wifi size={18} />,          color: "text-cyan-400"    },
-  url:      { label: "URL",           icon: <Globe size={18} />,         color: "text-violet-400"  },
-  sms:      { label: "SMS",           icon: <MessageSquare size={18} />, color: "text-green-400"   },
-  tel:      { label: "Phone Number",  icon: <Phone size={18} />,         color: "text-emerald-400" },
-  email:    { label: "Email",         icon: <Mail size={18} />,          color: "text-orange-400"  },
+  vcard:    { label: "Contact Card",  icon: <User size={18} />,          color: "text-blue-500"    },
+  wifi:     { label: "Wi-Fi Network", icon: <Wifi size={18} />,          color: "text-cyan-500"    },
+  url:      { label: "URL",           icon: <Globe size={18} />,         color: "text-violet-500"  },
+  sms:      { label: "SMS",           icon: <MessageSquare size={18} />, color: "text-emerald-500" },
+  tel:      { label: "Phone Number",  icon: <Phone size={18} />,         color: "text-teal-500"    },
+  email:    { label: "Email",         icon: <Mail size={18} />,          color: "text-amber-500"   },
   whatsapp: { label: "WhatsApp",      icon: <MessageSquare size={18} />, color: "text-green-500"   },
-  text:     { label: "Plain Text",    icon: <FileText size={18} />,      color: "text-zinc-400"    },
+  text:     { label: "Plain Text",    icon: <FileText size={18} />,      color: "text-ink-faint"   },
 }
 
 function ScanResultModal({ result, onClose, onClear }: { result: ScanResult; onClose: () => void; onClear: () => void }) {
@@ -399,11 +427,11 @@ function ScanResultModal({ result, onClose, onClear }: { result: ScanResult; onC
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-ink/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md rounded-2xl glass-card border-zinc-700/60 p-6 max-h-[85vh] overflow-y-auto shadow-2xl"
+        className="relative w-full max-w-md rounded-2xl bg-paper-pure border border-line p-6 max-h-[85vh] overflow-y-auto shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -414,7 +442,7 @@ function ScanResultModal({ result, onClose, onClear }: { result: ScanResult; onC
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-zinc-800"
+            className="text-ink-faint hover:text-ink transition-colors p-1 rounded-lg hover:bg-ink/5"
           >
             <X size={18} />
           </button>
@@ -431,9 +459,9 @@ function ScanResultModal({ result, onClose, onClear }: { result: ScanResult; onC
         {parsed.type === "text"     && <TextView  data={parsed} />}
 
         {/* Footer */}
-        <div className="mt-5 pt-4 border-t border-zinc-800 flex items-center justify-between">
-          <p className="text-zinc-600 text-xs">Scanned at {result.timestamp.toLocaleTimeString()}</p>
-          <button onClick={onClear} className="text-xs text-zinc-500 hover:text-red-400 transition-colors">
+        <div className="mt-5 pt-4 border-t border-line flex items-center justify-between">
+          <p className="text-ink-faint text-xs">Scanned at {result.timestamp.toLocaleTimeString()}</p>
+          <button onClick={onClear} className="text-xs text-ink-faint hover:text-red-500 transition-colors">
             Clear &amp; Scan Again
           </button>
         </div>
@@ -638,28 +666,29 @@ export default function QRScannerPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="pt-24 pb-24 px-4 animate-fade-in relative overflow-hidden min-h-[calc(100vh-4rem)]">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-violet-600/15 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
+    <div className="pb-24 md:pb-32">
+      <SEOMeta
+        title="Free QR Code Scanner"
+        description="Scan any QR code instantly using your camera or by uploading an image — no app required."
+        url="/scanner"
+      />
 
-      <div className="max-w-4xl mx-auto relative z-10">
-        <div className="text-center mb-12">
-          <span className="section-header mb-6">
-            <ScanLine size={14} />
-            Scanner
-          </span>
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Free Online <span className="gradient-text">QR Scanner</span>
-          </h1>
-          <p className="text-zinc-400 text-lg max-w-xl mx-auto">
-            Scan any QR code instantly using your device camera or by uploading an image. No app download required.
-          </p>
-        </div>
+      <PageHero
+        eyebrow="Scanner"
+        title={
+          <>
+            Free Online <span className="text-accent">QR Scanner</span>
+          </>
+        }
+        intro="Scan any QR code instantly using your device camera or by uploading an image. No app download required."
+      />
 
+      <MktContainer>
         <div className="grid md:grid-cols-2 gap-8">
 
           {/* ── Camera panel ── */}
-          <Card className="glass-card border-zinc-800/60 overflow-hidden">
-            <CardContent className="p-0 h-[400px] flex flex-col items-center justify-center relative bg-zinc-950/50">
+          <MktCard interactive={false} className="p-0 overflow-hidden">
+            <div className="h-[400px] flex flex-col items-center justify-center relative bg-paper">
 
               {/* Live video */}
               <video
@@ -674,21 +703,21 @@ export default function QRScannerPage() {
               {/* Scan overlay */}
               {mode === "camera" && (
                 <>
-                  <div className="absolute inset-0 bg-black/30 pointer-events-none" />
+                  <div className="absolute inset-0 bg-ink/30 pointer-events-none" />
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-52 pointer-events-none">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-violet-400 rounded-tl-lg" />
-                    <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-violet-400 rounded-tr-lg" />
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-violet-400 rounded-bl-lg" />
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-violet-400 rounded-br-lg" />
-                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-violet-500 shadow-[0_0_12px_rgba(124,58,237,0.8)] animate-pulse" />
+                    <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-accent rounded-tl-lg" />
+                    <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-accent rounded-tr-lg" />
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-accent rounded-bl-lg" />
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-accent rounded-br-lg" />
+                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-accent shadow-[0_0_12px_rgba(91,75,255,0.8)] animate-pulse" />
                   </div>
                   <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-3 z-10">
-                    <Button size="sm" variant="outline" onClick={handleFlipCamera}>
+                    <ActionButton onClick={handleFlipCamera}>
                       <FlipHorizontal size={14} /> Flip
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleClear}>
+                    </ActionButton>
+                    <ActionButton onClick={handleClear}>
                       <X size={14} /> Stop
-                    </Button>
+                    </ActionButton>
                   </div>
                 </>
               )}
@@ -696,107 +725,98 @@ export default function QRScannerPage() {
               {/* Idle state */}
               {mode !== "camera" && (
                 <>
-                  <div className="absolute inset-0 bg-[linear-gradient(rgba(124,58,237,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(124,58,237,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
-                  <div className="absolute inset-x-12 inset-y-24 border-2 border-violet-500/20 rounded-3xl pointer-events-none" />
+                  <div className="absolute inset-x-12 inset-y-24 border-2 border-line rounded-3xl pointer-events-none" />
                   <div className="z-10 flex flex-col items-center text-center px-6">
-                    <Camera className="text-zinc-500 mb-4" size={48} />
-                    <h3 className="text-white font-medium mb-2">Use your camera</h3>
-                    <p className="text-zinc-500 text-sm mb-6 max-w-xs">
+                    <Camera className="text-ink-faint mb-4" size={48} />
+                    <h3 className="text-ink font-medium mb-2">Use your camera</h3>
+                    <p className="text-ink-soft text-sm mb-6 max-w-xs">
                       Point your camera at a QR code to scan it in real time.
                     </p>
-                    <Button variant="glow" className="rounded-full px-8" onClick={handleEnableCamera}>
+                    <ActionButton variant="primary" className="h-12 px-8" onClick={handleEnableCamera}>
                       Enable Camera
-                    </Button>
+                    </ActionButton>
                   </div>
                 </>
               )}
 
               {/* Hidden canvas for frame decoding */}
               <canvas ref={canvasRef} className="hidden" />
-            </CardContent>
-          </Card>
+            </div>
+          </MktCard>
 
           {/* ── Right panel: upload + result ── */}
           <div className="space-y-6 flex flex-col">
 
             {/* Upload dropzone */}
-            <Card className="p-6 glass-card border-zinc-800/60 flex-1">
-              <CardContent className="p-0 h-full flex flex-col">
-                <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-                  <Upload size={18} className="text-violet-400" />
-                  Upload Image
-                </h3>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
-                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-2xl flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-colors ${
-                    dragOver
-                      ? "border-violet-500 bg-violet-500/10"
-                      : "border-zinc-800 hover:border-violet-500/50 hover:bg-zinc-900/50"
-                  }`}
-                >
-                  <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                    <Upload size={20} className="text-zinc-400" />
-                  </div>
-                  <p className="text-zinc-300 font-medium mb-1">Click to upload</p>
-                  <p className="text-zinc-500 text-sm">or drag and drop a QR code image</p>
-                  <p className="text-zinc-600 text-xs mt-4">Supports PNG, JPG, WEBP, GIF</p>
+            <MktCard interactive={false} className="p-6 flex-1 flex flex-col">
+              <h3 className="text-ink font-semibold mb-4 flex items-center gap-2">
+                <Upload size={18} className="text-accent" />
+                Upload Image
+              </h3>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-2xl flex-1 flex flex-col items-center justify-center p-8 text-center cursor-pointer transition-colors ${
+                  dragOver
+                    ? "border-accent bg-accent-soft"
+                    : "border-line hover:border-accent/50 hover:bg-paper"
+                }`}
+              >
+                <div className="w-12 h-12 rounded-full bg-paper border border-line flex items-center justify-center mb-4">
+                  <Upload size={20} className="text-ink-faint" />
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-              </CardContent>
-            </Card>
+                <p className="text-ink font-medium mb-1">Click to upload</p>
+                <p className="text-ink-faint text-sm">or drag and drop a QR code image</p>
+                <p className="text-ink-faint text-xs mt-4 opacity-70">Supports PNG, JPG, WEBP, GIF</p>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </MktCard>
 
             {/* Result / error card */}
             {error ? (
-              <Card className="p-6 glass-card border-red-900/40">
-                <CardContent className="p-0 flex items-start gap-3">
-                  <AlertCircle className="text-red-400 mt-0.5 shrink-0" size={20} />
-                  <p className="text-red-300 text-sm">{error}</p>
-                </CardContent>
-              </Card>
+              <MktCard interactive={false} className="p-6 border-red-500/30 bg-red-500/5 flex items-start gap-3">
+                <AlertCircle className="text-red-500 mt-0.5 shrink-0" size={20} />
+                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+              </MktCard>
             ) : result ? (
-              <Card className="p-6 glass-card border-violet-500/30">
-                <CardContent className="p-0 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className={`flex items-center gap-2 font-semibold text-sm ${TYPE_CONFIG[parseQRData(result.text).type].color}`}>
-                      <CheckCircle2 size={16} className="text-green-400" />
-                      <span className="text-white">{TYPE_CONFIG[parseQRData(result.text).type].label} Decoded</span>
-                    </div>
-                    <button onClick={handleClear} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-                      <X size={16} />
-                    </button>
+              <MktCard interactive={false} className="p-6 border-accent/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center gap-2 font-semibold text-sm ${TYPE_CONFIG[parseQRData(result.text).type].color}`}>
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                    <span className="text-ink">{TYPE_CONFIG[parseQRData(result.text).type].label} Decoded</span>
                   </div>
-                  <p className="text-zinc-500 text-xs font-mono truncate">
-                    {result.text.length > 60 ? `${result.text.slice(0, 60)}…` : result.text}
-                  </p>
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => setShowModal(true)}>
-                    View Result Details
-                  </Button>
-                </CardContent>
-              </Card>
+                  <button onClick={handleClear} className="text-ink-faint hover:text-ink transition-colors">
+                    <X size={16} />
+                  </button>
+                </div>
+                <p className="text-ink-faint text-xs font-mono truncate">
+                  {result.text.length > 60 ? `${result.text.slice(0, 60)}…` : result.text}
+                </p>
+                <ActionButton className="w-full" onClick={() => setShowModal(true)}>
+                  View Result Details
+                </ActionButton>
+              </MktCard>
             ) : (
-              <Card className="p-6 glass-card border-zinc-800/60 opacity-60">
-                <CardContent className="p-0 flex flex-col items-center justify-center text-center py-6">
-                  <AlertCircle className="text-zinc-500 mb-3" size={32} />
-                  <h3 className="text-zinc-400 font-medium">No Code Detected</h3>
-                  <p className="text-zinc-600 text-sm mt-1">Scan or upload a QR code to see the result here.</p>
-                </CardContent>
-              </Card>
+              <MktCard interactive={false} className="p-6 opacity-60 flex flex-col items-center justify-center text-center py-6">
+                <AlertCircle className="text-ink-faint mb-3" size={32} />
+                <h3 className="text-ink-soft font-medium">No Code Detected</h3>
+                <p className="text-ink-faint text-sm mt-1">Scan or upload a QR code to see the result here.</p>
+              </MktCard>
             )}
           </div>
         </div>
-      </div>
+      </MktContainer>
 
       {/* Result modal — opens automatically on scan, dismissible without clearing */}
       {showModal && result && (
@@ -809,4 +829,3 @@ export default function QRScannerPage() {
     </div>
   )
 }
-

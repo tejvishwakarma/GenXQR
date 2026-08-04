@@ -48,7 +48,19 @@ export default defineConfig({
   server: {
     host: true, // expose on LAN so mobile devices can connect
     proxy: {
-      "/api":       { target: "http://localhost:4000", changeOrigin: true, secure: false },
+      "/api": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+        secure: false,
+        // "/api-docs" is a frontend marketing page (React Router), not a backend
+        // route — the naive "/api" prefix match would otherwise swallow it too.
+        // Only forward exact "/api" or "/api/..." paths to the backend.
+        bypass(req) {
+          const url = req.url ?? ""
+          if (url !== "/api" && !url.startsWith("/api/")) return "/index.html"
+          return null
+        },
+      },
       "/admin-api": { target: "http://localhost:4000", changeOrigin: true, secure: false },
       "/r":         {
         target: "http://localhost:4000",

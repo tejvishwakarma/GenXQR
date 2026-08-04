@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react"
 import { X, Send, CheckCircle2, Loader2, Upload, FileText, Trash2, Briefcase, ExternalLink } from "lucide-react"
+import { IconTile } from "@/components/marketing/ui"
 
 const EXPERIENCE_OPTIONS = [
   "Less than 1 year",
@@ -119,27 +120,25 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-50 w-full sm:w-[600px] sm:max-h-[90vh] flex flex-col bg-zinc-900 border border-zinc-700 sm:rounded-2xl shadow-2xl overflow-hidden max-h-[95vh]">
+      <div className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-50 w-full sm:w-[600px] sm:max-h-[90vh] flex flex-col bg-paper-pure border border-line sm:rounded-2xl shadow-lift overflow-hidden max-h-[95vh]">
 
         {/* Header */}
-        <div className="shrink-0 flex items-start justify-between px-6 py-5 border-b border-zinc-800 bg-gradient-to-r from-violet-600/15 to-indigo-600/10">
+        <div className="shrink-0 flex items-start justify-between px-6 py-5 border-b border-line bg-accent-soft">
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mt-0.5">
-              <Briefcase size={17} className="text-violet-400" />
-            </div>
+            <IconTile icon={Briefcase} tint="violet" size="sm" className="mt-0.5" />
             <div>
-              <p className="text-white font-bold text-base leading-snug">Apply for this role</p>
-              <p className="text-violet-400 text-sm font-medium mt-0.5">{jobTitle}</p>
+              <p className="text-ink font-bold text-base leading-snug">Apply for this role</p>
+              <p className="text-accent text-sm font-medium mt-0.5">{jobTitle}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white transition shrink-0 mt-0.5"
+            className="w-7 h-7 rounded-lg border border-line bg-paper hover:border-ink/30 flex items-center justify-center text-ink-faint hover:text-ink transition-colors shrink-0 mt-0.5"
           >
             <X size={14} />
           </button>
@@ -150,19 +149,19 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
           {submitted ? (
             /* ── Success ── */
             <div className="flex flex-col items-center justify-center text-center py-16 px-8 gap-5">
-              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                <CheckCircle2 size={40} className="text-emerald-400" />
+              <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 dark:border-emerald-500/30 flex items-center justify-center">
+                <CheckCircle2 size={40} className="text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-white font-bold text-2xl mb-2">Application sent!</p>
-                <p className="text-zinc-400 leading-relaxed max-w-xs">
-                  Thanks for applying for <span className="text-white font-medium">{jobTitle}</span>.
+                <p className="text-ink font-bold text-2xl mb-2 font-display">Application sent!</p>
+                <p className="text-ink-soft leading-relaxed max-w-xs">
+                  Thanks for applying for <span className="text-ink font-medium">{jobTitle}</span>.
                   We'll review your profile and reach out if there's a strong match.
                 </p>
               </div>
               <button
                 onClick={onClose}
-                className="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-semibold rounded-xl transition"
+                className="px-6 py-2.5 border border-line bg-paper hover:border-ink/30 text-ink text-sm font-semibold rounded-full transition-colors"
               >
                 Close
               </button>
@@ -210,7 +209,7 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
                       placeholder="https://linkedin.com/in/..."
                       className={`${input(!!errors["linkedin"])} pr-9`}
                     />
-                    <ExternalLink size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 pointer-events-none" />
+                    <ExternalLink size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
                   </div>
                 </Field>
               </div>
@@ -238,22 +237,22 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
                   placeholder="Tell us why you're a great fit, what excites you about this role, and what you'd bring to the team..."
                   className={`${input(!!errors["coverLetter"])} resize-none`}
                 />
-                <p className="text-zinc-600 text-xs mt-1">{form.coverLetter.length} / 5000</p>
+                <p className="text-ink-faint text-xs mt-1">{form.coverLetter.length} / 5000</p>
               </Field>
 
               {/* CV Upload */}
               <Field label="CV / Resume *" error={errors["cv"] ?? cvError}>
                 {cv ? (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl">
-                    <FileText size={18} className="text-violet-400 shrink-0" />
+                  <div className="flex items-center gap-3 px-4 py-3 bg-paper border border-line rounded-xl">
+                    <FileText size={18} className="text-accent shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{cv.name}</p>
-                      <p className="text-zinc-500 text-xs">{(cv.size / 1024).toFixed(0)} KB</p>
+                      <p className="text-ink text-sm font-medium truncate">{cv.name}</p>
+                      <p className="text-ink-faint text-xs">{(cv.size / 1024).toFixed(0)} KB</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => { setCv(null); setCvError("") }}
-                      className="text-zinc-500 hover:text-red-400 transition"
+                      className="text-ink-faint hover:text-red-500 transition-colors"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -264,18 +263,18 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
                     onDragLeave={() => setDragOver(false)}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`flex flex-col items-center justify-center gap-2 py-7 px-4 border-2 border-dashed rounded-xl cursor-pointer transition ${
+                    className={`flex flex-col items-center justify-center gap-2 py-7 px-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
                       dragOver
-                        ? "border-violet-500 bg-violet-500/10"
+                        ? "border-accent bg-accent-soft"
                         : errors["cv"] || cvError
                         ? "border-red-500/50 bg-red-500/5 hover:border-red-400"
-                        : "border-zinc-700 hover:border-violet-500 hover:bg-violet-500/5"
+                        : "border-line hover:border-accent hover:bg-accent-soft"
                     }`}
                   >
-                    <Upload size={24} className="text-zinc-500" />
+                    <Upload size={24} className="text-ink-faint" />
                     <div className="text-center">
-                      <p className="text-zinc-300 text-sm font-medium">Drop your CV here or click to browse</p>
-                      <p className="text-zinc-600 text-xs mt-1">PDF, DOC, DOCX · Max 5 MB</p>
+                      <p className="text-ink-soft text-sm font-medium">Drop your CV here or click to browse</p>
+                      <p className="text-ink-faint text-xs mt-1">PDF, DOC, DOCX · Max 5 MB</p>
                     </div>
                   </div>
                 )}
@@ -290,16 +289,18 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
 
               {/* Server error */}
               {serverError && (
-                <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm">
                   {serverError}
                 </div>
               )}
 
-              {/* Submit */}
+              {/* Submit — visually matches MktButton variant="accent"; kept as a native
+                  submit button (not <MktButton>, which renders an <a>) so the form's
+                  native submit/disabled semantics and handleSubmit wiring stay intact. */}
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 h-11 px-5 bg-accent hover:bg-accent-ink text-white font-medium text-sm rounded-full shadow-[0_12px_34px_-12px_rgba(91,75,255,0.65)] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
                   <><Loader2 size={16} className="animate-spin" /> Submitting Application…</>
@@ -308,7 +309,7 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
                 )}
               </button>
 
-              <p className="text-center text-zinc-600 text-xs">
+              <p className="text-center text-ink-faint text-xs">
                 Your application will be sent directly to our recruiting team.
               </p>
             </form>
@@ -324,15 +325,17 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-zinc-400 text-xs font-medium mb-1.5">{label}</label>
+      <label className="block text-ink-faint text-xs font-medium mb-1.5">{label}</label>
       {children}
-      {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+      {error && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{error}</p>}
     </div>
   )
 }
 
 function input(hasError: boolean) {
-  return `w-full bg-zinc-800 border text-white text-sm rounded-xl px-3 py-2.5 focus:outline-none transition placeholder:text-zinc-600 ${
-    hasError ? "border-red-500 focus:border-red-400" : "border-zinc-700 focus:border-violet-500"
+  return `w-full bg-paper border text-ink text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 transition-colors placeholder:text-ink-faint ${
+    hasError
+      ? "border-red-500 focus:border-red-500 focus:ring-red-500/30"
+      : "border-line focus:border-accent focus:ring-accent/40"
   }`
 }

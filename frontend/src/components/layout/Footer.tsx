@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { QrCode, Twitter, Github, Linkedin } from "lucide-react"
+import { QrCode } from "lucide-react"
 
 const footerLinks = {
   Product: [
@@ -32,49 +32,30 @@ const footerLinks = {
 
 export function Footer() {
   return (
-    <footer className="border-t border-zinc-800 bg-zinc-950/80 mt-24">
+    <footer className="bg-paper-pure border-t border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        {/* Top */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-10 mb-12">
-          {/* Brand */}
-          <div className="col-span-2">
-            <Link to="/" className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.3)]">
-                <QrCode className="w-4.5 h-4.5 text-white" size={18} />
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:gap-10">
+          <div className="col-span-2 max-w-xs lg:col-span-1">
+            <Link to="/" className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center">
+                <QrCode className="text-white" size={18} />
               </div>
-              <span className="text-white font-bold text-lg">
-                GenX<span className="gradient-text">QR</span>
+              <span className="font-display text-lg font-bold tracking-tightest text-ink">
+                Gen<span className="text-accent">XQR</span>
               </span>
             </Link>
-            <p className="text-zinc-400 text-sm leading-relaxed max-w-xs mb-6">
-              The most powerful QR code platform for businesses. Create, track, and optimize your QR codes at scale.
+            <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+              The QR platform for business — branded, dynamic, and fully tracked. Made in India, used worldwide.
             </p>
-            <div className="flex items-center gap-3">
-              <a href="#" className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors">
-                <Twitter size={16} />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors">
-                <Github size={16} />
-              </a>
-              <a href="#" className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors">
-                <Linkedin size={16} />
-              </a>
-            </div>
           </div>
 
-          {/* Links */}
           {Object.entries(footerLinks).map(([section, links]) => (
             <div key={section}>
-              <h4 className="text-white font-semibold text-sm mb-4">{section}</h4>
-              <ul className="space-y-3">
-                {links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      to={link.href}
-                      className="text-zinc-400 hover:text-white text-sm transition-colors"
-                    >
-                      {link.label}
-                    </Link>
+              <div className="text-sm font-semibold text-ink">{section}</div>
+              <ul className="mt-4 space-y-2.5">
+                {links.map((l) => (
+                  <li key={l.label}>
+                    <Link to={l.href} className="text-sm text-ink-soft hover:text-ink transition-colors">{l.label}</Link>
                   </li>
                 ))}
               </ul>
@@ -82,14 +63,11 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Bottom */}
-        <div className="border-t border-zinc-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-zinc-500 text-sm">
-            © 2026 GenXQR. All rights reserved.
-          </p>
+        <div className="mt-14 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-line pt-8">
+          <p className="text-sm text-ink-faint">© {new Date().getFullYear()} GenXQR. All rights reserved.</p>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-zinc-500 text-xs">All systems operational</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-live animate-pulse" />
+            <span className="text-ink-faint text-xs">All systems operational</span>
           </div>
         </div>
       </div>

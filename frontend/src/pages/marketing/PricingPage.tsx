@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import { Check, X, Zap, ChevronRight, ChevronDown, Minus } from "lucide-react"
+import { Check, X, Minus, ChevronRight, ChevronDown } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { PageHero } from "@/components/marketing/PageHero"
+import { MktContainer, SectionHead, MktButton, MktCard, Reveal } from "@/components/marketing/ui"
+import { FaqAccordion } from "@/components/marketing/FaqAccordion"
 import { cn } from "@/lib/utils"
 
 // ─── JSON-LD schema ────────────────────────────────────────────────────────────
@@ -30,21 +31,21 @@ const PRICING_JSON_LD = [
         "name": "Starter",
         "price": "299",
         "priceCurrency": "INR",
-        "description": "10 dynamic QR codes with scan analytics, all 16 QR types, PNG & SVG download.",
+        "description": "50 dynamic QR codes with scan analytics, all 16 QR types, PNG & SVG download.",
       },
       {
         "@type": "Offer",
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "50 dynamic QR codes, A/B testing, smart routing, REST API, bulk generation.",
+        "description": "250 dynamic QR codes, A/B testing, smart routing, REST API, bulk generation.",
       },
       {
         "@type": "Offer",
         "name": "Business",
         "price": "2499",
         "priceCurrency": "INR",
-        "description": "Unlimited dynamic QR codes, 5 team seats, custom domain, webhooks, unlimited API.",
+        "description": "2,000 dynamic QR codes, 20 team seats, custom domain, webhooks, 100,000 API calls/month.",
       },
     ],
   },
@@ -138,17 +139,18 @@ const plans = [
     priceYearly: 249,
     yearlySaving: 600,
     perDay: "₹8",
-    desc: "Your first 10 dynamic QR codes with scan tracking. Perfect for small businesses.",
+    desc: "Your first 50 dynamic QR codes with scan tracking. Perfect for small businesses.",
     cta: "Try Starter Free — 14 Days",
     ctaVariant: "outline" as const,
     href: "/signup?plan=starter",
     highlight: false,
     features: [
-      "10 QR codes you can edit after printing",
+      "50 QR codes you can edit after printing",
       "Scan analytics — city, device & browser tracked",
       "All 16 QR types — URL, PDF, menu, vCard, WiFi & more",
       "PNG + SVG download — print or digital ready",
-      "30-day analytics history",
+      "90-day analytics history",
+      "Scheduled activation & auto-expiry",
       "No ads",
       "Email support",
     ],
@@ -167,26 +169,28 @@ const plans = [
     priceYearly: 649,
     yearlySaving: 1800,
     perDay: "₹22",
-    desc: "50 dynamic QR codes, A/B testing, smart routing — the full marketer's toolkit.",
+    desc: "250 dynamic QR codes, A/B testing, smart routing — the full marketer's toolkit.",
     cta: "Try Pro Free — 14 Days",
     ctaVariant: "default" as const,
     href: "/signup?plan=pro",
     highlight: true,
     features: [
-      "50 QR codes you can update any time",
+      "250 QR codes you can update any time",
       "Full analytics — 1-year history, geo & device breakdown",
       "A/B testing — split-test destinations, auto-pick the winner",
       "Smart routing — different pages for different cities or devices",
       "Scheduled activation & auto-expiry",
       "Bulk generate up to 100 QR codes from CSV",
-      "REST API — 1,000 calls/month",
+      "REST API — 10,000 calls/month",
+      "Webhooks — trigger Zapier, Slack, or your own systems",
+      "Custom short domain for branded QR codes",
+      "5 team seats with role-based access",
       "All download formats — PNG, SVG, PDF",
-      "Priority email support",
+      "Email support",
     ],
     missing: [
-      "Team collaboration seats",
-      "Custom short domain",
-      "Webhooks",
+      "Priority phone & email support",
+      "Google Drive auto-backup",
     ],
   },
   {
@@ -197,19 +201,17 @@ const plans = [
     priceYearly: 1999,
     yearlySaving: 6000,
     perDay: "₹67",
-    desc: "Unlimited QR codes for teams, agencies, and brands that run at scale.",
+    desc: "2,000 QR codes for teams, agencies, and brands that run at scale.",
     cta: "Try Business Free — 14 Days",
     ctaVariant: "glow" as const,
     href: "/signup?plan=business",
     highlight: false,
     features: [
-      "Unlimited QR codes — no caps, ever",
+      "2,000 QR codes — 8× Pro's limit",
       "Everything in Pro +",
-      "5 team seats with role-based access",
-      "Custom short domain for branded QR codes",
-      "Webhooks — trigger Zapier, Slack, or your own systems",
+      "20 team seats with role-based access",
       "Bulk generate up to 5,000 QR codes from CSV",
-      "Unlimited REST API calls",
+      "100,000 API calls/month",
       "Google Drive auto-backup",
       "Priority phone & email support",
       "99.9% uptime SLA guarantee",
@@ -224,21 +226,21 @@ const plans = [
 type CellValue = boolean | string
 
 const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pro: CellValue; business: CellValue }[] = [
-  { feature: "Dynamic QR codes",          free: false,    starter: "10",         pro: "50",          business: "Unlimited" },
-  { feature: "Scan analytics",            free: false,    starter: "30 days",    pro: "1 year",      business: "1 year" },
-  { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,          business: true },
-  { feature: "Custom design & logo",      free: false,    starter: true,         pro: true,          business: true },
-  { feature: "A/B testing",               free: false,    starter: false,        pro: true,          business: true },
-  { feature: "Smart routing",             free: false,    starter: false,        pro: true,          business: true },
-  { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",     business: "5,000 QRs" },
-  { feature: "REST API",                  free: false,    starter: false,        pro: "1K calls/mo", business: "Unlimited" },
-  { feature: "Team seats",                free: false,    starter: false,        pro: false,         business: "5 seats" },
-  { feature: "Custom short domain",       free: false,    starter: false,        pro: false,         business: true },
-  { feature: "Webhooks",                  free: false,    starter: false,        pro: false,         business: true },
-  { feature: "Google Drive backup",       free: false,    starter: false,        pro: false,         business: true },
-  { feature: "Password-protected QR",     free: false,    starter: true,         pro: true,          business: true },
-  { feature: "Schedule & expiry",         free: false,    starter: false,        pro: true,          business: true },
-  { feature: "Uptime SLA",               free: false,    starter: false,        pro: false,         business: "99.9%" },
+  { feature: "Dynamic QR codes",          free: false,    starter: "50",         pro: "250",          business: "2,000" },
+  { feature: "Scan analytics",            free: false,    starter: "90 days",    pro: "1 year",       business: "2 years" },
+  { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Custom design & logo",      free: false,    starter: true,         pro: true,           business: true },
+  { feature: "A/B testing",               free: false,    starter: false,        pro: true,           business: true },
+  { feature: "Smart routing",             free: false,    starter: false,        pro: true,           business: true },
+  { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "5,000 QRs" },
+  { feature: "REST API",                  free: false,    starter: false,        pro: "10K calls/mo", business: "100K calls/mo" },
+  { feature: "Team seats",                free: false,    starter: false,        pro: "5 seats",      business: "20 seats" },
+  { feature: "Custom short domain",       free: false,    starter: false,        pro: true,           business: true },
+  { feature: "Webhooks",                  free: false,    starter: false,        pro: true,           business: true },
+  { feature: "Google Drive backup",       free: false,    starter: false,        pro: false,          business: true },
+  { feature: "Password-protected QR",     free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Schedule & expiry",         free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Uptime SLA",               free: false,    starter: false,        pro: false,          business: "99.9%" },
 ]
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
@@ -270,33 +272,25 @@ const faqItems = [
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function ComparisonCell({ value }: { value: CellValue }) {
-  if (value === false) return <Minus size={15} className="text-zinc-700 mx-auto" />
-  if (value === true) return <Check size={15} className="text-violet-400 mx-auto" />
-  return <span className="text-zinc-300 text-xs font-medium">{value}</span>
+  if (value === false) return <Minus size={15} className="text-ink-faint mx-auto" />
+  if (value === true) return <Check size={15} className="text-accent mx-auto" />
+  return <span className="text-ink-soft text-xs font-medium">{value}</span>
 }
 
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border border-zinc-800 rounded-2xl overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-white font-medium text-sm hover:bg-zinc-900/60 transition-colors"
-        aria-expanded={open}
-      >
-        <span>{q}</span>
-        <ChevronDown
-          size={16}
-          className={cn("shrink-0 text-zinc-400 transition-transform duration-300", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="px-6 pb-5 text-zinc-400 text-sm leading-relaxed border-t border-zinc-800/60 pt-4">
-          {a}
-        </div>
-      )}
-    </div>
-  )
+// Plan-card CTA button — mirrors MktButton's visual language, but stays a plain
+// <button> (not MktButton/<Link>) because it must run `handlePlanCTA`'s
+// localStorage-aware routing logic rather than navigate to a fixed href.
+const PLAN_CTA_BASE =
+  "inline-flex w-full items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 whitespace-nowrap h-11 px-5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-pure"
+const PLAN_CTA_VARIANTS = {
+  outline: "border border-line bg-paper text-ink hover:border-ink/30 hover:shadow-card",
+  filled: "bg-accent text-white hover:bg-accent-ink shadow-[0_12px_34px_-12px_rgba(91,75,255,0.65)]",
+}
+
+function planBadgePill(variant: "default" | "success" | null, highlight: boolean) {
+  if (highlight) return "bg-accent text-white"
+  if (variant === "success") return "bg-accent-soft text-accent"
+  return "bg-ink text-paper"
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -320,7 +314,7 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="pt-16 pb-24 px-4">
+    <div className="pb-24">
       {/* ── Deliverable 1 & 2: Title + Meta ── */}
       <SEOMeta
         title="QR Code Generator Pricing — Free to ₹2,499/mo"
@@ -329,153 +323,163 @@ export default function PricingPage() {
         jsonLd={PRICING_JSON_LD}
       />
 
-      <div className="max-w-7xl mx-auto">
-
-        {/* ── Header ── */}
-        <div className="text-center mb-16">
-          <span className="section-header">
-            <Zap size={14} className="text-violet-400" />
-            INR pricing · UPI accepted · 14-day free trial
-          </span>
-
-          {/* ── Deliverable 3: H1 (Variant A active) ── */}
-          <h1 className="text-4xl md:text-6xl font-bold text-white mt-6 mb-4">
+      {/* ── Header ── */}
+      <PageHero
+        eyebrow="INR pricing · UPI accepted · 14-day free trial"
+        title={
+          <>
             Honest pricing.{" "}
-            <span className="gradient-text">Pay only for what you use.</span>
-          </h1>
-
-          <p className="text-zinc-400 text-lg max-w-xl mx-auto mb-10">
+            <span className="text-accent">Pay only for what you use.</span>
+          </>
+        }
+        intro={
+          <>
             From a single free QR code to unlimited dynamic QR codes for your whole team —
             every plan includes{" "}
-            <Link to="/dynamic-qr" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/dynamic-qr" className="text-accent underline underline-offset-2 hover:text-accent-ink">
               dynamic QR codes
             </Link>{" "}
             and{" "}
-            <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/features" className="text-accent underline underline-offset-2 hover:text-accent-ink">
               scan analytics
-            </Link>.
-          </p>
-
-          {/* Billing toggle */}
-          <div className="inline-flex items-center gap-4 glass-card p-1.5 rounded-xl">
-            <button
-              onClick={() => setYearly(false)}
-              className={cn(
-                "px-5 py-2 rounded-lg text-sm font-medium transition-all",
-                !yearly ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white",
-              )}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setYearly(true)}
-              className={cn(
-                "px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
-                yearly ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white",
-              )}
-            >
-              Yearly
-              <Badge variant="success" className="text-xs">Save up to 20%</Badge>
-            </button>
-          </div>
+            </Link>
+            .
+          </>
+        }
+      >
+        {/* Billing toggle */}
+        <div className="inline-flex items-center gap-1 rounded-full border border-line bg-paper-pure p-1.5">
+          <button
+            onClick={() => setYearly(false)}
+            className={cn(
+              "px-5 py-2 rounded-full text-sm font-medium transition-all",
+              !yearly ? "bg-ink text-paper" : "text-ink-soft hover:text-ink",
+            )}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setYearly(true)}
+            className={cn(
+              "px-5 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-2",
+              yearly ? "bg-ink text-paper" : "text-ink-soft hover:text-ink",
+            )}
+          >
+            Yearly
+            <span className="inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
+              Save up to 20%
+            </span>
+          </button>
         </div>
+      </PageHero>
+
+      <MktContainer>
 
         {/* ── Plan cards ── */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          {plans.map((plan) => {
-            const displayPrice = plan.priceMonthly === 0
-              ? "Free"
-              : `₹${yearly ? plan.priceYearly : plan.priceMonthly}`
+        <Reveal>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            {plans.map((plan) => {
+              const displayPrice = plan.priceMonthly === 0
+                ? "Free"
+                : `₹${yearly ? plan.priceYearly : plan.priceMonthly}`
 
-            return (
-              <div
-                key={plan.name}
-                className={cn(
-                  "glass-card rounded-2xl p-6 flex flex-col transition-all duration-300 relative",
-                  plan.highlight && "border-violet-500/40 ring-1 ring-violet-500/20",
-                )}
-              >
-                {/* Badge */}
-                {plan.badge && plan.badgeVariant && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                    <Badge variant={plan.badgeVariant} className="text-xs px-3">
+              return (
+                <div
+                  key={plan.name}
+                  className={cn(
+                    "relative flex flex-col rounded-[22px] border p-7 bg-paper-pure transition-all duration-200",
+                    plan.highlight
+                      ? "border-accent shadow-lift"
+                      : "border-line shadow-card hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10",
+                  )}
+                >
+                  {/* Badge */}
+                  {plan.badge && (
+                    <span
+                      className={cn(
+                        "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap inline-flex items-center rounded-full px-3 py-1 text-[11px] font-medium",
+                        planBadgePill(plan.badgeVariant, plan.highlight),
+                      )}
+                    >
                       {plan.badge}
-                    </Badge>
-                  </div>
-                )}
+                    </span>
+                  )}
 
-                {/* Plan name + desc + price */}
-                <div className="mb-6">
-                  <h2 className="text-white font-bold text-xl mb-1">{plan.name}</h2>
-                  <p className="text-zinc-400 text-xs mb-4 leading-relaxed">{plan.desc}</p>
+                  {/* Plan name + desc + price */}
+                  <div className="mb-6">
+                    <h2 className="font-display font-bold text-xl text-ink mb-1">{plan.name}</h2>
+                    <p className="text-ink-faint text-xs mb-4 leading-relaxed">{plan.desc}</p>
 
-                  <div className="flex items-end gap-1">
-                    <span className="text-4xl font-bold text-white">{displayPrice}</span>
-                    {plan.priceMonthly > 0 && (
-                      <span className="text-zinc-500 text-sm pb-1">/mo</span>
+                    <div className="flex items-end gap-1">
+                      <span className="font-mono text-4xl font-semibold text-ink">{displayPrice}</span>
+                      {plan.priceMonthly > 0 && (
+                        <span className="text-ink-faint text-sm pb-1">/mo</span>
+                      )}
+                    </div>
+
+                    {/* Yearly savings callout */}
+                    {plan.priceMonthly > 0 && yearly && plan.yearlySaving > 0 && (
+                      <p className="text-live text-xs font-medium mt-1">
+                        Save ₹{plan.yearlySaving.toLocaleString("en-IN")}/year
+                      </p>
+                    )}
+
+                    {/* Crossed-out monthly price when yearly selected */}
+                    {plan.priceMonthly > 0 && yearly && (
+                      <p className="text-ink-faint text-xs mt-0.5 line-through">
+                        ₹{plan.priceMonthly}/mo billed monthly
+                      </p>
+                    )}
+
+                    {/* Per-day equivalent */}
+                    {plan.perDay && plan.priceMonthly > 0 && (
+                      <p className="text-ink-faint text-xs mt-1">
+                        Less than {plan.perDay}/day
+                      </p>
                     )}
                   </div>
 
-                  {/* Yearly savings callout */}
-                  {plan.priceMonthly > 0 && yearly && plan.yearlySaving > 0 && (
-                    <p className="text-emerald-400 text-xs font-medium mt-1">
-                      Save ₹{plan.yearlySaving.toLocaleString("en-IN")}/year
-                    </p>
-                  )}
+                  {/* CTA */}
+                  <button
+                    onClick={() => handlePlanCTA(plan)}
+                    className={cn(
+                      PLAN_CTA_BASE,
+                      "mb-6",
+                      plan.ctaVariant === "outline" ? PLAN_CTA_VARIANTS.outline : PLAN_CTA_VARIANTS.filled,
+                    )}
+                  >
+                    {plan.cta}
+                    <ChevronRight size={14} />
+                  </button>
 
-                  {/* Crossed-out monthly price when yearly selected */}
-                  {plan.priceMonthly > 0 && yearly && (
-                    <p className="text-zinc-600 text-xs mt-0.5 line-through">
-                      ₹{plan.priceMonthly}/mo billed monthly
-                    </p>
-                  )}
-
-                  {/* Per-day equivalent */}
-                  {plan.perDay && plan.priceMonthly > 0 && (
-                    <p className="text-zinc-600 text-xs mt-1">
-                      Less than {plan.perDay}/day
-                    </p>
-                  )}
+                  {/* Feature list */}
+                  <div className="flex-1 space-y-3">
+                    {plan.features.map((f) => (
+                      <div key={f} className="flex items-start gap-2.5 text-sm">
+                        <Check size={14} className="text-live shrink-0 mt-0.5" />
+                        <span className="text-ink-soft">{f}</span>
+                      </div>
+                    ))}
+                    {plan.missing.map((f) => (
+                      <div key={f} className="flex items-start gap-2.5 text-sm opacity-40">
+                        <X size={14} className="text-ink-faint shrink-0 mt-0.5" />
+                        <span className="text-ink-faint">{f}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-
-                {/* CTA */}
-                <Button
-                  variant={plan.ctaVariant}
-                  size="default"
-                  className="w-full mb-6"
-                  onClick={() => handlePlanCTA(plan)}
-                >
-                  {plan.cta}
-                  <ChevronRight size={14} />
-                </Button>
-
-                {/* Feature list */}
-                <div className="flex-1 space-y-3">
-                  {plan.features.map((f) => (
-                    <div key={f} className="flex items-start gap-2.5 text-sm">
-                      <Check size={14} className="text-violet-400 shrink-0 mt-0.5" />
-                      <span className="text-zinc-300">{f}</span>
-                    </div>
-                  ))}
-                  {plan.missing.map((f) => (
-                    <div key={f} className="flex items-start gap-2.5 text-sm opacity-35">
-                      <X size={14} className="text-zinc-600 shrink-0 mt-0.5" />
-                      <span className="text-zinc-500">{f}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </Reveal>
 
         {/* ── Risk reducers ── */}
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 mb-16 text-zinc-500 text-sm">
-          <span className="flex items-center gap-2"><Check size={13} className="text-emerald-400" /> No credit card for free plan</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-emerald-400" /> Cancel any time — no lock-in</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-emerald-400" /> UPI, net banking &amp; cards accepted</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-emerald-400" /> 14-day free trial on all paid plans</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-emerald-400" /> Your data is yours — export any time</span>
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 mb-16 text-ink-faint text-sm">
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> No credit card for free plan</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> Cancel any time — no lock-in</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> UPI, net banking &amp; cards accepted</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> 14-day free trial on all paid plans</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> Your data is yours — export any time</span>
         </div>
 
         {/* ── Feature comparison table ── */}
@@ -484,7 +488,7 @@ export default function PricingPage() {
           <div className="text-center mb-6">
             <button
               onClick={() => setShowComparison((v) => !v)}
-              className="inline-flex items-center gap-2 text-violet-400 hover:text-violet-300 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 text-accent hover:text-accent-ink text-sm font-medium transition-colors"
             >
               {showComparison ? "Hide" : "Show"} full feature comparison
               <ChevronDown
@@ -495,15 +499,15 @@ export default function PricingPage() {
           </div>
 
           {showComparison && (
-            <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+            <div className="overflow-x-auto rounded-2xl border border-line">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 bg-zinc-900/60">
-                    <th className="text-left px-5 py-4 text-zinc-400 font-medium w-1/3">Feature</th>
+                  <tr className="border-b border-line bg-paper-pure">
+                    <th className="text-left px-5 py-4 text-ink-faint font-medium w-1/3">Feature</th>
                     {plans.map((p) => (
                       <th key={p.name} className={cn(
                         "text-center px-4 py-4 font-semibold",
-                        p.highlight ? "text-violet-300" : "text-zinc-300",
+                        p.highlight ? "text-accent" : "text-ink-soft",
                       )}>
                         {p.name}
                       </th>
@@ -515,14 +519,14 @@ export default function PricingPage() {
                     <tr
                       key={row.feature}
                       className={cn(
-                        "border-b border-zinc-800/50 transition-colors hover:bg-zinc-900/40",
-                        i % 2 === 0 ? "bg-transparent" : "bg-zinc-900/20",
+                        "border-b border-line/60 transition-colors hover:bg-ink/[0.02]",
+                        i % 2 === 0 ? "bg-transparent" : "bg-ink/[0.015]",
                       )}
                     >
-                      <td className="px-5 py-3.5 text-zinc-400">{row.feature}</td>
+                      <td className="px-5 py-3.5 text-ink-faint">{row.feature}</td>
                       <td className="px-4 py-3.5 text-center"><ComparisonCell value={row.free} /></td>
                       <td className="px-4 py-3.5 text-center"><ComparisonCell value={row.starter} /></td>
-                      <td className={cn("px-4 py-3.5 text-center", plans[2].highlight && "bg-violet-500/5")}>
+                      <td className={cn("px-4 py-3.5 text-center", plans[2].highlight && "bg-accent/5")}>
                         <ComparisonCell value={row.pro} />
                       </td>
                       <td className="px-4 py-3.5 text-center"><ComparisonCell value={row.business} /></td>
@@ -535,82 +539,82 @@ export default function PricingPage() {
         </div>
 
         {/* ── Enterprise ── */}
-        <div className="glass-card rounded-2xl p-8 mb-16 flex flex-col md:flex-row items-center justify-between gap-6">
+        <MktCard interactive={false} className="p-8 mb-16 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-white font-bold text-2xl">Enterprise</h2>
-              <Badge variant="default" className="text-xs">Custom pricing</Badge>
+              <h2 className="font-display font-bold text-ink text-2xl">Enterprise</h2>
+              <span className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+                Custom pricing
+              </span>
             </div>
-            <p className="text-zinc-400 max-w-lg text-sm leading-relaxed">
+            <p className="text-ink-soft max-w-lg text-sm leading-relaxed">
               Need white-label QR codes, SSO, a dedicated success manager, custom SLA,
               or volume pricing across 10+ team seats?{" "}
-              <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+              <Link to="/features" className="text-accent underline underline-offset-2 hover:text-accent-ink">
                 See all enterprise features
               </Link>{" "}
               or talk to us directly.
             </p>
           </div>
-          <Button variant="glow" size="lg" onClick={() => navigate("/contact")}>
+          <MktButton href="/contact" variant="accent" size="lg">
             Talk to sales
             <ChevronRight size={15} />
-          </Button>
-        </div>
+          </MktButton>
+        </MktCard>
 
         {/* ── FAQ ── */}
         {/* Deliverable 7: 5 featured-snippet questions */}
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
-              Pricing questions answered
-            </h2>
-            <p className="text-zinc-500 text-sm">
-              More questions?{" "}
-              <Link to="/faq" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                Visit the full FAQ →
-              </Link>
-            </p>
-          </div>
+          <SectionHead
+            eyebrow="FAQ"
+            title="Pricing questions answered"
+            intro={
+              <>
+                More questions?{" "}
+                <Link to="/faq" className="text-accent underline underline-offset-2 hover:text-accent-ink">
+                  Visit the full FAQ →
+                </Link>
+              </>
+            }
+            align="center"
+          />
 
-          <div className="space-y-3">
-            {faqItems.map((item) => (
-              <FaqItem key={item.q} q={item.q} a={item.a} />
-            ))}
-          </div>
+          <FaqAccordion items={faqItems} className="mt-10" />
         </div>
 
         {/* ── Final CTA ── */}
         {/* Deliverable 5: primary + secondary CTA */}
         <div className="mt-20 text-center">
-          <div className="glass-card rounded-3xl p-10 max-w-2xl mx-auto relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/15 to-purple-600/5 pointer-events-none" />
+          <div className="rounded-3xl border border-line bg-paper-pure shadow-card p-10 max-w-2xl mx-auto relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-accent/10 to-accent/0 pointer-events-none" />
             <div className="relative">
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+              <h2 className="font-display font-bold text-2xl md:text-3xl text-ink mb-3">
                 Your first QR code is free.
               </h2>
-              <p className="text-zinc-400 text-sm mb-8 max-w-sm mx-auto">
+              <p className="text-ink-soft text-sm mb-8 max-w-sm mx-auto">
                 No credit card. No commitment. See your{" "}
-                <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+                <Link to="/features" className="text-accent underline underline-offset-2 hover:text-accent-ink">
                   scan analytics
                 </Link>{" "}
                 update the moment someone scans.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button size="lg" variant="glow" onClick={() => navigate("/signup")}>
+                <MktButton href="/signup" variant="accent" size="lg">
                   Create Your First QR Code — Free
                   <ChevronRight size={15} />
-                </Button>
-                <Button size="lg" variant="outline" onClick={() => navigate("/generate")}>
+                </MktButton>
+                <MktButton href="/generate" variant="outline" size="lg">
                   Try the free generator →
-                </Button>
+                </MktButton>
               </div>
-              <p className="text-zinc-700 text-xs mt-5">
+              <p className="text-ink-faint text-xs mt-5">
                 No credit card · UPI &amp; net banking accepted · Cancel any time
               </p>
             </div>
           </div>
         </div>
 
-      </div>
+      </MktContainer>
     </div>
   )
 }

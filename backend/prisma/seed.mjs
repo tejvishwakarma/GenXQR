@@ -20,13 +20,13 @@ const PLANS = [
   {
     name: "FREE", displayName: "Free",
     priceMonthlyINR: 0, priceYearlyINR: 0, priceMonthlyUSD: 0, priceYearlyUSD: 0,
-    dynamicQRLimit: 3, scanLimit: 500, fileStorageGB: 0, teamSeatsLimit: 1, apiCallsLimit: 0,
+    dynamicQRLimit: 0, scanLimit: 0, fileStorageGB: 0, teamSeatsLimit: 1, apiCallsLimit: 0,
     features: { customDomains: false, analytics: "30d", bulkGeneration: false, apiAccess: false, whiteLabel: false, prioritySupport: false },
   },
   {
     name: "STARTER", displayName: "Starter",
     priceMonthlyINR: 299, priceYearlyINR: 2988, priceMonthlyUSD: 4, priceYearlyUSD: 36,
-    dynamicQRLimit: 25, scanLimit: 5000, fileStorageGB: 1, teamSeatsLimit: 1, apiCallsLimit: 0,
+    dynamicQRLimit: 50, scanLimit: 5000, fileStorageGB: 1, teamSeatsLimit: 1, apiCallsLimit: 0,
     features: { customDomains: false, analytics: "90d", bulkGeneration: false, apiAccess: false, whiteLabel: false, prioritySupport: false },
   },
   {

@@ -1,5 +1,4 @@
-import { useState } from "react"
-import type { ReactNode } from "react"
+import type { ComponentType } from "react"
 import { Link } from "react-router-dom"
 import {
   Utensils,
@@ -12,20 +11,17 @@ import {
   Globe,
   Layers,
   ArrowRight,
-  Zap,
   Check,
-  Briefcase,
   BedDouble,
   Scissors,
   Megaphone,
-  ChevronDown,
   IndianRupee,
   BarChart3,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { SEOMeta } from "@/components/SEOMeta"
-import { cn } from "@/lib/utils"
+import { MktContainer, SectionHead, Reveal, MktCard, MktButton, IconTile, type IconTint } from "@/components/marketing/ui"
+import { PageHero } from "@/components/marketing/PageHero"
+import { FaqAccordion } from "@/components/marketing/FaqAccordion"
 
 // ─── JSON-LD schema ───────────────────────────────────────────────────────────
 // Deliverable 8: SoftwareApplication + FAQPage
@@ -44,21 +40,21 @@ const USE_CASES_JSON_LD = [
         "name": "Free Plan",
         "price": "0",
         "priceCurrency": "INR",
-        "description": "3 QR codes with basic analytics. No credit card required.",
+        "description": "Static QR codes. No credit card required.",
       },
       {
         "@type": "Offer",
         "name": "Starter",
         "price": "299",
         "priceCurrency": "INR",
-        "description": "10 dynamic QR codes, full scan analytics, smart routing, scheduled QR, CSV export.",
+        "description": "50 dynamic QR codes, full scan analytics, scheduled QR, CSV export.",
       },
       {
         "@type": "Offer",
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "50 QR codes, A/B testing, team workspace, REST API, webhook events.",
+        "description": "250 QR codes, A/B testing, smart routing, team seats, REST API, webhook events.",
       },
     ],
     "featureList": [
@@ -124,12 +120,16 @@ const USE_CASES_JSON_LD = [
 // ─── Use case data ────────────────────────────────────────────────────────────
 // Deliverable 4: Full benefit-led copy rewrite, India-first use cases
 // Expanded from 6 to 9 industries (competitive gap vs QR Tiger's 12)
+// NOTE: `color`/`iconColor` from the pre-redesign version were literal
+// zinc/violet-style Tailwind classes tied to the old dark-only theme. They are
+// replaced 1:1 below with `tint` — the closest matching IconTile tint — so the
+// visual accent per industry is unchanged, just rendered through the new
+// theme-aware design-system component instead of hardcoded color classes.
 
 type UseCase = {
-  icon: ReactNode
+  icon: ComponentType<{ size?: number; className?: string }>
   title: string
-  color: string
-  iconColor: string
+  tint: IconTint
   desc: string
   features: string[]
   outcome: string
@@ -138,10 +138,9 @@ type UseCase = {
 
 const useCases: UseCase[] = [
   {
-    icon: <Utensils size={24} />,
+    icon: Utensils,
     title: "Restaurants & Cafes",
-    color: "bg-amber-500/10 border-amber-500/20",
-    iconColor: "text-amber-400",
+    tint: "amber",
     desc: "Update your menu the moment something changes — new prices, out-of-stock items, or today's specials — without reprinting a single page. One QR code on every table, always showing the right menu.",
     features: [
       "Digital menu — update prices instantly",
@@ -153,10 +152,9 @@ const useCases: UseCase[] = [
     outcomeStat: "₹0 reprint cost",
   },
   {
-    icon: <ShoppingBag size={24} />,
+    icon: ShoppingBag,
     title: "Retail & E-Commerce",
-    color: "bg-blue-500/10 border-blue-500/20",
-    iconColor: "text-blue-400",
+    tint: "blue",
     desc: "Turn packaging, store signage, and window displays into conversion points. Route customers from the shelf to your best offer — and swap the destination when the campaign ends, without new labels.",
     features: [
       "Product page or offer landing link",
@@ -168,10 +166,9 @@ const useCases: UseCase[] = [
     outcomeStat: "2.3× conversion lift",
   },
   {
-    icon: <CalendarDays size={24} />,
+    icon: CalendarDays,
     title: "Events & Conferences",
-    color: "bg-violet-500/10 border-violet-500/20",
-    iconColor: "text-violet-400",
+    tint: "violet",
     desc: "Print badges and banners weeks in advance without fear. If the schedule changes — speakers, venues, session times — update every printed QR in one dashboard click, not a reprint run.",
     features: [
       "Bulk badge QR generation from CSV",
@@ -183,10 +180,9 @@ const useCases: UseCase[] = [
     outcomeStat: "₹3.8L reprint cost avoided",
   },
   {
-    icon: <Stethoscope size={24} />,
+    icon: Stethoscope,
     title: "Healthcare & Clinics",
-    color: "bg-emerald-500/10 border-emerald-500/20",
-    iconColor: "text-emerald-400",
+    tint: "emerald",
     desc: "Share appointment links, patient education PDFs, and post-visit resources securely. Password-protect sensitive documents and set automatic expiry on time-sensitive access links.",
     features: [
       "Password-protected patient resources",
@@ -198,10 +194,9 @@ const useCases: UseCase[] = [
     outcomeStat: "62% fewer support queries",
   },
   {
-    icon: <GraduationCap size={24} />,
+    icon: GraduationCap,
     title: "Education & Training",
-    color: "bg-cyan-500/10 border-cyan-500/20",
-    iconColor: "text-cyan-400",
+    tint: "cyan",
     desc: "Print QR codes on worksheets, textbooks, and notice boards that link to lecture videos, reading materials, and assignment portals. Update the destination each semester without reprinting anything.",
     features: [
       "Video and lecture resource links",
@@ -213,10 +208,9 @@ const useCases: UseCase[] = [
     outcomeStat: "One QR, new content every semester",
   },
   {
-    icon: <Home size={24} />,
+    icon: Home,
     title: "Real Estate",
-    color: "bg-pink-500/10 border-pink-500/20",
-    iconColor: "text-pink-400",
+    tint: "pink",
     desc: "Attach virtual tours, property details, and agent contact cards to every signboard and brochure. When a property sells or the listing changes, update the destination — the sign stays, the link changes.",
     features: [
       "Virtual tour and listing link",
@@ -228,10 +222,9 @@ const useCases: UseCase[] = [
     outcomeStat: "More qualified inquiries",
   },
   {
-    icon: <BedDouble size={24} />,
+    icon: BedDouble,
     title: "Hotels & Hospitality",
-    color: "bg-indigo-500/10 border-indigo-500/20",
-    iconColor: "text-indigo-400",
+    tint: "indigo",
     desc: "Replace printed room service menus, amenity cards, and Wi-Fi instruction sheets with a single QR code per room. Update room service offerings, spa bookings, or checkout links from one dashboard.",
     features: [
       "Room service and amenities menu",
@@ -243,10 +236,9 @@ const useCases: UseCase[] = [
     outcomeStat: "Update all rooms from one dashboard",
   },
   {
-    icon: <Scissors size={24} />,
+    icon: Scissors,
     title: "Beauty & Wellness",
-    color: "bg-rose-500/10 border-rose-500/20",
-    iconColor: "text-rose-400",
+    tint: "rose",
     desc: "Display your services menu, appointment booking link, and Instagram portfolio as a single QR code at your reception desk or on your business card. Update your booking platform any time without reprinting.",
     features: [
       "Service menu and price list",
@@ -258,10 +250,9 @@ const useCases: UseCase[] = [
     outcomeStat: "More appointment bookings",
   },
   {
-    icon: <Megaphone size={24} />,
+    icon: Megaphone,
     title: "Marketing & Agencies",
-    color: "bg-orange-500/10 border-orange-500/20",
-    iconColor: "text-orange-400",
+    tint: "orange",
     desc: "Run A/B tests across printed campaigns, route audiences by city or device, and swap landing pages mid-campaign — all without touching the printed flyer, OOH banner, or packaging.",
     features: [
       "A/B test — split traffic between variants",
@@ -271,6 +262,49 @@ const useCases: UseCase[] = [
     ],
     outcome: "Optimise campaigns after the print run",
     outcomeStat: "2.3× conversion from A/B testing",
+  },
+]
+
+// ─── Stat bar data ─────────────────────────────────────────────────────────────
+// Deliverable 4: Stat bar — removed "target" qualifier, added INR anchor
+
+const stats: { value: string; label: string; icon: ComponentType<{ size?: number; className?: string }>; tint: IconTint }[] = [
+  { value: "9", label: "industries covered", icon: Layers, tint: "violet" },
+  { value: "< 1s", label: "live destination edits", icon: RefreshCw, tint: "blue" },
+  { value: "₹299", label: "per month to start", icon: IndianRupee, tint: "emerald" },
+  { value: "50+", label: "countries in scan analytics", icon: Globe, tint: "amber" },
+]
+
+// ─── Cross-industry capability data ───────────────────────────────────────────
+
+const capabilities: { icon: ComponentType<{ size?: number; className?: string }>; tint: IconTint; title: string; desc: string; link: { to: string; label: string } }[] = [
+  {
+    icon: RefreshCw,
+    tint: "blue",
+    title: "Edit after printing",
+    desc: "Change the destination any time from your dashboard. Live in under one second — across every printed copy.",
+    link: { to: "/dynamic-qr", label: "How it works →" },
+  },
+  {
+    icon: BarChart3,
+    tint: "violet",
+    title: "Scan analytics",
+    desc: "Every scan logs city, country, device, OS, and browser — automatically, in real time, exportable to CSV.",
+    link: { to: "/features", label: "See all analytics →" },
+  },
+  {
+    icon: Globe,
+    tint: "emerald",
+    title: "Smart routing",
+    desc: "Send iOS users to the App Store, Android users to Google Play. Route by city, device, or time — automatically.",
+    link: { to: "/dynamic-qr", label: "Explore routing →" },
+  },
+  {
+    icon: Layers,
+    tint: "amber",
+    title: "16 QR types",
+    desc: "URL, WiFi, WhatsApp, vCard, PDF, video, menu, coupon, social media — one tool covers every content type.",
+    link: { to: "/features", label: "See all types →" },
   },
 ]
 
@@ -296,41 +330,15 @@ const faqs = [
   },
   {
     q: "How do I create a QR code for a restaurant menu?",
-    a: "Create a dynamic QR code on GenXQR and set the destination to your online menu URL — your own website, a PDF on Google Drive, or a Zomato/Swiggy page. Print the QR code on table tents or menu holders. When your menu changes, update the destination URL from your GenXQR dashboard in seconds. Every table's QR updates instantly — no reprint. Starter plan starts at ₹299/month, or try the free plan with 3 QR codes.",
+    a: "Create a dynamic QR code on GenXQR and set the destination to your online menu URL — your own website, a PDF on Google Drive, or a Zomato/Swiggy page. Print the QR code on table tents or menu holders. When your menu changes, update the destination URL from your GenXQR dashboard in seconds. Every table's QR updates instantly — no reprint. Starter plan starts at ₹299/month, or try the free static QR generator first.",
   },
 ]
-
-// ─── FAQ accordion component ──────────────────────────────────────────────────
-
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border border-zinc-800 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-white font-semibold text-sm hover:bg-zinc-800/40 transition-colors"
-        aria-expanded={open}
-      >
-        <span>{q}</span>
-        <ChevronDown
-          size={18}
-          className={cn("text-zinc-400 shrink-0 transition-transform duration-200", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="px-6 pb-5 text-zinc-400 text-sm leading-relaxed border-t border-zinc-800">
-          <p className="pt-4">{a}</p>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function UseCasesPage() {
   return (
-    <div className="pt-16 pb-24 px-4">
+    <div className="bg-paper">
       {/*
         Deliverable 1: SEO title (51 chars) — target keyword: "qr code generator"
         Deliverable 2: Meta description (151 chars) — benefit-led with CTA
@@ -343,242 +351,169 @@ export default function UseCasesPage() {
         jsonLd={USE_CASES_JSON_LD}
       />
 
-      <div className="max-w-7xl mx-auto">
-
-        {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        {/*
-          Deliverable 3: H1 rewrite — differs from title tag
-          Deliverable 6: 3 A/B variants
-            Variant A (active): "The QR Code Generator Built for Real Business Workflows"
-            Variant B: "Stop Reprinting. Start Tracking. QR Codes Built for Your Industry."
-            Variant C: "One QR Code Tool. Every Industry. Every Campaign."
-        */}
-        <section className="pt-8 text-center">
-          <span className="section-header">
-            <Briefcase size={14} />
-            Use cases by industry
-          </span>
-          <h1 className="text-4xl md:text-6xl font-bold text-white mt-6 mb-5">
+      {/* ── Hero + stat bar ───────────────────────────────────────────────── */}
+      {/*
+        Deliverable 3: H1 rewrite — differs from title tag
+        Deliverable 6: 3 A/B variants
+          Variant A (active): "The QR Code Generator Built for Real Business Workflows"
+          Variant B: "Stop Reprinting. Start Tracking. QR Codes Built for Your Industry."
+          Variant C: "One QR Code Tool. Every Industry. Every Campaign."
+      */}
+      <PageHero
+        eyebrow="Use cases by industry"
+        title={
+          <>
             The QR code generator built for{" "}
-            <span className="gradient-text">real business workflows</span>
-          </h1>
-          {/* Deliverable 4: Subheading — removed developer placeholder, rewrote benefit-led */}
-          <p className="text-zinc-400 text-lg max-w-2xl mx-auto leading-relaxed">
-            Every industry has QR codes stuck on printed materials that can't be changed.
-            GenXQR makes them editable, trackable, and controllable — without reprinting
-            a single page.
-          </p>
-
-          {/* Deliverable 5: Hero CTAs — primary + secondary */}
-          {/* Deliverable 9: Internal links */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
-            <Link to="/generate">
-              <Button size="xl" variant="glow">
-                Create Your First QR Code — Free
-                <ArrowRight size={16} />
-              </Button>
-            </Link>
-            <Link to="/dynamic-qr">
-              <Button size="xl" variant="secondary">
-                See how dynamic QR works →
-              </Button>
-            </Link>
-          </div>
-        </section>
-
-        {/* ── Stats bar ────────────────────────────────────────────────────── */}
-        {/* Deliverable 4: Stat bar rewritten — removed "target" qualifier, added INR anchor */}
-        <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 mb-14">
-          {[
-            {
-              value: "9",
-              label: "industries covered",
-              icon: <Layers size={18} className="text-violet-400" />,
-            },
-            {
-              value: "< 1s",
-              label: "live destination edits",
-              icon: <RefreshCw size={18} className="text-blue-400" />,
-            },
-            {
-              value: "₹299",
-              label: "per month to start",
-              icon: <IndianRupee size={18} className="text-emerald-400" />,
-            },
-            {
-              value: "50+",
-              label: "countries in scan analytics",
-              icon: <Globe size={18} className="text-amber-400" />,
-            },
-          ].map((metric) => (
-            <div key={metric.label} className="glass-card rounded-xl px-4 py-5 text-center border border-zinc-800">
-              <div className="flex justify-center mb-2">{metric.icon}</div>
-              <div className="text-white text-2xl font-bold tabular-nums">{metric.value}</div>
-              <div className="text-zinc-500 text-xs mt-1">{metric.label}</div>
+            <span className="text-accent">real business workflows</span>
+          </>
+        }
+        intro="Every industry has QR codes stuck on printed materials that can't be changed. GenXQR makes them editable, trackable, and controllable — without reprinting a single page."
+        actions={
+          <>
+            <MktButton href="/generate" variant="accent" size="lg">
+              Create Your First QR Code — Free
+              <ArrowRight size={16} />
+            </MktButton>
+            <MktButton href="/dynamic-qr" variant="outline" size="lg">
+              See how dynamic QR works →
+            </MktButton>
+          </>
+        }
+      >
+        {/* Deliverable 4: Stat bar — removed "target" qualifier, added INR anchor */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((metric) => (
+            <div key={metric.label} className="rounded-2xl border border-line bg-paper-pure px-4 py-6 text-center">
+              <div className="flex justify-center mb-3">
+                <IconTile icon={metric.icon} tint={metric.tint} size="sm" />
+              </div>
+              <div className="font-mono text-2xl font-semibold text-ink tracking-tight">{metric.value}</div>
+              <div className="mt-1 text-xs text-ink-faint">{metric.label}</div>
             </div>
           ))}
-        </section>
+        </div>
+      </PageHero>
 
-        {/* ── Industry cards ───────────────────────────────────────────────── */}
-        {/* Deliverable 4: All 9 cards — benefit-led copy, India-first context */}
-        {/* Competitive gap fix: expanded from 6 → 9 industries */}
-        <section className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {useCases.map((useCase, i) => (
-            <Card
-              key={useCase.title}
-              className="p-6 card-hover flex flex-col animate-fade-in"
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <CardContent className="p-0 flex flex-col flex-1">
-                <div className={`w-12 h-12 rounded-xl border flex items-center justify-center mb-4 ${useCase.color} ${useCase.iconColor}`}>
-                  {useCase.icon}
-                </div>
-                <h3 className="text-white font-bold text-lg mb-2">{useCase.title}</h3>
-                <p className="text-zinc-400 text-sm leading-relaxed mb-4">{useCase.desc}</p>
-                <ul className="space-y-2 mb-5 flex-1">
-                  {useCase.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-2 text-zinc-300 text-sm">
-                      <Check size={14} className="text-violet-400 shrink-0" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                {/* Outcome strip — result metric as the closer */}
-                <div className="pt-4 border-t border-zinc-800 mt-auto flex items-center justify-between gap-3">
-                  <div className="text-violet-400 text-xs font-semibold">{useCase.outcome}</div>
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${useCase.color} ${useCase.iconColor}`}>
-                    {useCase.outcomeStat}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-
-        {/* ── Cross-industry capability strip ─────────────────────────────── */}
-        {/* Deliverable 4: New section — shows horizontal capabilities shared across industries */}
-        <section className="mt-20">
-          <div className="text-center mb-12">
-            <span className="section-header">
-              <Zap size={14} />
-              Works across all industries
-            </span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mt-4 mb-3">
-              Every workflow.{" "}
-              <span className="gradient-text">One tool.</span>
-            </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
-              These capabilities apply to every industry above — not add-ons, not enterprise-only.{" "}
-              <Link to="/pricing" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-                All plans from ₹299/month.
-              </Link>
-            </p>
+      {/* ── Industry cards ───────────────────────────────────────────────── */}
+      {/* Deliverable 4: All 9 cards — benefit-led copy, India-first context */}
+      {/* Competitive gap fix: expanded from 6 → 9 industries */}
+      <section className="py-16 md:py-20 bg-paper">
+        <MktContainer>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {useCases.map((useCase, i) => (
+              <Reveal key={useCase.title} delay={i * 60}>
+                <MktCard className="flex flex-col h-full">
+                  <IconTile icon={useCase.icon} tint={useCase.tint} />
+                  <h3 className="mt-4 text-lg font-bold font-display text-ink">{useCase.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-soft">{useCase.desc}</p>
+                  <ul className="mt-4 space-y-2 flex-1">
+                    {useCase.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-2 text-sm text-ink">
+                        <Check size={14} className="text-live shrink-0" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  {/* Outcome strip — result metric as the closer */}
+                  <div className="mt-5 pt-4 border-t border-line flex items-center justify-between gap-3">
+                    <div className="text-xs font-semibold text-accent">{useCase.outcome}</div>
+                    <span className="shrink-0 font-mono text-[11px] font-semibold px-2.5 py-1 rounded-full border border-line bg-ink/[0.03] text-ink-soft">
+                      {useCase.outcomeStat}
+                    </span>
+                  </div>
+                </MktCard>
+              </Reveal>
+            ))}
           </div>
+        </MktContainer>
+      </section>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {[
-              {
-                icon: <RefreshCw size={20} className="text-blue-400" />,
-                bg: "bg-blue-500/10 border-blue-500/20",
-                title: "Edit after printing",
-                desc: "Change the destination any time from your dashboard. Live in under one second — across every printed copy.",
-                link: { to: "/dynamic-qr", label: "How it works →" },
-              },
-              {
-                icon: <BarChart3 size={20} className="text-violet-400" />,
-                bg: "bg-violet-500/10 border-violet-500/20",
-                title: "Scan analytics",
-                desc: "Every scan logs city, country, device, OS, and browser — automatically, in real time, exportable to CSV.",
-                link: { to: "/features", label: "See all analytics →" },
-              },
-              {
-                icon: <Globe size={20} className="text-emerald-400" />,
-                bg: "bg-emerald-500/10 border-emerald-500/20",
-                title: "Smart routing",
-                desc: "Send iOS users to the App Store, Android users to Google Play. Route by city, device, or time — automatically.",
-                link: { to: "/dynamic-qr", label: "Explore routing →" },
-              },
-              {
-                icon: <Layers size={20} className="text-amber-400" />,
-                bg: "bg-amber-500/10 border-amber-500/20",
-                title: "16 QR types",
-                desc: "URL, WiFi, WhatsApp, vCard, PDF, video, menu, coupon, social media — one tool covers every content type.",
-                link: { to: "/features", label: "See all types →" },
-              },
-            ].map((cap) => (
-              <div key={cap.title} className={`glass-card rounded-xl p-5 border ${cap.bg}`}>
-                <div className={`w-10 h-10 rounded-lg border flex items-center justify-center mb-3 ${cap.bg}`}>
-                  {cap.icon}
-                </div>
-                <h3 className="text-white font-semibold text-sm mb-2">{cap.title}</h3>
-                <p className="text-zinc-400 text-xs leading-relaxed mb-3">{cap.desc}</p>
+      {/* ── Cross-industry capability strip ─────────────────────────────── */}
+      {/* Deliverable 4: Shows horizontal capabilities shared across industries */}
+      <section className="py-20 md:py-24 bg-paper-pure border-y border-line">
+        <MktContainer>
+          <SectionHead
+            eyebrow="Works across all industries"
+            title={
+              <>
+                Every workflow. <span className="text-accent">One tool.</span>
+              </>
+            }
+            intro={
+              <>
+                These capabilities apply to every industry above — not add-ons, not enterprise-only.{" "}
+                <Link to="/pricing" className="text-accent underline underline-offset-2 hover:text-accent-ink">
+                  All plans from ₹299/month.
+                </Link>
+              </>
+            }
+            align="center"
+          />
+          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {capabilities.map((cap) => (
+              <div key={cap.title} className="rounded-2xl border border-line bg-paper p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10">
+                <IconTile icon={cap.icon} tint={cap.tint} size="sm" />
+                <h3 className="mt-4 text-sm font-semibold text-ink">{cap.title}</h3>
+                <p className="mt-2 text-xs leading-relaxed text-ink-soft">{cap.desc}</p>
                 <Link
                   to={cap.link.to}
-                  className="text-violet-400 hover:text-violet-300 text-xs font-semibold underline underline-offset-2"
+                  className="mt-3 inline-block text-xs font-semibold text-accent underline underline-offset-2 hover:text-accent-ink"
                 >
                   {cap.link.label}
                 </Link>
               </div>
             ))}
           </div>
-        </section>
+        </MktContainer>
+      </section>
 
-        {/* ── FAQ ──────────────────────────────────────────────────────────── */}
-        {/* Deliverable 7: 5 questions, Cluster D featured snippet targeting */}
-        <section className="mt-20 max-w-3xl mx-auto">
-          <div className="text-center mb-10">
-            <span className="section-header">
-              <Briefcase size={14} />
-              Common questions
-            </span>
-            <h2 className="text-3xl font-bold text-white mt-4 mb-3">
-              Questions about{" "}
-              <span className="gradient-text">QR codes for business</span>
+      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
+      {/* Deliverable 7: 5 questions, Cluster D featured snippet targeting */}
+      <section className="py-20 md:py-28 bg-paper">
+        <MktContainer className="max-w-3xl">
+          <SectionHead
+            eyebrow="Common questions"
+            title={
+              <>
+                Questions about <span className="text-accent">QR codes for business</span>
+              </>
+            }
+            align="center"
+          />
+          <div className="mt-10">
+            <FaqAccordion items={faqs} />
+          </div>
+        </MktContainer>
+      </section>
+
+      {/* ── Final CTA ────────────────────────────────────────────────────── */}
+      {/* Deliverable 5: CTAs — no "sign up" verb, primary to /generate */}
+      {/* Deliverable 9: Internal links — /generate, /pricing */}
+      <section className="py-20 md:py-24 bg-paper-pure border-y border-line">
+        <MktContainer>
+          <Reveal className="rounded-[32px] border border-line bg-paper p-8 md:p-14 text-center">
+            <h2 className="mx-auto max-w-2xl text-2xl md:text-4xl font-bold font-display tracking-tightest leading-[1.1] text-ink">
+              Your industry. <span className="text-accent">Your QR code. Ready in 60 seconds.</span>
             </h2>
-          </div>
-          <div className="flex flex-col gap-3">
-            {faqs.map((faq) => (
-              <FaqItem key={faq.q} q={faq.q} a={faq.a} />
-            ))}
-          </div>
-        </section>
-
-        {/* ── Final CTA ────────────────────────────────────────────────────── */}
-        {/* Deliverable 5: CTAs — no "sign up" verb, primary to /generate */}
-        {/* Deliverable 9: Internal links — /generate, /pricing */}
-        <section className="mt-16">
-          <div className="glass-card rounded-2xl p-8 md:p-10 border border-zinc-800 text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-b from-violet-600/10 via-transparent to-transparent pointer-events-none" />
-            <div className="relative">
-              <h2 className="text-2xl md:text-4xl font-bold text-white mb-4">
-                Your industry.{" "}
-                <span className="gradient-text">Your QR code. Ready in 60 seconds.</span>
-              </h2>
-              <p className="text-zinc-400 max-w-xl mx-auto mb-3">
-                Create, style, and publish your first QR code on the free plan. Upgrade
-                when you need editable destinations, scan analytics, and team access.
-              </p>
-              <p className="text-zinc-600 text-xs mb-8">
-                No credit card · Cancel any time · UPI accepted · Plans from ₹299/month
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/generate">
-                  <Button size="xl" variant="glow">
-                    Create My First QR Code — Free
-                    <ArrowRight size={16} />
-                  </Button>
-                </Link>
-                <Link to="/pricing">
-                  <Button size="xl" variant="secondary">
-                    Compare all plans
-                  </Button>
-                </Link>
-              </div>
+            <p className="mt-4 mx-auto max-w-xl text-ink-soft">
+              Create, style, and publish your first QR code on the free plan. Upgrade
+              when you need editable destinations, scan analytics, and team access.
+            </p>
+            <p className="mt-3 text-xs text-ink-faint">
+              No credit card · Cancel any time · UPI accepted · Plans from ₹299/month
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+              <MktButton href="/generate" variant="accent" size="lg">
+                Create My First QR Code — Free
+                <ArrowRight size={16} />
+              </MktButton>
+              <MktButton href="/pricing" variant="outline" size="lg">
+                Compare all plans
+              </MktButton>
             </div>
-          </div>
-        </section>
-
-      </div>
+          </Reveal>
+        </MktContainer>
+      </section>
     </div>
   )
 }
