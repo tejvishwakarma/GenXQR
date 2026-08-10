@@ -147,6 +147,12 @@ set +a
 cd backend
 npx prisma migrate deploy
 
+# Generate the Prisma Client — required before anything imports @prisma/client.
+# `migrate deploy` deliberately does NOT do this itself (only `migrate dev`
+# does); it's normally covered by `pnpm build:backend`'s "prisma generate && tsc"
+# script, but that runs later in this same list — the seed script needs it now.
+npx prisma generate
+
 # Seed plans + create the super admin (reads ADMIN_EMAIL/ADMIN_PASSWORD, now
 # exported above from genxqr.env — make sure both are set in that file)
 node prisma/seed.mjs
