@@ -860,7 +860,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Server: Ubuntu VPS running **CloudPanel** (manages Nginx + Let's Encrypt SSL per-site)
 - Domain: `genxqr.com`
 - Process manager: PM2 (cluster mode — all CPU cores), app name `genxqr-api`
-- Postgres + Redis: the same `docker-compose.yml` used in dev, run directly on the VPS (CloudPanel has no native Postgres support), both ports bound to `127.0.0.1` only
+- Postgres + Redis: installed **natively** on the VPS (no Docker in production — `docker-compose.yml` is dev-only), both bound to `127.0.0.1` only, standard ports 5432/6379
 - Secrets: a plain `backend/.env` file (chmod 600, gitignored) — **not** HashiCorp Vault. `backend/vault-bootstrap.mjs` / `backend/scripts/vault-setup.sh` exist for a possible future migration but are currently unused; nothing depends on them.
 
 **File paths on server** (site user created by CloudPanel's Node.js site wizard):

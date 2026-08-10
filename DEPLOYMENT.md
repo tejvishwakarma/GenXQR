@@ -6,13 +6,13 @@ This is the runbook for the first production deploy. It assumes:
 - You have root SSH access to the VPS.
 - DNS for `genxqr.com` and `www.genxqr.com` can be pointed at the VPS.
 
-Architecture: CloudPanel manages Nginx + the site's SSL certificate. Postgres and
-Redis run via the project's own `docker-compose.yml` (CloudPanel has no native
-Postgres support — confirmed against their docs, it's still an open feature
-request). The backend runs under PM2. Secrets live in a plain `backend/.env`
-file, not HashiCorp Vault — the repo has Vault scaffolding
-(`backend/vault-bootstrap.mjs`, `backend/scripts/vault-setup.sh`) for a future
-migration, but it's unused for now; nothing here depends on it.
+Architecture: CloudPanel manages Nginx + the site's SSL certificate. Postgres
+and Redis are installed **natively** on this VPS (no Docker on this box) —
+this is different from local dev, which uses the repo's `docker-compose.yml`;
+that file is dev-only and irrelevant here. The backend runs under PM2. Secrets
+live in a plain `backend/.env` file, not HashiCorp Vault — the repo has Vault
+scaffolding (`backend/vault-bootstrap.mjs`, `backend/scripts/vault-setup.sh`)
+for a future migration, but it's unused for now; nothing here depends on it.
 
 ---
 
@@ -42,9 +42,6 @@ This creates a site user and a base directory at `/home/<site-user>/htdocs/genxq
 ```bash
 ssh root@<vps-ip>
 
-# Install Docker if it isn't already present (CloudPanel doesn't install this):
-curl -fsSL https://get.docker.com | sh
-
 # Switch to the site user and clone the repo directly into its htdocs folder
 su - <site-user>
 cd ~/htdocs/genxqr.com
@@ -55,25 +52,46 @@ If the repo is private, use a deploy key or a personal access token in the clone
 
 ---
 
-## 3. Postgres + Redis (Docker, loopback-only)
+## 3. Configure Postgres + Redis (already installed natively on this box)
 
-Still as the site user, in the repo root:
-
-```bash
-cp .env.example .env
-nano .env   # set strong POSTGRES_PASSWORD and REDIS_PASSWORD — do not reuse dev values
-```
-
-Then bring the containers up (as root, or a user in the `docker` group):
+No Docker here — confirm both services are actually running first:
 
 ```bash
-exit   # back to root, or: sudo usermod -aG docker <site-user> && re-login
-cd /home/<site-user>/htdocs/genxqr.com
-docker compose up -d
-docker compose ps   # both should show "healthy" within ~15s
+systemctl status postgresql
+systemctl status redis-server
 ```
 
-`docker-compose.yml` already binds both ports to `127.0.0.1` only — they are not reachable from the public internet. Postgres is on `127.0.0.1:5433`, Redis on `127.0.0.1:6380` (same ports as local dev, just now on the server).
+Create a dedicated database + user for GenXQR (as root, or any user that can `sudo -u postgres`):
+
+```bash
+sudo -u postgres psql
+CREATE USER genxqr WITH PASSWORD 'CHANGE_ME_STRONG_PASSWORD';
+CREATE DATABASE genxqr OWNER genxqr;
+\q
+```
+
+Confirm Postgres will actually accept that password over TCP on localhost — check `pg_hba.conf` (typically `/etc/postgresql/<version>/main/pg_hba.conf`) has a line like:
+
+```
+host    all    all    127.0.0.1/32    scram-sha-256
+```
+
+(`md5` instead of `scram-sha-256` on older versions is fine too.) If that line is missing, or set to `peer`/`trust`, fix it and `sudo systemctl restart postgresql` — otherwise the app's connection will be rejected even with the right password.
+
+For Redis, set a password if the instance doesn't already have one:
+
+```bash
+sudo nano /etc/redis/redis.conf
+# set:      requirepass CHANGE_ME_STRONG_PASSWORD
+# confirm this is already present and NOT commented out:
+#           bind 127.0.0.1 -::1
+sudo systemctl restart redis-server
+redis-cli -a 'CHANGE_ME_STRONG_PASSWORD' ping   # should print PONG
+```
+
+Unless something's been customized, both are on their standard ports: Postgres `127.0.0.1:5432`, Redis `127.0.0.1:6379`. You'll need the exact host/port/password in step 4.
+
+⚠️ If this Postgres/Redis instance is shared with other apps on the box, the `CREATE USER`/`CREATE DATABASE` above only adds a new, separate database — it won't touch existing ones. But double-check nothing named `genxqr` already exists for a different purpose before running it, and be aware the `pg_hba.conf`/`redis.conf` edits above are server-wide, not per-app.
 
 ---
 
@@ -87,7 +105,7 @@ nano backend/.env
 ```
 
 Fill in, at minimum:
-- `DATABASE_URL` / `REDIS_URL` — use the same passwords you set in the root `.env` in step 3.
+- `DATABASE_URL` / `REDIS_URL` — use the exact user/password/host/port from step 3, e.g. `postgresql://genxqr:<password>@127.0.0.1:5432/genxqr?schema=public` and `redis://:<password>@127.0.0.1:6379`.
 - `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` — generate two **different** values:
   ```bash
   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
@@ -203,5 +221,5 @@ pm2 reload ecosystem.config.cjs --env production   # zero-downtime
 
 - **Contact page address**: `frontend/src/pages/marketing/ContactPage.tsx` still lists a San Francisco HQ address, which contradicts the site's India-first positioning everywhere else. Update it to a real address/entity before this page gets real traffic.
 - **Admin API exposure**: the `/admin-api/` block in the vhost snippet has a commented-out IP allowlist. Fill in your own IP and uncomment it once you know where you'll be administering from.
-- **Firewall**: confirm only 80/443 (and your SSH port) are open publicly — `ufw status` or CloudPanel's own firewall page. Ports 5433/6380 are already loopback-bound by `docker-compose.yml`, but a host firewall is a second layer worth having regardless.
+- **Firewall**: confirm only 80/443 (and your SSH port) are open publicly — `ufw status` or CloudPanel's own firewall page. Postgres (5432) and Redis (6379) should already only be listening on `127.0.0.1` per step 3 (`ss -tlnp | grep -E '5432|6379'` to confirm), but a host firewall is a second layer worth having regardless — especially since these are shared, natively-installed services rather than isolated containers.
 - **Vault**: if you later want centralized secrets management, `backend/scripts/vault-setup.sh` and `backend/vault-bootstrap.mjs` are already written — swapping `ecosystem.config.cjs`'s `script`/`node_args` back to `vault-bootstrap.mjs` is the only app-side change needed.
