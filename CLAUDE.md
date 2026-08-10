@@ -854,32 +854,34 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 
 ## 17. Production Deployment
 
+**See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for the full step-by-step runbook.** Summary:
+
 **Stack:**
-- Server: Ubuntu VPS
-- Web server: Nginx (reverse proxy + static file serving)
-- Process manager: PM2 (cluster mode — all CPU cores)
-- SSL: Let's Encrypt / Certbot
-- Domain: `genxqr.in` (mapped in nginx.conf as `genxqr.io` — update if changed)
+- Server: Ubuntu VPS running **CloudPanel** (manages Nginx + Let's Encrypt SSL per-site)
+- Domain: `genxqr.com`
+- Process manager: PM2 (cluster mode — all CPU cores), app name `genxqr-api`
+- Postgres + Redis: the same `docker-compose.yml` used in dev, run directly on the VPS (CloudPanel has no native Postgres support), both ports bound to `127.0.0.1` only
+- Secrets: a plain `backend/.env` file (chmod 600, gitignored) — **not** HashiCorp Vault. `backend/vault-bootstrap.mjs` / `backend/scripts/vault-setup.sh` exist for a possible future migration but are currently unused; nothing depends on them.
 
-**File paths on server:**
-- Frontend build: `/var/www/GenXQR/frontend/dist`
-- Backend: `/var/www/GenXQR/backend/dist/index.js`
-- Uploads: `/var/www/GenXQR/uploads/`
-- Logs: `/var/log/GenXQR/`
+**File paths on server** (site user created by CloudPanel's Node.js site wizard):
+- Repo root: `/home/<site-user>/htdocs/genxqr.com/`
+- Frontend build: `<repo-root>/frontend/dist` (this is what Nginx's `root` points at, edited manually in the Vhost — CloudPanel's default doesn't know about the `frontend/dist` subpath)
+- Backend: `<repo-root>/backend/dist/index.js`, run via PM2 per `ecosystem.config.cjs`
+- Uploads: `<repo-root>/uploads/`
+- Logs: `<repo-root>/logs/`
 
-**Nginx proxy rules:**
-- `/api/` → `127.0.0.1:3001` (rate limit: 60 req/min)
-- `/api/auth/*` → `127.0.0.1:3001` (stricter rate limit: 10 req/min)
-- `/admin-api/` → `127.0.0.1:3001`
-- `/r/` → `127.0.0.1:3001` (QR redirects; 5-min cache at CDN)
+**Nginx** is edited via CloudPanel's per-site Vhost Editor, not a standalone `nginx.conf` — see [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) for the exact block that replaces CloudPanel's default `location /` proxy-everything block:
+- `/api/`, `/admin-api/`, `/r/:slug` (exact match) → `127.0.0.1:3001`
 - `/uploads/` → served directly from disk
 - All other routes → `index.html` (SPA fallback)
+- Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
 
-**PM2 config:**
-- App name: `GenXQR-api`
+**PM2 config** (`ecosystem.config.cjs`):
+- App name: `genxqr-api`
 - Cluster mode, max instances
 - Memory restart at 512 MB per worker
-- Graceful shutdown: 5-second kill timeout
+- Graceful shutdown: 10-second kill timeout
+- Secrets loaded via `node_args: "--env-file=.env"` — same mechanism as `pnpm start` locally, just a production `backend/.env`
 
 **Dev infra (Docker):**
 - PostgreSQL + Redis run as dedicated GenXQR containers via `docker-compose.yml` at the repo root (`genxqr_postgres` on host port **5433**, `genxqr_redis` on **6380**). Isolated from any other project on the machine.
