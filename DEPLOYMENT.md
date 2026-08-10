@@ -10,9 +10,10 @@ Architecture: CloudPanel manages Nginx + the site's SSL certificate. Postgres
 and Redis are installed **natively** on this VPS (no Docker on this box) —
 this is different from local dev, which uses the repo's `docker-compose.yml`;
 that file is dev-only and irrelevant here. The backend runs under PM2. Secrets
-live in a plain `backend/.env` file, not HashiCorp Vault — the repo has Vault
-scaffolding (`backend/vault-bootstrap.mjs`, `backend/scripts/vault-setup.sh`)
-for a future migration, but it's unused for now; nothing here depends on it.
+live in a plain env file **outside the repo**, at `/home/genxqr/genxqr.env`
+(chmod 600) — not HashiCorp Vault. The repo has Vault scaffolding
+(`backend/vault-bootstrap.mjs`, `backend/scripts/vault-setup.sh`) for a future
+migration, but it's unused for now; nothing here depends on it.
 
 ---
 
@@ -97,11 +98,15 @@ Unless something's been customized, both are on their standard ports: Postgres `
 
 ## 4. Configure secrets
 
+The secrets file lives **outside the repo** — at `/home/genxqr/genxqr.env` —
+so it can never be accidentally served by Nginx or clobbered by a `git clean`.
+`ecosystem.config.cjs` already points at this exact path via `ENV_FILE_PATH`;
+if you ever move it again, update that constant to match.
+
 ```bash
 su - <site-user>
-cd ~/htdocs/genxqr.com
-cp backend/.env.production.example backend/.env
-nano backend/.env
+cp ~/htdocs/genxqr.com/backend/.env.production.example /home/genxqr/genxqr.env
+nano /home/genxqr/genxqr.env
 ```
 
 Fill in, at minimum:
@@ -113,11 +118,12 @@ Fill in, at minimum:
 - `RESEND_API_KEY` (or the `SMTP_*` block).
 - `PAYU_MERCHANT_KEY` / `PAYU_MERCHANT_SALT` — start with `PAYU_BASE_URL=https://test.payu.in/_payment` and do a full sandbox checkout before flipping to `secure.payu.in`.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
+- `ADMIN_EMAIL` / `ADMIN_PASSWORD` — needed once, by the seed script in step 5.
 
 Lock the file down:
 
 ```bash
-chmod 600 backend/.env
+chmod 600 /home/genxqr/genxqr.env
 ```
 
 ---
@@ -129,12 +135,20 @@ cd ~/htdocs/genxqr.com
 corepack enable pnpm   # if pnpm isn't already available
 pnpm install --frozen-lockfile
 
+# Prisma's CLI and the seed script both just read process.env directly — they
+# don't know about --env-file or the custom /home/genxqr/genxqr.env path, so
+# load it into this shell session first. Needed for every command below that
+# touches the database.
+set -a
+source /home/genxqr/genxqr.env
+set +a
+
 # Apply the committed migrations to the production DB
 cd backend
 npx prisma migrate deploy
 
-# Seed plans + create the super admin (reads ADMIN_EMAIL/ADMIN_PASSWORD from backend/.env —
-# add those two lines temporarily if they're not already in your .env from step 4)
+# Seed plans + create the super admin (reads ADMIN_EMAIL/ADMIN_PASSWORD, now
+# exported above from genxqr.env — make sure both are set in that file)
 node prisma/seed.mjs
 
 # Geo database for scan analytics (needs a free MaxMind license key — https://www.maxmind.com/en/geolite2/signup)
@@ -209,6 +223,7 @@ crontab -e
 cd ~/htdocs/genxqr.com
 git pull
 pnpm install --frozen-lockfile
+set -a && source /home/genxqr/genxqr.env && set +a
 cd backend && npx prisma migrate deploy && cd ..
 pnpm build:backend
 pnpm build:frontend

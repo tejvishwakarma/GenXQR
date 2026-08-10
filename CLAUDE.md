@@ -861,7 +861,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Domain: `genxqr.com`
 - Process manager: PM2 (cluster mode — all CPU cores), app name `genxqr-api`
 - Postgres + Redis: installed **natively** on the VPS (no Docker in production — `docker-compose.yml` is dev-only), both bound to `127.0.0.1` only, standard ports 5432/6379
-- Secrets: a plain `backend/.env` file (chmod 600, gitignored) — **not** HashiCorp Vault. `backend/vault-bootstrap.mjs` / `backend/scripts/vault-setup.sh` exist for a possible future migration but are currently unused; nothing depends on them.
+- Secrets: a plain env file **outside the repo**, at `/home/genxqr/genxqr.env` (chmod 600) — **not** HashiCorp Vault. `backend/vault-bootstrap.mjs` / `backend/scripts/vault-setup.sh` exist for a possible future migration but are currently unused; nothing depends on them.
 
 **File paths on server** (site user created by CloudPanel's Node.js site wizard):
 - Repo root: `/home/<site-user>/htdocs/genxqr.com/`
@@ -881,7 +881,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Cluster mode, max instances
 - Memory restart at 512 MB per worker
 - Graceful shutdown: 10-second kill timeout
-- Secrets loaded via `node_args: "--env-file=.env"` — same mechanism as `pnpm start` locally, just a production `backend/.env`
+- Secrets loaded via `node_args: "--env-file=/home/genxqr/genxqr.env"` (the `ENV_FILE_PATH` constant at the top of `ecosystem.config.cjs`) — same `--env-file` mechanism as `pnpm start` locally, just pointed at an absolute path outside the repo
 
 **Dev infra (Docker):**
 - PostgreSQL + Redis run as dedicated GenXQR containers via `docker-compose.yml` at the repo root (`genxqr_postgres` on host port **5433**, `genxqr_redis` on **6380**). Isolated from any other project on the machine.

@@ -8,9 +8,12 @@
 //   pm2 save && pm2 startup                             # persist across server reboots
 //
 // Secrets (DATABASE_URL, JWT secrets, PayU keys, etc.) are NOT set here — they
-// live in backend/.env on the server (chmod 600, never committed; see
+// live in an env file OUTSIDE the repo (chmod 600, owned by the site user; see
 // backend/.env.production.example for the template) and are loaded via Node's
-// native --env-file flag below, exactly like `pnpm start` does locally.
+// native --env-file flag below with an absolute path. Update ENV_FILE_PATH if
+// you move this file — it must be an absolute path since cwd is the backend/
+// directory, not wherever this secrets file happens to live.
+const ENV_FILE_PATH = "/home/genxqr/genxqr.env"
 
 module.exports = {
   apps: [
@@ -18,7 +21,7 @@ module.exports = {
       name: "genxqr-api",
       script: "dist/index.js",
       cwd: __dirname + "/backend",
-      node_args: "--env-file=.env",
+      node_args: `--env-file=${ENV_FILE_PATH}`,
 
       // One process per CPU core; PM2 load-balances across them.
       instances: "max",
