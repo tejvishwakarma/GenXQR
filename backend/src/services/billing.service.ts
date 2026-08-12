@@ -331,7 +331,7 @@ export async function createPaymentOrder(
     throw new AppError(400, "Cannot create a payment order for the free plan")
   }
   if (planName === "ENTERPRISE") {
-    throw new AppError(400, "Enterprise plan requires direct contact. Please email sales@genxqr.in")
+    throw new AppError(400, "Enterprise plan requires direct contact. Please email sales@genxqr.com")
   }
 
   const { key, salt, baseUrl } = getPayUConfig()
@@ -356,7 +356,7 @@ export async function createPaymentOrder(
   // surl/furl must be reachable by the user's browser (PayU auto-submits a form via JS).
   // Use BACKEND_URL (port 3001 in dev, public domain in prod) to bypass the Vite proxy,
   // which can interfere with redirect chains and urlencoded POST body handling.
-  const callbackBase = env.BACKEND_URL   // e.g. http://localhost:3001 or https://genxqr.in
+  const callbackBase = env.BACKEND_URL   // e.g. http://localhost:3001 or https://genxqr.com
   const hash = computePayUHash({ key, salt, txnid, amount, productinfo, firstname, email, udf1, udf2, udf3 })
 
   return {

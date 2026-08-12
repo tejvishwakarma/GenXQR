@@ -29,7 +29,7 @@ const GENERATE_JSON_LD = [
     "name": "GenXQR Free QR Code Generator",
     "applicationCategory": "UtilitiesApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com/generate",
+    "url": "https://genxqr.com/generate",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -57,7 +57,7 @@ const GENERATE_JSON_LD = [
         "name": "How do I create a QR code for free?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Use GenXQR's free generator at genxqr.streamsnatcher.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, create a free account and use the dynamic QR creator.",
+          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, create a free account and use the dynamic QR creator.",
         },
       },
       {
@@ -139,7 +139,7 @@ function buildQRData(
 ): string {
   switch (type) {
     case "url":
-      return fields.url?.trim() || "https://genxqr.streamsnatcher.com"
+      return fields.url?.trim() || "https://genxqr.com"
     case "wifi": {
       const sec = fields.security || "WPA"
       const ssid = fields.ssid || ""
@@ -163,7 +163,7 @@ function buildQRData(
       return `tel:${num}`
     }
     default:
-      return "https://genxqr.streamsnatcher.com"
+      return "https://genxqr.com"
   }
 }
 
@@ -240,7 +240,7 @@ export default function StaticGeneratePage() {
       width: 200,
       height: 200,
       type: "svg",
-      data: "https://genxqr.streamsnatcher.com",
+      data: "https://genxqr.com",
       dotsOptions: { color: fgColor, type: dotShape },
       cornersSquareOptions: { color: fgColor, type: eyeShape },
       cornersDotOptions: { color: fgColor, type: eyeDotShape },

@@ -31,7 +31,7 @@ const envSchema = z.object({
   PAYU_BASE_URL: z.string().default("https://test.payu.in/_payment"),
   // Base URL PayU POSTs callbacks to. Must be publicly reachable.
   // Dev:  http://localhost:3001  (direct backend — bypasses Vite proxy)
-  // Prod: https://genxqr.in    (Nginx proxies /api/* to backend)
+  // Prod: https://genxqr.com    (Nginx proxies /api/* to backend)
   BACKEND_URL: z.string().default("http://localhost:3001"),
   // Override Puppeteer's bundled Chromium — required on ARM servers (Oracle Cloud Ampere).
   // Set to /usr/bin/chromium-browser on Ubuntu ARM64.

@@ -334,7 +334,7 @@ router.get(
     <div class="address-block">
       <div class="address-label">Billed From</div>
       <div class="address-name">GenXQR</div>
-      <div class="address-detail">India<br />support@genxqr.in</div>
+      <div class="address-detail">India<br />support@genxqr.com</div>
     </div>
     <div class="address-block">
       <div class="address-label">Billed To</div>
@@ -396,7 +396,7 @@ router.get(
   <div class="footer">
     <p style="font-weight: 600; color: #4b5563; margin-bottom: 3px;">Thank you for your business!</p>
     <p>This is a computer-generated invoice and does not require a signature.</p>
-    <p>Questions? Contact <a href="mailto:support@genxqr.in">support@genxqr.in</a></p>
+    <p>Questions? Contact <a href="mailto:support@genxqr.com">support@genxqr.com</a></p>
   </div>
 </body>
 </html>`

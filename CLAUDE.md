@@ -46,7 +46,7 @@
 
 ## 1. Project Overview
 
-**GenXQR** is a full-stack SaaS QR code management platform available at `genxqr.in`.
+**GenXQR** is a full-stack SaaS QR code management platform available at `genxqr.com`.
 
 **Core value proposition:**
 - Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, and coupons.
@@ -127,7 +127,7 @@ genx-qr/                         ← Repository root
 ├── package.json                  ← Root workspace (pnpm) — scripts for both packages
 ├── pnpm-workspace.yaml           ← Declares backend/* and frontend/* workspaces
 ├── ecosystem.config.cjs          ← PM2 cluster config for production
-├── nginx.conf                    ← Nginx config for genxqr.io
+├── nginx.conf                    ← Nginx config for genxqr.com
 ├── dev.ps1                       ← PowerShell dev launcher (opens terminals for FE + BE)
 └── dev.bat                       ← Windows batch launcher shortcut
 ```
@@ -219,7 +219,7 @@ SMTP_HOST=""
 SMTP_PORT="587"
 SMTP_USER=""
 SMTP_PASS=""
-EMAIL_FROM="GenXQR <no-reply@genxqr.in>"
+EMAIL_FROM="GenXQR <no-reply@genxqr.com>"
 
 # Payments (PayU — Indian gateway)
 PAYU_MERCHANT_KEY=""
@@ -588,7 +588,7 @@ PayU is an Indian payment gateway (used instead of Stripe for INR payments).
 - Stored as `category: STATIC` in DB but redirect still works at `/r/:slug` → direct redirect 301
 
 **Dynamic QR codes:**
-- QR encodes the URL `https://genxqr.in/r/<slug>`
+- QR encodes the URL `https://genxqr.com/r/<slug>`
 - When scanned, backend resolves slug:
   1. Password check → redirect to `/r/:slug/password` if locked
   2. Expiry check → redirect to `/r/:slug/expired` or `fallbackUrl`

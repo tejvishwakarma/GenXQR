@@ -17,8 +17,8 @@ const ABOUT_JSON_LD = [
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "GenXQR",
-    "url": "https://genxqr.streamsnatcher.com",
-    "logo": "https://genxqr.streamsnatcher.com/logo.png",
+    "url": "https://genxqr.com",
+    "logo": "https://genxqr.com/logo.png",
     "description": "GenXQR is an Indian dynamic QR code generator that lets businesses create, edit, track, and control QR codes — including editing the destination after printing.",
     "foundingDate": "2026",
     "foundingLocation": {
@@ -34,7 +34,7 @@ const ABOUT_JSON_LD = [
     "name": "GenXQR",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": "https://genxqr.com",
     "offers": [
       {
         "@type": "Offer",

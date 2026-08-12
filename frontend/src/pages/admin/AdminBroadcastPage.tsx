@@ -438,7 +438,7 @@ function InAppNotificationTab() {
               value={actionUrl}
               onChange={(e) => setActionUrl(e.target.value)}
               type="url"
-              placeholder="https://genxqr.streamsnatcher.com/app/billing"
+              placeholder="https://genxqr.com/app/billing"
               className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl pl-9 pr-4 py-2.5 text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             />
           </div>

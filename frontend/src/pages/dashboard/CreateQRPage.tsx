@@ -774,7 +774,7 @@ export default function CreateQRPage() {
   useEffect(() => {
     qrInstance.current = new QRCodeStyling({
       width: 200, height: 200, type: "svg",
-      data: "https://genxqr.streamsnatcher.com/preview",
+      data: "https://genxqr.com/preview",
       dotsOptions: { color: primaryColor, type: dotStyle },
       cornersSquareOptions: { color: primaryColor, type: cornerStyle },
       cornersDotOptions: { color: primaryColor },

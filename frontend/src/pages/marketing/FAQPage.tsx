@@ -21,7 +21,7 @@ const FAQ_JSON_LD = [
     "name": "GenXQR",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": "https://genxqr.com",
     "offers": [
       {
         "@type": "Offer",
@@ -78,7 +78,7 @@ const FAQ_JSON_LD = [
         "name": "Is GenXQR free?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR's free static QR generator needs no account at all — go to genxqr.streamsnatcher.com/generate, pick a type, and download a PNG. No credit card and the codes never expire. Dynamic QR codes with full scan analytics start at ₹299/month on the Starter plan.",
+          "text": "Yes. GenXQR's free static QR generator needs no account at all — go to genxqr.com/generate, pick a type, and download a PNG. No credit card and the codes never expire. Dynamic QR codes with full scan analytics start at ₹299/month on the Starter plan.",
         },
       },
       {
@@ -149,7 +149,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "Is GenXQR free?",
-        a: "Yes. For static QR codes (URL, WhatsApp, WiFi, Instagram, SMS, phone) you don't even need an account — no credit card, no expiry: go to genxqr.streamsnatcher.com/generate, pick a type, customise the colour and style, and download a 600px PNG. Dynamic QR codes with full scan analytics and editing after print start at ₹299/month on the Starter plan; smart routing is available from Pro.",
+        a: "Yes. For static QR codes (URL, WhatsApp, WiFi, Instagram, SMS, phone) you don't even need an account — no credit card, no expiry: go to genxqr.com/generate, pick a type, customise the colour and style, and download a 600px PNG. Dynamic QR codes with full scan analytics and editing after print start at ₹299/month on the Starter plan; smart routing is available from Pro.",
       },
       {
         q: "Do I need to download anything?",
@@ -184,11 +184,11 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "Can I add my logo to a QR code?",
-        a: "Yes — on paid plans. The QR editor lets you upload a logo image that appears in the centre of the QR code. You can control the size and margin. Logo upload is available on the Starter plan (₹299/month) and above. The free static generator on genxqr.streamsnatcher.com/generate does not include logo upload.",
+        a: "Yes — on paid plans. The QR editor lets you upload a logo image that appears in the centre of the QR code. You can control the size and margin. Logo upload is available on the Starter plan (₹299/month) and above. The free static generator on genxqr.com/generate does not include logo upload.",
       },
       {
         q: "What download formats are available?",
-        a: "The free generator at genxqr.streamsnatcher.com/generate downloads a 600px PNG — ready for print and digital use. On paid plans, the full QR editor generates PNG for download. SVG output is available for vector-quality export suitable for large-format printing.",
+        a: "The free generator at genxqr.com/generate downloads a 600px PNG — ready for print and digital use. On paid plans, the full QR editor generates PNG for download. SVG output is available for vector-quality export suitable for large-format printing.",
       },
     ],
   },

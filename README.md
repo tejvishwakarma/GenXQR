@@ -182,7 +182,7 @@ SMTP_HOST=""
 SMTP_PORT="587"
 SMTP_USER=""
 SMTP_PASS=""
-EMAIL_FROM="GenXQR <no-reply@genxqr.in>"
+EMAIL_FROM="GenXQR <no-reply@genxqr.com>"
 
 # Razorpay (optional — payments won't work without it)
 RAZORPAY_KEY_ID=""

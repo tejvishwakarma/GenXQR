@@ -116,7 +116,7 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                     <span className="text-amber-300">curl</span>{" "}
                     <span className="text-violet-300">-H</span>{" "}
                     <span className="text-emerald-300">"Authorization: Bearer nxqr_••••••••"</span>{" "}
-                    <span className="text-cyan-300">https://genxqr.streamsnatcher.com/v1/qr</span>
+                    <span className="text-cyan-300">https://genxqr.com/v1/qr</span>
                   </p>
                 </div>
               </div>
@@ -124,7 +124,7 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
               <div>
                 <p className="text-zinc-500 text-xs font-medium mb-2">Node.js — fetch</p>
                 <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs space-y-1 overflow-x-auto">
-                  <p><span className="text-blue-400">const</span> <span className="text-white">res</span> = <span className="text-blue-400">await</span> <span className="text-yellow-300">fetch</span>(<span className="text-emerald-300">"https://genxqr.streamsnatcher.com/v1/qr"</span>, {"{"}</p>
+                  <p><span className="text-blue-400">const</span> <span className="text-white">res</span> = <span className="text-blue-400">await</span> <span className="text-yellow-300">fetch</span>(<span className="text-emerald-300">"https://genxqr.com/v1/qr"</span>, {"{"}</p>
                   <p className="pl-4"><span className="text-violet-300">headers</span>: {"{"}</p>
                   <p className="pl-8"><span className="text-emerald-300">"Authorization"</span>: <span className="text-emerald-300">`Bearer ${"{"}<span className="text-white">process.env.GenXQR_API_KEY</span>{"}"}`</span>,</p>
                   <p className="pl-4">{"}"}</p>
@@ -138,7 +138,7 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                 <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs space-y-1 overflow-x-auto">
                   <p><span className="text-blue-400">import</span> <span className="text-white">requests</span>, <span className="text-white">os</span></p>
                   <p><span className="text-white">headers</span> = {"{"}<span className="text-emerald-300">"Authorization"</span>: <span className="text-emerald-300">f"Bearer {"{"}<span className="text-white">os.environ['GenXQR_API_KEY']</span>{"}"}"</span>{"}"}</p>
-                  <p><span className="text-white">res</span> = <span className="text-white">requests</span>.<span className="text-yellow-300">get</span>(<span className="text-emerald-300">"https://genxqr.streamsnatcher.com/v1/qr"</span>, headers=<span className="text-white">headers</span>)</p>
+                  <p><span className="text-white">res</span> = <span className="text-white">requests</span>.<span className="text-yellow-300">get</span>(<span className="text-emerald-300">"https://genxqr.com/v1/qr"</span>, headers=<span className="text-white">headers</span>)</p>
                   <p><span className="text-white">data</span> = <span className="text-white">res</span>.<span className="text-yellow-300">json</span>()</p>
                 </div>
               </div>
@@ -152,41 +152,41 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
 
           {tab === "endpoints" && (
             <>
-              <p className="text-zinc-400 text-xs leading-relaxed">Base URL: <code className="text-violet-300 bg-violet-500/10 px-1 rounded">https://genxqr.streamsnatcher.com/v1</code></p>
+              <p className="text-zinc-400 text-xs leading-relaxed">Base URL: <code className="text-violet-300 bg-violet-500/10 px-1 rounded">https://genxqr.com/v1</code></p>
 
               {[
                 {
                   method: "GET", path: "/qr", desc: "List all your QR codes",
-                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.streamsnatcher.com/v1/qr?page=1&limit=20',
+                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr?page=1&limit=20',
                   response: '{ "success": true, "data": [...], "meta": { "total": 42, "page": 1 } }',
                 },
                 {
                   method: "POST", path: "/qr", desc: "Create a new QR code",
                   example: `curl -X POST -H "Authorization: Bearer KEY" -H "Content-Type: application/json" \\
   -d '{"name":"My QR","type":"URL","content":{"data":{"url":"https://example.com"}}}' \\
-  https://genxqr.streamsnatcher.com/v1/qr`,
+  https://genxqr.com/v1/qr`,
                   response: '{ "success": true, "data": { "id": "...", "slug": "abc123", ... } }',
                 },
                 {
                   method: "GET", path: "/qr/:id", desc: "Get a single QR code by ID",
-                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.streamsnatcher.com/v1/qr/clxxx',
+                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr/clxxx',
                   response: '{ "success": true, "data": { "id": "clxxx", "name": "My QR", ... } }',
                 },
                 {
                   method: "PATCH", path: "/qr/:id", desc: "Update a QR code's content or settings",
                   example: `curl -X PATCH -H "Authorization: Bearer KEY" -H "Content-Type: application/json" \\
   -d '{"content":{"data":{"url":"https://new-url.com"}}}' \\
-  https://genxqr.streamsnatcher.com/v1/qr/clxxx`,
+  https://genxqr.com/v1/qr/clxxx`,
                   response: '{ "success": true, "data": { ... } }',
                 },
                 {
                   method: "DELETE", path: "/qr/:id", desc: "Permanently delete a QR code",
-                  example: 'curl -X DELETE -H "Authorization: Bearer KEY" https://genxqr.streamsnatcher.com/v1/qr/clxxx',
+                  example: 'curl -X DELETE -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr/clxxx',
                   response: '{ "success": true, "message": "QR code deleted" }',
                 },
                 {
                   method: "GET", path: "/qr/:id/analytics", desc: "Get scan analytics for a QR code",
-                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.streamsnatcher.com/v1/qr/clxxx/analytics',
+                  example: 'curl -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr/clxxx/analytics',
                   response: '{ "success": true, "data": { "totalScans": 120, "today": 8, ... } }',
                 },
               ].map((ep) => {

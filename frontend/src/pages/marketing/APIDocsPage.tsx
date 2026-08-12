@@ -113,9 +113,9 @@ const ENDPOINTS: Endpoint[] = [
       { code: "429", desc: "Rate limit exceeded" },
     ],
     examples: {
-      curl: `curl https://genxqr.streamsnatcher.com/v1/qr?page=1&limit=20 \\
+      curl: `curl https://genxqr.com/v1/qr?page=1&limit=20 \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
-      node: `const res = await fetch('https://genxqr.streamsnatcher.com/v1/qr?page=1&limit=20', {
+      node: `const res = await fetch('https://genxqr.com/v1/qr?page=1&limit=20', {
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
   }
@@ -124,7 +124,7 @@ const { data, meta } = await res.json()`,
       python: `import requests, os
 
 res = requests.get(
-    'https://genxqr.streamsnatcher.com/v1/qr',
+    'https://genxqr.com/v1/qr',
     params={'page': 1, 'limit': 20},
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
@@ -158,7 +158,7 @@ data = res.json()`,
     method: "POST",
     path: "/v1/qr",
     summary: "Create QR Code",
-    description: "Creates a new dynamic QR code. The QR code will be assigned a unique slug which is embedded in the scannable URL (https://genxqr.streamsnatcher.com/r/<slug>).",
+    description: "Creates a new dynamic QR code. The QR code will be assigned a unique slug which is embedded in the scannable URL (https://genxqr.com/r/<slug>).",
     bodyParams: [
       { name: "name",     type: "string",  required: true,  desc: "Display name for the QR code (max 128 characters)" },
       { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, WIFI, VCARD, MENU, SOCIAL_MEDIA, IMAGE_GALLERY, APP, MP3, BUSINESS, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON" },
@@ -183,7 +183,7 @@ data = res.json()`,
       { code: "429", desc: "Rate limit exceeded" },
     ],
     examples: {
-      curl: `curl -X POST https://genxqr.streamsnatcher.com/v1/qr \\
+      curl: `curl -X POST https://genxqr.com/v1/qr \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -196,7 +196,7 @@ data = res.json()`,
     },
     "tags": ["marketing", "product"]
   }'`,
-      node: `const res = await fetch('https://genxqr.streamsnatcher.com/v1/qr', {
+      node: `const res = await fetch('https://genxqr.com/v1/qr', {
   method: 'POST',
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`,
@@ -210,11 +210,11 @@ data = res.json()`,
   })
 })
 const { data } = await res.json()
-console.log('Scan URL:', \`https://genxqr.streamsnatcher.com/r/\${data.slug}\`)`,
+console.log('Scan URL:', \`https://genxqr.com/r/\${data.slug}\`)`,
       python: `import requests, os
 
 res = requests.post(
-    'https://genxqr.streamsnatcher.com/v1/qr',
+    'https://genxqr.com/v1/qr',
     headers={
         'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}",
         'Content-Type': 'application/json'
@@ -227,7 +227,7 @@ res = requests.post(
     }
 )
 data = res.json()['data']
-print(f"Scan URL: https://genxqr.streamsnatcher.com/r/{data['slug']}")`,
+print(f"Scan URL: https://genxqr.com/r/{data['slug']}")`,
     },
     responseExample: `{
   "success": true,
@@ -266,10 +266,10 @@ print(f"Scan URL: https://genxqr.streamsnatcher.com/r/{data['slug']}")`,
       { code: "404", desc: "QR code not found or belongs to another account" },
     ],
     examples: {
-      curl: `curl https://genxqr.streamsnatcher.com/v1/qr/clxxxxxxxxxxxxxxxx \\
+      curl: `curl https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       node: `const id = 'clxxxxxxxxxxxxxxxx'
-const res = await fetch(\`https://genxqr.streamsnatcher.com/v1/qr/\${id}\`, {
+const res = await fetch(\`https://genxqr.com/v1/qr/\${id}\`, {
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
   }
@@ -279,7 +279,7 @@ const { data } = await res.json()`,
 
 qr_id = 'clxxxxxxxxxxxxxxxx'
 res = requests.get(
-    f'https://genxqr.streamsnatcher.com/v1/qr/{qr_id}',
+    f'https://genxqr.com/v1/qr/{qr_id}',
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
 data = res.json()['data']`,
@@ -334,7 +334,7 @@ data = res.json()['data']`,
       { code: "404", desc: "QR code not found" },
     ],
     examples: {
-      curl: `curl -X PATCH https://genxqr.streamsnatcher.com/v1/qr/clxxxxxxxxxxxxxxxx \\
+      curl: `curl -X PATCH https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -345,7 +345,7 @@ data = res.json()['data']`,
     },
     "isActive": true
   }'`,
-      node: `const res = await fetch(\`https://genxqr.streamsnatcher.com/v1/qr/\${id}\`, {
+      node: `const res = await fetch(\`https://genxqr.com/v1/qr/\${id}\`, {
   method: 'PATCH',
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`,
@@ -358,7 +358,7 @@ data = res.json()['data']`,
 })
 const { data } = await res.json()`,
       python: `res = requests.patch(
-    f'https://genxqr.streamsnatcher.com/v1/qr/{qr_id}',
+    f'https://genxqr.com/v1/qr/{qr_id}',
     headers={
         'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}",
         'Content-Type': 'application/json'
@@ -397,9 +397,9 @@ const { data } = await res.json()`,
       { code: "404", desc: "QR code not found" },
     ],
     examples: {
-      curl: `curl -X DELETE https://genxqr.streamsnatcher.com/v1/qr/clxxxxxxxxxxxxxxxx \\
+      curl: `curl -X DELETE https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
-      node: `const res = await fetch(\`https://genxqr.streamsnatcher.com/v1/qr/\${id}\`, {
+      node: `const res = await fetch(\`https://genxqr.com/v1/qr/\${id}\`, {
   method: 'DELETE',
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
@@ -408,7 +408,7 @@ const { data } = await res.json()`,
 const result = await res.json()
 // { success: true, message: 'QR code deleted' }`,
       python: `res = requests.delete(
-    f'https://genxqr.streamsnatcher.com/v1/qr/{qr_id}',
+    f'https://genxqr.com/v1/qr/{qr_id}',
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
 # { 'success': True, 'message': 'QR code deleted' }`,
@@ -442,10 +442,10 @@ const result = await res.json()
       { code: "404", desc: "QR code not found" },
     ],
     examples: {
-      curl: `curl "https://genxqr.streamsnatcher.com/v1/qr/clxxxxxxxxxxxxxxxx/analytics?period=30d" \\
+      curl: `curl "https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/analytics?period=30d" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       node: `const res = await fetch(
-  \`https://genxqr.streamsnatcher.com/v1/qr/\${id}/analytics?period=30d\`,
+  \`https://genxqr.com/v1/qr/\${id}/analytics?period=30d\`,
   {
     headers: {
       'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
@@ -455,7 +455,7 @@ const result = await res.json()
 const { data } = await res.json()
 console.log('Total scans:', data.totalScans)`,
       python: `res = requests.get(
-    f'https://genxqr.streamsnatcher.com/v1/qr/{qr_id}/analytics',
+    f'https://genxqr.com/v1/qr/{qr_id}/analytics',
     params={'period': '30d'},
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
@@ -733,10 +733,10 @@ function IntroSection() {
       <div className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
         <div className="bg-zinc-900/60 px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
           <span className="text-zinc-500 text-xs font-mono">Base URL</span>
-          <CopyButton text="https://genxqr.streamsnatcher.com/v1" />
+          <CopyButton text="https://genxqr.com/v1" />
         </div>
         <div className="p-4 font-mono text-sm">
-          <span className="text-zinc-500">https://genxqr.streamsnatcher.com/</span><span className="text-violet-300">v1</span>
+          <span className="text-zinc-500">https://genxqr.com/</span><span className="text-violet-300">v1</span>
         </div>
       </div>
       <div className="mt-4 border-t border-line" />
@@ -753,7 +753,7 @@ function AuthSection() {
         <Link to="/app/api-keys" className="text-accent hover:text-accent-ink underline underline-offset-2">API Keys</Link> in your dashboard.
       </p>
       <CodeBlock lang="bash" code={`# Every request must include this header
-curl https://genxqr.streamsnatcher.com/v1/qr \\
+curl https://genxqr.com/v1/qr \\
   -H "Authorization: Bearer nxqr_••••••••••••••••••••••••••••••••"`} />
       <div className="mt-4 p-4 border border-amber-500/20 bg-amber-500/10 rounded-xl">
         <div className="flex items-start gap-3">
@@ -867,7 +867,7 @@ function PaginationSection() {
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
         <CodeBlock lang="bash" code={`# Request page 3, 50 items per page
-curl "https://genxqr.streamsnatcher.com/v1/qr?page=3&limit=50" \\
+curl "https://genxqr.com/v1/qr?page=3&limit=50" \\
   -H "Authorization: Bearer YOUR_API_KEY"`} />
         <CodeBlock lang="json" code={`// meta object in every list response
 "meta": {

@@ -17,7 +17,7 @@ const PRICING_JSON_LD = [
     "name": "GenXQR",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": "https://genxqr.com",
     "offers": [
       {
         "@type": "Offer",

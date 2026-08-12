@@ -1,4 +1,6 @@
 import { SEOMeta } from "@/components/SEOMeta"
+import { ORG_ID, WEBSITE_ID, organisationSchema } from "@/lib/schema"
+import { absoluteUrl } from "@/lib/site"
 import { MarketingHero } from "@/components/marketing/Hero"
 import { TrustStrip, QrTypes, ValueTrio } from "@/components/marketing/Story"
 import { MarketingAnalytics, PowerFeatures, MarketingUseCases, MarketingSecurity } from "@/components/marketing/Platform"
@@ -8,16 +10,22 @@ import { MarketingFaq } from "@/components/marketing/Faq"
 // ── JSON-LD schema ────────────────────────────────────────────────────────────
 
 const HOME_JSON_LD = [
+  // Publisher identity. Emitted once here, on the site root; other pages
+  // reference it by @id via the helpers in lib/schema.ts rather than repeating it.
+  organisationSchema(),
   {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": WEBSITE_ID,
     "name": "GenXQR",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": absoluteUrl("/"),
+    "publisher": { "@id": ORG_ID },
+    "inLanguage": "en",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://genxqr.streamsnatcher.com/generate?q={search_term_string}",
+        "urlTemplate": absoluteUrl("/generate?q={search_term_string}"),
       },
       "query-input": "required name=search_term_string",
     },
@@ -27,10 +35,12 @@ const HOME_JSON_LD = [
     "@type": "SoftwareApplication",
     "name": "GenXQR",
     "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "QR Code Generator",
     "operatingSystem": "Web",
+    "publisher": { "@id": ORG_ID },
     "description":
       "QR code generator and management platform with dynamic QR codes, real-time analytics, A/B testing, smart routing, and 16 QR code types. Free plan available.",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": absoluteUrl("/"),
     "offers": {
       "@type": "AggregateOffer",
       "lowPrice": "0",

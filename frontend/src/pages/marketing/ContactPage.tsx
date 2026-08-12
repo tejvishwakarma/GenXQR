@@ -53,10 +53,9 @@ export default function ContactPage() {
               <div>
                 <h3 className="text-ink font-semibold mb-2">Headquarters</h3>
                 <p className="text-ink-soft text-sm leading-relaxed">
-                  GenXQR Inc.<br />
-                  100 Innovation Drive, Suite 300<br />
-                  San Francisco, CA 94107<br />
-                  United States
+                  GenXQR<br />
+                  New Delhi<br />
+                  India
                 </p>
               </div>
             </MktCard>

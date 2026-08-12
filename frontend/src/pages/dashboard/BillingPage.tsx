@@ -189,7 +189,7 @@ function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardPro
         <Button variant="secondary" size="sm" disabled>Downgrade</Button>
       )}
       {plan.name === "ENTERPRISE" && (
-        <a href="mailto:sales@genxqr.streamsnatcher.com">
+        <a href="mailto:sales@genxqr.com">
           <Button variant="outline" size="sm" className="w-full">Contact Sales</Button>
         </a>
       )}
@@ -458,7 +458,7 @@ export default function BillingPage() {
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     {currentPlanName === "BUSINESS" && (
-                      <a href="mailto:sales@genxqr.streamsnatcher.com" className="w-full sm:w-auto">
+                      <a href="mailto:sales@genxqr.com" className="w-full sm:w-auto">
                         <Button variant="outline" size="sm" className="w-full">
                           Contact Sales to Upgrade
                         </Button>

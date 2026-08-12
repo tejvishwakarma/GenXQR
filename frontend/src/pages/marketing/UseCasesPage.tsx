@@ -33,7 +33,7 @@ const USE_CASES_JSON_LD = [
     "name": "GenXQR",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": "https://genxqr.com",
     "offers": [
       {
         "@type": "Offer",
@@ -86,7 +86,7 @@ const USE_CASES_JSON_LD = [
         "name": "How do I make a QR code for my business?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Go to genxqr.streamsnatcher.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, Instagram, and more), enter your content, customise the colour and dot style, and download a 600px PNG ready for print. For QR codes you can edit after printing and track every scan with city and device data, create a free GenXQR account. Dynamic QR codes start at ₹299/month.",
+          "text": "Go to genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, Instagram, and more), enter your content, customise the colour and dot style, and download a 600px PNG ready for print. For QR codes you can edit after printing and track every scan with city and device data, create a free GenXQR account. Dynamic QR codes start at ₹299/month.",
         },
       },
       {
@@ -318,7 +318,7 @@ const faqs = [
   },
   {
     q: "How do I make a QR code for my business?",
-    a: "Visit genxqr.streamsnatcher.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, or Instagram), enter your content, customise the colour and style, and download a print-ready 600px PNG. For QR codes you can update after printing and track every scan with city and device data, create a free account and use the dynamic QR creator. Dynamic plans start at ₹299/month.",
+    a: "Visit genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, or Instagram), enter your content, customise the colour and style, and download a print-ready 600px PNG. For QR codes you can update after printing and track every scan with city and device data, create a free account and use the dynamic QR creator. Dynamic plans start at ₹299/month.",
   },
   {
     q: "Can I track who scanned my QR code?",

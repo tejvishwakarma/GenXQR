@@ -38,12 +38,12 @@ const DYNAMIC_JSON_LD = [
     "name": "Dynamic QR Code Generator — Edit After Printing | GenXQR",
     "description":
       "Create dynamic QR codes you can edit after printing. Track every scan by city, device and time. Change the URL in seconds — no reprint needed.",
-    "url": "https://genxqr.streamsnatcher.com/dynamic-qr",
+    "url": "https://genxqr.com/dynamic-qr",
     "breadcrumb": {
       "@type": "BreadcrumbList",
       "itemListElement": [
-        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://genxqr.streamsnatcher.com" },
-        { "@type": "ListItem", "position": 2, "name": "Dynamic QR Codes", "item": "https://genxqr.streamsnatcher.com/dynamic-qr" },
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://genxqr.com" },
+        { "@type": "ListItem", "position": 2, "name": "Dynamic QR Codes", "item": "https://genxqr.com/dynamic-qr" },
       ],
     },
   },
@@ -53,7 +53,7 @@ const DYNAMIC_JSON_LD = [
     "name": "GenXQR — Dynamic QR Code Generator",
     "applicationCategory": "BusinessApplication",
     "operatingSystem": "Web",
-    "url": "https://genxqr.streamsnatcher.com",
+    "url": "https://genxqr.com",
     "description":
       "Dynamic QR code generator with edit-after-print, real-time scan analytics, smart routing by device and city, A/B testing, and scheduled expiry. Free trial, INR pricing.",
     "featureList": [
@@ -445,7 +445,7 @@ function LiveScanDemo() {
           <span className="w-2.5 h-2.5 rounded-full bg-red-500/70" />
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400/70" />
           <span className="w-2.5 h-2.5 rounded-full bg-live/70" />
-          <span className="ml-3 text-paper-pure/50 text-xs font-mono">genxqr.streamsnatcher.com / dashboard / analytics</span>
+          <span className="ml-3 text-paper-pure/50 text-xs font-mono">genxqr.com / dashboard / analytics</span>
           <span className="ml-auto flex items-center gap-1.5 text-live text-xs font-semibold">
             <span className="w-1.5 h-1.5 rounded-full bg-live animate-pulse" />
             LIVE
