@@ -29,6 +29,17 @@ pnpm test tests/integration/billing-payu-callback.test.ts   # one file
 
 Requires the dev Postgres + Redis containers (`pnpm db:up` from the repo root).
 
+### In CI
+
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs the same
+commands on every push and PR to `main`, against Postgres and Redis service
+containers. The only difference is where the connection details come from:
+`scripts/gen-test-env.mjs` reads `TEST_DATABASE_URL` / `TEST_REDIS_URL` from
+the environment when they're set (CI), and falls back to deriving them from
+your local `.env` otherwise. `scripts/setup-test-db.mjs` likewise skips the
+`docker createdb` step when `CI` is set, since the service container
+provisions the database itself.
+
 ---
 
 ## How isolation works

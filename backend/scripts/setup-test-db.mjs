@@ -44,23 +44,30 @@ function docker(args, opts = {}) {
   return execFileSync(dockerCmd, [...dockerPrefix, ...args], { encoding: "utf8", ...opts })
 }
 
-console.log(`Ensuring test database "${TEST_DB}" exists...`)
-try {
-  const exists = docker([
-    "exec", "genxqr_postgres", "psql", "-U", dbUser, "-d", "postgres", "-tAc",
-    `SELECT 1 FROM pg_database WHERE datname='${TEST_DB}'`,
-  ]).trim()
+// On CI the database is provisioned by the Postgres service container
+// (POSTGRES_DB in the workflow) and there is no Docker CLI to call, so the
+// creation step is skipped and we go straight to migrations.
+if (process.env.CI) {
+  console.log(`CI detected — assuming "${TEST_DB}" is provisioned by the service container.`)
+} else {
+  console.log(`Ensuring test database "${TEST_DB}" exists...`)
+  try {
+    const exists = docker([
+      "exec", "genxqr_postgres", "psql", "-U", dbUser, "-d", "postgres", "-tAc",
+      `SELECT 1 FROM pg_database WHERE datname='${TEST_DB}'`,
+    ]).trim()
 
-  if (exists === "1") {
-    console.log(`  already exists`)
-  } else {
-    docker(["exec", "genxqr_postgres", "createdb", "-U", dbUser, TEST_DB])
-    console.log(`  created`)
+    if (exists === "1") {
+      console.log(`  already exists`)
+    } else {
+      docker(["exec", "genxqr_postgres", "createdb", "-U", dbUser, TEST_DB])
+      console.log(`  created`)
+    }
+  } catch (err) {
+    console.error("Could not reach the Postgres container. Is it running? Try: pnpm db:up")
+    console.error(err.message)
+    process.exit(1)
   }
-} catch (err) {
-  console.error("Could not reach the Postgres container. Is it running? Try: pnpm db:up")
-  console.error(err.message)
-  process.exit(1)
 }
 
 console.log("Applying migrations to the test database...")

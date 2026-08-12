@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch makes an in-flight run redundant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — typecheck, test, build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: genxqr
+          POSTGRES_PASSWORD: ci_test_password
+          # The suite requires this exact database name; both vitest.config.ts
+          # and tests/setup.ts refuse to run against anything else.
+          POSTGRES_DB: genxqr_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U genxqr -d genxqr_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      # Consumed by scripts/gen-test-env.mjs, which writes backend/.env.test.
+      # No password on the CI Redis, hence the bare host:port form.
+      TEST_DATABASE_URL: postgresql://genxqr:ci_test_password@localhost:5432/genxqr_test?schema=public
+      TEST_REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @genx-qr/backend exec prisma generate
+
+      - name: Prepare test database
+        working-directory: backend
+        run: pnpm test:setup
+
+      - name: Typecheck (src + tests)
+        working-directory: backend
+        run: pnpm typecheck:tests
+
+      - name: Run integration tests
+        working-directory: backend
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build:backend
+
+  frontend:
+    name: Frontend — typecheck & build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The frontend imports Prisma-derived types nowhere, but the backend
+      # workspace's postinstall-free setup means the client must exist before
+      # a workspace-wide build resolves.
+      - name: Generate Prisma client
+        run: pnpm --filter @genx-qr/backend exec prisma generate
+
+      - name: Build
+        run: pnpm build:frontend
