@@ -430,6 +430,11 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 | `audit.service.ts` | Write/query audit log entries |
 | `limit-notification.service.ts` | Check usage thresholds → send 80%/100% limit warning emails |
 | `renewal-reminder.service.ts` | Send 7-day/3-day/1-day/expired renewal reminder emails |
+| `team.service.ts` | Team/invite CRUD, invite accept flow, legacy PlatformSetting→Team migration |
+| `admin-users.service.ts` | Admin user management: list/detail/update, plan change, delete, impersonate, force-verify, force-password, manual reminder |
+| `admin-platform.service.ts` | Admin dashboard metrics, system health probes, QR admin actions, all analytics trends, revenue, storage, audit log, subscriptions, payments |
+| `admin-moderation.service.ts` | Abuse reports, blocklist, email logs, broadcast, platform settings (owns `DEFAULT_SETTINGS`) |
+| `admin-support.service.ts` | Support tickets, job postings, job applications, CV path resolution |
 
 ### 5.6 BullMQ Workers
 
@@ -932,7 +937,7 @@ pnpm preview               # vite preview (serves dist/)
 ### Backend
 - **ESM throughout**: `"type": "module"` — always use `.js` extensions in imports even for `.ts` source files
 - **Zod validation**: All request bodies validated with Zod schemas inline in route files
-- **Service layer isolation**: Routes only call services; no Prisma queries in routes directly
+- **Service layer isolation**: Routes only call services; no Prisma queries in routes directly. Services throw `AppError(status, message)` rather than writing responses — `error.middleware.ts` turns that into the same `{success:false, error}` JSON shape. Fully enforced in `admin.routes.ts`, `team.routes.ts`, `auth.routes.ts`, `qr.routes.ts`'s core CRUD, `apikeys`, `webhooks`, `bulk`, `gdrive`, `notifications`. Still partly violated in the smaller route files (`analytics`, `billing`, `careers`, `public`, `report`, `scan`, `static`, `support`, `upload`, `v1`, `widget`) — 2–8 direct calls each, worth cleaning up opportunistically when touching them.
 - **Audit logging**: Sensitive actions written to `AuditLog` via `audit.service.ts`
 - **Soft BigInt fix**: `(BigInt.prototype as any).toJSON = () => Number(this)` in `app.ts` handles `QRFile.sizeBytes`
 - **Plan gating**: Feature access checked via `plan-gate.middleware.ts` — never scattered ad-hoc in routes
