@@ -585,6 +585,26 @@ router.post(
         return
       }
 
+      // Impersonation is for support/debugging as a regular customer, not for
+      // one privileged admin to act as another — allowing that would let a
+      // SUPER_ADMIN silently assume another admin's identity, attributing
+      // their actions to the impersonated admin in the audit log instead of
+      // the true actor.
+      if (target.role !== "USER") {
+        await prisma.auditLog.create({
+          data: {
+            userId: adminPayload.sub,
+            action: "admin.user.impersonate.denied",
+            category: "admin",
+            entityId: targetId,
+            entityType: "User",
+            metadata: { targetEmail: target.email, targetRole: target.role },
+          },
+        })
+        res.status(403).json({ success: false, error: "Cannot impersonate an admin account" })
+        return
+      }
+
       // 15-minute impersonation token
       const impersonationToken = signAccessToken({
         sub: target.id,
