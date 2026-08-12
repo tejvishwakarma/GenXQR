@@ -28,14 +28,11 @@ import { z } from "zod"
 import { requireAdmin } from "../middleware/admin.middleware.js"
 import { prisma } from "../db/prisma.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
-import { getUserPlanLimits } from "../services/billing.service.js"
 import { sendEmail, buildBroadcastEmail } from "../services/email.service.js"
 import { broadcastNotification } from "../services/notification.service.js"
 import * as AdminUsersService from "../services/admin-users.service.js"
+import * as AdminPlatformService from "../services/admin-platform.service.js"
 import type { NotificationType } from "@prisma/client"
-import { env } from "../config/env.js"
-import { redis } from "../redis/client.js"
-import { scanQueue } from "../services/scan.service.js"
 
 const router: IRouter = Router()
 
@@ -63,54 +60,8 @@ router.get(
   "/dashboard",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
-
-      const [
-        totalUsers,
-        activeSubscriptions,
-        totalQRCodes,
-        scansToday,
-        totalScans,
-        revenueResult,
-        storageResult,
-      ] = await prisma.$transaction([
-        prisma.user.count(),
-        prisma.subscription.count({
-          where: { status: { in: ["ACTIVE", "TRIALING"] } },
-        }),
-        prisma.qRCode.count(),
-        prisma.qRScan.count({ where: { scannedAt: { gte: todayStart } } }),
-        prisma.qRScan.count(),
-        prisma.invoice.aggregate({
-          _sum: { amount: true },
-          where: {
-            status: "paid",
-            periodEnd: { gte: new Date() },
-          },
-        }),
-        prisma.qRFile.aggregate({ _sum: { sizeBytes: true } }),
-      ])
-
-      // MRR in INR rupees (amounts stored in paise)
-      const mrr = Math.round((revenueResult._sum.amount ?? 0) / 100)
-      const storageBytes = Number(storageResult._sum.sizeBytes ?? 0)
-      const storageGB = parseFloat((storageBytes / 1_073_741_824).toFixed(3))
-
-      // Recent signups — last 5 users (for dashboard activity feed)
-      const recentSignups = await prisma.user.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: {
-          id: true, name: true, email: true, createdAt: true,
-          subscription: { select: { plan: { select: { name: true, displayName: true } } } },
-        },
-      })
-
-      res.json({
-        success: true,
-        data: { totalUsers, activeSubscriptions, totalQRCodes, scansToday, totalScans, mrr, storageGB, recentSignups },
-      })
+      const data = await AdminPlatformService.getDashboardMetrics()
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -120,89 +71,17 @@ router.get(
 // ─── System health ──────────────────────────────────────────────────────────
 
 /**
- * Bounds a probe so a hung/partitioned dependency reports "down" quickly instead
- * of leaving the whole request (and the dashboard UI) hanging on stale data.
- */
-function withTimeout<T>(probe: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    probe,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("probe timed out")), ms)),
-  ])
-}
-
-const HEALTH_PROBE_TIMEOUT_MS = 3000
-
-/**
  * GET /admin-api/system-health
  * Live status of core infrastructure (database, Redis, scan queue) plus API
  * process metrics. SUPER_ADMIN only — exposes internal operational detail.
- * Each probe is isolated so one failure never takes down the whole response.
  */
 router.get(
   "/system-health",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const callerRole = (req.user as unknown as AccessTokenPayload).role
-      if (callerRole !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
-      // Database liveness + round-trip latency
-      let database: { status: "up" | "down"; latencyMs: number | null } = { status: "down", latencyMs: null }
-      try {
-        const start = Date.now()
-        await withTimeout(prisma.$queryRaw`SELECT 1`, HEALTH_PROBE_TIMEOUT_MS)
-        database = { status: "up", latencyMs: Date.now() - start }
-      } catch { /* leave as down */ }
-
-      // Redis liveness + round-trip latency
-      let redisHealth: { status: "up" | "down"; latencyMs: number | null } = { status: "down", latencyMs: null }
-      try {
-        const start = Date.now()
-        const pong = await withTimeout(redis.ping(), HEALTH_PROBE_TIMEOUT_MS)
-        redisHealth = { status: pong === "PONG" ? "up" : "down", latencyMs: Date.now() - start }
-      } catch { /* leave as down */ }
-
-      // Scan queue depth (BullMQ)
-      let queue: { status: "up" | "down"; waiting: number; active: number; failed: number; delayed: number } = {
-        status: "down", waiting: 0, active: 0, failed: 0, delayed: 0,
-      }
-      try {
-        const counts = await withTimeout(
-          scanQueue.getJobCounts("waiting", "active", "failed", "delayed"),
-          HEALTH_PROBE_TIMEOUT_MS,
-        )
-        queue = {
-          status: "up",
-          waiting: counts["waiting"] ?? 0,
-          active: counts["active"] ?? 0,
-          failed: counts["failed"] ?? 0,
-          delayed: counts["delayed"] ?? 0,
-        }
-      } catch { /* leave as down */ }
-
-      const mem = process.memoryUsage()
-      const toMB = (bytes: number): number => Math.round(bytes / 1_048_576)
-      const processInfo = {
-        uptimeSec: Math.round(process.uptime()),
-        memoryMB: { rss: toMB(mem.rss), heapUsed: toMB(mem.heapUsed), heapTotal: toMB(mem.heapTotal) },
-        nodeVersion: process.version,
-        environment: env.NODE_ENV,
-      }
-
-      // Overall: the database is critical (down => down); any other failure => degraded.
-      const overall: "healthy" | "degraded" | "down" =
-        database.status === "down"
-          ? "down"
-          : redisHealth.status === "up" && queue.status === "up"
-            ? "healthy"
-            : "degraded"
-
-      res.json({
-        success: true,
-        data: { overall, database, redis: redisHealth, queue, process: processInfo, checkedAt: new Date().toISOString() },
-      })
+      const data = await AdminPlatformService.getSystemHealth(callerRole)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -388,33 +267,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const skip = (page - 1) * limit
-
-      const where = q
-        ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { slug: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-        : {}
-
-      const [total, codes] = await prisma.$transaction([
-        prisma.qRCode.count({ where }),
-        prisma.qRCode.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, name: true, slug: true, type: true, category: true,
-            isActive: true, scanCount: true, createdAt: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      res.json({ success: true, data: codes, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { codes, meta } = await AdminPlatformService.listQRCodes({ page, limit, q })
+      res.json({ success: true, data: codes, meta })
     } catch (err) {
       next(err)
     }
@@ -429,25 +283,7 @@ router.patch(
   "/qr-codes/:id/deactivate",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const qrId = req.params["id"] as string
-      const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
-      if (!qr) {
-        res.status(404).json({ success: false, error: "QR code not found" })
-        return
-      }
-
-      await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: false } })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: uid(req),
-          action: "admin.qr.deactivate",
-          category: "admin",
-          entityId: qrId,
-          entityType: "QRCode",
-        },
-      })
-
+      await AdminPlatformService.deactivateQRCode(uid(req), req.params["id"] as string)
       res.json({ success: true, message: "QR code deactivated" })
     } catch (err) {
       next(err)
@@ -463,25 +299,7 @@ router.delete(
   "/qr-codes/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const qrId = req.params["id"] as string
-      const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
-      if (!qr) {
-        res.status(404).json({ success: false, error: "QR code not found" })
-        return
-      }
-
-      await prisma.qRCode.delete({ where: { id: qrId } })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: uid(req),
-          action: "admin.qr.delete",
-          category: "admin",
-          entityId: qrId,
-          entityType: "QRCode",
-        },
-      })
-
+      await AdminPlatformService.deleteQRCode(uid(req), req.params["id"] as string)
       res.json({ success: true, message: "QR code deleted" })
     } catch (err) {
       next(err)
@@ -499,25 +317,8 @@ router.get(
   "/analytics/signups",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const days = Math.min(Number(req.query["days"] ?? 30), 365)
-      const since = new Date(Date.now() - days * 86_400_000)
-
-      const rows = await prisma.user.groupBy({
-        by: ["createdAt"],
-        where: { createdAt: { gte: since } },
-        _count: { id: true },
-        orderBy: { createdAt: "asc" },
-      })
-
-      // Bucket into calendar dates
-      const buckets: Record<string, number> = {}
-      for (const row of rows) {
-        const date = row.createdAt.toISOString().slice(0, 10)
-        buckets[date] = (buckets[date] ?? 0) + row._count.id
-      }
-
-      const series = Object.entries(buckets).map(([date, count]) => ({ date, count }))
-      res.json({ success: true, data: series })
+      const data = await AdminPlatformService.getSignupTrend(req.query["days"])
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -532,22 +333,8 @@ router.get(
   "/analytics/scans",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const days = Math.min(Number(req.query["days"] ?? 30), 365)
-      const since = new Date(Date.now() - days * 86_400_000)
-
-      const rows = await prisma.qRScanDaily.groupBy({
-        by: ["date"],
-        where: { date: { gte: since } },
-        _sum: { count: true },
-        orderBy: { date: "asc" },
-      })
-
-      const series = rows.map((r) => ({
-        date: r.date.toISOString().slice(0, 10),
-        count: r._sum.count ?? 0,
-      }))
-
-      res.json({ success: true, data: series })
+      const data = await AdminPlatformService.getScanTrend(req.query["days"])
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -565,48 +352,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const skip = (page - 1) * limit
-
-      const [mrrResult, arrResult, total, invoices] = await prisma.$transaction([
-        // MRR = sum of active subscriptions' current-period amounts (normalised to monthly)
-        prisma.invoice.aggregate({
-          _sum: { amount: true },
-          where: {
-            status: "paid",
-            periodEnd: { gte: new Date() },
-            billingCycle: "monthly",
-          },
-        }),
-        prisma.invoice.aggregate({
-          _sum: { amount: true },
-          where: {
-            status: "paid",
-            periodEnd: { gte: new Date() },
-            billingCycle: "yearly",
-          },
-        }),
-        prisma.invoice.count(),
-        prisma.invoice.findMany({
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, amount: true, currency: true, status: true,
-            planName: true, billingCycle: true, createdAt: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      const mrr = Math.round((mrrResult._sum.amount ?? 0) / 100) +
-        Math.round((arrResult._sum.amount ?? 0) / 100 / 12)
-      const arr = mrr * 12
-
-      res.json({
-        success: true,
-        data: { mrr, arr, invoices },
-        meta: { total, page, limit, pages: Math.ceil(total / limit) },
-      })
+      const { data, meta } = await AdminPlatformService.getRevenue({ page, limit })
+      res.json({ success: true, data, meta })
     } catch (err) {
       next(err)
     }
@@ -623,26 +370,8 @@ router.get(
   "/analytics/static-qr",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const days = Math.min(Number(req.query["days"] ?? 30), 365)
-      const since = new Date(Date.now() - days * 86_400_000)
-
-      const rows = await prisma.staticQRGeneration.groupBy({
-        by: ["type"],
-        where: { createdAt: { gte: since } },
-        _count: { id: true },
-        orderBy: { _count: { id: "desc" } },
-      })
-
-      const totalGenerations = await prisma.staticQRGeneration.count({
-        where: { createdAt: { gte: since } },
-      })
-
-      const series = rows.map((r) => ({
-        type: r.type,
-        count: (r._count as { id: number }).id,
-      }))
-
-      res.json({ success: true, data: { series, total: totalGenerations, days } })
+      const data = await AdminPlatformService.getStaticQRAnalytics(req.query["days"])
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -657,24 +386,8 @@ router.get(
   "/analytics/revenue-trend",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const days = Math.min(Number(req.query["days"] ?? 90), 365)
-      const since = new Date(Date.now() - days * 86_400_000)
-
-      const rows = await prisma.invoice.findMany({
-        where: { status: "paid", createdAt: { gte: since } },
-        select: { createdAt: true, amount: true },
-        orderBy: { createdAt: "asc" },
-      })
-
-      // Bucket into calendar dates
-      const buckets: Record<string, number> = {}
-      for (const row of rows) {
-        const date = row.createdAt.toISOString().slice(0, 10)
-        buckets[date] = (buckets[date] ?? 0) + Math.round(row.amount / 100)
-      }
-
-      const series = Object.entries(buckets).map(([date, amount]) => ({ date, amount }))
-      res.json({ success: true, data: series })
+      const data = await AdminPlatformService.getRevenueTrend(req.query["days"])
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -689,27 +402,8 @@ router.get(
   "/analytics/plan-breakdown",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const rows = await prisma.subscription.groupBy({
-        by: ["planId"],
-        where: { status: { in: ["ACTIVE", "TRIALING"] } },
-        _count: { userId: true },
-      })
-
-      // Resolve plan names
-      const planIds = rows.map((r) => r.planId)
-      const plans = await prisma.plan.findMany({
-        where: { id: { in: planIds } },
-        select: { id: true, name: true, displayName: true },
-      })
-      const planMap = Object.fromEntries(plans.map((p) => [p.id, p]))
-
-      const series = rows.map((r) => ({
-        planName: planMap[r.planId]?.name ?? "UNKNOWN",
-        displayName: planMap[r.planId]?.displayName ?? r.planId,
-        count: (r._count as { userId: number }).userId,
-      }))
-
-      res.json({ success: true, data: series })
+      const data = await AdminPlatformService.getPlanBreakdown()
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -724,44 +418,10 @@ router.get(
  */
 router.get(
   "/storage",
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const [totalResult, byType, topUsers] = await prisma.$transaction([
-        prisma.qRFile.aggregate({ _sum: { sizeBytes: true } }),
-        prisma.qRFile.groupBy({
-          by: ["fileType"],
-          _sum: { sizeBytes: true },
-          _count: { id: true },
-          orderBy: { _sum: { sizeBytes: "desc" } },
-        }),
-        prisma.qRFile.groupBy({
-          by: ["qrId"],
-          _sum: { sizeBytes: true },
-          orderBy: { _sum: { sizeBytes: "desc" } },
-          take: 10,
-        }),
-      ])
-
-      const totalBytes = Number(totalResult._sum.sizeBytes ?? 0)
-
-      const byTypeFormatted = byType.map((row) => ({
-        type: row.fileType,
-        count: (row._count as { id?: number })?.id ?? 0,
-        bytes: Number((row._sum as { sizeBytes?: bigint | null })?.sizeBytes ?? 0),
-      }))
-
-      res.json({
-        success: true,
-        data: {
-          totalBytes,
-          totalGB: parseFloat((totalBytes / 1_073_741_824).toFixed(3)),
-          byType: byTypeFormatted,
-          topQRsByStorage: topUsers.map((r) => ({
-            qrId: r.qrId,
-            bytes: Number((r._sum as { sizeBytes?: bigint | null })?.sizeBytes ?? 0),
-          })),
-        },
-      })
+      const data = await AdminPlatformService.getStorageUsage()
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -778,38 +438,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const adminPayload = req.user as unknown as AccessTokenPayload
-      if (adminPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can run storage cleanup" })
-        return
-      }
-
-      // Cascade deletion means true orphans are rare, but we use a raw query
-      // to find any QRFile rows whose parent QR has been hard-deleted externally.
-      const orphanRows = await prisma.$queryRaw<{ id: string }[]>`
-        SELECT f.id FROM qr_files f
-        LEFT JOIN qr_codes qr ON qr.id = f.qr_id
-        WHERE qr.id IS NULL
-      `
-
-      const ids = orphanRows.map((o) => o.id)
-
-      if (ids.length === 0) {
-        res.json({ success: true, data: { deleted: 0 } })
-        return
-      }
-
-      await prisma.qRFile.deleteMany({ where: { id: { in: ids } } })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: uid(req),
-          action: "admin.storage.cleanup",
-          category: "admin",
-          metadata: { deletedCount: ids.length },
-        },
-      })
-
-      res.json({ success: true, data: { deleted: ids.length } })
+      const data = await AdminPlatformService.cleanupOrphanedFiles(uid(req), adminPayload.role)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -827,60 +457,18 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const q = req.query["q"] as string | undefined
-      const category = req.query["category"] as string | undefined
-      const userId = req.query["userId"] as string | undefined
-      const userEmail = req.query["userEmail"] as string | undefined
-      const dateFrom = req.query["dateFrom"] as string | undefined
-      const dateTo = req.query["dateTo"] as string | undefined
-      const ip = req.query["ip"] as string | undefined
-      const skip = (page - 1) * limit
-
-      // Build dynamic where clause
-      const where: Record<string, unknown> = {}
-      if (q) where["action"] = { contains: q, mode: "insensitive" }
-      if (userId) where["userId"] = userId
-      if (ip) where["ip"] = { contains: ip }
-
-      // Category filter: match explicit category field OR legacy "system" rows whose
-      // action starts with the category prefix (e.g. "admin." for category "admin").
-      // This handles rows written before the category column was enforced.
-      if (category) {
-        where["OR"] = [
-          { category },
-          { category: "system", action: { startsWith: `${category}.`, mode: "insensitive" } },
-        ]
-      }
-
-      // Date range
-      if (dateFrom || dateTo) {
-        where["createdAt"] = {
-          ...(dateFrom ? { gte: new Date(dateFrom) } : {}),
-          ...(dateTo ? { lte: new Date(new Date(dateTo).setHours(23, 59, 59, 999)) } : {}),
-        }
-      }
-
-      // Filter by user email (requires join-style where)
-      if (userEmail) {
-        where["user"] = { email: { contains: userEmail, mode: "insensitive" } }
-      }
-
-      const [total, logs] = await prisma.$transaction([
-        prisma.auditLog.count({ where }),
-        prisma.auditLog.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, action: true, category: true, entityId: true, entityType: true,
-            metadata: true, ip: true, userAgent: true, createdAt: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      res.json({ success: true, data: logs, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { logs, meta } = await AdminPlatformService.getAuditLog({
+        page,
+        limit,
+        q: req.query["q"] as string | undefined,
+        category: req.query["category"] as string | undefined,
+        userId: req.query["userId"] as string | undefined,
+        userEmail: req.query["userEmail"] as string | undefined,
+        dateFrom: req.query["dateFrom"] as string | undefined,
+        dateTo: req.query["dateTo"] as string | undefined,
+        ip: req.query["ip"] as string | undefined,
+      })
+      res.json({ success: true, data: logs, meta })
     } catch (err) {
       next(err)
     }
@@ -897,59 +485,21 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const status = req.query["status"] as string | undefined
-      const plan = req.query["plan"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (status) where["status"] = status
-      if (plan) where["plan"] = { name: plan }
-
-      const [total, subs] = await prisma.$transaction([
-        prisma.subscription.count({ where }),
-        prisma.subscription.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, status: true, trialEndsAt: true,
-            currentPeriodStart: true, currentPeriodEnd: true,
-            cancelAtPeriodEnd: true,
-            createdAt: true, updatedAt: true,
-            plan: { select: { name: true, displayName: true, priceMonthlyINR: true } },
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      // Attach last reminder sent for each subscription
-      const subIds = subs.map((s) => s.id)
-      const lastReminders = await prisma.renewalReminder.findMany({
-        where: { subscriptionId: { in: subIds } },
-        orderBy: { sentAt: "desc" },
-        select: { subscriptionId: true, reminderType: true, sentAt: true, status: true },
-      })
-
-      // Keep only the most-recent reminder per subscription
-      const lastReminderMap = new Map<string, { reminderType: string; sentAt: Date; status: string }>()
-      for (const r of lastReminders) {
-        if (!lastReminderMap.has(r.subscriptionId)) {
-          lastReminderMap.set(r.subscriptionId, { reminderType: r.reminderType, sentAt: r.sentAt, status: r.status })
-        }
-      }
-
-      const data = subs.map((s) => ({
-        ...s,
-        lastReminder: lastReminderMap.get(s.id) ?? null,
-      }))
-
-      res.json({ success: true, data, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { data, meta } = await AdminPlatformService.listSubscriptions(
+        { page, limit },
+        req.query["status"] as string | undefined,
+        req.query["plan"] as string | undefined,
+      )
+      res.json({ success: true, data, meta })
     } catch (err) {
       next(err)
     }
   },
 )
+
+const SendRemindersSchema = z.object({
+  subscriptionIds: z.array(z.string()).min(1).max(200),
+})
 
 /**
  * POST /admin-api/subscriptions/send-reminders
@@ -961,18 +511,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const callerPayload = req.user as unknown as AccessTokenPayload
-      if (callerPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
-      const { subscriptionIds } = z.object({
-        subscriptionIds: z.array(z.string()).min(1).max(200),
-      }).parse(req.body)
-
-      const { sendManualReminders } = await import("../services/renewal-reminder.service.js")
-      const result = await sendManualReminders(subscriptionIds)
-
+      const { subscriptionIds } = SendRemindersSchema.parse(req.body)
+      const result = await AdminPlatformService.sendSubscriptionReminders(callerPayload.role, subscriptionIds)
       res.json({ success: true, ...result })
     } catch (err) {
       next(err)
@@ -990,30 +530,11 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const status = req.query["status"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (status) where["status"] = status
-
-      const [total, invoices] = await prisma.$transaction([
-        prisma.invoice.count({ where }),
-        prisma.invoice.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, amount: true, currency: true, status: true,
-            planName: true, billingCycle: true, periodStart: true,
-            periodEnd: true, createdAt: true,
-            payuPaymentId: true, payuTxnId: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      res.json({ success: true, data: invoices, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { invoices, meta } = await AdminPlatformService.listPayments(
+        { page, limit },
+        req.query["status"] as string | undefined,
+      )
+      res.json({ success: true, data: invoices, meta })
     } catch (err) {
       next(err)
     }
