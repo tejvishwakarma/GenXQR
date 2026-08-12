@@ -21,17 +21,16 @@
  * GET  /admin-api/audit              – paginated audit log
  */
 
-import path_mod from "path"
 import fs_mod from "fs"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import { requireAdmin } from "../middleware/admin.middleware.js"
-import { prisma } from "../db/prisma.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
-import { sendEmail, buildBroadcastEmail } from "../services/email.service.js"
 import { broadcastNotification } from "../services/notification.service.js"
 import * as AdminUsersService from "../services/admin-users.service.js"
 import * as AdminPlatformService from "../services/admin-platform.service.js"
+import * as AdminModerationService from "../services/admin-moderation.service.js"
+import * as AdminSupportService from "../services/admin-support.service.js"
 import type { NotificationType } from "@prisma/client"
 
 const router: IRouter = Router()
@@ -551,55 +550,18 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const resolvedParam = req.query["resolved"]
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (resolvedParam !== undefined) where["isResolved"] = resolvedParam === "true"
-
-      const [total, reports] = await prisma.$transaction([
-        prisma.abuseReport.count({ where }),
-        prisma.abuseReport.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, reason: true, url: true, reportedBy: true,
-            isResolved: true, adminNotes: true, resolvedAt: true, resolvedBy: true, createdAt: true,
-            qrCode: { select: { id: true, name: true, slug: true, isActive: true, userId: true } },
-          },
-        }),
-      ])
-
-      // Enrich with reporter + QR-owner user data (no schema relation — batch lookup)
-      const userIds = new Set<string>()
-      reports.forEach((r) => {
-        if (r.reportedBy) userIds.add(r.reportedBy)
-        if (r.qrCode.userId) userIds.add(r.qrCode.userId)
-        if (r.resolvedBy) userIds.add(r.resolvedBy)
-      })
-      const users = userIds.size
-        ? await prisma.user.findMany({
-          where: { id: { in: [...userIds] } },
-          select: { id: true, name: true, email: true },
-        })
-        : []
-      const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
-
-      const enriched = reports.map((r) => ({
-        ...r,
-        reporter: r.reportedBy ? (userMap[r.reportedBy] ?? null) : null,
-        qrOwner: r.qrCode.userId ? (userMap[r.qrCode.userId] ?? null) : null,
-        resolvedByUser: r.resolvedBy ? (userMap[r.resolvedBy] ?? null) : null,
-      }))
-
-      res.json({ success: true, data: enriched, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { reports, meta } = await AdminModerationService.listAbuseReports(
+        { page, limit },
+        req.query["resolved"],
+      )
+      res.json({ success: true, data: reports, meta })
     } catch (err) {
       next(err)
     }
   },
 )
+
+const ResolveReportSchema = z.object({ adminNotes: z.string().max(2000).optional() })
 
 /**
  * POST /admin-api/abuse/reports/:id/resolve
@@ -608,11 +570,12 @@ router.post(
   "/abuse/reports/:id/resolve",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { adminNotes } = z.object({ adminNotes: z.string().max(2000).optional() }).parse(req.body)
-      const updated = await prisma.abuseReport.update({
-        where: { id: req.params["id"] as string },
-        data: { isResolved: true, resolvedAt: new Date(), resolvedBy: uid(req), adminNotes },
-      })
+      const { adminNotes } = ResolveReportSchema.parse(req.body)
+      const updated = await AdminModerationService.resolveAbuseReport(
+        uid(req),
+        req.params["id"] as string,
+        adminNotes,
+      )
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -628,23 +591,22 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const type = req.query["type"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = { isActive: true }
-      if (type) where["type"] = type
-
-      const [total, entries] = await prisma.$transaction([
-        prisma.blocklist.count({ where }),
-        prisma.blocklist.findMany({ where, skip, take: limit, orderBy: { createdAt: "desc" } }),
-      ])
-
-      res.json({ success: true, data: entries, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { entries, meta } = await AdminModerationService.listBlocklist(
+        { page, limit },
+        req.query["type"] as string | undefined,
+      )
+      res.json({ success: true, data: entries, meta })
     } catch (err) {
       next(err)
     }
   },
 )
+
+const BlocklistSchema = z.object({
+  type: z.enum(["domain", "ip", "email", "user"]),
+  value: z.string().min(1).max(500),
+  reason: z.string().max(500).optional(),
+})
 
 /**
  * POST /admin-api/abuse/blocklist
@@ -653,17 +615,8 @@ router.post(
   "/abuse/blocklist",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const BlocklistSchema = z.object({
-        type: z.enum(["domain", "ip", "email", "user"]),
-        value: z.string().min(1).max(500),
-        reason: z.string().max(500).optional(),
-      })
       const { type, value, reason } = BlocklistSchema.parse(req.body)
-      const entry = await prisma.blocklist.upsert({
-        where: { type_value: { type, value } },
-        update: { isActive: true, reason, addedBy: uid(req) },
-        create: { type, value, reason, addedBy: uid(req), isActive: true },
-      })
+      const entry = await AdminModerationService.addToBlocklist(uid(req), type, value, reason)
       res.status(201).json({ success: true, data: entry })
     } catch (err) {
       next(err)
@@ -680,23 +633,8 @@ router.delete(
   "/abuse/blocklist/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const entry = await prisma.blocklist.findUnique({
-        where: { id: req.params["id"] as string },
-        select: { isPermanent: true },
-      })
-      if (!entry) {
-        res.status(404).json({ success: false, error: "Entry not found" })
-        return
-      }
-      const adminPayload = req.user as unknown as { role: string }
-      if (entry.isPermanent && adminPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Permanent bans can only be lifted by a SUPER_ADMIN" })
-        return
-      }
-      await prisma.blocklist.update({
-        where: { id: req.params["id"] as string },
-        data: { isActive: false, ...(entry.isPermanent ? { isPermanent: false } : {}) },
-      })
+      const adminPayload = req.user as unknown as AccessTokenPayload
+      await AdminModerationService.removeFromBlocklist(adminPayload.role, req.params["id"] as string)
       res.json({ success: true })
     } catch (err) {
       next(err)
@@ -714,30 +652,24 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const status = req.query["status"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (status) where["status"] = status
-      if (q) where["to"] = { contains: q, mode: "insensitive" }
-
-      const [total, logs] = await prisma.$transaction([
-        prisma.emailLog.count({ where }),
-        prisma.emailLog.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { sentAt: "desc" },
-          select: { id: true, to: true, subject: true, template: true, status: true, error: true, provider: true, sentAt: true },
-        }),
-      ])
-
-      res.json({ success: true, data: logs, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { logs, meta } = await AdminModerationService.listEmailLogs(
+        { page, limit, q },
+        req.query["status"] as string | undefined,
+      )
+      res.json({ success: true, data: logs, meta })
     } catch (err) {
       next(err)
     }
   },
 )
+
+const BroadcastSchema = z.object({
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1).max(50000),
+  segment: z.enum(["all", "free", "paid", "trialing", "past_due"]).default("all"),
+  testEmail: z.string().email().optional(),
+  bodyFormat: z.enum(["text", "html"]).default("text"),
+})
 
 /**
  * POST /admin-api/email/broadcast – SUPER_ADMIN only
@@ -748,73 +680,9 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const callerPayload = req.user as unknown as AccessTokenPayload
-      if (callerPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
-      const BroadcastSchema = z.object({
-        subject: z.string().min(1).max(200),
-        body: z.string().min(1).max(50000),
-        segment: z.enum(["all", "free", "paid", "trialing", "past_due"]).default("all"),
-        testEmail: z.string().email().optional(),
-        bodyFormat: z.enum(["text", "html"]).default("text"),
-      })
-      const { subject, body, segment, testEmail, bodyFormat } = BroadcastSchema.parse(req.body)
-
-      const html = buildBroadcastEmail(subject, body, bodyFormat === "html")
-
-      // If testEmail is provided, send to a single address as a preview
-      if (testEmail) {
-        let status = "sent"
-        let error: string | null = null
-        try {
-          await sendEmail({ to: testEmail, subject, html })
-        } catch (e) {
-          status = "failed"
-          error = e instanceof Error ? e.message : "Send failed"
-        }
-        await prisma.emailLog.create({
-          data: { to: testEmail, subject, template: "broadcast", status, provider: "admin-broadcast", error },
-        })
-        res.json({ success: true, sent: status === "sent" ? 1 : 0, preview: true })
-        return
-      }
-
-      // Collect recipients based on segment
-      const subWhere =
-        segment === "all" ? undefined :
-          segment === "free" ? { is: null } :
-            segment === "trialing" ? { is: { status: "TRIALING" } } :
-              segment === "past_due" ? { is: { status: "PAST_DUE" } } :
-        /* paid */               { is: { status: "ACTIVE" } }
-
-      const users = await prisma.user.findMany({
-        where: { subscription: subWhere as never },
-        select: { email: true },
-      })
-
-      // Send emails and track results
-      const results = await Promise.allSettled(
-        users.map((u) => sendEmail({ to: u.email, subject, html })),
-      )
-
-      await prisma.emailLog.createMany({
-        data: users.map((u, i) => ({
-          to: u.email,
-          subject,
-          template: "broadcast",
-          status: results[i].status === "fulfilled" ? "sent" : "failed",
-          error: results[i].status === "rejected"
-            ? ((results[i] as PromiseRejectedResult).reason as Error)?.message ?? "Send failed"
-            : null,
-          provider: "admin-broadcast",
-        })),
-        skipDuplicates: true,
-      })
-
-      const sent = results.filter((r) => r.status === "fulfilled").length
-      res.json({ success: true, sent, total: users.length })
+      const input = BroadcastSchema.parse(req.body)
+      const result = await AdminModerationService.sendBroadcast(callerPayload.role, input)
+      res.json({ success: true, ...result })
     } catch (err) {
       next(err)
     }
@@ -823,45 +691,6 @@ router.post(
 
 // ─── Platform Settings ────────────────────────────────────────────────────────
 
-const DEFAULT_SETTINGS: Record<string, string> = {
-  maintenance_mode: "false",
-  signup_enabled: "true",
-  static_qr_enabled: "true",
-  max_qr_per_user: "50",
-  free_scan_limit: "1000",
-  support_email: "riftqr07@gmail.com",
-  changelog_sections: JSON.stringify([
-    {
-      version: "v1.9.0",
-      date: "March 2026",
-      title: "Marketing page refresh",
-      items: [
-        "Redesigned Features, About, and Use Cases pages",
-        "Added Cookie Policy, GDPR, Careers, and Changelog routes",
-        "Improved route scroll-to-top behavior",
-      ],
-      icon: "sparkles",
-    },
-  ]),
-  careers_sections: JSON.stringify([
-    {
-      title: "Senior Frontend Engineer",
-      type: "Full-time · Remote",
-      desc: "Build polished, performant product experiences across dashboard and marketing surfaces.",
-    },
-    {
-      title: "Backend Platform Engineer",
-      type: "Full-time · Remote",
-      desc: "Scale core services for analytics, routing, and campaign reliability.",
-    },
-    {
-      title: "Product Designer",
-      type: "Full-time · Hybrid",
-      desc: "Shape user journeys from first impression to daily usage with strong UX craft.",
-    },
-  ]),
-}
-
 /**
  * GET /admin-api/settings
  */
@@ -869,10 +698,8 @@ router.get(
   "/settings",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const rows = await prisma.platformSetting.findMany()
-      const settings: Record<string, string> = { ...DEFAULT_SETTINGS }
-      for (const row of rows) settings[row.key] = row.value
-      res.json({ success: true, data: settings })
+      const data = await AdminModerationService.getSettings()
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -887,30 +714,9 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const callerPayload = req.user as unknown as AccessTokenPayload
-      if (callerPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
       const updates = z.record(z.string(), z.string()).parse(req.body)
-      const allowedKeys = new Set(Object.keys(DEFAULT_SETTINGS))
-
-      await prisma.$transaction(
-        Object.entries(updates)
-          .filter(([k]) => allowedKeys.has(k))
-          .map(([key, value]) =>
-            prisma.platformSetting.upsert({
-              where: { key },
-              update: { value },
-              create: { key, value },
-            }),
-          ),
-      )
-
-      const rows = await prisma.platformSetting.findMany()
-      const settings: Record<string, string> = { ...DEFAULT_SETTINGS }
-      for (const row of rows) settings[row.key] = row.value
-      res.json({ success: true, data: settings })
+      const data = await AdminModerationService.updateSettings(callerPayload.role, updates)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -927,9 +733,7 @@ router.get(
   "/support/tickets/count",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const count = await prisma.supportTicket.count({
-        where: { status: "OPEN" },
-      })
+      const count = await AdminSupportService.countOpenTickets()
       res.json({ success: true, data: { count } })
     } catch (err) {
       next(err)
@@ -945,36 +749,12 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const status = req.query["status"] as string | undefined
-      const priority = req.query["priority"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (status) where["status"] = status
-      if (priority) where["priority"] = priority
-      if (q) {
-        where["OR"] = [
-          { subject: { contains: q, mode: "insensitive" } },
-          { message: { contains: q, mode: "insensitive" } },
-        ]
-      }
-
-      const [total, tickets] = await prisma.$transaction([
-        prisma.supportTicket.count({ where }),
-        prisma.supportTicket.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, subject: true, status: true, priority: true,
-            assignedTo: true, createdAt: true, updatedAt: true,
-            user: { select: { id: true, name: true, email: true } },
-          },
-        }),
-      ])
-
-      res.json({ success: true, data: tickets, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { tickets, meta } = await AdminSupportService.listTickets(
+        { page, limit, q },
+        req.query["status"] as string | undefined,
+        req.query["priority"] as string | undefined,
+      )
+      res.json({ success: true, data: tickets, meta })
     } catch (err) {
       next(err)
     }
@@ -988,20 +768,20 @@ router.get(
   "/support/tickets/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const ticket = await prisma.supportTicket.findUnique({
-        where: { id: req.params["id"] as string },
-        include: { user: { select: { id: true, name: true, email: true } } },
-      })
-      if (!ticket) {
-        res.status(404).json({ success: false, error: "Ticket not found" })
-        return
-      }
+      const ticket = await AdminSupportService.getTicket(req.params["id"] as string)
       res.json({ success: true, data: ticket })
     } catch (err) {
       next(err)
     }
   },
 )
+
+const TicketUpdateSchema = z.object({
+  status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
+  assignedTo: z.string().max(200).optional(),
+  adminNotes: z.string().max(5000).optional(),
+})
 
 /**
  * PATCH /admin-api/support/tickets/:id
@@ -1011,20 +791,8 @@ router.patch(
   "/support/tickets/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const TicketUpdateSchema = z.object({
-        status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
-        priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
-        assignedTo: z.string().max(200).optional(),
-        adminNotes: z.string().max(5000).optional(),
-      })
       const data = TicketUpdateSchema.parse(req.body)
-      const extra: Record<string, unknown> = {}
-      if (data.status === "RESOLVED" || data.status === "CLOSED") extra["resolvedAt"] = new Date()
-
-      const updated = await prisma.supportTicket.update({
-        where: { id: req.params["id"] as string },
-        data: { ...data, ...extra },
-      })
+      const updated = await AdminSupportService.updateTicket(req.params["id"] as string, data)
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -1073,9 +841,7 @@ router.get(
   "/careers/jobs",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const jobs = await prisma.jobPosting.findMany({
-        orderBy: { postedAt: "desc" },
-      })
+      const jobs = await AdminSupportService.listJobs()
       res.json({ success: true, data: jobs })
     } catch (err) {
       next(err)
@@ -1092,16 +858,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const parsed = JobPostingSchema.parse(req.body)
-      const job = await prisma.jobPosting.create({
-        data: {
-          title: parsed.title,
-          department: parsed.department,
-          location: parsed.location,
-          type: parsed.type,
-          description: parsed.description,
-          status: (parsed.status as "OPEN" | "PAUSED" | "FILLED" | "CLOSED") ?? "OPEN",
-        },
-      })
+      const job = await AdminSupportService.createJob(parsed)
       res.status(201).json({ success: true, data: job })
     } catch (err) {
       next(err)
@@ -1118,16 +875,8 @@ router.patch(
   "/careers/jobs/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = String(req.params["id"] ?? "")
       const parsed = JobPostingSchema.partial().parse(req.body)
-      const job = await prisma.jobPosting.update({
-        where: { id },
-        data: parsed as {
-          title?: string; department?: string; location?: string;
-          type?: string; description?: string;
-          status?: "OPEN" | "PAUSED" | "FILLED" | "CLOSED"
-        },
-      })
+      const job = await AdminSupportService.updateJob(String(req.params["id"] ?? ""), parsed)
       res.json({ success: true, data: job })
     } catch (err) {
       next(err)
@@ -1143,8 +892,7 @@ router.delete(
   "/careers/jobs/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = String(req.params["id"] ?? "")
-      await prisma.jobPosting.delete({ where: { id } })
+      await AdminSupportService.deleteJob(String(req.params["id"] ?? ""))
       res.json({ success: true })
     } catch (err) {
       next(err)
@@ -1163,7 +911,7 @@ router.get(
   "/careers/applications/count",
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const count = await prisma.jobApplication.count({ where: { status: "NEW" } })
+      const count = await AdminSupportService.countNewApplications()
       res.json({ success: true, data: { count } })
     } catch (err) {
       next(err)
@@ -1173,44 +921,19 @@ router.get(
 
 /**
  * GET /admin-api/careers/applications/:id/cv
- * Securely stream the stored CV file to the admin.
- * Path-traversal protection mirrors upload.routes.ts pattern.
+ * Securely stream the stored CV file to the admin. The service resolves and
+ * path-traversal-validates the file; the streaming stays here as it's an
+ * HTTP-response concern.
  */
 router.get(
   "/careers/applications/:id/cv",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const app = await prisma.jobApplication.findUnique({
-        where: { id: String(req.params["id"] ?? "") },
-        select: { cvPath: true, cvFilename: true, cvMimeType: true },
-      })
-
-      if (!app) {
-        res.status(404).json({ success: false, error: "Application not found." })
-        return
-      }
-      if (!app.cvPath) {
-        res.status(404).json({ success: false, error: "CV not available (submitted before storage was enabled)." })
-        return
-      }
-
-      // Path-traversal protection
-      const UPLOAD_BASE = path_mod.join(process.cwd(), "uploads")
-      const resolved = path_mod.resolve(app.cvPath)
-      if (!resolved.startsWith(UPLOAD_BASE + path_mod.sep) && resolved !== UPLOAD_BASE) {
-        res.status(400).json({ success: false, error: "Invalid file path." })
-        return
-      }
-
-      if (!fs_mod.existsSync(resolved)) {
-        res.status(404).json({ success: false, error: "CV file not found on server." })
-        return
-      }
-
-      res.setHeader("Content-Type", app.cvMimeType ?? "application/octet-stream")
-      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(app.cvFilename)}"`)
+      const cv = await AdminSupportService.resolveApplicationCV(String(req.params["id"] ?? ""))
+      res.setHeader("Content-Type", cv.mimeType)
+      res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(cv.filename)}"`)
       res.setHeader("Cache-Control", "private, no-cache")
-      fs_mod.createReadStream(resolved).pipe(res)
+      fs_mod.createReadStream(cv.path).pipe(res)
     } catch (err) {
       next(err)
     }
@@ -1226,55 +949,12 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const status = req.query["status"] as string | undefined
-      const jobId = req.query["jobId"] as string | undefined
-      const skip = (page - 1) * limit
-
-      const where: Record<string, unknown> = {}
-      if (status) where["status"] = status
-      if (jobId) where["jobId"] = jobId
-      if (q) {
-        where["OR"] = [
-          { name: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-          { jobTitle: { contains: q, mode: "insensitive" } },
-        ]
-      }
-
-      const [total, applications] = await Promise.all([
-        prisma.jobApplication.count({ where }),
-        prisma.jobApplication.findMany({
-          where,
-          orderBy: { createdAt: "desc" },
-          skip,
-          take: limit,
-          select: {
-            id: true,
-            jobTitle: true,
-            name: true,
-            email: true,
-            phone: true,
-            linkedin: true,
-            experience: true,
-            cvFilename: true,
-            status: true,
-            createdAt: true,
-            notes: true,
-            job: { select: { id: true, title: true, status: true } },
-          },
-        }),
-      ])
-
-      res.json({
-        success: true,
-        data: applications,
-        meta: {
-          total,
-          page,
-          limit,
-          pages: Math.ceil(total / limit),
-        },
-      })
+      const { applications, meta } = await AdminSupportService.listApplications(
+        { page, limit, q },
+        req.query["status"] as string | undefined,
+        req.query["jobId"] as string | undefined,
+      )
+      res.json({ success: true, data: applications, meta })
     } catch (err) {
       next(err)
     }
@@ -1289,16 +969,12 @@ router.patch(
   "/careers/applications/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = String(req.params["id"] ?? "")
       const { status, notes } = req.body as { status?: string; notes?: string }
-
-      const updated = await prisma.jobApplication.update({
-        where: { id },
-        data: {
-          ...(status ? { status: status as "NEW" | "REVIEWING" | "SHORTLISTED" | "REJECTED" | "HIRED" } : {}),
-          ...(notes !== undefined ? { notes } : {}),
-        },
-      })
+      const updated = await AdminSupportService.updateApplication(
+        String(req.params["id"] ?? ""),
+        status,
+        notes,
+      )
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -1314,8 +990,7 @@ router.delete(
   "/careers/applications/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const id = String(req.params["id"] ?? "")
-      await prisma.jobApplication.delete({ where: { id } })
+      await AdminSupportService.deleteApplication(String(req.params["id"] ?? ""))
       res.json({ success: true })
     } catch (err) {
       next(err)
