@@ -921,7 +921,23 @@ pnpm geo:update            # Download/update MaxMind GeoLite2 database
 pnpm dev                   # tsx watch --env-file=.env src/index.ts
 pnpm build                 # tsc
 pnpm start                 # node --env-file=.env dist/index.js
+pnpm test:setup            # one-time: create genxqr_test DB + apply migrations
+pnpm test                  # vitest run — integration tests (needs pnpm db:up)
+pnpm test:watch            # vitest in watch mode
+pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking)
 ```
+
+**Testing** — two suites, see [`backend/tests/README.md`](./backend/tests/README.md):
+- `backend/tests/` — automated Vitest + supertest integration tests against a real
+  Postgres (`genxqr_test`, never the dev DB) and Redis logical DB 15. This is where
+  new regression coverage goes.
+- `tests/` (repo root) — the older manual suite: `.http` files for VS Code REST
+  Client plus a PowerShell runner against a live server. Broader surface area,
+  but manual.
+
+When adding a security test, verify it can fail: break the guard it covers,
+confirm the suite goes red naming that test, then restore. A test that has only
+ever been seen passing is not yet known to test anything.
 
 ### Frontend-specific (run from `frontend/`)
 ```bash
