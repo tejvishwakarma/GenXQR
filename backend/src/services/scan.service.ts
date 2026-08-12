@@ -103,9 +103,48 @@ async function setCachedQR(slug: string, qr: CachedQR): Promise<void> {
 
 export async function invalidateQRCache(slug: string): Promise<void> {
   try {
-    await redis.del(`qr:slug:${slug}`)
+    await redis.del(`qr:slug:${slug}`, scanCountKey(slug))
   } catch (err) {
     logger.warn("Failed to invalidate QR cache", { slug, error: String(err) })
+  }
+}
+
+// ─── Live scan-count tracking ──────────────────────────────────────────────────
+// qr.scanCount inside the CachedQR blob above is only as fresh as the last
+// cache (re)build — up to CACHE_TTL_SECONDS stale — so it cannot be trusted
+// for scan-limit enforcement (a QR with scanLimit=1 would accept scans from
+// any number of devices for up to 10 minutes before the limit actually took
+// effect). This tracks the count separately with atomic Redis INCR, updated
+// synchronously in the request path (not deferred to the async scan worker),
+// so concurrent scans can't all read the same stale value and all pass.
+
+function scanCountKey(slug: string): string {
+  return `qr:slug:${slug}:count`
+}
+
+async function getLiveScanCount(slug: string, fallback: number): Promise<number> {
+  try {
+    const key = scanCountKey(slug)
+    const raw = await redis.get(key)
+    if (raw !== null) return Number(raw)
+    // Not seeded yet (first access since a cache rebuild, or evicted under
+    // memory pressure) — seed from the value we already have in hand.
+    await redis.set(key, String(fallback), "NX")
+    return fallback
+  } catch (err) {
+    logger.warn("Failed to read live scan count, falling back to cached value", {
+      slug,
+      error: String(err),
+    })
+    return fallback
+  }
+}
+
+async function incrementLiveScanCount(slug: string): Promise<void> {
+  try {
+    await redis.incr(scanCountKey(slug))
+  } catch (err) {
+    logger.warn("Failed to increment live scan count", { slug, error: String(err) })
   }
 }
 
@@ -321,6 +360,11 @@ export async function resolveQRScan(
       return { action: "expired", slug, fallbackUrl: null, reason: "expired" }
     }
     await setCachedQR(slug, qr)
+    // Rebuilding the metadata cache from Postgres — resync the live scan
+    // counter to the authoritative value at the same time.
+    await redis.set(scanCountKey(slug), String(qr.scanCount)).catch((err: unknown) => {
+      logger.warn("Failed to seed live scan count", { slug, error: String(err) })
+    })
   }
 
   // 2. Check isActive flag
@@ -337,9 +381,13 @@ export async function resolveQRScan(
     return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "expired" }
   }
 
-  // 4. Check scan limit
-  if (qr.scanLimit !== null && qr.scanCount >= qr.scanLimit) {
-    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "limit" }
+  // 4. Check scan limit — against the live Redis counter, not the cached
+  // blob's scanCount field, which can be up to CACHE_TTL_SECONDS stale.
+  if (qr.scanLimit !== null) {
+    const liveScanCount = await getLiveScanCount(slug, qr.scanCount)
+    if (liveScanCount >= qr.scanLimit) {
+      return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "limit" }
+    }
   }
 
   // 5. Password protection check
@@ -353,7 +401,7 @@ export async function resolveQRScan(
   const countryCode = await getCountryCode(ip)
   const smartUrl = evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode })
   if (smartUrl) {
-    void queueScan(qr.id, ip, ua, ref)
+    void queueScan(qr.id, qr.slug, ip, ua, ref)
     return wrapRedirect(smartUrl, qr)
   }
 
@@ -361,13 +409,13 @@ export async function resolveQRScan(
   if (qr.abTestEnabled && qr.abVariants.length > 0) {
     const variant = pickABVariant(qr.abVariants, qr.abTestSplitPct)
     if (variant) {
-      void queueScan(qr.id, ip, ua, ref, variant.variantId)
+      void queueScan(qr.id, qr.slug, ip, ua, ref, variant.variantId)
       return wrapRedirect(variant.url, qr)
     }
   }
 
   // 8. Log scan asynchronously
-  void queueScan(qr.id, ip, ua, ref)
+  void queueScan(qr.id, qr.slug, ip, ua, ref)
 
   // 9. Determine destination
   if (REDIRECT_TYPES.has(qr.type) && qr.content) {
@@ -406,6 +454,7 @@ const DEDUP_TTL_SECONDS = 4 * 60 * 60 // 4 hours
 
 async function queueScan(
   qrId: string,
+  slug: string,
   ip: string,
   userAgent: string | undefined,
   referrer: string | undefined,
@@ -426,6 +475,10 @@ async function queueScan(
       logger.debug("Scan deduped", { qrId })
       return
     }
+
+    // This scan counts toward scanLimit — bump the live counter synchronously,
+    // in the same request, rather than waiting on the async worker's DB write.
+    await incrementLiveScanCount(slug)
 
     await scanQueue.add("log-scan" as string, {
       qrId,
