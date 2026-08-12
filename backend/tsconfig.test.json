@@ -1,0 +1,13 @@
+{
+  // Vitest transpiles via esbuild, which strips types without checking them —
+  // so `pnpm test` passing does NOT mean the test files typecheck. This config
+  // exists so `pnpm typecheck:tests` can verify them; the main tsconfig
+  // deliberately excludes tests/ so they never end up in the shipped dist/.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "tests/**/*", "vitest.config.ts"]
+}

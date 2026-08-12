@@ -14,7 +14,11 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "node --env-file=.env prisma/seed.mjs",
-    "geo:update": "node scripts/update-geo-db.mjs"
+    "geo:update": "node scripts/update-geo-db.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:setup": "node scripts/gen-test-env.mjs && node scripts/setup-test-db.mjs",
+    "typecheck:tests": "tsc -p tsconfig.test.json"
   },
   "prisma": {
     "seed": "node --env-file=.env prisma/seed.mjs"
@@ -62,9 +66,12 @@
     "@types/passport": "^1.0.17",
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/qrcode": "^1.5.6",
+    "@types/supertest": "^7.2.1",
     "@types/uuid": "^10.0.0",
     "prisma": "^5.22.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
   }
 }

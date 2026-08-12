@@ -21,6 +21,9 @@ out/
 .env.development
 .env.production
 .env.staging
+# Generated from .env by backend/scripts/gen-test-env.mjs, so it inherits the
+# real local DB/Redis passwords — must never be committed either.
+.env.test
 
 # Logs
 logs/
