@@ -45,18 +45,30 @@ Requires the dev Postgres + Redis containers (`pnpm db:up` from the repo root).
 
 ## What's covered
 
-**`integration/admin-authz.test.ts`** — authorization boundaries on `/admin-api/*`:
-role gate, SUPER_ADMIN-only actions (role change, plan change, password reset,
-deleting an admin), self-modification guards, and impersonation rules.
+49 tests across 4 files.
 
-**`integration/billing-payu-callback.test.ts`** — the PayU payment callback,
-the app's highest-stakes unauthenticated endpoint: signature verification
-against forged/wrong-salt/tampered payloads, replay protection, and status
-and field handling.
+| File | Covers |
+|---|---|
+| `integration/admin-authz.test.ts` | Authorization on `/admin-api/*`: role gate, SUPER_ADMIN-only actions (role/plan change, password reset, deleting an admin), self-modification guards, impersonation rules. |
+| `integration/billing-payu-callback.test.ts` | The PayU callback — the app's highest-stakes unauthenticated endpoint. Signature verification against forged/wrong-salt/tampered payloads, replay protection, status and field handling. |
+| `integration/qr-idor.test.ts` | Object-level authorization on `/api/qr/:id` — cross-tenant read, list leakage, analytics, update, toggle, delete, duplicate. |
+| `integration/scan-limit.test.ts` | `scanLimit` enforcement on `/r/:slug`, including the cache-staleness regression, exact-limit boundaries, dedup, and limit-raise recovery. |
 
-Both files assert on **database state**, not just status codes — a payment test
-that only checked for a `?payment=failure` redirect would still pass if the
-subscription were wrongly created anyway.
+Every file asserts on **database state**, not just status codes — a payment
+test that only checked for a `?payment=failure` redirect would still pass if
+the subscription were wrongly created anyway, and an IDOR test that only
+checked for 404 would still pass if the row were deleted regardless.
+
+### Notes on the scan tests
+
+Two behaviours to know about when extending them:
+
+- Scans are deduplicated for 4 hours on `qrId + IP + User-Agent fingerprint`.
+  Supertest always calls from the same loopback IP, so each simulated device
+  needs a distinct `User-Agent` — the same way a real attacker would dodge it.
+- The scan counter is incremented from a fire-and-forget `void queueScan(...)`,
+  so it can land just after the response. Use the `waitForScanCount` helper
+  rather than reading Redis immediately.
 
 ---
 
@@ -88,6 +100,13 @@ pnpm test
 # expect a failure naming exactly your test; restore, expect green
 ```
 
-Both suites here were validated that way — disabling the impersonation
-target-role check failed exactly 3 tests, and bypassing PayU signature
-verification failed exactly 6.
+Every suite here was validated that way:
+
+| Guard removed | Tests that failed |
+|---|---|
+| Impersonation target-role check | 3 |
+| PayU signature verification | 6 |
+| `userId` filter on 3 `qr.service` call sites | 3 |
+| Scan limit reverted to the stale cached count | 4 |
+
+In each case the suite went green again once the guard was restored.
