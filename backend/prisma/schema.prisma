@@ -40,7 +40,8 @@ model User {
   teamsOwned              Team[]                   @relation("UserTeamsOwned")
   webhooks                Webhook[]
 
-  @@index([email])
+  // No explicit @@index([email]) — the @unique on the email field above
+  // already creates a backing index; a second one just duplicates write cost.
   @@map("users")
 }
 
@@ -212,8 +213,9 @@ model QRScanDaily {
   count  Int      @default(0)
   qrCode QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
 
+  // @@unique below already backs lookups/upserts on [qrId, date] with an
+  // index — no need for a duplicate @@index on the identical columns.
   @@unique([qrId, date])
-  @@index([qrId, date])
   @@map("qr_scan_daily")
 }
 
@@ -259,6 +261,9 @@ model ApiKey {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  // apikey.middleware.ts looks up active keys by keyPrefix on every /v1/*
+  // request — without this, that's an unindexed scan across all API keys.
+  @@index([keyPrefix])
   @@map("api_keys")
 }
 
