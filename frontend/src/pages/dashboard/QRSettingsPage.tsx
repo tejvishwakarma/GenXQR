@@ -61,7 +61,7 @@ export default function QRSettingsPage() {
         settings: {
           activeFrom: fromLocalDateTimeInput(activeFrom),
           activeUntil: fromLocalDateTimeInput(activeUntil),
-          scanLimit: scanLimit ? Number(scanLimit) : null,
+          scanLimit: scanLimit.trim() !== "" ? Number(scanLimit) : null,
           fallbackUrl: fallbackUrl || null,
           password: password || undefined,
           fbPixelId: fbPixelId || null,
@@ -81,6 +81,15 @@ export default function QRSettingsPage() {
       setSuccessMsg("")
     },
   })
+
+  const handleSave = () => {
+    if (scanLimit.trim() !== "" && Number(scanLimit) < 1) {
+      setErrorMsg("Scan limit must be at least 1")
+      setSuccessMsg("")
+      return
+    }
+    saveMut.mutate()
+  }
 
   if (isLoading) {
     return (
@@ -105,7 +114,7 @@ export default function QRSettingsPage() {
             <p className="text-zinc-500 text-sm">{qr?.name ?? "..."}</p>
           </div>
         </div>
-        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} size="sm">
+        <Button onClick={handleSave} disabled={saveMut.isPending} size="sm">
           {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Save size={14} className="mr-1.5" />}
           Save Settings
         </Button>

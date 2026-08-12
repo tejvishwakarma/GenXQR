@@ -136,11 +136,15 @@ async function parseErrorBody(res: Response): Promise<string> {
   try {
     const body = await res.clone().json() as { message?: string; error?: string; details?: Record<string, string[]> }
     if (body.message) return body.message
-    if (body.error) return body.error
+    // Check field-level details before the generic `error` string — the
+    // backend's Zod validation errors always set error: "Validation failed"
+    // alongside details, so checking `error` first meant the specific field
+    // message (e.g. "FB Pixel ID must be numeric") was never reachable.
     if (body.details) {
       const first = Object.values(body.details).flat()[0]
       if (first) return first
     }
+    if (body.error) return body.error
   } catch { /* ignore parse errors */ }
   return fallback
 }

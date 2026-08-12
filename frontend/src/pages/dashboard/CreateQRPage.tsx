@@ -1141,11 +1141,20 @@ export default function CreateQRPage() {
                   <div>
                     <label className="label-text">QR Code Name</label>
                     <Input
-                      {...register("name", { required: true })}
+                      {...register("name", {
+                        required: "Name is required",
+                        maxLength: { value: 200, message: "Name must be 200 characters or fewer" },
+                        validate: (value) =>
+                          (typeof value === "string" && value.trim().length > 0) || "Name is required",
+                      })}
                       placeholder="e.g. Restaurant Menu — Spring 2026"
                       className={errors.name ? "border-red-500 focus-visible:ring-red-500" : ""}
                     />
-                    {errors.name && <p className="text-red-400 text-xs mt-1">Name is required</p>}
+                    {errors.name && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {errors.name.message?.toString() || "Name is required"}
+                      </p>
+                    )}
                   </div>
 
                   {/* URL */}
