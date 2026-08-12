@@ -157,7 +157,8 @@ npx prisma generate
 # exported above from genxqr.env — make sure both are set in that file)
 node prisma/seed.mjs
 
-# Geo database for scan analytics (needs a free MaxMind license key — https://www.maxmind.com/en/geolite2/signup)
+# Geo database for scan analytics — downloads from a public GeoLite2 mirror,
+# no MaxMind account or license key needed (see backend/scripts/update-geo-db.mjs)
 pnpm geo:update
 
 cd ..
