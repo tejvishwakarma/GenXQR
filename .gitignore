@@ -45,8 +45,6 @@ uploads/
 tmp/
 backend/data/
 
-# WSL / local dev scripts (contain dev credentials, machine-specific)
-backend/scripts/
 
 # Leftover terminal sessions saved as files
 backend/l*
