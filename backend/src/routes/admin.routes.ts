@@ -27,12 +27,11 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { z } from "zod"
 import { requireAdmin } from "../middleware/admin.middleware.js"
 import { prisma } from "../db/prisma.js"
-import { signAccessToken } from "../utils/jwt.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 import { sendEmail, buildBroadcastEmail } from "../services/email.service.js"
-import { hashPassword } from "../utils/password.js"
 import { broadcastNotification } from "../services/notification.service.js"
+import * as AdminUsersService from "../services/admin-users.service.js"
 import type { NotificationType } from "@prisma/client"
 import { env } from "../config/env.js"
 import { redis } from "../redis/client.js"
@@ -221,36 +220,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const skip = (page - 1) * limit
-
-      const where = q
-        ? {
-          OR: [
-            { email: { contains: q, mode: "insensitive" as const } },
-            { name: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-        : {}
-
-      const [total, users] = await prisma.$transaction([
-        prisma.user.count({ where }),
-        prisma.user.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { createdAt: "desc" },
-          select: {
-            id: true, name: true, email: true, role: true,
-            emailVerified: true, createdAt: true, lastLoginAt: true,
-            subscription: {
-              select: { status: true, plan: { select: { name: true } } },
-            },
-            _count: { select: { qrCodes: true } },
-          },
-        }),
-      ])
-
-      res.json({ success: true, data: users, meta: { total, page, limit, pages: Math.ceil(total / limit) } })
+      const { users, total, pages } = await AdminUsersService.listUsers({ page, limit, q })
+      res.json({ success: true, data: users, meta: { total, page, limit, pages } })
     } catch (err) {
       next(err)
     }
@@ -265,52 +236,8 @@ router.get(
   "/users/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: req.params["id"] as string },
-        select: {
-          id: true, name: true, email: true, role: true,
-          emailVerified: true, createdAt: true, updatedAt: true, lastLoginAt: true,
-          avatarUrl: true, googleId: true,
-          subscription: {
-            select: {
-              status: true, trialEndsAt: true, currentPeriodStart: true,
-              currentPeriodEnd: true, cancelAtPeriodEnd: true,
-              plan: { select: { name: true, displayName: true } },
-            },
-          },
-          invoices: {
-            orderBy: { createdAt: "desc" }, take: 10,
-            select: { id: true, amount: true, currency: true, status: true, planName: true, createdAt: true },
-          },
-          _count: { select: { qrCodes: true, apiKeys: true } },
-        },
-      })
-
-      if (!user) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      // Lazily apply trial-expiry downgrade (same logic as getUserPlanLimits)
-      // so the admin view is consistent with what the user sees on their billing page.
-      let freshSubscription = user.subscription
-      if (
-        user.subscription?.status === "TRIALING" &&
-        user.subscription.trialEndsAt &&
-        user.subscription.trialEndsAt < new Date()
-      ) {
-        await getUserPlanLimits(user.id) // triggers the lazy FREE downgrade in the DB
-        freshSubscription = await prisma.subscription.findUnique({
-          where: { userId: user.id },
-          select: {
-            status: true, trialEndsAt: true, currentPeriodStart: true,
-            currentPeriodEnd: true, cancelAtPeriodEnd: true,
-            plan: { select: { name: true, displayName: true } },
-          },
-        })
-      }
-
-      res.json({ success: true, data: { ...user, subscription: freshSubscription } })
+      const data = await AdminUsersService.getUserDetail(req.params["id"] as string)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -322,67 +249,23 @@ router.get(
  * Update a user's role or suspend them.
  * Admins cannot promote themselves or demote SUPER_ADMINs (unless they are also SUPER_ADMIN).
  */
+const UpdateUserSchema = z.object({
+  role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
+  name: z.string().min(2).max(100).trim().optional(),
+})
+
 router.patch(
   "/users/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const adminId = uid(req)
       const adminPayload = req.user as unknown as AccessTokenPayload
-      const targetId = req.params["id"] as string
-
-      const UpdateSchema = z.object({
-        role: z.enum(["USER", "ADMIN", "SUPER_ADMIN"]).optional(),
-        name: z.string().min(2).max(100).trim().optional(),
-      })
-
-      const { role, name } = UpdateSchema.parse(req.body)
-
-      // Prevent self-demotion
-      if (targetId === adminId) {
-        res.status(400).json({ success: false, error: "Cannot modify your own role" })
-        return
-      }
-
-      const target = await prisma.user.findUnique({ where: { id: targetId }, select: { role: true } })
-      if (!target) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      // Only SUPER_ADMINs can change SUPER_ADMIN role
-      if (
-        target.role === "SUPER_ADMIN" &&
-        adminPayload.role !== "SUPER_ADMIN" &&
-        role !== undefined
-      ) {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can modify another SUPER_ADMIN" })
-        return
-      }
-
-      // Only SUPER_ADMINs may assign roles at all. Without this, a plain ADMIN could
-      // promote any account (e.g. a sockpuppet USER) to SUPER_ADMIN and escalate.
-      if (role !== undefined && adminPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can change user roles" })
-        return
-      }
-
-      const updated = await prisma.user.update({
-        where: { id: targetId },
-        data: { ...(role && { role }), ...(name && { name }) },
-        select: { id: true, name: true, email: true, role: true },
-      })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: adminId,
-          action: "admin.user.update",
-          category: "admin",
-          entityId: targetId,
-          entityType: "User",
-          metadata: { role, name },
-        },
-      })
-
+      const input = UpdateUserSchema.parse(req.body)
+      const updated = await AdminUsersService.updateUser(
+        uid(req),
+        adminPayload.role,
+        req.params["id"] as string,
+        input,
+      )
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -394,88 +277,18 @@ router.patch(
  * PATCH /admin-api/users/:id/plan
  * Force-set a user's plan (SUPER_ADMIN only).
  */
+const ChangePlanSchema = z.object({
+  planName: z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]),
+})
+
 router.patch(
   "/users/:id/plan",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const caller = req.user as unknown as AccessTokenPayload
-      if (caller.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
-      const targetId = req.params["id"] as string
-      const BodySchema = z.object({
-        planName: z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]),
-      })
-      const { planName } = BodySchema.parse(req.body)
-
-      const [targetUser, targetPlan] = await Promise.all([
-        prisma.user.findUnique({
-          where: { id: targetId },
-          select: {
-            id: true,
-            email: true,
-            subscription: { select: { id: true, plan: { select: { name: true } } } },
-          },
-        }),
-        prisma.plan.findUnique({ where: { name: planName } }),
-      ])
-
-      if (!targetUser) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      if (!targetPlan) {
-        res.status(400).json({ success: false, error: "Invalid target plan" })
-        return
-      }
-
-      const now = new Date()
-      const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
-
-      await prisma.subscription.upsert({
-        where: { userId: targetUser.id },
-        update: {
-          planId: targetPlan.id,
-          status: "ACTIVE",
-          trialEndsAt: null,
-          cancelAtPeriodEnd: false,
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-        },
-        create: {
-          userId: targetUser.id,
-          planId: targetPlan.id,
-          status: "ACTIVE",
-          currentPeriodStart: now,
-          currentPeriodEnd: periodEnd,
-        },
-      })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: caller.sub,
-          action: "admin.user.plan.change",
-          category: "admin",
-          entityId: targetUser.id,
-          entityType: "User",
-          metadata: {
-            email: targetUser.email,
-            fromPlan: targetUser.subscription?.plan.name ?? null,
-            toPlan: planName,
-          },
-        },
-      })
-
-      res.json({
-        success: true,
-        data: {
-          userId: targetUser.id,
-          plan: { name: targetPlan.name, displayName: targetPlan.displayName },
-        },
-      })
+      const { planName } = ChangePlanSchema.parse(req.body)
+      const data = await AdminUsersService.changePlan(caller.role, caller.sub, req.params["id"] as string, planName)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -491,67 +304,8 @@ router.delete(
   "/users/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const adminId = uid(req)
       const adminPayload = req.user as unknown as AccessTokenPayload
-      const targetId = req.params["id"] as string
-
-      if (targetId === adminId) {
-        res.status(400).json({ success: false, error: "Cannot delete yourself" })
-        return
-      }
-
-      const target = await prisma.user.findUnique({ where: { id: targetId }, select: { role: true, email: true } })
-      if (!target) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      if (target.role !== "USER" && adminPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can delete admin users" })
-        return
-      }
-
-      await prisma.user.delete({ where: { id: targetId } })
-
-      // Block the deleted email. Increment blockCount on each deletion.
-      // After 3 blocks the entry becomes permanently banned and cannot be removed.
-      const blockEntry = await prisma.blocklist.upsert({
-        where: { type_value: { type: "email", value: target.email } },
-        create: {
-          type: "email",
-          value: target.email,
-          reason: "account_deleted_by_admin",
-          addedBy: adminId,
-          isActive: true,
-          blockCount: 1,
-          isPermanent: false,
-        },
-        update: {
-          isActive: true,
-          reason: "account_deleted_by_admin",
-          addedBy: adminId,
-          blockCount: { increment: 1 },
-        },
-      })
-      // Escalate to permanent ban once threshold is reached
-      if (blockEntry.blockCount >= 3) {
-        await prisma.blocklist.update({
-          where: { id: blockEntry.id },
-          data: { isPermanent: true },
-        })
-      }
-
-      await prisma.auditLog.create({
-        data: {
-          userId: adminId,
-          action: "admin.user.delete",
-          category: "admin",
-          entityId: targetId,
-          entityType: "User",
-          metadata: { email: target.email },
-        },
-      })
-
+      await AdminUsersService.deleteUser(uid(req), adminPayload.role, req.params["id"] as string)
       res.json({ success: true, message: "User deleted" })
     } catch (err) {
       next(err)
@@ -569,61 +323,12 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const adminPayload = req.user as unknown as AccessTokenPayload
-      if (adminPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can impersonate users" })
-        return
-      }
-
-      const targetId = req.params["id"] as string
-      const target = await prisma.user.findUnique({
-        where: { id: targetId },
-        select: { id: true, email: true, role: true },
-      })
-
-      if (!target) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      // Impersonation is for support/debugging as a regular customer, not for
-      // one privileged admin to act as another — allowing that would let a
-      // SUPER_ADMIN silently assume another admin's identity, attributing
-      // their actions to the impersonated admin in the audit log instead of
-      // the true actor.
-      if (target.role !== "USER") {
-        await prisma.auditLog.create({
-          data: {
-            userId: adminPayload.sub,
-            action: "admin.user.impersonate.denied",
-            category: "admin",
-            entityId: targetId,
-            entityType: "User",
-            metadata: { targetEmail: target.email, targetRole: target.role },
-          },
-        })
-        res.status(403).json({ success: false, error: "Cannot impersonate an admin account" })
-        return
-      }
-
-      // 15-minute impersonation token
-      const impersonationToken = signAccessToken({
-        sub: target.id,
-        email: target.email,
-        role: target.role as "USER" | "ADMIN" | "SUPER_ADMIN",
-      })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: adminPayload.sub,
-          action: "admin.user.impersonate",
-          category: "admin",
-          entityId: targetId,
-          entityType: "User",
-          metadata: { targetEmail: target.email },
-        },
-      })
-
-      res.json({ success: true, data: { token: impersonationToken, expiresInSeconds: 900 } })
+      const data = await AdminUsersService.impersonateUser(
+        adminPayload.sub,
+        adminPayload.role,
+        req.params["id"] as string,
+      )
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }
@@ -639,42 +344,12 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const caller = req.user as unknown as AccessTokenPayload
-      if (caller.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can force-verify accounts" })
-        return
-      }
-
-      const targetId = req.params["id"] as string
-      const target = await prisma.user.findUnique({
-        where: { id: targetId },
-        select: { id: true, email: true, emailVerified: true },
-      })
-      if (!target) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-      if (target.emailVerified) {
-        res.json({ success: true, message: "Email already verified" })
-        return
-      }
-
-      await prisma.user.update({
-        where: { id: targetId },
-        data: { emailVerified: true },
-      })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: caller.sub,
-          action: "admin.user.verify_email",
-          category: "admin",
-          entityId: targetId,
-          entityType: "User",
-          metadata: { targetEmail: target.email },
-        },
-      })
-
-      res.json({ success: true, message: "Email verified successfully" })
+      const { message } = await AdminUsersService.forceVerifyEmail(
+        caller.role,
+        caller.sub,
+        req.params["id"] as string,
+      )
+      res.json({ success: true, message })
     } catch (err) {
       next(err)
     }
@@ -685,47 +360,17 @@ router.post(
  * POST /admin-api/users/:id/password
  * Force-set a user's password (SUPER_ADMIN only).
  */
+const SetPasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters"),
+})
+
 router.post(
   "/users/:id/password",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const caller = req.user as unknown as AccessTokenPayload
-      if (caller.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "Only SUPER_ADMINs can change user passwords" })
-        return
-      }
-
-      const targetId = req.params["id"] as string
-      const { password } = z.object({
-        password: z.string().min(8, "Password must be at least 8 characters"),
-      }).parse(req.body)
-
-      const target = await prisma.user.findUnique({
-        where: { id: targetId },
-        select: { id: true, email: true, role: true },
-      })
-      if (!target) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      const passwordHash = await hashPassword(password)
-      await prisma.user.update({
-        where: { id: targetId },
-        data: { passwordHash },
-      })
-
-      await prisma.auditLog.create({
-        data: {
-          userId: caller.sub,
-          action: "admin.user.password_change",
-          category: "admin",
-          entityId: targetId,
-          entityType: "User",
-          metadata: { targetEmail: target.email },
-        },
-      })
-
+      const { password } = SetPasswordSchema.parse(req.body)
+      await AdminUsersService.forceSetPassword(caller.role, caller.sub, req.params["id"] as string, password)
       res.json({ success: true, message: "Password updated successfully" })
     } catch (err) {
       next(err)
@@ -1880,84 +1525,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const callerPayload = req.user as unknown as AccessTokenPayload
-      if (callerPayload.role !== "SUPER_ADMIN") {
-        res.status(403).json({ success: false, error: "SUPER_ADMIN role required" })
-        return
-      }
-
-      const userId = req.params["id"] as string
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          subscription: {
-            select: {
-              currentPeriodEnd: true,
-              trialEndsAt: true,
-              status: true,
-              plan: { select: { displayName: true } },
-            },
-          },
-        },
-      })
-
-      if (!user) {
-        res.status(404).json({ success: false, error: "User not found" })
-        return
-      }
-
-      if (!user.subscription) {
-        res.status(400).json({ success: false, error: "User has no active subscription" })
-        return
-      }
-
-      const { buildRenewalReminderEmail: buildRenewal, buildExpiredNoticeEmail: buildExpired } =
-        await import("../services/email.service.js")
-
-      const now = new Date()
-      const paymentUrl = `${(await import("../config/env.js")).env.FRONTEND_URL}/app/billing`
-      const sub = user.subscription
-      const planName = sub.plan.displayName
-
-      // Determine expiry date — for trialing users use trialEndsAt, otherwise currentPeriodEnd
-      const expiryDate = sub.status === "TRIALING" && sub.trialEndsAt
-        ? sub.trialEndsAt
-        : sub.currentPeriodEnd
-
-      const msLeft = expiryDate.getTime() - now.getTime()
-      const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24))
-      const expired = daysLeft <= 0
-
-      const expiryDateStr = expiryDate.toLocaleDateString("en-IN", {
-        day: "numeric", month: "long", year: "numeric",
-      })
-
-      const html = expired
-        ? buildExpired(user.name ?? "there", planName, paymentUrl)
-        : buildRenewal(user.name ?? "there", daysLeft, planName, expiryDateStr, paymentUrl)
-
-      const subject = expired
-        ? `Your ${planName} plan has expired — GenXQR`
-        : `Your ${planName} plan expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""} — GenXQR`
-
-      await (await import("../services/email.service.js")).sendEmail({ to: user.email, subject, html })
-
-      // Log it
-      await prisma.emailLog.create({
-        data: {
-          userId: user.id,
-          to: user.email,
-          subject,
-          template: expired ? "manual-expired-notice" : "manual-renewal-reminder",
-          status: "sent",
-          provider: "admin-manual",
-        },
-      })
-
-      res.json({ success: true, message: `Reminder sent to ${user.email}` })
+      const { message } = await AdminUsersService.sendManualReminder(callerPayload.role, req.params["id"] as string)
+      res.json({ success: true, message })
     } catch (err) {
       next(err)
     }
