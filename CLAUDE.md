@@ -297,10 +297,11 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 - `POST /generate` — generates static QR code (no account needed), returns PNG buffer or SVG
 
 #### `/api/public` → `public.routes.ts`
-- `GET  /plans` — lists all subscription plans (pricing page)
-- `GET  /platform-stats` — returns platform stats for homepage (total QR codes, scans)
-- `GET  /changelog` — public changelog entries (from `PlatformSetting`)
-- `GET  /careers` — public job listings (from `PlatformSetting`)
+- `GET  /qr/:slug` — minimal QR content for the `/l/:slug` landing page (post-scan; 404s if inactive/password-protected)
+- `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans`, `uptimeSla`)
+- `GET  /site-content` — changelog + careers section content (from `PlatformSetting`, with static fallbacks)
+
+Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated despite the `/billing` prefix), not under `/api/public` — a previous version of this doc had that wrong. Job listings have their own router too: `/api/careers` → `careers.routes.ts` (`GET /jobs` public; the rest CV/application-management, admin-only). `/api/support` and `/api/notifications` also exist and aren't detailed here yet.
 
 #### `/api/qr` → `qr.routes.ts`
 - `POST /` — create a new QR code (dynamic or static, PLAN-GATED)

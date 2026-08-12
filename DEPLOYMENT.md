@@ -218,7 +218,7 @@ crontab -e
 ## 9. Verify
 
 - `curl -I https://genxqr.com` → `200`
-- `curl https://genxqr.com/api/public/plans` → JSON plan list (confirms the API proxy + DB connection work)
+- `curl https://genxqr.com/api/billing/plans` → JSON plan list (confirms the API proxy + DB connection work; despite the `/billing` prefix this one route is unauthenticated)
 - Visit the site, sign up a test account, create a QR code, scan it, confirm the redirect and that a scan shows up in Analytics within a few seconds (goes through the BullMQ worker).
 - `pm2 logs genxqr-api` — should show `PostgreSQL connected`, then `GenXQR API listening on port 3001 [production]`, no Redis connection errors.
 
