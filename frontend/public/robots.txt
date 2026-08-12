@@ -1,14 +1,42 @@
-﻿User-agent: *
+# https://genxqr.com/robots.txt
+
+User-agent: *
 Allow: /
 
-# Disallow dashboard and auth pages from search engine indexing
+# Authenticated areas — no indexable content, and indexing them would surface
+# customer data in search results.
 Disallow: /app/
+Disallow: /admin/
+Disallow: /admin-api/
+
+# Auth screens — nothing to rank, and they clutter brand-name results.
 Disallow: /login
 Disallow: /signup
 Disallow: /forgot-password
 Disallow: /reset-password
 Disallow: /verify-email
-Disallow: /admin/
+Disallow: /invite/
 
-# Sitemap location
-Sitemap: https://genxqr.io/sitemap.xml
+# Per-QR URLs. /r/ is the scan redirect endpoint: crawling it would inflate
+# customers' scan analytics with bot traffic, and /l/ renders their private
+# landing-page content.
+Disallow: /r/
+Disallow: /l/
+
+# The JSON API is not a search surface.
+Disallow: /api/
+Disallow: /v1/
+
+# Uploaded customer files (PDFs, images, audio) must not be indexed.
+Disallow: /uploads/
+
+# Ad/marketing crawlers get the same rules as everyone else — listed
+# explicitly because some ignore the wildcard group.
+User-agent: AdsBot-Google
+Allow: /
+Disallow: /app/
+Disallow: /admin/
+Disallow: /r/
+Disallow: /l/
+
+Sitemap: https://genxqr.com/sitemap.xml

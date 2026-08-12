@@ -17,27 +17,57 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GenXQR" />
 
-    <!-- Primary SEO -->
-    <title>GenXQR — Smart QR Codes for Every Need</title>
-    <meta name="description" content="Generate, track, and analyze QR codes for every use case — links, vCards, Wi-Fi, menus, and more. Free tier available." />
-    <meta name="keywords" content="QR code generator, dynamic QR code, QR code tracker, QR code analytics, free QR code" />
+    <!-- Fonts. Loaded here rather than via @import in index.css so the preload
+         scanner can start the request during initial HTML parse instead of
+         waiting for the stylesheet to download and parse first. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+
+    <!--
+      Fallback SEO tags only. Every marketing page overrides these at runtime
+      via <SEOMeta> (react-helmet-async), which also emits the canonical URL.
+      These matter for crawlers that don't execute JS and for the brief window
+      before React mounts, so they must stay accurate.
+    -->
+    <title>GenXQR — QR Code Generator with Analytics</title>
+    <meta
+      name="description"
+      content="Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. 16 QR types including URL, vCard, Wi-Fi, PDF, and menus. Free plan available."
+    />
     <meta name="author" content="GenXQR" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://genxqr.com/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="GenXQR" />
-    <meta property="og:title" content="GenXQR — Smart QR Codes for Every Need" />
-    <meta property="og:description" content="Generate, track, and analyze QR codes for every use case — links, vCards, Wi-Fi, menus, and more." />
-    <meta property="og:image" content="/og-image.png" />
-    <meta property="og:url" content="https://genxqr.io" />
+    <meta property="og:title" content="GenXQR — QR Code Generator with Analytics" />
+    <meta
+      property="og:description"
+      content="Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. Free plan available."
+    />
+    <meta property="og:image" content="https://genxqr.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="GenXQR — QR Code Generator with Analytics" />
+    <meta property="og:url" content="https://genxqr.com/" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@GenXQR" />
-    <meta name="twitter:title" content="GenXQR — Smart QR Codes for Every Need" />
-    <meta name="twitter:description" content="Generate, track, and analyze QR codes for every use case." />
-    <meta name="twitter:image" content="/og-image.png" />
+    <meta name="twitter:creator" content="@GenXQR" />
+    <meta name="twitter:title" content="GenXQR — QR Code Generator with Analytics" />
+    <meta
+      name="twitter:description"
+      content="Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. Free plan available."
+    />
+    <meta name="twitter:image" content="https://genxqr.com/og-image.png" />
+    <meta name="twitter:image:alt" content="GenXQR — QR Code Generator with Analytics" />
 
     <!-- Inline theme init: prevents flash of wrong theme before React mounts -->
     <script>

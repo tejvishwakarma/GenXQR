@@ -6,7 +6,9 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node scripts/generate-sitemap.mjs && vite build",
+    "sitemap": "node scripts/generate-sitemap.mjs",
+    "seo:check": "node scripts/generate-sitemap.mjs && node scripts/validate-seo.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

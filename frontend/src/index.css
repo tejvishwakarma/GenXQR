@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+/* Fonts are loaded via <link> in index.html, not @import here.
+   A CSS @import is only discovered after this stylesheet has been fetched and
+   parsed, which serialises the font request behind it and delays first paint.
+   The <link> is in the initial HTML, so the browser's preload scanner starts
+   the fetch immediately — a measurable LCP improvement. */
 
 @tailwind base;
 @tailwind components;

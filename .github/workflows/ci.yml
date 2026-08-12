@@ -107,5 +107,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @genx-qr/backend exec prisma generate
 
+      # Catches the failure modes that are invisible until a crawler hits them:
+      # off-domain URLs in structured data or the sitemap, and sitemap entries
+      # that robots.txt forbids.
+      - name: Validate SEO (structured data, sitemap, robots)
+        working-directory: frontend
+        run: pnpm seo:check
+
       - name: Build
         run: pnpm build:frontend
