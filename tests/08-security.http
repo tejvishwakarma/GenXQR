@@ -1,0 +1,315 @@
+### Security Tests — Auth Bypass, IDOR, Injection, Headers, Rate Limits
+### ⚠️ Run these ONLY against your own dev/staging instance — never production
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+@token = PASTE_VALID_ACCESS_TOKEN_HERE
+@qrId = PASTE_QR_ID_OWNED_BY_OTHER_USER
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — SECURITY HEADERS
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Check HTTP security headers
+# EXPECT headers present:
+#   X-Content-Type-Options: nosniff
+#   X-Frame-Options: SAMEORIGIN
+#   X-XSS-Protection: 0
+#   Strict-Transport-Security: max-age=... (HTTPS/production)
+#   Content-Security-Policy: ...
+#   Referrer-Policy: no-referrer
+# curl equivalent: curl -I http://localhost:3001/health
+GET {{base}}/health
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — AUTHENTICATION BYPASS
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 No Authorization header on protected route
+# EXPECT: 401
+GET {{base}}/api/qr
+
+###
+
+### 2.2 Empty Bearer token
+# EXPECT: 401
+GET {{base}}/api/qr
+Authorization: Bearer 
+
+###
+
+### 2.3 Algorithm confusion: "alg: none" JWT
+# EXPECT: 401 (server must reject)
+# Payload: {"sub":"fakeid","email":"hack@x.com","role":"ADMIN"}
+GET {{base}}/api/auth/me
+Authorization: Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJmYWtlaWQiLCJlbWFpbCI6ImhhY2tAeC5jb20iLCJyb2xlIjoiQURNSU4ifQ.
+
+###
+
+### 2.4 Expired JWT (manually craft or wait 15m after login)
+# EXPECT: 401 "Invalid or expired access token"
+GET {{base}}/api/auth/me
+Authorization: Bearer PASTE_EXPIRED_TOKEN_HERE
+
+###
+
+### 2.5 Access admin route with regular user token
+# EXPECT: 403
+GET {{base}}/api/admin/users
+Authorization: Bearer {{token}}
+
+###
+
+### 2.6 Inject role via request body (should be ignored)
+# EXPECT: 422 or 200 without role being elevated
+PATCH {{base}}/api/auth/me
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "role": "ADMIN",
+  "name": "Elevated User"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — IDOR (Insecure Direct Object Reference)
+# ─────────────────────────────────────────────────────────────
+# Create two accounts (User A and User B).
+# Log in as User B and try to access/modify User A's resources.
+
+### 3.1 Access another user's QR code
+# EXPECT: 404 (hides existence from unauthorized user)
+GET {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 3.2 Modify another user's QR code
+# EXPECT: 404
+PATCH {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "IDOR Attack"
+}
+
+###
+
+### 3.3 Delete another user's QR code
+# EXPECT: 404
+DELETE {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 3.4 Access another user's webhook
+# EXPECT: 404
+GET {{base}}/api/webhooks/00000000-0000-0000-0000-000000000001
+Authorization: Bearer {{token}}
+
+###
+
+### 3.5 Toggle another user's QR (v1 API)
+# EXPECT: 404
+PATCH {{base}}/v1/qr/{{qrId}}/toggle
+Authorization: Bearer nxqr_live_YOUR_KEY_HERE
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — INPUT VALIDATION & INJECTION
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 SQL injection in search parameter
+# EXPECT: 200 with empty/safe results (Prisma parameterizes all queries)
+GET {{base}}/api/qr?search='; DROP TABLE "QRCode"; --
+Authorization: Bearer {{token}}
+
+###
+
+### 4.2 XSS payload in QR name
+# EXPECT: 201 (stored), but output should be escaped when rendered
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "<script>alert('xss')</script>",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } }
+}
+
+###
+
+### 4.3 Excessively long input (DoS attempt)
+# EXPECT: 422 (Zod length validation)
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{
+  "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "email": "longname@example.com",
+  "password": "TestPass123!"
+}
+
+###
+
+### 4.4 JavaScript prototype pollution attempt
+# EXPECT: 422 or 200 (Zod strips unknown keys)
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "__proto__": { "admin": true },
+  "constructor": { "prototype": { "admin": true } },
+  "name": "Proto Pollution",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } }
+}
+
+###
+
+### 4.5 Webhook URL with JavaScript scheme
+# EXPECT: 400 "must use http or https"
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "JS Scheme Hook",
+  "url": "javascript:alert(1)",
+  "events": ["qr.scanned"]
+}
+
+###
+
+### 4.6 Webhook URL with file:// scheme (SSRF)
+# EXPECT: 400
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "File Scheme Hook",
+  "url": "file:///etc/passwd",
+  "events": ["qr.scanned"]
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 5 — RATE LIMITING
+# ─────────────────────────────────────────────────────────────
+
+### 5.1 Check rate limit headers on auth endpoint
+# Look for: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "test@example.com",
+  "password": "wrong"
+}
+
+###
+
+### 5.2 Trigger auth rate limit (10 attempts / 15 min)
+# Run this bash one-liner in terminal:
+#
+#   for i in $(seq 1 12); do
+#     echo -n "Attempt $i: "
+#     curl -s -o /dev/null -w "%{http_code}\n" \
+#       -X POST http://localhost:3001/api/auth/login \
+#       -H "Content-Type: application/json" \
+#       -d '{"email":"test@example.com","password":"wrong"}'
+#   done
+#
+# EXPECT: First 10 return 401, then 429 "Too many authentication attempts"
+
+### 5.3 Trigger static QR rate limit (10 req/min)
+# Run this in terminal:
+#
+#   for i in $(seq 1 12); do
+#     echo -n "Request $i: "
+#     curl -s -o /dev/null -w "%{http_code}\n" \
+#       -X POST http://localhost:3001/api/static-qr/generate \
+#       -H "Content-Type: application/json" \
+#       -d '{"type":"URL","content":"https://example.com","format":"png","size":200}'
+#   done
+#
+# EXPECT: First 10 return 200, then 429
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 6 — CORS POLICY
+# ─────────────────────────────────────────────────────────────
+
+### 6.1 Cross-origin request from disallowed origin
+# curl equivalent:
+#   curl -I -H "Origin: https://evil.com" http://localhost:3001/api/auth/me
+# EXPECT: No Access-Control-Allow-Origin in response
+# (or if present, it should NOT be "https://evil.com")
+
+### 6.2 Preflight from disallowed origin
+#   curl -X OPTIONS \
+#     -H "Origin: https://evil.com" \
+#     -H "Access-Control-Request-Method: GET" \
+#     http://localhost:3001/api/qr
+# EXPECT: 403 or no CORS headers in response
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 7 — MASS ASSIGNMENT
+# ─────────────────────────────────────────────────────────────
+
+### 7.1 Attempt to set userId in QR create body
+# EXPECT: userId from token is used, not from body
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "userId": "00000000-0000-0000-0000-000000000000",
+  "name": "Mass Assignment Test",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } }
+}
+
+###
+
+### 7.2 Attempt to set isVerified in register body
+# EXPECT: user created without isVerified=true
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{
+  "name": "Auto Verified",
+  "email": "autoverify@example.com",
+  "password": "TestPass123!",
+  "isEmailVerified": true,
+  "role": "ADMIN"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 8 — OPEN REDIRECT PREVENTION
+# ─────────────────────────────────────────────────────────────
+
+### 8.1 OAuth state parameter open redirect
+# EXPECT: Redirect goes to allowed /app/... path, NOT arbitrary URL
+# The safeFrontendPath() function strips unsafe values
+GET {{base}}/api/auth/google?next=https://evil.com/steal
+
+###
+
+### 8.2 Double-slash protocol-relative redirect attempt
+GET {{base}}/api/auth/google?next=//evil.com/steal
+
+###

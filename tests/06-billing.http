@@ -1,0 +1,93 @@
+### Billing & Subscription Tests
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+@token = PASTE_ACCESS_TOKEN_HERE
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — SUBSCRIPTION STATUS
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Get current subscription
+# EXPECT: 200, planName, status, expiresAt
+GET {{base}}/api/billing/subscription
+Authorization: Bearer {{token}}
+
+###
+
+### 1.2 Unauthenticated
+# EXPECT: 401
+GET {{base}}/api/billing/subscription
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — CHECKOUT / PLAN UPGRADE
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 Get available plans
+# EXPECT: 200, array of plan objects with features and pricing
+GET {{base}}/api/billing/plans
+
+###
+
+### 2.2 Initiate checkout (PayU)
+# EXPECT: 200, data.paymentUrl to redirect user to PayU
+POST {{base}}/api/billing/checkout
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "planId": "PRO_MONTHLY"
+}
+
+###
+
+### 2.3 Checkout with invalid plan ID
+# EXPECT: 400 or 404
+POST {{base}}/api/billing/checkout
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "planId": "INVALID_PLAN_XYZ"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — PLAN LIMITS (PLAN GATING)
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Free plan: create QR beyond limit
+# EXPECT: 403 "Plan upgrade required" after N QR codes created
+# (Create enough QR codes to exhaust the free plan limit)
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Limit Test QR",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } }
+}
+
+###
+
+### 3.2 Free plan: access v1 API
+# EXPECT: 403 "Plan upgrade required"
+GET {{base}}/v1/qr
+Authorization: Bearer nxqr_live_FREE_PLAN_KEY_HERE
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — INVOICE HISTORY
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 Get invoices
+# EXPECT: 200, array of payment records
+GET {{base}}/api/billing/invoices
+Authorization: Bearer {{token}}
+
+###

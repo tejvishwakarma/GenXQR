@@ -1,0 +1,215 @@
+### Webhook Lifecycle & Delivery Tests
+### Uses JWT bearer (dashboard webhooks) AND API key (v1 webhooks)
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+@token = PASTE_ACCESS_TOKEN_HERE
+@apiKey = nxqr_live_YOUR_API_KEY_HERE
+@webhookId = PASTE_WEBHOOK_ID_HERE
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — CREATE WEBHOOKS (Dashboard — JWT auth)
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Create webhook — qr.scanned
+# EXPECT: 201, data.id, data.secret (only returned on create)
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Test Webhook",
+  "url": "https://webhook.site/YOUR-UUID-HERE",
+  "events": ["qr.scanned"]
+}
+
+###
+
+### 1.2 Create webhook — multiple events
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Multi-Event Hook",
+  "url": "https://webhook.site/YOUR-UUID-HERE",
+  "events": ["qr.created", "qr.updated", "qr.deleted"]
+}
+
+###
+
+### 1.3 Create webhook — invalid event name
+# EXPECT: 400 "Unknown webhook events"
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Bad Event Hook",
+  "url": "https://webhook.site/YOUR-UUID-HERE",
+  "events": ["qr.hacked"]
+}
+
+###
+
+### 1.4 Create webhook — private IP (SSRF prevention, production only)
+# EXPECT: 400 "must not target a private or loopback address" in production
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "SSRF Attempt",
+  "url": "http://192.168.1.1/steal-data",
+  "events": ["qr.scanned"]
+}
+
+###
+
+### 1.5 Create webhook — localhost target (SSRF prevention)
+# EXPECT: 400 in production, allowed in dev
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Localhost Hook",
+  "url": "http://localhost:9999/callback",
+  "events": ["qr.scanned"]
+}
+
+###
+
+### 1.6 Create webhook — HTTP (not HTTPS, production only)
+# EXPECT: 400 "must use HTTPS in production"
+POST {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Insecure Hook",
+  "url": "http://my-insecure-site.com/hook",
+  "events": ["qr.scanned"]
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — LIST & GET WEBHOOKS
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 List webhooks
+# EXPECT: 200, array of webhooks (secret NOT included)
+GET {{base}}/api/webhooks
+Authorization: Bearer {{token}}
+
+###
+
+### 2.2 Get webhook by ID (with secret — for signature verification)
+GET {{base}}/api/webhooks/{{webhookId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 2.3 Get webhook deliveries
+# EXPECT: 200, up to 50 delivery records
+GET {{base}}/api/webhooks/{{webhookId}}/deliveries
+Authorization: Bearer {{token}}
+
+###
+
+### 2.4 Get another user's webhook (IDOR)
+# EXPECT: 404
+GET {{base}}/api/webhooks/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — UPDATE & DELETE WEBHOOKS
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Update webhook URL
+PATCH {{base}}/api/webhooks/{{webhookId}}
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "url": "https://webhook.site/ANOTHER-UUID",
+  "isActive": true
+}
+
+###
+
+### 3.2 Disable webhook
+PATCH {{base}}/api/webhooks/{{webhookId}}
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "isActive": false
+}
+
+###
+
+### 3.3 Send test ping
+# EXPECT: 200, {success: bool, statusCode: number}
+POST {{base}}/api/webhooks/{{webhookId}}/test
+Authorization: Bearer {{token}}
+
+###
+
+### 3.4 Delete webhook
+# EXPECT: 204
+DELETE {{base}}/api/webhooks/{{webhookId}}
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — V1 API WEBHOOKS (API key auth)
+# These are used by Zapier/Make/n8n integrations
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 Subscribe (Zapier/Make/n8n pattern)
+# EXPECT: 201, data.id, data.secret
+POST {{base}}/v1/webhooks
+Authorization: Bearer {{apiKey}}
+{{contentType}}
+
+{
+  "url": "https://hooks.zapier.com/hooks/catch/12345/abcde/",
+  "event": "qr.scanned",
+  "source": "zapier",
+  "name": "Zapier — qr.scanned"
+}
+
+###
+
+### 4.2 Unsubscribe
+# EXPECT: 204
+DELETE {{base}}/v1/webhooks/{{webhookId}}
+Authorization: Bearer {{apiKey}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 5 — HMAC SIGNATURE VERIFICATION
+# Verify your webhook receiver is validating signatures correctly
+# ─────────────────────────────────────────────────────────────
+
+# How to verify a delivery:
+#
+# 1. Get the secret from GET /api/webhooks/:id
+# 2. When a delivery arrives, compute:
+#    signature = HMAC-SHA256(secret, body_as_string).hexdigest()
+# 3. Compare with X-NexusQR-Signature header: "sha256=<signature>"
+#
+# Node.js example:
+#   const crypto = require('crypto')
+#   const sig = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
+#   const match = `sha256=${sig}` === req.headers['x-nexusqr-signature']
+#
+# Python example:
+#   import hmac, hashlib
+#   sig = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+#   match = f"sha256={sig}" == request.headers.get("x-nexusqr-signature")

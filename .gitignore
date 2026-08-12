@@ -65,5 +65,9 @@ Cloudflare Origin Certificate.txt
 *.env.txt
 *Certificate*.txt
 
-# Testing files
-tests/
+# Test *output* only — the test suites themselves are source and must be
+# committed. (A blanket `tests/` rule here previously would have silently
+# excluded them, the same way `backend/scripts/` once excluded real
+# deployment scripts.)
+coverage/
+.vitest/

@@ -1,0 +1,88 @@
+### Analytics & Scans Tests
+@base = http://localhost:3001
+@token = PASTE_ACCESS_TOKEN_HERE
+@qrId = PASTE_QR_ID_HERE
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — GLOBAL ANALYTICS
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Global analytics — default (30 days)
+# EXPECT: 200, totalScans, uniqueScans, topQRs, deviceBreakdown, locationBreakdown
+GET {{base}}/api/analytics
+Authorization: Bearer {{token}}
+
+###
+
+### 1.2 Global analytics — last 7 days
+GET {{base}}/api/analytics?days=7
+Authorization: Bearer {{token}}
+
+###
+
+### 1.3 Global analytics — max range (90 days)
+GET {{base}}/api/analytics?days=90
+Authorization: Bearer {{token}}
+
+###
+
+### 1.4 Global analytics — out-of-range days
+# EXPECT: 422
+GET {{base}}/api/analytics?days=999
+Authorization: Bearer {{token}}
+
+###
+
+### 1.5 Global analytics — unauthenticated
+# EXPECT: 401
+GET {{base}}/api/analytics
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — PER-QR ANALYTICS
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 QR analytics — valid QR, 30 days
+# EXPECT: 200, scanTimeline array, deviceTypes, locations
+GET {{base}}/api/qr/{{qrId}}/analytics?days=30
+Authorization: Bearer {{token}}
+
+###
+
+### 2.2 QR analytics — 7 day window
+GET {{base}}/api/qr/{{qrId}}/analytics?days=7
+Authorization: Bearer {{token}}
+
+###
+
+### 2.3 QR analytics — another user's QR (IDOR check)
+# EXPECT: 404
+GET {{base}}/api/qr/00000000-0000-0000-0000-000000000000/analytics?days=30
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — SCAN LOGS (v1 polling endpoint)
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Get recent scans for a QR (v1 API key auth)
+# EXPECT: 200, array of scan objects
+# Requires: valid API key from /app/api-keys
+GET {{base}}/v1/qr/{{qrId}}/scans?limit=25
+Authorization: Bearer nxqr_live_YOUR_API_KEY_HERE
+
+###
+
+### 3.2 Scans — limit capped at 100
+GET {{base}}/v1/qr/{{qrId}}/scans?limit=999
+Authorization: Bearer nxqr_live_YOUR_API_KEY_HERE
+
+###
+
+### 3.3 Scans — no API key
+# EXPECT: 401
+GET {{base}}/v1/qr/{{qrId}}/scans
+
+###

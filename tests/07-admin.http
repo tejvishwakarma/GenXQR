@@ -1,0 +1,150 @@
+### Admin Panel Tests
+### Requires admin credentials — set these before running
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+@adminToken = PASTE_ADMIN_JWT_HERE
+@userId = PASTE_USER_ID_HERE
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — ADMIN AUTH
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Admin login
+# EXPECT: 200, data.accessToken
+POST {{base}}/api/admin/auth/login
+{{contentType}}
+
+{
+  "email": "admin@nexusqr.in",
+  "password": "YOUR_ADMIN_PASSWORD"
+}
+
+###
+
+### 1.2 Regular user accessing admin route
+# EXPECT: 403 "Admin access required"
+GET {{base}}/api/admin/users
+Authorization: Bearer PASTE_REGULAR_USER_TOKEN_HERE
+
+###
+
+### 1.3 No auth on admin route
+# EXPECT: 401
+GET {{base}}/api/admin/users
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — USER MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 List users
+# EXPECT: 200, data array, pagination
+GET {{base}}/api/admin/users?page=1&limit=20
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 2.2 Search users by email
+GET {{base}}/api/admin/users?search=test@example.com&page=1&limit=10
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 2.3 Get single user detail
+GET {{base}}/api/admin/users/{{userId}}
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 2.4 Ban a user
+# EXPECT: 200
+PATCH {{base}}/api/admin/users/{{userId}}/ban
+Authorization: Bearer {{adminToken}}
+{{contentType}}
+
+{
+  "reason": "Terms of Service violation"
+}
+
+###
+
+### 2.5 Banned user attempting to login
+# EXPECT: 403 "Your account has been suspended"
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "banned@example.com",
+  "password": "TestPass123!"
+}
+
+###
+
+### 2.6 Unban a user
+PATCH {{base}}/api/admin/users/{{userId}}/unban
+Authorization: Bearer {{adminToken}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — PLATFORM STATS
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Platform-wide stats
+# EXPECT: 200, totalUsers, activeSubscriptions, totalScans, etc.
+GET {{base}}/api/admin/stats
+Authorization: Bearer {{adminToken}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — SUBSCRIPTION MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 List all subscriptions
+GET {{base}}/api/admin/subscriptions?page=1&limit=20
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 4.2 Force expire a subscription
+PATCH {{base}}/api/admin/subscriptions/SUBSCRIPTION_ID_HERE/expire
+Authorization: Bearer {{adminToken}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 5 — AUDIT LOG
+# ─────────────────────────────────────────────────────────────
+
+### 5.1 View audit log
+# EXPECT: 200, recent admin/auth actions
+GET {{base}}/api/admin/audit?page=1&limit=50
+Authorization: Bearer {{adminToken}}
+
+###
+
+### 5.2 Filter audit log by category
+GET {{base}}/api/admin/audit?category=auth&page=1&limit=20
+Authorization: Bearer {{adminToken}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 6 — BROADCAST EMAIL
+# ─────────────────────────────────────────────────────────────
+
+### 6.1 Send broadcast — dry run (no email actually sent in dev)
+POST {{base}}/api/admin/broadcast
+Authorization: Bearer {{adminToken}}
+{{contentType}}
+
+{
+  "subject": "Platform Update",
+  "body": "Hello from NexusQR team!",
+  "targetPlans": ["PRO", "ELITE"],
+  "dryRun": true
+}
+
+###

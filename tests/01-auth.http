@@ -1,0 +1,272 @@
+### Authentication Tests
+### Base: http://localhost:3001
+### Use VS Code REST Client extension or paste curl commands into terminal
+
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — REGISTRATION
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Register — valid user
+# EXPECT: 201, success=true, "check your email to verify"
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{
+  "name": "Test User",
+  "email": "tejv0251@gmail.com",
+  "password": "Admin@1234"
+}
+
+###
+
+### 1.2 Register — duplicate email
+# EXPECT: 409 Conflict
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{
+  "name": "Test User",
+  "email": "tejv0251@gmail.com",
+  "password": "Admin@1234"
+}
+̥
+###
+
+### 1.3 Register — weak password (Zod validation)
+# EXPECT: 422 Unprocessable Entity
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{
+  "name": "Test User",
+  "email": "weak@example.com",
+  "password": "123"
+}
+
+###
+
+### 1.4 Register — missing fields
+# EXPECT: 422
+POST {{base}}/api/auth/register
+{{contentType}}
+
+{}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — LOGIN
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 Login — valid credentials
+# EXPECT: 200, data.accessToken present, Set-Cookie: refresh_token
+# ACTION: Copy accessToken below into @token
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "testuser@example.com",
+  "password": "TestPass123!"
+}
+
+###
+
+@token = PASTE_ACCESS_TOKEN_HERE
+
+### 2.2 Login — wrong password
+# EXPECT: 401
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "testuser@example.com",
+  "password": "WrongPass!"
+}
+
+###
+
+### 2.3 Login — nonexistent user
+# EXPECT: 401 (same message as wrong password — no user enumeration)
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "nobody@nowhere.com",
+  "password": "Whatever1!"
+}
+
+###
+
+### 2.4 Login — unverified email
+# EXPECT: 403 "Please verify your email"
+# (Register a new user, skip verification, try login)
+POST {{base}}/api/auth/login
+{{contentType}}
+
+{
+  "email": "unverified@example.com",
+  "password": "TestPass123!"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — TOKEN MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Refresh token — valid cookie
+# EXPECT: 200, new accessToken
+# NOTE: REST Client sends cookies automatically if same session
+POST {{base}}/api/auth/refresh
+{{contentType}}
+
+###
+
+### 3.2 Refresh token — missing cookie
+# EXPECT: 401 "No refresh token provided"
+POST {{base}}/api/auth/refresh
+{{contentType}}
+Cookie:
+
+###
+
+### 3.3 Logout
+# EXPECT: 200, refresh_token cookie cleared
+POST {{base}}/api/auth/logout
+{{contentType}}
+
+###
+
+### 3.4 Use access token after logout (token still valid until 15m expiry)
+# EXPECT: 200 (JWTs are stateless; only refresh tokens are blacklisted)
+GET {{base}}/api/auth/me
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — PROTECTED ROUTES (AUTH ENFORCEMENT)
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 GET /api/auth/me — authenticated
+# EXPECT: 200, user object
+GET {{base}}/api/auth/me
+Authorization: Bearer {{token}}
+
+###
+
+### 4.2 GET /api/auth/me — no token
+# EXPECT: 401
+GET {{base}}/api/auth/me
+
+###
+
+### 4.3 GET /api/auth/me — malformed token
+# EXPECT: 401
+GET {{base}}/api/auth/me
+Authorization: Bearer not.a.real.jwt
+
+###
+
+### 4.4 GET /api/auth/me — tampered payload
+# EXPECT: 401 (signature mismatch)
+GET {{base}}/api/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmYWtldXNlcmlkIiwiZW1haWwiOiJoYWNrZXJAZXhhbXBsZS5jb20iLCJyb2xlIjoiQURNSU4ifQ.invalidsignature
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 5 — PASSWORD RESET FLOW
+# ─────────────────────────────────────────────────────────────
+
+### 5.1 Forgot password — registered email
+# EXPECT: 200, "If that email exists, a reset link has been sent"
+POST {{base}}/api/auth/forgot-password
+{{contentType}}
+
+{
+  "email": "testuser@example.com"
+}
+
+###
+
+### 5.2 Forgot password — unknown email (anti-enumeration)
+# EXPECT: 200 — SAME message, no difference
+POST {{base}}/api/auth/forgot-password
+{{contentType}}
+
+{
+  "email": "doesnotexist@example.com"
+}
+
+###
+
+### 5.3 Reset password — invalid token
+# EXPECT: 400 or 404
+POST {{base}}/api/auth/reset-password
+{{contentType}}
+
+{
+  "token": "fake-reset-token-that-doesnt-exist",
+  "password": "NewPass456!"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 6 — RESEND VERIFICATION
+# ─────────────────────────────────────────────────────────────
+
+### 6.1 Resend verification — valid email (anti-enumeration)
+# EXPECT: 200, same success message regardless of whether email exists
+POST {{base}}/api/auth/resend-verification
+{{contentType}}
+
+{
+  "email": "testuser@example.com"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 7 — PROFILE MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+### 7.1 Get notification preferences
+# EXPECT: 200, data.notifications object
+GET {{base}}/api/auth/preferences
+Authorization: Bearer {{token}}
+
+###
+
+### 7.2 Update notification preferences
+# EXPECT: 200
+PATCH {{base}}/api/auth/preferences
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "notifications": {
+    "scanMilestoneAlerts": false,
+    "weeklyAnalyticsDigest": true,
+    "billingReminders": true,
+    "productUpdates": false
+  }
+}
+
+###
+
+### 7.3 Delete account — wrong password
+# EXPECT: 401
+DELETE {{base}}/api/auth/me
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "password": "WrongPassword!"
+}
+
+###

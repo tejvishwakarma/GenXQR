@@ -1,0 +1,240 @@
+### QR Code CRUD Tests
+@base = http://localhost:3001
+@contentType = Content-Type: application/json
+@token = PASTE_ACCESS_TOKEN_HERE
+# After creating a QR code, paste its ID below
+@qrId = PASTE_QR_ID_HERE
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 1 — CREATE QR CODES
+# ─────────────────────────────────────────────────────────────
+
+### 1.1 Create dynamic URL QR code
+# EXPECT: 201, data.id, data.slug, data.category="DYNAMIC"
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "My Test QR",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } },
+  "tags": ["test", "demo"]
+}
+
+###
+
+### 1.2 Create static QR code (no auth required)
+# EXPECT: 200, SVG or PNG data
+POST {{base}}/api/static-qr/generate
+{{contentType}}
+
+{
+  "type": "URL",
+  "content": "https://example.com",
+  "format": "png",
+  "size": 300
+}
+
+###
+
+### 1.3 Create — missing required fields (Zod validation)
+# EXPECT: 422
+POST {{base}}/api/qr
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "type": "URL"
+}
+
+###
+
+### 1.4 Create — no auth
+# EXPECT: 401
+POST {{base}}/api/qr
+{{contentType}}
+
+{
+  "name": "Unauthorized QR",
+  "type": "URL",
+  "category": "DYNAMIC",
+  "content": { "data": { "url": "https://example.com" } }
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 2 — READ QR CODES
+# ─────────────────────────────────────────────────────────────
+
+### 2.1 List QR codes
+# EXPECT: 200, data array, pagination meta
+GET {{base}}/api/qr?page=1&limit=10
+Authorization: Bearer {{token}}
+
+###
+
+### 2.2 List with search filter
+GET {{base}}/api/qr?search=test&page=1&limit=10
+Authorization: Bearer {{token}}
+
+###
+
+### 2.3 List with tag filter
+GET {{base}}/api/qr?tag=demo&page=1&limit=10
+Authorization: Bearer {{token}}
+
+###
+
+### 2.4 Get single QR code
+# EXPECT: 200, full QR object
+GET {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 2.5 Get nonexistent QR
+# EXPECT: 404
+GET {{base}}/api/qr/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 3 — UPDATE QR CODES
+# ─────────────────────────────────────────────────────────────
+
+### 3.1 Update name and tags
+# EXPECT: 200, updated fields reflected
+PATCH {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "name": "Updated QR Name",
+  "tags": ["updated", "production"]
+}
+
+###
+
+### 3.2 Update destination URL (dynamic QR)
+# EXPECT: 200
+PATCH {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+{{contentType}}
+
+{
+  "content": { "data": { "url": "https://updated-destination.com" } }
+}
+
+###
+
+### 3.3 Update — another user's QR (IDOR check)
+# EXPECT: 404 (not 403, to avoid leaking existence)
+# Create a second account and get its token, then try to update first user's QR
+PATCH {{base}}/api/qr/{{qrId}}
+Authorization: Bearer SECOND_USER_TOKEN_HERE
+{{contentType}}
+
+{
+  "name": "Stolen name"
+}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 4 — TOGGLE ACTIVE STATE
+# ─────────────────────────────────────────────────────────────
+
+### 4.1 Toggle QR active state
+# EXPECT: 200, isActive flips
+PATCH {{base}}/api/qr/{{qrId}}/toggle
+Authorization: Bearer {{token}}
+
+###
+
+### 4.2 Toggle again (back to original)
+PATCH {{base}}/api/qr/{{qrId}}/toggle
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 5 — DOWNLOAD / EXPORT
+# ─────────────────────────────────────────────────────────────
+
+### 5.1 Download QR as PNG
+# EXPECT: 200, image/png binary
+GET {{base}}/api/qr/{{qrId}}/download?format=png&size=512
+Authorization: Bearer {{token}}
+
+###
+
+### 5.2 Download QR as SVG
+# EXPECT: 200, image/svg+xml
+GET {{base}}/api/qr/{{qrId}}/download?format=svg
+Authorization: Bearer {{token}}
+
+###
+
+### 5.3 Download — invalid format
+# EXPECT: 422
+GET {{base}}/api/qr/{{qrId}}/download?format=exe
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 6 — DUPLICATE
+# ─────────────────────────────────────────────────────────────
+
+### 6.1 Duplicate a QR code
+# EXPECT: 201, new QR with "(Copy)" suffix
+POST {{base}}/api/qr/{{qrId}}/duplicate
+Authorization: Bearer {{token}}
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 7 — SCAN REDIRECT (no auth)
+# ─────────────────────────────────────────────────────────────
+
+### 7.1 Scan a QR code via slug
+# EXPECT: 302 redirect to destination URL
+# (Replace 'my-slug' with actual slug from QR creation response)
+GET {{base}}/r/my-slug
+
+###
+
+### 7.2 Scan inactive QR code
+# EXPECT: 302 to /expired page
+# First deactivate the QR, then scan
+GET {{base}}/r/my-slug
+
+###
+
+### 7.3 Scan nonexistent slug
+# EXPECT: 404
+GET {{base}}/r/nonexistent-slug-xyz
+
+###
+
+# ─────────────────────────────────────────────────────────────
+# SECTION 8 — DELETE
+# ─────────────────────────────────────────────────────────────
+
+### 8.1 Delete QR code
+# EXPECT: 204 No Content
+DELETE {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+
+###
+
+### 8.2 Get deleted QR
+# EXPECT: 404
+GET {{base}}/api/qr/{{qrId}}
+Authorization: Bearer {{token}}
+
+###
