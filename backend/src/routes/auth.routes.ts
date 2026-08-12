@@ -15,6 +15,7 @@ import * as AuthService from "../services/auth.service.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { redis } from "../redis/client.js"
 import { logAudit } from "../services/audit.service.js"
+import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -388,6 +389,14 @@ router.patch(
     try {
       if (!req.file) throw new AppError(400, "No image file uploaded")
       const userId = (req.user as unknown as AccessTokenPayload).sub
+
+      const magicByteCheck = await verifyMagicBytes(
+        req.file.path,
+        { category: "image/" },
+        { userId, route: "avatar", fileName: req.file.originalname },
+      )
+      if (!magicByteCheck.ok) throw new AppError(415, magicByteCheck.error)
+
       const avatarUrl = `/uploads/avatars/${req.file.filename}`
       await AuthService.updateUserAvatar(userId, avatarUrl)
       res.json({ success: true, data: { avatarUrl } })

@@ -10,6 +10,7 @@ import { logger } from "../logger/index.js"
 import { type FileType } from "@prisma/client"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
+import { verifyMagicBytes, type MagicByteRule } from "../utils/verifyMagicBytes.js"
 
 const uid = (req: Request): string => (req.user as unknown as AccessTokenPayload).sub
 
@@ -29,6 +30,7 @@ interface UploadConfig {
   allowedMimes: string[]
   allowedExtensions: Set<string>
   fileType: FileType
+  magicByteRule: MagicByteRule
 }
 
 const CONFIGS: Record<string, UploadConfig> = {
@@ -38,6 +40,7 @@ const CONFIGS: Record<string, UploadConfig> = {
     allowedMimes: ["application/pdf"],
     allowedExtensions: new Set([".pdf"]),
     fileType: "PDF",
+    magicByteRule: { category: "application/pdf" },
   },
   video: {
     subdir: "video",
@@ -45,6 +48,10 @@ const CONFIGS: Record<string, UploadConfig> = {
     allowedMimes: ["video/mp4", "video/webm", "video/ogg", "video/quicktime", "video/x-msvideo"],
     allowedExtensions: new Set([".mp4", ".webm", ".ogg", ".mov", ".avi"]),
     fileType: "VIDEO",
+    // .ogg/.avi containers occasionally don't carry a signature file-type
+    // recognizes as strongly — allow-through-with-warning rather than block
+    // legitimate uploads.
+    magicByteRule: { category: "video/", allowUndetected: true },
   },
   mp3: {
     subdir: "mp3",
@@ -52,6 +59,9 @@ const CONFIGS: Record<string, UploadConfig> = {
     allowedMimes: ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg", "audio/aac"],
     allowedExtensions: new Set([".mp3", ".wav", ".ogg", ".aac", ".m4a"]),
     fileType: "MP3",
+    // Raw AAC/ADTS streams and some MP3s lack a universally reliable magic
+    // number — same tradeoff as above.
+    magicByteRule: { category: "audio/", allowUndetected: true },
   },
   image: {
     subdir: "image",
@@ -60,6 +70,9 @@ const CONFIGS: Record<string, UploadConfig> = {
     // SVG intentionally excluded — it can contain executable scripts
     allowedExtensions: new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]),
     fileType: "IMAGE",
+    // Every allowed image format has a strong, universal signature — no
+    // legitimate file should ever fail to be detected here.
+    magicByteRule: { category: "image/" },
   },
 }
 
@@ -117,6 +130,15 @@ function uploadHandler(type: keyof typeof CONFIGS) {
       try {
         if (!req.file) {
           throw new AppError(400, "No file uploaded")
+        }
+
+        const magicByteCheck = await verifyMagicBytes(req.file.path, config.magicByteRule, {
+          userId: uid(req),
+          type,
+          fileName: req.file.originalname,
+        })
+        if (!magicByteCheck.ok) {
+          throw new AppError(415, magicByteCheck.error)
         }
 
         const relativePath = `/uploads/${config.subdir}/${req.file.filename}`

@@ -18,6 +18,7 @@ import { z } from "zod"
 import { careersApplyLimiter } from "../middleware/rateLimit.middleware.js"
 import { sendEmail, buildJobApplicationEmail } from "../services/email.service.js"
 import { prisma } from "../db/prisma.js"
+import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 
 const router: IRouter = Router()
 
@@ -120,6 +121,26 @@ router.post(
         fs.unlink(uploadedFile.path, () => undefined)
         const errors = parsed.error.issues.map((i) => i.message).join(", ")
         res.status(400).json({ success: false, error: errors })
+        return
+      }
+
+      const magicByteCheck = await verifyMagicBytes(
+        uploadedFile.path,
+        {
+          allowedMimes: [
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ],
+          // Legacy .doc (OLE/CFB binary) has no format-specific magic number
+          // distinguishable from other MS Office binary formats — accept an
+          // undetected signature here rather than block real .doc uploads.
+          allowUndetected: true,
+        },
+        { route: "careers.apply", fileName: uploadedFile.originalname },
+      )
+      if (!magicByteCheck.ok) {
+        fs.unlink(uploadedFile.path, () => undefined)
+        res.status(415).json({ success: false, error: magicByteCheck.error })
         return
       }
 
