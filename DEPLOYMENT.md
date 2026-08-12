@@ -185,10 +185,10 @@ location / {
 }
 ```
 
-Replace **that block** (and only that block — leave the `listen`/`ssl_certificate`/`server_name`/`access_log`/https-redirect lines above it untouched) with the contents of [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) from this repo. Before saving:
+Replace **that block** (and only that block — leave the `listen`/`ssl_certificate`/`access_log`/https-redirect lines, and the `{{root}}` token itself, untouched) with the contents of [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) from this repo. Before saving:
 
-- Edit the `root` line CloudPanel generated near the top of the block to point at `/home/<site-user>/htdocs/genxqr.com/frontend/dist` (the built SPA, not the repo root).
-- In the `/uploads/` block, replace `<site-user>` with your actual site user.
+- Check the `server_name` line just above `{{root}}`. It should list only `genxqr.com` — if CloudPanel added a second domain you didn't intentionally configure as a site alias, remove it.
+- Replace every `<site-user>` placeholder in the pasted content (the `root` override line and the `/uploads/` `alias` line) with your actual site user.
 - Save — CloudPanel validates the Nginx syntax before applying it and will refuse to save if something's wrong.
 
 ---
