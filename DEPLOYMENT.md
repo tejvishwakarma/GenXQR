@@ -188,7 +188,7 @@ location / {
 Replace **that block** (and only that block — leave the `listen`/`ssl_certificate`/`access_log`/https-redirect lines, and the `{{root}}` token itself, untouched) with the contents of [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) from this repo. Before saving:
 
 - Check the `server_name` line just above `{{root}}`. It should list only `genxqr.com` — if CloudPanel added a second domain you didn't intentionally configure as a site alias, remove it.
-- Replace every `<site-user>` placeholder in the pasted content (the `root` override line and the `/uploads/` `alias` line) with your actual site user.
+- Replace every `<site-user>` placeholder in the pasted content (the several per-location `root` lines and the `/uploads/` `alias` line) with your actual site user. `{{root}}` itself stays untouched — don't add a second server-level `root` directive, nginx rejects that as a duplicate.
 - Save — CloudPanel validates the Nginx syntax before applying it and will refuse to save if something's wrong.
 
 ---
