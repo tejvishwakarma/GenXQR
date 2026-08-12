@@ -226,6 +226,18 @@ crontab -e
 
 ## 10. Ongoing deploys
 
+[`deploy.sh`](./deploy.sh) (repo root) runs the full sequence below in one
+shot — `git pull`, install, load secrets, migrate, build both, reload PM2
+(or start it if it isn't running yet):
+
+```bash
+cd ~/htdocs/genxqr.com
+chmod +x deploy.sh   # first time only
+./deploy.sh
+```
+
+Equivalent by hand, if you'd rather run each step yourself:
+
 ```bash
 cd ~/htdocs/genxqr.com
 git pull
