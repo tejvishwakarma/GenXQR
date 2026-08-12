@@ -143,6 +143,15 @@ const qrSelect = {
       frameStyle: true,
       frameText: true,
       frameColor: true,
+      // Not yet settable via createQRSchema/updateQRSchema (no dashboard UI
+      // for these), but they're real QRDesign columns already read by the
+      // public landing-page endpoint (public.routes.ts) and copied whole by
+      // duplicateQR below — omitting them here just means GET/list can't
+      // see values that duplication or direct DB writes already set.
+      paletteId: true,
+      fontTitle: true,
+      fontBody: true,
+      welcomeScreenUrl: true,
     },
   },
   files: {
@@ -182,27 +191,51 @@ function serializeQR<T extends { files?: Array<{ sizeBytes: bigint | number }> }
   }
 }
 
-function buildDesignCreate(design: z.infer<typeof createQRSchema>["design"]) {
-  return {
-    primaryColor: design.primaryColor ?? "#7c3aed",
-    secondaryColor: design.secondaryColor ?? "#ffffff",
-    backgroundColor: design.backgroundColor ?? "#000000",
-    foregroundColor: design.foregroundColor ?? "#000000",
-    dotStyle: design.dotStyle ?? "rounded",
-    cornerSquareStyle: design.cornerSquareStyle ?? "square",
-    cornerDotStyle: design.cornerDotStyle ?? "square",
-    gradientEnabled: design.gradientEnabled ?? false,
-    gradientType: design.gradientType ?? null,
-    gradientColor1: design.gradientColor1 ?? null,
-    gradientColor2: design.gradientColor2 ?? null,
-    logoUrl: design.logoUrl ?? null,
-    logoSize: design.logoSize ?? 40,
-    logoMargin: design.logoMargin ?? 5,
-    hideBackgroundDots: design.hideBackgroundDots ?? true,
-    frameStyle: design.frameStyle ?? null,
-    frameText: design.frameText ?? null,
-    frameColor: design.frameColor ?? null,
+// Single source of truth for the QRDesign fields settable via the API (the
+// four read-only extras — paletteId/fontTitle/fontBody/welcomeScreenUrl —
+// are handled separately in duplicateQR, since they have no Zod schema or
+// defaults here). Previously this same 18-field list was hand-enumerated
+// four separate times across this file; any new design field only needs to
+// be added here plus the Zod schema above, not four coordinated edits.
+const DESIGN_FIELD_DEFAULTS = {
+  primaryColor: "#7c3aed",
+  secondaryColor: "#ffffff",
+  backgroundColor: "#000000",
+  foregroundColor: "#000000",
+  dotStyle: "rounded",
+  cornerSquareStyle: "square",
+  cornerDotStyle: "square",
+  gradientEnabled: false,
+  gradientType: null,
+  gradientColor1: null,
+  gradientColor2: null,
+  logoUrl: null,
+  logoSize: 40,
+  logoMargin: 5,
+  hideBackgroundDots: true,
+  frameStyle: null,
+  frameText: null,
+  frameColor: null,
+} as const
+
+type WritableDesignField = keyof typeof DESIGN_FIELD_DEFAULTS
+type DesignInput = z.infer<typeof createQRSchema>["design"]
+
+function buildDesignCreate(design: DesignInput): Prisma.QRDesignCreateWithoutQrCodeInput {
+  const result = {} as Record<WritableDesignField, unknown>
+  for (const field of Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]) {
+    result[field] = design[field] ?? DESIGN_FIELD_DEFAULTS[field]
   }
+  return result as Prisma.QRDesignCreateWithoutQrCodeInput
+}
+
+/** Same field list as buildDesignCreate, but only including fields the caller actually set (for a partial Prisma update). */
+function buildDesignUpdate(design: DesignInput): Prisma.QRDesignUpdateWithoutQrCodeInput {
+  const result: Partial<Record<WritableDesignField, unknown>> = {}
+  for (const field of Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]) {
+    if (design[field] !== undefined) result[field] = design[field]
+  }
+  return result as Prisma.QRDesignUpdateWithoutQrCodeInput
 }
 
 // ─── Expiry date validator ─────────────────────────────────────────────────────
@@ -396,26 +429,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
         design: {
           upsert: {
             create: buildDesignCreate(design),
-            update: {
-              ...(design.primaryColor !== undefined && { primaryColor: design.primaryColor }),
-              ...(design.secondaryColor !== undefined && { secondaryColor: design.secondaryColor }),
-              ...(design.backgroundColor !== undefined && { backgroundColor: design.backgroundColor }),
-              ...(design.foregroundColor !== undefined && { foregroundColor: design.foregroundColor }),
-              ...(design.dotStyle !== undefined && { dotStyle: design.dotStyle }),
-              ...(design.cornerSquareStyle !== undefined && { cornerSquareStyle: design.cornerSquareStyle }),
-              ...(design.cornerDotStyle !== undefined && { cornerDotStyle: design.cornerDotStyle }),
-              ...(design.gradientEnabled !== undefined && { gradientEnabled: design.gradientEnabled }),
-              ...(design.gradientType !== undefined && { gradientType: design.gradientType }),
-              ...(design.gradientColor1 !== undefined && { gradientColor1: design.gradientColor1 }),
-              ...(design.gradientColor2 !== undefined && { gradientColor2: design.gradientColor2 }),
-              ...(design.logoUrl !== undefined && { logoUrl: design.logoUrl }),
-              ...(design.logoSize !== undefined && { logoSize: design.logoSize }),
-              ...(design.logoMargin !== undefined && { logoMargin: design.logoMargin }),
-              ...(design.hideBackgroundDots !== undefined && { hideBackgroundDots: design.hideBackgroundDots }),
-              ...(design.frameStyle !== undefined && { frameStyle: design.frameStyle }),
-              ...(design.frameText !== undefined && { frameText: design.frameText }),
-              ...(design.frameColor !== undefined && { frameColor: design.frameColor }),
-            },
+            update: buildDesignUpdate(design),
           },
         },
       }),
@@ -500,24 +514,12 @@ export async function duplicateQR(id: string, userId: string) {
       design: qr.design
         ? {
             create: {
-              primaryColor: qr.design.primaryColor,
-              secondaryColor: qr.design.secondaryColor,
-              backgroundColor: qr.design.backgroundColor,
-              foregroundColor: qr.design.foregroundColor,
-              dotStyle: qr.design.dotStyle,
-              cornerSquareStyle: qr.design.cornerSquareStyle,
-              cornerDotStyle: qr.design.cornerDotStyle,
-              gradientEnabled: qr.design.gradientEnabled,
-              gradientType: qr.design.gradientType,
-              gradientColor1: qr.design.gradientColor1,
-              gradientColor2: qr.design.gradientColor2,
-              logoUrl: qr.design.logoUrl,
-              logoSize: qr.design.logoSize,
-              logoMargin: qr.design.logoMargin,
-              hideBackgroundDots: qr.design.hideBackgroundDots,
-              frameStyle: qr.design.frameStyle,
-              frameText: qr.design.frameText,
-              frameColor: qr.design.frameColor,
+              ...(Object.fromEntries(
+                (Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]).map((field) => [
+                  field,
+                  qr.design![field],
+                ]),
+              ) as Prisma.QRDesignCreateWithoutQrCodeInput),
               paletteId: qr.design.paletteId,
               fontTitle: qr.design.fontTitle,
               fontBody: qr.design.fontBody,

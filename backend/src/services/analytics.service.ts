@@ -79,6 +79,46 @@ function formatDate(d: Date): string {
   return d.toISOString().split("T")[0] ?? ""
 }
 
+/** Builds a gap-free daily timeline for the last `days` days from sparse daily rows. */
+function buildFilledTimeline(
+  dailyRows: Array<{ date: Date; count: number }>,
+  days: number,
+): ScanTimelinePoint[] {
+  const dailyMap = new Map<string, number>()
+  for (const row of dailyRows) {
+    const key = formatDate(row.date)
+    dailyMap.set(key, (dailyMap.get(key) ?? 0) + row.count)
+  }
+  const timeline: ScanTimelinePoint[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const key = formatDate(daysAgo(i))
+    timeline.push({ date: key, count: dailyMap.get(key) ?? 0 })
+  }
+  return timeline
+}
+
+/** Maps a Prisma groupBy count result to a DTO, falling back to "Unknown" for a null field. */
+function withUnknownFallback<F extends string>(
+  rows: Array<{ _count: { id: number } } & { [K in F]: string | null }>,
+  field: F,
+): Array<{ [K in F]: string } & { count: number }> {
+  return rows.map((r) => {
+    const value = (r as Record<string, unknown>)[field] as string | null
+    return { [field]: value ?? "Unknown", count: r._count.id } as { [K in F]: string } & { count: number }
+  })
+}
+
+/** Maps a Prisma groupBy country+countryCode count result to a GeoBreakdown DTO. */
+function mapCountryRows(
+  rows: Array<{ country: string | null; countryCode: string | null; _count: { id: number } }>,
+): GeoBreakdown[] {
+  return rows.map((r) => ({
+    country: r.country ?? "Unknown",
+    countryCode: r.countryCode ?? null,
+    count: r._count.id,
+  }))
+}
+
 // ─── Analytics queries ─────────────────────────────────────────────────────────
 
 /**
@@ -198,18 +238,7 @@ export async function getQRAnalytics(
     }),
   ])
 
-  // Build a filled timeline (no gaps) for the requested range
-  const dailyMap = new Map<string, number>()
-  for (const row of dailyRows) {
-    dailyMap.set(formatDate(row.date), row.count)
-  }
-
-  const timeline: ScanTimelinePoint[] = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d = daysAgo(i)
-    const key = formatDate(d)
-    timeline.push({ date: key, count: dailyMap.get(key) ?? 0 })
-  }
+  const timeline = buildFilledTimeline(dailyRows, days)
 
   return {
     totalScans: typeof totalScans === "number" ? totalScans : 0,
@@ -217,23 +246,10 @@ export async function getQRAnalytics(
     scansThisWeek,
     scansThisMonth,
     timeline,
-    byDevice: deviceRows.map((r) => ({
-      deviceType: r.deviceType,
-      count: r._count.id,
-    })),
-    byOS: osRows.map((r) => ({
-      os: r.os ?? "Unknown",
-      count: r._count.id,
-    })),
-    byBrowser: browserRows.map((r) => ({
-      browser: r.browser ?? "Unknown",
-      count: r._count.id,
-    })),
-    byCountry: countryRows.map((r) => ({
-      country: r.country ?? "Unknown",
-      countryCode: r.countryCode ?? null,
-      count: r._count.id,
-    })),
+    byDevice: withUnknownFallback(deviceRows, "deviceType"),
+    byOS: withUnknownFallback(osRows, "os"),
+    byBrowser: withUnknownFallback(browserRows, "browser"),
+    byCountry: mapCountryRows(countryRows),
     byCity: cityRows.map((r) => ({
       city: r.city ?? "Unknown",
       region: r.region ?? null,
@@ -292,10 +308,7 @@ export async function getGlobalAnalytics(
     return {
       totalScans: 0, scansToday: 0, scansThisWeek: 0, scansThisMonth: 0,
       totalQRs: 0, activeQRs: 0,
-      timeline: Array.from({ length: days }, (_, i) => {
-        const d = daysAgo(days - 1 - i)
-        return { date: formatDate(d), count: 0 }
-      }),
+      timeline: buildFilledTimeline([], days),
       byDevice: [], byOS: [], byBrowser: [], byCountry: [], topQRs: [],
     }
   }
@@ -347,19 +360,7 @@ export async function getGlobalAnalytics(
     }),
   ])
 
-  // Aggregate daily timeline (sum across all QRs)
-  const dailyMap = new Map<string, number>()
-  for (const row of dailyRows) {
-    const key = formatDate(row.date)
-    dailyMap.set(key, (dailyMap.get(key) ?? 0) + row.count)
-  }
-  const timeline: ScanTimelinePoint[] = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d = daysAgo(i)
-    const key = formatDate(d)
-    timeline.push({ date: key, count: dailyMap.get(key) ?? 0 })
-  }
-
+  const timeline = buildFilledTimeline(dailyRows, days)
   const totalScans = userQRs.reduce((s, q) => s + q.scanCount, 0)
 
   return {
@@ -370,14 +371,10 @@ export async function getGlobalAnalytics(
     totalQRs: userQRs.length,
     activeQRs: userQRs.filter((q) => q.isActive).length,
     timeline,
-    byDevice: deviceRows.map((r) => ({ deviceType: r.deviceType, count: r._count.id })),
-    byOS: osRows.map((r) => ({ os: r.os ?? "Unknown", count: r._count.id })),
-    byBrowser: browserRows.map((r) => ({ browser: r.browser ?? "Unknown", count: r._count.id })),
-    byCountry: countryRows.map((r) => ({
-      country: r.country ?? "Unknown",
-      countryCode: r.countryCode ?? null,
-      count: r._count.id,
-    })),
+    byDevice: withUnknownFallback(deviceRows, "deviceType"),
+    byOS: withUnknownFallback(osRows, "os"),
+    byBrowser: withUnknownFallback(browserRows, "browser"),
+    byCountry: mapCountryRows(countryRows),
     topQRs: [...userQRs]
       .sort((a, b) => b.scanCount - a.scanCount)
       .slice(0, 10)
