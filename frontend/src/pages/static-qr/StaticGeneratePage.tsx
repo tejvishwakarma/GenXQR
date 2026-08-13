@@ -17,6 +17,7 @@ import {
   SelectTrigger, SelectValue
 } from "@/components/ui/select"
 import { SEOMeta } from "@/components/SEOMeta"
+import { Eyebrow } from "@/components/marketing/ui"
 import { cn } from "@/lib/utils"
 
 // ─── JSON-LD schema ───────────────────────────────────────────────────────────
@@ -196,20 +197,20 @@ const faqs = [
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="border border-zinc-800 rounded-xl overflow-hidden">
+    <div className="border border-line rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-white font-semibold text-sm hover:bg-zinc-800/40 transition-colors"
+        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left text-ink font-semibold text-sm hover:bg-paper transition-colors"
         aria-expanded={open}
       >
         <span>{q}</span>
         <ChevronDown
           size={18}
-          className={cn("text-zinc-400 shrink-0 transition-transform duration-200", open && "rotate-180")}
+          className={cn("text-ink-soft shrink-0 transition-transform duration-200", open && "rotate-180")}
         />
       </button>
       {open && (
-        <div className="px-6 pb-5 text-zinc-400 text-sm leading-relaxed border-t border-zinc-800">
+        <div className="px-6 pb-5 text-ink-soft text-sm leading-relaxed border-t border-line">
           <p className="pt-4">{a}</p>
         </div>
       )}
@@ -313,35 +314,37 @@ export default function StaticGeneratePage() {
             Variant C: "Your Free QR Code is Ready Before Your Coffee Gets Cold"
         */}
         <div className="text-center mb-12 pt-8">
-          <span className="section-header">
-            <QrCode size={14} />
-            Free QR code generator — no account needed
-          </span>
-          <h1 className="text-3xl md:text-5xl font-bold text-white mt-4 mb-4">
+          {/* Uses the shared marketing Eyebrow rather than the legacy
+              `.section-header` pill: that class is violet-400 on a violet tint,
+              which fails contrast on the light paper background. Its three
+              remaining users are auth pages — a separate surface — so it is
+              left in place there. */}
+          <Eyebrow className="justify-center">Free QR code generator — no account needed</Eyebrow>
+          <h1 className="text-3xl md:text-5xl font-bold text-ink mt-4 mb-4">
             Generate a free QR code —{" "}
-            <span className="gradient-text">custom style, instant download</span>
+            <span className="text-accent">custom style, instant download</span>
           </h1>
           {/*
             Deliverable 4: Subheading rewrite — benefit-led, India-first
             Deliverable 5: Secondary CTA — no "sign up" verb
             Deliverable 9: Internal link to /dynamic-qr
           */}
-          <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
+          <p className="text-ink-soft text-lg max-w-2xl mx-auto">
             No account. No credit card. No expiry. Paste your link or content, pick a
             style, and download a 600px PNG — ready to print or share in under a minute.
           </p>
-          <p className="text-zinc-500 text-sm mt-3">
+          <p className="text-ink-faint text-sm mt-3">
             Need to edit it after printing or track every scan?{" "}
-            <Link to="/dynamic-qr" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/dynamic-qr" className="text-accent hover:text-accent-ink underline underline-offset-2">
               See how dynamic QR codes work →
             </Link>
           </p>
 
           {/* Trust bar */}
-          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 mt-6 text-xs text-zinc-500">
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 mt-6 text-xs text-ink-faint">
             {["No account required", "600px PNG download", "6 dot styles", "Custom colours", "Works on all printers"].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
-                <span className="w-1 h-1 rounded-full bg-violet-500 inline-block" />
+                <span className="w-1 h-1 rounded-full bg-accent inline-block" />
                 {t}
               </span>
             ))}
@@ -357,7 +360,7 @@ export default function StaticGeneratePage() {
             {/* Step 1 — Type */}
             {/* Deliverable 4: QR type descriptions rewritten benefit-led */}
             <div className="glass-card p-6 rounded-2xl">
-              <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-ink font-semibold mb-4 flex items-center gap-2">
                 <span className="step-indicator active">1</span>
                 What do you want your QR code to do?
               </h2>
@@ -373,13 +376,13 @@ export default function StaticGeneratePage() {
                   >
                     <span className={cn(
                       "flex-shrink-0",
-                      activeType === type.id ? "text-violet-400" : "text-zinc-500"
+                      activeType === type.id ? "text-accent" : "text-ink-faint"
                     )}>
                       {type.icon}
                     </span>
                     <div>
-                      <div className="text-white text-sm font-medium">{type.label}</div>
-                      <div className="text-zinc-500 text-xs">{type.desc}</div>
+                      <div className="text-ink text-sm font-medium">{type.label}</div>
+                      <div className="text-ink-faint text-xs">{type.desc}</div>
                     </div>
                   </button>
                 ))}
@@ -388,7 +391,7 @@ export default function StaticGeneratePage() {
 
             {/* Step 2 — Content */}
             <div className="glass-card p-6 rounded-2xl">
-              <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-ink font-semibold mb-4 flex items-center gap-2">
                 <span className="step-indicator active">2</span>
                 Add your content
               </h2>
@@ -432,7 +435,7 @@ export default function StaticGeneratePage() {
                       <SelectTrigger className="input-field bg-transparent h-10 px-3 py-2">
                         <SelectValue placeholder="Select security" />
                       </SelectTrigger>
-                      <SelectContent className="bg-zinc-950 border-zinc-800 text-zinc-300">
+                      <SelectContent className="bg-paper-pure border-line text-ink-soft">
                         <SelectItem value="WPA">WPA/WPA2</SelectItem>
                         <SelectItem value="WEP">WEP</SelectItem>
                         <SelectItem value="none">None</SelectItem>
@@ -467,7 +470,7 @@ export default function StaticGeneratePage() {
                 <div>
                   <label className="label-text">Instagram Username</label>
                   <div className="flex">
-                    <span className="flex items-center px-3 bg-zinc-800 border border-r-0 border-zinc-700 rounded-l-xl text-zinc-400 text-sm">@</span>
+                    <span className="flex items-center px-3 bg-paper border border-r-0 border-line rounded-l-xl text-ink-soft text-sm">@</span>
                     <Input
                       className="rounded-l-none"
                       placeholder="yourusername"
@@ -513,9 +516,9 @@ export default function StaticGeneratePage() {
 
             {/* Step 3 — Colors */}
             <div className="glass-card p-6 rounded-2xl">
-              <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-ink font-semibold mb-4 flex items-center gap-2">
                 <span className="step-indicator active">3</span>
-                <Palette size={16} className="text-zinc-400" />
+                <Palette size={16} className="text-ink-soft" />
                 Choose your colours
               </h2>
               <div className="grid grid-cols-2 gap-4">
@@ -526,7 +529,7 @@ export default function StaticGeneratePage() {
                       type="color"
                       value={fgColor}
                       onChange={(e) => setFgColor(e.target.value)}
-                      className="w-10 h-10 rounded-lg border border-zinc-700 bg-transparent cursor-pointer p-0.5"
+                      className="w-10 h-10 rounded-lg border border-line bg-transparent cursor-pointer p-0.5"
                     />
                     <Input
                       value={fgColor}
@@ -543,7 +546,7 @@ export default function StaticGeneratePage() {
                       type="color"
                       value={bgColor}
                       onChange={(e) => setBgColor(e.target.value)}
-                      className="w-10 h-10 rounded-lg border border-zinc-700 bg-transparent cursor-pointer p-0.5"
+                      className="w-10 h-10 rounded-lg border border-line bg-transparent cursor-pointer p-0.5"
                     />
                     <Input
                       value={bgColor}
@@ -558,7 +561,7 @@ export default function StaticGeneratePage() {
 
             {/* Step 4 — Shapes */}
             <div className="glass-card p-6 rounded-2xl">
-              <h2 className="text-white font-semibold mb-5 flex items-center gap-2">
+              <h2 className="text-ink font-semibold mb-5 flex items-center gap-2">
                 <span className="step-indicator active">4</span>
                 Dot &amp; eye shapes
               </h2>
@@ -575,8 +578,8 @@ export default function StaticGeneratePage() {
                         className={cn(
                           "py-2 px-3 rounded-lg border text-xs font-medium transition-all",
                           dotShape === type
-                            ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                            : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-ink-soft hover:border-accent/40 hover:text-ink"
                         )}
                       >
                         {label}
@@ -596,8 +599,8 @@ export default function StaticGeneratePage() {
                         className={cn(
                           "py-2 px-3 rounded-lg border text-xs font-medium transition-all",
                           eyeShape === type
-                            ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                            : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-ink-soft hover:border-accent/40 hover:text-ink"
                         )}
                       >
                         {label}
@@ -617,8 +620,8 @@ export default function StaticGeneratePage() {
                         className={cn(
                           "py-2 px-3 rounded-lg border text-xs font-medium transition-all",
                           eyeDotShape === type
-                            ? "border-violet-500 bg-violet-500/15 text-violet-300"
-                            : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                            ? "border-accent bg-accent-soft text-accent"
+                            : "border-line text-ink-soft hover:border-accent/40 hover:text-ink"
                         )}
                       >
                         {label}
@@ -637,8 +640,8 @@ export default function StaticGeneratePage() {
           */}
           <div className="sticky top-24 self-start">
             <div className="glass-card p-8 rounded-2xl text-center">
-              <h2 className="text-white font-semibold mb-1">Your QR code</h2>
-              <p className="text-zinc-500 text-xs mb-6">Updates live as you make changes</p>
+              <h2 className="text-ink font-semibold mb-1">Your QR code</h2>
+              <p className="text-ink-faint text-xs mb-6">Updates live as you make changes</p>
 
               {/* Real QR output */}
               <div
@@ -655,16 +658,16 @@ export default function StaticGeneratePage() {
               </Button>
 
               {/* Upgrade nudge — no "sign up" verb */}
-              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 text-left">
-                <p className="text-violet-300 text-xs font-semibold mb-1">
+              <div className="rounded-xl border border-accent/20 bg-accent-soft p-4 text-left">
+                <p className="text-accent text-xs font-semibold mb-1">
                   Want to edit this QR code after printing?
                 </p>
-                <p className="text-zinc-500 text-xs mb-3">
+                <p className="text-ink-faint text-xs mb-3">
                   Dynamic QR codes let you change the destination any time — and track
                   every scan by city, device, and time. Free plan available.
                 </p>
                 <Link to="/dynamic-qr">
-                  <Button variant="ghost" size="sm" className="text-violet-400 hover:text-violet-300 w-full justify-start px-0">
+                  <Button variant="ghost" size="sm" className="text-accent hover:text-accent-ink w-full justify-start px-0">
                     See how dynamic QR works
                     <ArrowRight size={14} />
                   </Button>
@@ -679,11 +682,11 @@ export default function StaticGeneratePage() {
         {/* Deliverable 9: Internal links — /features, /pricing, /dynamic-qr */}
         <section className="mt-20 max-w-5xl mx-auto">
           <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+            <h2 className="text-2xl md:text-3xl font-bold text-ink mb-3">
               This is a static QR code.{" "}
-              <span className="gradient-text">Here's what you're missing.</span>
+              <span className="text-accent">Here's what you're missing.</span>
             </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto text-sm">
+            <p className="text-ink-soft max-w-xl mx-auto text-sm">
               Static QR codes work — but once printed, they're frozen. Dynamic QR codes
               on GenXQR give you control after the QR code leaves your hands.
             </p>
@@ -698,8 +701,8 @@ export default function StaticGeneratePage() {
                 desc: "Change the destination URL any time — same QR code, no reprint. Live in under one second.",
               },
               {
-                icon: <BarChart3 size={20} className="text-violet-400" />,
-                bg: "bg-violet-500/10 border-violet-500/20",
+                icon: <BarChart3 size={20} className="text-accent" />,
+                bg: "bg-accent-soft border-accent/20",
                 title: "Track every scan",
                 desc: "See city, device, OS, and browser for every scan. Updated in real time on your dashboard.",
               },
@@ -720,8 +723,8 @@ export default function StaticGeneratePage() {
                 <div className={`w-10 h-10 rounded-lg border flex items-center justify-center mb-3 ${card.bg}`}>
                   {card.icon}
                 </div>
-                <h3 className="text-white font-semibold text-sm mb-1">{card.title}</h3>
-                <p className="text-zinc-400 text-xs leading-relaxed">{card.desc}</p>
+                <h3 className="text-ink font-semibold text-sm mb-1">{card.title}</h3>
+                <p className="text-ink-soft text-xs leading-relaxed">{card.desc}</p>
               </div>
             ))}
           </div>
@@ -745,11 +748,11 @@ export default function StaticGeneratePage() {
         {/* Deliverable 7: 5 questions targeting Cluster D featured snippets */}
         <section className="mt-20 max-w-3xl mx-auto">
           <div className="text-center mb-10">
-            <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+            <h2 className="text-2xl md:text-3xl font-bold text-ink mb-3">
               Questions about{" "}
-              <span className="gradient-text">QR code generators</span>
+              <span className="text-accent">QR code generators</span>
             </h2>
-            <p className="text-zinc-400 text-sm">
+            <p className="text-ink-soft text-sm">
               Everything you need to know before you generate and print.
             </p>
           </div>
@@ -758,13 +761,13 @@ export default function StaticGeneratePage() {
               <FaqItem key={faq.q} q={faq.q} a={faq.a} />
             ))}
           </div>
-          <p className="text-center text-zinc-600 text-xs mt-8">
+          <p className="text-center text-ink-faint text-xs mt-8">
             More questions?{" "}
-            <Link to="/faq" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/faq" className="text-accent hover:text-accent-ink underline underline-offset-2">
               See the full FAQ →
             </Link>
             {" "}or{" "}
-            <Link to="/features" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            <Link to="/features" className="text-accent hover:text-accent-ink underline underline-offset-2">
               explore all features →
             </Link>
           </p>
