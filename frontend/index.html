@@ -4,13 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Favicon. The SVG is preferred by modern browsers and scales cleanly;
-         the PNG is the fallback for those that don't support SVG icons.
-         No `sizes` on the apple-touch-icon: the file is 513x513 rather than
-         Apple's recommended 180x180, and declaring a size that doesn't match
-         the asset is worse than omitting it (iOS scales either way). -->
+    <!-- Favicons. The SVG is preferred by modern browsers and scales cleanly;
+         the PNGs are fallbacks, and browsers pick the closest `sizes` match.
+         NOTE: the declared sizes are the files' ACTUAL dimensions, which are
+         each 1px larger than their names suggest (17/33/49/181 rather than
+         16/32/48/180) — an export setting on the source artwork. Declaring
+         the true size is correct; re-exporting at exact sizes would render
+         more crisply, since a 17px icon has to be resampled to fit a 16px slot. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="17x17" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="33x33" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="49x49" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- PWA -->
@@ -54,13 +58,12 @@
       property="og:description"
       content="Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. Free plan available."
     />
-    <!-- Dimensions must match the actual file. og-image.png is currently
-         513x513; a 1.91:1 image (1200x630) would render better as a large
-         social card, since square images get centre-cropped by Facebook,
-         LinkedIn, and X. Update both the file and these values together. -->
+    <!-- 1200x630 is the 1.91:1 ratio Facebook, LinkedIn and X render as a
+         large card without cropping. These values must match the actual file. -->
     <meta property="og:image" content="https://genxqr.com/og-image.png" />
-    <meta property="og:image:width" content="513" />
-    <meta property="og:image:height" content="513" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="GenXQR — QR Code Generator with Analytics" />
     <meta property="og:url" content="https://genxqr.com/" />
     <meta property="og:locale" content="en_US" />

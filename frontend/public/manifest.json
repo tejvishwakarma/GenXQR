@@ -20,14 +20,20 @@
       "purpose": "any"
     },
     {
-      "src": "/apple-touch-icon.png",
-      "sizes": "513x513",
+      "src": "/favicon-48x48.png",
+      "sizes": "49x49",
       "type": "image/png",
       "purpose": "any"
     },
     {
       "src": "/apple-touch-icon.png",
-      "sizes": "513x513",
+      "sizes": "181x181",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "181x181",
       "type": "image/png",
       "purpose": "maskable"
     }
