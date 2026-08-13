@@ -19,6 +19,10 @@ const footerLinks = {
   Legal: [
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms of Service", href: "/terms" },
+    // Payment-gateway onboarding requires these two to be reachable from the
+    // site, not merely to exist — reviewers look for the footer links.
+    { label: "Refund & Cancellation", href: "/refund-policy" },
+    { label: "Service Delivery", href: "/delivery-policy" },
     { label: "Cookie Policy", href: "/cookie-policy" },
     { label: "GDPR", href: "/gdpr" },
   ],

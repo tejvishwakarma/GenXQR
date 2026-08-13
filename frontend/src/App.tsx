@@ -36,6 +36,8 @@ import PrivacyPage from "@/pages/marketing/PrivacyPage"
 import TermsPage from "@/pages/marketing/TermsPage"
 import CookiePolicyPage from "@/pages/marketing/CookiePolicyPage"
 import GDPRPage from "@/pages/marketing/GDPRPage"
+import RefundPolicyPage from "@/pages/marketing/RefundPolicyPage"
+import DeliveryPolicyPage from "@/pages/marketing/DeliveryPolicyPage"
 import ChangelogPage from "@/pages/marketing/ChangelogPage"
 import CareersPage from "@/pages/marketing/CareersPage"
 import QRScannerPage from "@/pages/marketing/QRScannerPage"
@@ -134,6 +136,8 @@ function App() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/cookie-policy" element={<CookiePolicyPage />} />
           <Route path="/gdpr" element={<GDPRPage />} />
+          <Route path="/refund-policy" element={<RefundPolicyPage />} />
+          <Route path="/delivery-policy" element={<DeliveryPolicyPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="/careers" element={<CareersPage />} />
           <Route path="/scanner" element={<QRScannerPage />} />

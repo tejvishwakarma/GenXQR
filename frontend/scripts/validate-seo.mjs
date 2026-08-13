@@ -127,6 +127,33 @@ try {
 
   console.log(`  ok  ${locs.length} URLs, no duplicates, all on ${EXPECTED_ORIGIN}`)
 
+  // ── payment-gateway compliance ───────────────────────────────────────────
+  // Cashfree (and Indian payment aggregators generally) require these pages to
+  // be live and reachable, plus a registered business name and phone number on
+  // the site. Warn rather than fail, so this can't block an unrelated deploy —
+  // but make it impossible to forget.
+  console.log("\nPAYMENT-GATEWAY COMPLIANCE")
+  const REQUIRED_PAGES = [
+    "/terms", "/privacy", "/about", "/contact",
+    "/refund-policy", "/delivery-policy", "/pricing", "/features",
+  ]
+  const missingPages = REQUIRED_PAGES.filter((p) => !locs.some((u) => new URL(u).pathname === p))
+  if (missingPages.length) {
+    fail(`required pages absent from the sitemap: ${missingPages.join(", ")}`)
+  } else {
+    console.log(`  ok  all ${REQUIRED_PAGES.length} required policy/info pages present`)
+  }
+
+  if (!site.hasCompleteBusinessIdentity()) {
+    console.log(
+      "  ⚠ WARNING: ORGANISATION.legalName / .phone in src/lib/site.ts are still\n" +
+        "    placeholders. A payment-gateway review will reject the site until the\n" +
+        "    registered business name and a reachable phone number are published.",
+    )
+  } else {
+    console.log("  ok  registered business name and phone number are set")
+  }
+
   // ── robots.txt ───────────────────────────────────────────────────────────
   console.log("\nROBOTS")
   const robots = fs.readFileSync(path.join(root, "public/robots.txt"), "utf8")

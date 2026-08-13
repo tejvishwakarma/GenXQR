@@ -51,9 +51,13 @@ const PUBLIC_ROUTES = [
   { path: "/careers", changefreq: "weekly", priority: "0.5" },
   { path: "/changelog", changefreq: "weekly", priority: "0.5" },
 
-  // Legal — low priority but should still be indexed for trust signals
+  // Legal — low priority but should still be indexed for trust signals.
+  // refund-policy and delivery-policy are also required to be publicly
+  // reachable for Indian payment-gateway onboarding.
   { path: "/privacy", changefreq: "yearly", priority: "0.3" },
   { path: "/terms", changefreq: "yearly", priority: "0.3" },
+  { path: "/refund-policy", changefreq: "yearly", priority: "0.4" },
+  { path: "/delivery-policy", changefreq: "yearly", priority: "0.4" },
   { path: "/cookie-policy", changefreq: "yearly", priority: "0.3" },
   { path: "/gdpr", changefreq: "yearly", priority: "0.3" },
 ]

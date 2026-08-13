@@ -24,6 +24,11 @@ export function organisationSchema() {
     "@type": "Organization",
     "@id": ORG_ID,
     name: ORGANISATION.name,
+    // legalName and telephone are only emitted once real values replace the
+    // placeholders — publishing "PLACEHOLDER …" in structured data would be
+    // worse than omitting the fields entirely.
+    ...(ORGANISATION.legalName.startsWith("PLACEHOLDER") ? {} : { legalName: ORGANISATION.legalName }),
+    ...(ORGANISATION.phone.startsWith("PLACEHOLDER") ? {} : { telephone: ORGANISATION.phone }),
     url: absoluteUrl("/"),
     logo: {
       "@type": "ImageObject",

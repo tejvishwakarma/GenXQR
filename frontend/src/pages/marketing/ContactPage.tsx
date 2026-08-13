@@ -1,7 +1,8 @@
-import { MessageSquare, MapPin, Phone } from "lucide-react"
+import { MessageSquare, MapPin, Phone, Mail } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, Reveal, MktCard, IconTile, MktButton } from "@/components/marketing/ui"
 import { PageHero } from "@/components/marketing/PageHero"
+import { ORGANISATION } from "@/lib/site"
 
 export default function ContactPage() {
   return (
@@ -39,23 +40,42 @@ export default function ContactPage() {
               </MktCard>
 
               <MktCard interactive={false}>
-                <IconTile icon={Phone} tint="blue" className="mb-4" />
+                <IconTile icon={Mail} tint="blue" className="mb-4" />
                 <h3 className="text-ink font-semibold mb-2">Sales</h3>
                 <p className="text-ink-soft text-sm mb-4">Questions about pricing or enterprise features?</p>
-                <a href="mailto:sales@genxqr.com" className="text-accent text-sm font-medium hover:text-accent-ink">
-                  sales@genxqr.com
+                <a href={`mailto:${ORGANISATION.salesEmail}`} className="text-accent text-sm font-medium hover:text-accent-ink">
+                  {ORGANISATION.salesEmail}
                 </a>
               </MktCard>
             </div>
+
+            {/* A reachable phone number is explicitly required alongside an
+                email address for payment-gateway onboarding. */}
+            <MktCard interactive={false} className="flex items-start gap-4">
+              <IconTile icon={Phone} tint="violet" className="mt-1" />
+              <div>
+                <h3 className="text-ink font-semibold mb-2">Phone</h3>
+                <a
+                  href={`tel:${ORGANISATION.phone.replace(/\s+/g, "")}`}
+                  className="text-accent text-sm font-medium hover:text-accent-ink"
+                >
+                  {ORGANISATION.phone}
+                </a>
+                <p className="text-ink-soft text-xs mt-1">Monday to Friday, 10:00–18:00 IST</p>
+              </div>
+            </MktCard>
 
             <MktCard interactive={false} className="flex items-start gap-4">
               <IconTile icon={MapPin} tint="emerald" className="mt-1" />
               <div>
                 <h3 className="text-ink font-semibold mb-2">Headquarters</h3>
+                {/* The registered legal entity must appear here for
+                    payment-gateway onboarding — reviewers match it against the
+                    PAN / certificate of incorporation. */}
                 <p className="text-ink-soft text-sm leading-relaxed">
-                  GenXQR<br />
-                  New Delhi<br />
-                  India
+                  {ORGANISATION.legalName}<br />
+                  Trading as {ORGANISATION.name}<br />
+                  {ORGANISATION.addressLocality}, India
                 </p>
               </div>
             </MktCard>
