@@ -591,9 +591,12 @@ export default function QRDetailPage() {
         imageOptions: { hideBackgroundDots: true, imageSize: (((d as any)?.logoSize as number) ?? 35) / 100, margin: 8, crossOrigin: "anonymous" },
         qrOptions: { errorCorrectionLevel: "H" as const },
       }
-      const design = d as unknown as Record<string, unknown>
-      const frameBgColor = (design?.frameBgColor as string) || "#1f2937"
-      const frameText    = (design?.frameText    as string) || "SCAN ME"
+      // The API field is `frameColor` (matching the Prisma model). This read
+      // `frameBgColor`, which is never present, so every download — PNG, SVG,
+      // JPEG, WEBP and the vector PDF — rendered the frame in the #1f2937
+      // fallback instead of the colour the user chose.
+      const frameBgColor = d?.frameColor || "#1f2937"
+      const frameText    = d?.frameText  || "SCAN ME"
 
       if (ext === "svg") {
         const inst = new QRCodeStyling({ ...sharedOpts, width: 900, height: 900, type: "svg", margin: 30 })
@@ -686,9 +689,11 @@ export default function QRDetailPage() {
         {/* Left — QR image + download */}
         <div className="glass-card p-6 rounded-2xl flex flex-col items-center gap-5 w-full sm:w-fit">
           {(() => {
-            const d = qr.design as unknown as Record<string, unknown>
-            const previewFrameBg   = (d?.frameBgColor as string) || "#1f2937"
-            const previewFrameText = (d?.frameText    as string) || "SCAN ME"
+            // Same field-name fix as the download handler above: `frameColor`,
+            // not `frameBgColor`. This is why the detail page showed a dark
+            // navy frame for a QR saved with a red one.
+            const previewFrameBg   = qr.design?.frameColor || "#1f2937"
+            const previewFrameText = qr.design?.frameText  || "SCAN ME"
             const fs = qr.design?.frameStyle ?? "none"
             return (
           <div className="flex flex-col items-center">
