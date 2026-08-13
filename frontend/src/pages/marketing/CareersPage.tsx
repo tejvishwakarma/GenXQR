@@ -133,7 +133,7 @@ export default function CareersPage() {
                   </p>
                 </div>
                 <a
-                  href="mailto:careers@genxqr.com?subject=Speculative Application — GenXQR"
+                  href="mailto:support@genxqr.com?subject=Speculative Application — GenXQR"
                   className="inline-flex items-center gap-2 px-6 py-3 border border-line bg-paper hover:border-ink/30 hover:shadow-card text-ink text-sm font-semibold rounded-full transition-all duration-200"
                 >
                   Send a speculative application

@@ -19,7 +19,7 @@ import {
 
 const router: IRouter = Router()
 
-const ADMIN_SUPPORT_EMAIL = "riftqr07@gmail.com"
+const ADMIN_SUPPORT_EMAIL = "support@genxqr.com"
 
 const CreateTicketSchema = z.object({
   subject:  z.string().min(5, "Subject must be at least 5 characters").max(200),

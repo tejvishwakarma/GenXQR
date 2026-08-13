@@ -331,7 +331,7 @@ export async function createPaymentOrder(
     throw new AppError(400, "Cannot create a payment order for the free plan")
   }
   if (planName === "ENTERPRISE") {
-    throw new AppError(400, "Enterprise plan requires direct contact. Please email sales@genxqr.com")
+    throw new AppError(400, "Enterprise plan requires direct contact. Please email support@genxqr.com")
   }
 
   const { key, salt, baseUrl } = getPayUConfig()

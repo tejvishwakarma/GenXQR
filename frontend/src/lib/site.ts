@@ -52,9 +52,13 @@ export const ORGANISATION = {
   /** City-level only — deliberately not a street address, which we don't publish. */
   addressLocality: "New Delhi",
   addressCountry: "IN",
+  /**
+   * The single public contact address. Support, sales, privacy and careers
+   * enquiries all route here — separate salesEmail/privacyEmail keys existed
+   * but pointed at the same inbox, which is just three ways to drift apart.
+   * Split them again only when there are genuinely separate inboxes.
+   */
   email: "support@genxqr.com",
-  salesEmail: "sales@genxqr.com",
-  privacyEmail: "privacy@genxqr.com",
 } as const
 
 /** True once the placeholders above have been replaced with real values. */

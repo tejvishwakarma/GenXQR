@@ -60,8 +60,8 @@ export default function PrivacyPage() {
             <p className="text-ink-soft leading-relaxed text-sm md:text-base mb-4">
               If you have any questions or concerns about this Privacy Policy, please contact our Data Protection Officer at:
             </p>
-            <a href="mailto:privacy@genxqr.com" className="text-accent hover:text-accent-ink font-medium transition-colors">
-              privacy@genxqr.com
+            <a href="mailto:support@genxqr.com" className="text-accent hover:text-accent-ink font-medium transition-colors">
+              support@genxqr.com
             </a>
           </div>
         </LegalCard>

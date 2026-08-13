@@ -22,7 +22,7 @@ import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 
 const router: IRouter = Router()
 
-const RECRUITER_EMAIL = "riftqr07@gmail.com"
+const RECRUITER_EMAIL = "support@genxqr.com"
 
 // ── CV disk storage ────────────────────────────────────────────────────────────
 // Mirror the same UPLOAD_BASE pattern used by upload.routes.ts

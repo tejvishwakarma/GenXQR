@@ -56,8 +56,8 @@ export default function CookiePolicyPage() {
             <h2 className="text-xl font-bold font-display text-ink mb-3">Contact</h2>
             <p className="text-sm md:text-base">
               For cookie-related questions, contact us at{" "}
-              <a href="mailto:privacy@genxqr.com" className="text-accent hover:text-accent-ink">
-                privacy@genxqr.com
+              <a href="mailto:support@genxqr.com" className="text-accent hover:text-accent-ink">
+                support@genxqr.com
               </a>
               .
             </p>

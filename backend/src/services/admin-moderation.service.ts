@@ -216,7 +216,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   static_qr_enabled: "true",
   max_qr_per_user: "50",
   free_scan_limit: "1000",
-  support_email: "riftqr07@gmail.com",
+  support_email: "support@genxqr.com",
   changelog_sections: JSON.stringify([
     {
       version: "v1.9.0",

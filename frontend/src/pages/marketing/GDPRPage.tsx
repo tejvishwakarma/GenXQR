@@ -53,8 +53,8 @@ export default function GDPRPage() {
             </p>
             <p className="text-ink-soft text-sm md:text-base">
               Contact:{" "}
-              <a href="mailto:privacy@genxqr.com" className="text-accent hover:text-accent-ink">
-                privacy@genxqr.com
+              <a href="mailto:support@genxqr.com" className="text-accent hover:text-accent-ink">
+                support@genxqr.com
               </a>
             </p>
           </div>

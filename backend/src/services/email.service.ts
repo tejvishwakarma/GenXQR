@@ -467,7 +467,7 @@ export function buildBroadcastEmail(subject: string, body: string, isHtml: boole
 // ─── Support Ticket emails ─────────────────────────────────────────────────────
 
 /**
- * Email sent to the admin (riftqr07@gmail.com) when a new support ticket is submitted.
+ * Email sent to the admin (support@genxqr.com) when a new support ticket is submitted.
  */
 export function buildSupportTicketAdminEmail(opts: {
   userName: string

@@ -50,7 +50,7 @@ export function organisationSchema() {
       {
         "@type": "ContactPoint",
         contactType: "sales",
-        email: ORGANISATION.salesEmail,
+        email: ORGANISATION.email,
         availableLanguage: ["English"],
       },
     ],

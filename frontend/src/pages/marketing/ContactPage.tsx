@@ -43,8 +43,8 @@ export default function ContactPage() {
                 <IconTile icon={Mail} tint="blue" className="mb-4" />
                 <h3 className="text-ink font-semibold mb-2">Sales</h3>
                 <p className="text-ink-soft text-sm mb-4">Questions about pricing or enterprise features?</p>
-                <a href={`mailto:${ORGANISATION.salesEmail}`} className="text-accent text-sm font-medium hover:text-accent-ink">
-                  {ORGANISATION.salesEmail}
+                <a href={`mailto:${ORGANISATION.email}`} className="text-accent text-sm font-medium hover:text-accent-ink">
+                  {ORGANISATION.email}
                 </a>
               </MktCard>
             </div>
