@@ -4,10 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Favicon -->
+    <!-- Favicon. The SVG is preferred by modern browsers and scales cleanly;
+         the PNG is the fallback for those that don't support SVG icons.
+         No `sizes` on the apple-touch-icon: the file is 513x513 rather than
+         Apple's recommended 180x180, and declaring a size that doesn't match
+         the asset is worse than omitting it (iOS scales either way). -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="33x33" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
@@ -50,9 +54,13 @@
       property="og:description"
       content="Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. Free plan available."
     />
+    <!-- Dimensions must match the actual file. og-image.png is currently
+         513x513; a 1.91:1 image (1200x630) would render better as a large
+         social card, since square images get centre-cropped by Facebook,
+         LinkedIn, and X. Update both the file and these values together. -->
     <meta property="og:image" content="https://genxqr.com/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <meta property="og:image:width" content="513" />
+    <meta property="og:image:height" content="513" />
     <meta property="og:image:alt" content="GenXQR — QR Code Generator with Analytics" />
     <meta property="og:url" content="https://genxqr.com/" />
     <meta property="og:locale" content="en_US" />

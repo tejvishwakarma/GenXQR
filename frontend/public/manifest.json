@@ -1,29 +1,49 @@
 {
-  "name": "GenXQR",
+  "name": "GenXQR — QR Code Generator with Analytics",
   "short_name": "GenXQR",
-  "description": "Generate, track and analyze QR codes for every use case",
+  "description": "Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing.",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
-  "background_color": "#09090b",
+  "background_color": "#ffffff",
   "theme_color": "#7c3aed",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en",
+  "dir": "ltr",
   "categories": ["productivity", "utilities", "business"],
   "icons": [
     {
-      "src": "/vite.svg",
+      "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "513x513",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "513x513",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Generate QR Code",
+      "name": "Generate a QR code",
       "short_name": "Generate",
       "url": "/generate",
-      "icons": [{ "src": "/vite.svg", "sizes": "any" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Scan a QR code",
+      "short_name": "Scan",
+      "url": "/scanner",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
 }
