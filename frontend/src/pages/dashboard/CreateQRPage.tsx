@@ -245,8 +245,13 @@ function populateFormFromQR(
     setDotStyle((qr.design.dotStyle ?? "rounded") as import("qr-code-styling").DotType)
     setCornerStyle((qr.design.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType)
     setFrameStyle(qr.design.frameStyle ?? "none")
-    setFrameText((qr.design as unknown as Record<string, unknown>).frameText as string ?? "SCAN ME")
-    setFrameBgColor((qr.design as unknown as Record<string, unknown>).frameBgColor as string ?? "#1f2937")
+    // Read these off the typed design object rather than casting through
+    // Record<string, unknown>. The cast is what allowed a typo to survive:
+    // this used to look for `frameBgColor`, which the API never returns (the
+    // field is `frameColor`), so every edit silently reset the frame colour to
+    // the #1f2937 default below.
+    setFrameText(qr.design.frameText ?? "SCAN ME")
+    setFrameBgColor(qr.design.frameColor ?? "#1f2937")
     setLogoUrl(qr.design.logoUrl ?? null)
   }
 
@@ -908,7 +913,8 @@ export default function CreateQRPage() {
           cornerSquareStyle: cornerStyle as string,
           frameStyle,
           frameText,
-          frameBgColor,
+          // Local UI state is named frameBgColor; the API/DB field is frameColor.
+          frameColor: frameBgColor,
           logoSize,
           ...(logoUrl ? { logoUrl } : {}),
           ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),

@@ -1034,7 +1034,14 @@ export interface CreateQRPayload {
     cornerDotStyle?: string
     frameStyle?: string
     frameText?: string
-    frameBgColor?: string
+    /**
+     * Must be `frameColor` — that is the field name in the Prisma model and in
+     * createQRSchema. This was previously declared as `frameBgColor`, which
+     * meant the payload matched the (wrong) type, compiled cleanly, and was
+     * then silently stripped by Zod as an unknown key. The colour never
+     * persisted and the reader fell back to a default.
+     */
+    frameColor?: string
     logoUrl?: string
     logoSize?: number
   }
