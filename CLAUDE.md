@@ -873,7 +873,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Repo root: `/home/<site-user>/htdocs/genxqr.com/`
 - Frontend build: `<repo-root>/frontend/dist` (this is what Nginx's `root` points at, edited manually in the Vhost — CloudPanel's default doesn't know about the `frontend/dist` subpath)
 - Backend: `<repo-root>/backend/dist/index.js`, run via PM2 per `ecosystem.config.cjs`
-- Uploads: `<repo-root>/uploads/`
+- Uploads: `<repo-root>/backend/uploads/` — `UPLOAD_BASE` is `process.cwd()/uploads` and PM2's `cwd` is `<repo>/backend`, so uploads land under `backend/`, **not** the repo root. The nginx `/uploads/` alias must point here or every uploaded file 404s.
 - Logs: `<repo-root>/logs/`
 
 **Nginx** is edited via CloudPanel's per-site Vhost Editor, not a standalone `nginx.conf` — see [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) for the exact block that replaces CloudPanel's default `location /` proxy-everything block:

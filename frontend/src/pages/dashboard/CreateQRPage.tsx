@@ -584,6 +584,7 @@ export default function CreateQRPage() {
   const [circularLogoUrl, setCircularLogoUrl] = useState<string | null>(null)
   const [logoSize, setLogoSize] = useState(35)
   const [isLogoUploading, setIsLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState<string | null>(null)
   const [vcardData, setVcardData] = useState<VCardData>(DEFAULT_VCARD_DATA)
   const [previewTab, setPreviewTab] = useState<"qr" | "scan">("scan")
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileInfo[]>([])
@@ -807,8 +808,19 @@ export default function CreateQRPage() {
       return
     }
     makeCircularDataUrl(logoUrl)
-      .then(setCircularLogoUrl)
-      .catch(() => setCircularLogoUrl(logoUrl)) // fallback: use original on error
+      .then((dataUrl) => {
+        setCircularLogoUrl(dataUrl)
+        setLogoError(null)
+      })
+      .catch(() => {
+        // Previously this fell back to the raw logoUrl. That made things worse:
+        // if the URL couldn't be loaded into a canvas it couldn't be loaded by
+        // qr-code-styling either, so the library failed mid-render and the
+        // entire QR preview vanished. Drop the logo instead — a QR without a
+        // logo is far better than no QR at all — and tell the user why.
+        setCircularLogoUrl(null)
+        setLogoError("That logo could not be loaded, so it was left off the QR code. Try a different PNG or JPEG.")
+      })
   }, [logoUrl])
 
   useEffect(() => {
@@ -834,17 +846,24 @@ export default function CreateQRPage() {
   const handleLogoChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    setLogoError(null)
+
     if (file.size > LOGO_MAX_BYTES) {
-      alert("Logo must be under 1 MB. Use a smaller PNG or SVG.")
+      setLogoError("Logo must be under 1 MB.")
       if (logoInputRef.current) logoInputRef.current.value = ""
       return
     }
+
     setIsLogoUploading(true)
     try {
       const info = await uploadFile(file, "image")
       setLogoUrl(info.tempUrl)
-    } catch {
-      // logo is optional — silently discard
+    } catch (err) {
+      // Previously this swallowed the error entirely ("logo is optional"), so a
+      // rejected file — an SVG, say, which the API does not accept — looked
+      // like nothing had happened at all. Always say why.
+      setLogoError(err instanceof Error ? err.message : "Logo upload failed. Please try again.")
     } finally {
       setIsLogoUploading(false)
       if (logoInputRef.current) logoInputRef.current.value = ""
@@ -2015,10 +2034,13 @@ export default function CreateQRPage() {
                   {/* Logo */}
                   <div>
                     <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3">Logo (optional)</h3>
+                    {/* Must match the `image` config in backend/src/routes/upload.routes.ts.
+                        SVG is deliberately NOT accepted there — it can carry executable
+                        script — so offering it here only produced a silent failure. */}
                     <input
                       ref={logoInputRef}
                       type="file"
-                      accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
                       className="hidden"
                       onChange={handleLogoChange}
                     />
@@ -2075,8 +2097,14 @@ export default function CreateQRPage() {
                           <Upload size={18} className="mx-auto text-zinc-500 mb-1" />
                         )}
                         <p className="text-zinc-500 text-sm">{isLogoUploading ? "Uploading…" : "Click to upload logo"}</p>
-                        <p className="text-zinc-700 text-xs mt-1">PNG, SVG, JPEG · Max 1 MB</p>
+                        <p className="text-zinc-700 text-xs mt-1">PNG, JPEG, WebP, GIF · Max 1 MB</p>
                       </button>
+                    )}
+
+                    {logoError && (
+                      <p className="text-red-400 text-xs mt-2" role="alert">
+                        {logoError}
+                      </p>
                     )}
                   </div>
 
