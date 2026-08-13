@@ -131,6 +131,16 @@ app.use("/uploads/avatars", (_req, res, next) => {
 })
 app.use("/uploads/avatars", express.static(path.join(UPLOAD_BASE, "avatars")))
 
+// Applicant CVs share the uploads tree but are NOT public. They are served
+// only by GET /admin-api/careers/applications/:id/cv, which authenticates the
+// caller first. express.static below would otherwise hand out any CV to anyone
+// who guessed a filename, exposing applicants' personal data. Blocked here as
+// well as in nginx (deploy/cloudpanel-vhost-nodejs.conf) so neither layer can
+// leak them on its own.
+app.use("/uploads/cvs", (_req, res) => {
+  res.status(404).json({ success: false, error: "Not found" })
+})
+
 app.use("/uploads", (_req, res, next) => {
   res.setHeader("Content-Disposition", "attachment")
   res.setHeader("Content-Security-Policy", "default-src 'none'")
