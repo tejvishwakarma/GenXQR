@@ -144,14 +144,24 @@ try {
     console.log(`  ok  all ${REQUIRED_PAGES.length} required policy/info pages present`)
   }
 
-  if (!site.hasCompleteBusinessIdentity()) {
-    console.log(
-      "  ⚠ WARNING: ORGANISATION.legalName / .phone in src/lib/site.ts are still\n" +
-        "    placeholders. A payment-gateway review will reject the site until the\n" +
-        "    registered business name and a reachable phone number are published.",
-    )
+  const identity = site.businessIdentityStatus()
+  if (identity.hasLegalName) {
+    console.log("  ok  registered business name published")
   } else {
-    console.log("  ok  registered business name and phone number are set")
+    fail("no registered business name set in ORGANISATION.legalName (src/lib/site.ts)")
+  }
+
+  if (identity.hasPhone) {
+    console.log("  ok  contact phone number published")
+  } else {
+    // A warning, not a failure — publishing a number is the owner's call. But
+    // Cashfree lists it as required, so this must stay visible rather than
+    // quietly passing.
+    console.log(
+      "  ⚠ NOTE: no contact phone number is published. Cashfree's checklist asks for\n" +
+        '    "one email ID and a valid phone number" on the Contact page, so a reviewer\n' +
+        "    may raise this. Add `phone` to ORGANISATION in src/lib/site.ts to resolve.",
+    )
   }
 
   // ── robots.txt ───────────────────────────────────────────────────────────

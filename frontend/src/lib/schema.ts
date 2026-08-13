@@ -24,11 +24,13 @@ export function organisationSchema() {
     "@type": "Organization",
     "@id": ORG_ID,
     name: ORGANISATION.name,
-    // legalName and telephone are only emitted once real values replace the
-    // placeholders — publishing "PLACEHOLDER …" in structured data would be
-    // worse than omitting the fields entirely.
-    ...(ORGANISATION.legalName.startsWith("PLACEHOLDER") ? {} : { legalName: ORGANISATION.legalName }),
-    ...(ORGANISATION.phone.startsWith("PLACEHOLDER") ? {} : { telephone: ORGANISATION.phone }),
+    legalName: ORGANISATION.legalName,
+    // `telephone` is emitted only if a phone number is configured. None is
+    // published today (see the note in site.ts), and an absent field is far
+    // better than an empty or placeholder one in structured data.
+    ...("phone" in ORGANISATION && typeof ORGANISATION.phone === "string"
+      ? { telephone: ORGANISATION.phone }
+      : {}),
     url: absoluteUrl("/"),
     logo: {
       "@type": "ImageObject",

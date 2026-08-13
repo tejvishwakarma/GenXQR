@@ -1,4 +1,4 @@
-import { MessageSquare, MapPin, Phone, Mail } from "lucide-react"
+import { MapPin, Mail, Clock } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, Reveal, MktCard, IconTile, MktButton } from "@/components/marketing/ui"
 import { PageHero } from "@/components/marketing/PageHero"
@@ -29,41 +29,35 @@ export default function ContactPage() {
           <Reveal className="space-y-8">
             <h2 className="text-2xl font-bold font-display tracking-tightest text-ink">Get in touch</h2>
 
+            {/* One address handles support, sales and billing, so a second
+                email card would just repeat it. The companion card sets
+                response expectations instead — the thing people actually want
+                to know when there is no phone number to call. */}
             <div className="grid sm:grid-cols-2 gap-6">
               <MktCard interactive={false}>
-                <IconTile icon={MessageSquare} tint="violet" className="mb-4" />
-                <h3 className="text-ink font-semibold mb-2">Support</h3>
-                <p className="text-ink-soft text-sm mb-4">We're here to help with any technical or account issues.</p>
-                <a href="mailto:support@genxqr.com" className="text-accent text-sm font-medium hover:text-accent-ink">
-                  support@genxqr.com
-                </a>
-              </MktCard>
-
-              <MktCard interactive={false}>
-                <IconTile icon={Mail} tint="blue" className="mb-4" />
-                <h3 className="text-ink font-semibold mb-2">Sales</h3>
-                <p className="text-ink-soft text-sm mb-4">Questions about pricing or enterprise features?</p>
-                <a href={`mailto:${ORGANISATION.email}`} className="text-accent text-sm font-medium hover:text-accent-ink">
+                <IconTile icon={Mail} tint="violet" className="mb-4" />
+                <h3 className="text-ink font-semibold mb-2">Email us</h3>
+                <p className="text-ink-soft text-sm mb-4">
+                  Support, sales, billing, and enterprise enquiries all reach the same team.
+                </p>
+                <a
+                  href={`mailto:${ORGANISATION.email}`}
+                  className="text-accent text-sm font-medium hover:text-accent-ink break-all"
+                >
                   {ORGANISATION.email}
                 </a>
               </MktCard>
-            </div>
 
-            {/* A reachable phone number is explicitly required alongside an
-                email address for payment-gateway onboarding. */}
-            <MktCard interactive={false} className="flex items-start gap-4">
-              <IconTile icon={Phone} tint="violet" className="mt-1" />
-              <div>
-                <h3 className="text-ink font-semibold mb-2">Phone</h3>
-                <a
-                  href={`tel:${ORGANISATION.phone.replace(/\s+/g, "")}`}
-                  className="text-accent text-sm font-medium hover:text-accent-ink"
-                >
-                  {ORGANISATION.phone}
-                </a>
-                <p className="text-ink-soft text-xs mt-1">Monday to Friday, 10:00–18:00 IST</p>
-              </div>
-            </MktCard>
+              <MktCard interactive={false}>
+                <IconTile icon={Clock} tint="blue" className="mb-4" />
+                <h3 className="text-ink font-semibold mb-2">Response time</h3>
+                <p className="text-ink-soft text-sm mb-4">
+                  We reply within one business day, usually sooner. Billing and refund requests are
+                  answered within three business days.
+                </p>
+                <span className="text-ink-soft text-sm font-medium">Mon–Fri, 10:00–18:00 IST</span>
+              </MktCard>
+            </div>
 
             <MktCard interactive={false} className="flex items-start gap-4">
               <IconTile icon={MapPin} tint="emerald" className="mt-1" />

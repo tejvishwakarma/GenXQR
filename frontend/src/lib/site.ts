@@ -29,26 +29,23 @@ export const SOCIAL = {
   twitter: "@GenXQR",
 } as const
 
-/**
- * ⚠ TWO VALUES BELOW MUST BE FILLED IN BEFORE A PAYMENT-GATEWAY REVIEW.
- *
- * Cashfree's onboarding checklist requires a live site showing the REGISTERED
- * business name and a Contact page carrying both an email address and a valid
- * phone number. Both are facts about the company, not choices, so they are
- * placeholders here rather than guesses — publishing the wrong legal entity is
- * worse than publishing none.
- *
- * `legalName` must match the PAN / certificate of incorporation exactly.
- * `phone` must be a reachable business line in E.164 form, e.g. "+91 98765 43210".
- *
- * Search the codebase for PLACEHOLDER to find everything still outstanding.
- */
 export const ORGANISATION = {
   name: SITE_NAME,
-  /** Registered legal entity. PLACEHOLDER — replace with the name on the PAN. */
-  legalName: "PLACEHOLDER — registered business name",
-  /** PLACEHOLDER — replace with a reachable business phone number. */
-  phone: "PLACEHOLDER — support phone number",
+  /**
+   * Registered legal entity, shown on the Contact page and in the Organization
+   * structured data. Must match the PAN / registration certificate exactly —
+   * payment-gateway reviewers compare the two.
+   */
+  legalName: "Digital chitrakar",
+  /**
+   * NO PHONE NUMBER IS PUBLISHED — a deliberate choice, and a known gap.
+   *
+   * Cashfree's onboarding checklist asks for "Contact us (one email ID and a
+   * valid phone number)", so a reviewer may raise this. The Contact page sets
+   * response-time expectations instead. To publish one later, add
+   * `phone: "+91 …"` here and render it on the Contact page; the Organization
+   * schema emits `telephone` automatically when the field is present.
+   */
   /** City-level only — deliberately not a street address, which we don't publish. */
   addressLocality: "New Delhi",
   addressCountry: "IN",
@@ -61,10 +58,17 @@ export const ORGANISATION = {
   email: "support@genxqr.com",
 } as const
 
-/** True once the placeholders above have been replaced with real values. */
-export const hasCompleteBusinessIdentity = (): boolean =>
-  !ORGANISATION.legalName.startsWith("PLACEHOLDER") &&
-  !ORGANISATION.phone.startsWith("PLACEHOLDER")
+/**
+ * Reports which payment-gateway identity requirements the site currently meets.
+ * `phone` is intentionally absent from ORGANISATION, so `hasPhone` is false and
+ * `pnpm seo:check` keeps reporting it — a green check while a mandatory field is
+ * missing would be worse than no check at all.
+ */
+export const businessIdentityStatus = (): { hasLegalName: boolean; hasPhone: boolean } => ({
+  hasLegalName:
+    ORGANISATION.legalName.length > 0 && !ORGANISATION.legalName.startsWith("PLACEHOLDER"),
+  hasPhone: "phone" in ORGANISATION,
+})
 
 /** Joins a path onto the canonical origin. `absoluteUrl("/pricing")` → https://genxqr.com/pricing */
 export function absoluteUrl(path = "/"): string {
