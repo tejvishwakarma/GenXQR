@@ -353,6 +353,71 @@ describe("Cashfree payment confirmation", () => {
     })
   })
 
+  describe("order creation registers the webhook", () => {
+    // Cashfree's dashboard entry is a NOTIFY_URL policy: the webhook is
+    // delivered to whatever order_meta.notify_url each order carries, not to a
+    // fixed endpoint. Forget to send it and the account looks correctly
+    // configured while this app silently receives no webhooks at all.
+    it("should send notify_url pointing at our webhook when BACKEND_URL is https", async () => {
+      const captured: Array<{ url: string; body: any }> = []
+      vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+        captured.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null })
+        return new Response(
+          JSON.stringify({
+            cf_order_id: "cf_x", order_id: "genxqr_x", order_status: "ACTIVE",
+            order_amount: PRO_MONTHLY_INR, order_currency: "INR",
+            payment_session_id: "session_abc",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )
+      })
+
+      const user = await createUser()
+      const res = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly" })
+
+      expect(res.status).toBe(200)
+
+      const created = captured.find((c) => c.url.endsWith("/orders"))
+      expect(created).toBeDefined()
+
+      // .env.test sets BACKEND_URL to an https origin, so the webhook must be
+      // registered on the order.
+      const notifyUrl: string | undefined = created!.body.order_meta?.notify_url
+      expect(notifyUrl).toBeDefined()
+      expect(notifyUrl!.startsWith("https://")).toBe(true)
+      expect(notifyUrl).toContain("/api/billing/cashfree-webhook")
+      // Cashfree's documented ceiling.
+      expect(notifyUrl!.length).toBeLessThanOrEqual(250)
+    })
+
+    it("should price the order server-side regardless of what the client sends", async () => {
+      const captured: Array<any> = []
+      vi.stubGlobal("fetch", async (_input: string | URL | Request, init?: RequestInit) => {
+        captured.push(init?.body ? JSON.parse(String(init.body)) : null)
+        return new Response(
+          JSON.stringify({
+            cf_order_id: "cf_y", order_id: "genxqr_y", order_status: "ACTIVE",
+            order_amount: PRO_MONTHLY_INR, order_currency: "INR",
+            payment_session_id: "session_def",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )
+      })
+
+      const user = await createUser()
+      await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        // A tampered client trying to buy PRO for one rupee.
+        .send({ planName: "PRO", billingCycle: "monthly", amount: 1, order_amount: 1 })
+
+      expect(captured[0].order_amount).toBe(PRO_MONTHLY_INR)
+    })
+  })
+
   describe("shared merchant account", () => {
     // Cashfree issues one production key pair per merchant account and registers
     // webhooks per account, so this endpoint legitimately receives payments made

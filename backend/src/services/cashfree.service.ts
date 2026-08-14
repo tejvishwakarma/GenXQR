@@ -53,11 +53,23 @@ export interface CreateOrderInput {
     phone: string           // exactly 10 digits
   }
   returnUrl: string
+  /**
+   * Per-order webhook URL (order_meta.notify_url). Cashfree POSTs the payment
+   * result here server-to-server, which is what makes activation survive the
+   * user closing the tab mid-redirect.
+   *
+   * Must be HTTPS and at most 250 characters, per Cashfree. Omit it and this
+   * order simply gets no webhook.
+   */
+  notifyUrl?: string
   /** Server-set metadata echoed back by Get Order. Never populated from client input. */
   tags?: Record<string, string>
   /** Minutes until the order can no longer be paid. */
   expiryMinutes?: number
 }
+
+/** Cashfree's documented ceiling for return_url / notify_url. */
+export const MAX_CALLBACK_URL_LENGTH = 250
 
 function getConfig(): { appId: string; secretKey: string; base: string; version: string } {
   const appId = env.CASHFREE_APP_ID
@@ -180,7 +192,23 @@ export async function createOrder(input: CreateOrderInput): Promise<CashfreeOrde
     },
     order_meta: {
       return_url: input.returnUrl,
+      // Only sent when supplied AND usable. Cashfree rejects a non-HTTPS
+      // notify_url, which would fail the whole order rather than just skipping
+      // the webhook — so an unusable value is dropped here instead.
+      ...(input.notifyUrl ? { notify_url: input.notifyUrl } : {}),
     },
+  }
+
+  for (const [field, value] of [
+    ["return_url", input.returnUrl],
+    ["notify_url", input.notifyUrl],
+  ] as const) {
+    if (value && value.length > MAX_CALLBACK_URL_LENGTH) {
+      logger.error(`Cashfree ${field} exceeds the ${MAX_CALLBACK_URL_LENGTH}-character limit`, {
+        length: value.length,
+      })
+      throw new AppError(500, "Payment callback URL is too long. Please contact support.")
+    }
   }
 
   if (input.tags) body["order_tags"] = input.tags

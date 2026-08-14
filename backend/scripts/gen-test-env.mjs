@@ -90,7 +90,9 @@ JWT_REFRESH_SECRET="test_only_refresh_secret_not_used_anywhere_real_000000000000
 JWT_ACCESS_EXPIRES_IN="15m"
 JWT_REFRESH_EXPIRES_IN="30d"
 FRONTEND_URL="http://localhost:5173"
-BACKEND_URL="http://localhost:3099"
+# HTTPS on purpose: Cashfree requires notify_url to be HTTPS, and the tests
+# assert the webhook is registered on each order. No server listens here.
+BACKEND_URL="https://test.genxqr.local"
 EMAIL_FROM="GenXQR Test <test@example.com>"
 CASHFREE_APP_ID="test_app_id"
 CASHFREE_SECRET_KEY="test_secret_key"

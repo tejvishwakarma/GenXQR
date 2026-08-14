@@ -297,6 +297,29 @@ export function isOwnOrderId(orderId: string): boolean {
   return orderId.startsWith(ORDER_ID_PREFIX)
 }
 
+/** Path Cashfree POSTs the payment result to. Kept here so order creation and the route agree. */
+export const WEBHOOK_PATH = "/api/billing/cashfree-webhook"
+
+/**
+ * The per-order webhook URL to register with Cashfree, or null when one cannot
+ * be used.
+ *
+ * Cashfree requires notify_url to be HTTPS and rejects the whole order if it is
+ * not, so in local development — where BACKEND_URL is http://localhost:3001 —
+ * it is omitted rather than sent. The consequence is real and worth knowing:
+ * locally there is NO webhook, and a subscription only activates when the
+ * browser returns and calls /verify-payment. To exercise the webhook path
+ * locally, expose the backend over HTTPS (ngrok or similar) and point
+ * BACKEND_URL at it.
+ */
+export function webhookUrl(): string | null {
+  const base = env.BACKEND_URL.replace(/\/+$/, "")
+  if (!base.startsWith("https://")) {
+    return null
+  }
+  return `${base}${WEBHOOK_PATH}`
+}
+
 export interface CheckoutSession {
   /** Handed to the Cashfree JS SDK to open checkout. */
   paymentSessionId: string
@@ -359,6 +382,18 @@ export async function createPaymentOrder(
   // as ours on a shared merchant account (see ORDER_ID_PREFIX).
   const orderId = `${ORDER_ID_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
+  const notifyUrl = webhookUrl()
+  if (!notifyUrl) {
+    // Not fatal — the browser-return verification still activates the plan — but
+    // it means a user who closes the tab mid-payment will not be upgraded until
+    // they come back, so it must not pass unnoticed.
+    logger.warn(
+      "Cashfree order created WITHOUT a webhook: BACKEND_URL is not HTTPS, and Cashfree requires HTTPS for notify_url. " +
+        "Payment will only be confirmed if the browser returns to the site.",
+      { orderId, backendUrl: env.BACKEND_URL },
+    )
+  }
+
   const order = await createOrder({
     orderId,
     amount: amountINR,
@@ -373,6 +408,10 @@ export async function createPaymentOrder(
     // The browser lands back here; the SPA reads cf_order_id and asks the
     // backend to verify it. Carries no proof of payment by itself.
     returnUrl: `${env.FRONTEND_URL}/app/billing?cf_order_id=${orderId}`,
+    // Registered per order rather than as a fixed dashboard endpoint, which is
+    // what lets several sites share one Cashfree merchant account without their
+    // webhooks crossing over. Null in local dev (see webhookUrl()).
+    ...(notifyUrl ? { notifyUrl } : {}),
     tags: {
       userId,
       planName,
