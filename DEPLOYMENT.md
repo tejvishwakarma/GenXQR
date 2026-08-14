@@ -125,8 +125,19 @@ That needs a one-time setup on the server, because `.env.test` is gitignored and
 the suite uses its own database:
 
 ```bash
-cd ~/htdocs/genxqr.com/backend && pnpm test:setup
+cd ~/htdocs/genxqr.com/backend
+set -a && source /home/genxqr/genxqr.env && set +a   # secrets live outside the repo
+pnpm test:setup
 ```
+
+The `source` line matters: there is no `backend/.env` on the server, so the script
+derives the test database from `DATABASE_URL` in the environment, swapping the
+database name to `genxqr_test`. It refuses to write anything if that swap does not
+apply, so it cannot point the suite at live data.
+
+The Postgres role also needs permission to create the database. If `pnpm test:setup`
+fails with a permission error, grant it once as the superuser:
+`sudo -u postgres psql -c 'ALTER ROLE genxqr CREATEDB;'`
 
 Until that is done, `./deploy.sh` refuses to run rather than deploying unverified.
 For a deliberate emergency bypass: `SKIP_TESTS=1 ./deploy.sh`.

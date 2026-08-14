@@ -1,14 +1,21 @@
 /**
  * Generates backend/.env.test, the environment the Vitest suite runs against.
  *
- * Two sources, in priority order:
+ * Three sources, in priority order:
  *   1. TEST_DATABASE_URL / TEST_REDIS_URL from the environment — used by CI,
  *      where there is no local .env and the service containers supply their
  *      own credentials.
  *   2. The local .env, with the database name swapped to genxqr_test.
+ *   3. DATABASE_URL / REDIS_URL already present in the environment, likewise
+ *      with the database name swapped. This is the production case: on the
+ *      server there is no backend/.env because secrets live in an env file
+ *      outside the repo, which deploy.sh sources before calling this.
  *
- * Either way the result must point at genxqr_test; the suite truncates tables,
- * so pointing it anywhere else would destroy real data.
+ * However it is resolved, the result must point at genxqr_test; the suite
+ * truncates tables, so pointing it anywhere else would destroy real data. The
+ * name swap plus the assertion below are what make deriving from a PRODUCTION
+ * url safe — if the swap ever fails to apply, this refuses to write the file
+ * rather than handing the suite a live database.
  */
 import fs from "node:fs"
 
@@ -39,12 +46,34 @@ function fromEnvironment() {
   return { dbUrl, redisUrl, source: "TEST_DATABASE_URL / TEST_REDIS_URL" }
 }
 
-const resolved = fromEnvironment() ?? fromLocalEnvFile()
+/**
+ * Derives the test settings from a live DATABASE_URL / REDIS_URL in the
+ * environment, swapping the database name. Used on the production server, where
+ * secrets sit in an env file outside the repo rather than in backend/.env.
+ */
+function fromLiveEnvironment() {
+  const dbUrl = process.env.DATABASE_URL
+  const redisUrl = process.env.REDIS_URL
+  if (!dbUrl || !redisUrl) return null
+
+  return {
+    // Swap only the database segment, preserving host/port/credentials/params.
+    // The assertion below is the real safeguard: if this substitution does not
+    // land, the script aborts rather than targeting the live database.
+    dbUrl: dbUrl.replace(/\/[^/?]+(\?|$)/, `/${TEST_DB_NAME}$1`),
+    redisUrl,
+    source: "DATABASE_URL / REDIS_URL (database name swapped)",
+  }
+}
+
+const resolved = fromEnvironment() ?? fromLocalEnvFile() ?? fromLiveEnvironment()
 
 if (!resolved) {
   console.error(
     "Could not determine test database settings.\n" +
-      "Provide TEST_DATABASE_URL and TEST_REDIS_URL, or create backend/.env first.",
+      "Provide TEST_DATABASE_URL and TEST_REDIS_URL, create backend/.env, or run\n" +
+      "with DATABASE_URL and REDIS_URL in the environment. On the server:\n" +
+      "  set -a && source /home/genxqr/genxqr.env && set +a && pnpm test:setup",
   )
   process.exit(1)
 }
