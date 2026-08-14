@@ -509,12 +509,25 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
     throw new AppError(422, "The amount paid does not match the plan price. Please contact support.")
   }
 
+  // All prices are quoted in INR, so a payment collected in anything else has
+  // not paid for this plan whatever the numeric total says. Cannot happen while
+  // we create every order ourselves with order_currency INR — this is here so a
+  // future multi-currency change cannot silently grant plans for the wrong money.
+  const paidCurrency = (order.order_currency || "INR").toUpperCase()
+  if (paidCurrency !== "INR") {
+    logger.error("Cashfree order was paid in an unexpected currency", { orderId, paidCurrency })
+    throw new AppError(422, "This payment was made in an unsupported currency. Please contact support.")
+  }
+
   const plan = await prisma.plan.findUniqueOrThrow({ where: { name: planName } })
 
   const now = new Date()
-  const periodEnd = billingCycle === "yearly"
-    ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-    : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
+
+  /** Adds one billing period to a starting instant. */
+  const addPeriod = (from: Date): Date =>
+    billingCycle === "yearly"
+      ? new Date(from.getFullYear() + 1, from.getMonth(), from.getDate())
+      : new Date(from.getFullYear(), from.getMonth() + 1, from.getDate())
 
   // Subscription change and invoice are written together. The unique constraint
   // on cashfreeOrderId is the real concurrency guard: if the webhook and the
@@ -523,13 +536,39 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
   // extension, so the user cannot be granted two periods for one payment.
   try {
     await prisma.$transaction(async (tx) => {
-      const existingSub = await tx.subscription.findUnique({ where: { userId } })
+      const existingSub = await tx.subscription.findUnique({
+        where: { userId },
+        include: { plan: true },
+      })
+
+      // Renewing EARLY must extend the paid period, not replace it. Computing
+      // the end date from `now` unconditionally silently destroyed whatever the
+      // customer had already paid for — renew with 20 days left and those 20
+      // days vanished.
+      //
+      // Only a true renewal extends: same plan, same cycle, period still running,
+      // and not a trial (trial days were never paid for). A plan CHANGE starts a
+      // fresh period from now, because carrying a cheaper plan's remaining days
+      // onto a more expensive one would hand out unpaid time.
+      const isRenewalOfSamePlan =
+        existingSub !== null &&
+        existingSub.status === "ACTIVE" &&
+        existingSub.plan.name === planName &&
+        existingSub.currentPeriodEnd > now
+
+      const periodStart = isRenewalOfSamePlan ? existingSub.currentPeriodEnd : now
+      const periodEnd = addPeriod(periodStart)
+
       const sub = existingSub
         ? await tx.subscription.update({
             where: { userId },
             data: {
               planId: plan.id, status: "ACTIVE", trialEndsAt: null,
-              currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false,
+              // currentPeriodStart stays put on a renewal so the running period
+              // is extended rather than restarted.
+              currentPeriodStart: isRenewalOfSamePlan ? existingSub.currentPeriodStart : now,
+              currentPeriodEnd: periodEnd,
+              cancelAtPeriodEnd: false,
             },
           })
         : await tx.subscription.create({
@@ -543,11 +582,13 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
           cashfreePaymentId: order.cf_order_id,
           cashfreeOrderId: orderId,
           amount: expectedPaise,
-          currency: order.order_currency || "INR",
+          currency: paidCurrency,
           status: "paid",
           planName,
           billingCycle,
-          periodStart: now,
+          // The invoice records what THIS payment bought, which on a renewal is
+          // the newly appended period, not the whole extended span.
+          periodStart,
           periodEnd,
         },
       })

@@ -353,6 +353,67 @@ describe("Cashfree payment confirmation", () => {
     })
   })
 
+  describe("billing period arithmetic", () => {
+    it("should EXTEND the paid period when renewing early, not discard the remainder", async () => {
+      stubCashfree()
+      const user = await createUser()
+
+      // First payment establishes a period.
+      const first = givenPaidOrder(user)
+      await postSignedSuccess(first.order_id)
+      const afterFirst = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id } })
+
+      // Renew while ~a month still remains. The new end date must be a further
+      // period beyond the existing one — computing it from "now" would silently
+      // destroy the time already paid for.
+      const second = givenPaidOrder(user)
+      await postSignedSuccess(second.order_id)
+      const afterSecond = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id } })
+
+      expect(afterSecond.currentPeriodEnd.getTime()).toBeGreaterThan(afterFirst.currentPeriodEnd.getTime())
+
+      // Roughly two months out, not one. Compared loosely because calendar
+      // months vary in length.
+      const daysFromNow = (afterSecond.currentPeriodEnd.getTime() - Date.now()) / 86_400_000
+      expect(daysFromNow).toBeGreaterThan(50)
+    })
+
+    it("should start a fresh period when changing plan rather than carrying days over", async () => {
+      stubCashfree()
+      const user = await createUser()
+
+      await postSignedSuccess(givenPaidOrder(user).order_id)
+
+      // Now buy a DIFFERENT plan. Carrying the cheaper plan's remaining days onto
+      // this one would be unpaid time on the more expensive tier.
+      const upgrade = givenPaidOrder(user, {
+        order_amount: STARTER_MONTHLY_INR,
+        order_tags: { userId: user.id, planName: "STARTER", billingCycle: "monthly" },
+      })
+      await postSignedSuccess(upgrade.order_id)
+
+      const sub = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: user.id },
+        include: { plan: true },
+      })
+      expect(sub.plan.name).toBe("STARTER")
+      const daysFromNow = (sub.currentPeriodEnd.getTime() - Date.now()) / 86_400_000
+      expect(daysFromNow).toBeLessThan(40)
+    })
+
+    it("should refuse a payment collected in a currency other than INR", async () => {
+      stubCashfree()
+      const user = await createUser()
+      // Same number, wrong money.
+      const order = givenPaidOrder(user, { order_currency: "USD" })
+
+      await postSignedSuccess(order.order_id)
+
+      expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).toBeNull()
+      expect(await prisma.invoice.findUnique({ where: { cashfreeOrderId: order.order_id } })).toBeNull()
+    })
+  })
+
   describe("order creation registers the webhook", () => {
     // Cashfree's dashboard entry is a NOTIFY_URL policy: the webhook is
     // delivered to whatever order_meta.notify_url each order carries, not to a
