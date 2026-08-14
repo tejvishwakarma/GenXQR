@@ -122,7 +122,26 @@ Fill in, at minimum:
 **Invoice PDFs need a real browser.** Invoices are rendered by headless Chromium
 via Puppeteer, which needs both the browser binary and its system libraries.
 Installing the npm dependencies is not enough — without these, invoice downloads
-fail with a 503 while everything else keeps working:
+fail with a 503 while everything else keeps working.
+
+> **On ARM64 (Oracle Cloud Ampere, AWS Graviton) — read this first.**
+> Chrome for Testing publishes **no Linux ARM64 build**. Puppeteer downloads an
+> x86-64 binary that the kernel cannot execute; the shell then tries to read it
+> as a script, giving the confusing `ELF: not found` /
+> `Syntax error: "(" unexpected` stderr. Re-running
+> `puppeteer browsers install chrome` cannot fix this. Install the distro's
+> native browser and pin it instead:
+>
+> ```bash
+> sudo apt-get update && sudo apt-get install -y chromium
+> command -v chromium || command -v chromium-browser   # find the real path
+> ```
+>
+> Then in the env file: `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium`
+> (or `/snap/bin/chromium` if apt installed the snap wrapper), and
+> `pm2 restart genxqr-api`. Check `uname -m` — `aarch64` means ARM.
+
+On x86-64, the browser download works but still needs these libraries:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y   libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1   libpango-1.0-0 libcairo2 libasound2t64

@@ -490,15 +490,31 @@ router.get(
         })
       } catch (launchErr) {
         const detail = launchErr instanceof Error ? launchErr.message : String(launchErr)
+
+        // On ARM64 this is nearly always an architecture mismatch, so name it
+        // first: Chrome for Testing ships no Linux ARM64 build, and Puppeteer
+        // downloads an x86-64 binary the kernel cannot execute. The shell then
+        // tries to interpret it as a script, producing the distinctive
+        // "ELF: not found" / "Syntax error: \"(\" unexpected" stderr below.
+        const looksLikeArchMismatch = /ELF|Syntax error|Exec format error/i.test(detail)
+        const arch = process.arch
+
         logger.error(
-          "Invoice PDF failed: headless Chromium could not start. Either the browser was never " +
-            "downloaded (`pnpm exec puppeteer browsers install chrome` in backend/), its system " +
-            "libraries are missing (`sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 " +
-            "libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 " +
-            "libgbm1 libpango-1.0-0 libcairo2 libasound2t64`), or PM2 cannot see HOME so the " +
-            "browser cache path does not resolve. Set PUPPETEER_EXECUTABLE_PATH to pin the binary.",
+          looksLikeArchMismatch || arch === "arm64"
+            ? `Invoice PDF failed: the bundled Chromium cannot run on this machine (node arch=${arch}). ` +
+                "Chrome for Testing publishes no Linux ARM64 build, so Puppeteer's download is an x86-64 " +
+                "binary. Install the distro's native browser (`sudo apt-get install -y chromium`) and set " +
+                "PUPPETEER_EXECUTABLE_PATH to it (e.g. /usr/bin/chromium). Reinstalling via Puppeteer will NOT help."
+            : "Invoice PDF failed: headless Chromium could not start. Either the browser was never " +
+                "downloaded (`pnpm exec puppeteer browsers install chrome` in backend/), its system " +
+                "libraries are missing (`sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 " +
+                "libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 " +
+                "libgbm1 libpango-1.0-0 libcairo2 libasound2t64`), or PM2 cannot see HOME so the " +
+                "browser cache path does not resolve. Set PUPPETEER_EXECUTABLE_PATH to pin the binary.",
           {
             detail,
+            nodeArch: arch,
+            platform: process.platform,
             executablePathOverride: process.env["PUPPETEER_EXECUTABLE_PATH"] ?? null,
             home: process.env["HOME"] ?? null,
             cacheDir: process.env["PUPPETEER_CACHE_DIR"] ?? null,
