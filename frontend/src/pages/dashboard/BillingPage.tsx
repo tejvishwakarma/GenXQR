@@ -367,8 +367,15 @@ export default function BillingPage() {
     setDownloadingId(invoice.id)
     try {
       await downloadInvoice(invoice.id, getInvoiceNumber(invoice))
-    } catch {
-      alert("Failed to download invoice. Please try again.")
+    } catch (err) {
+      // The server explains *why* — notably that a failed PDF render leaves the
+      // payment and subscription untouched. Discarding that and saying "please
+      // try again" tells a paying customer to retry something that will not
+      // succeed, and leaves them unsure whether their money went through.
+      const message = err instanceof Error && err.message
+        ? err.message
+        : "Failed to download invoice. Please try again."
+      alert(message)
     } finally {
       setDownloadingId(null)
     }

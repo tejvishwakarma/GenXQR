@@ -1571,7 +1571,20 @@ export async function downloadInvoice(invoiceId: string, invoiceNumber: string):
     headers: { Authorization: `Bearer ${token}` },
     credentials: "include",
   })
-  if (!res.ok) throw new ApiError(res.status, "Failed to download invoice")
+  if (!res.ok) {
+    // Surface the server's own message. It distinguishes cases the user needs to
+    // tell apart — notably a 503 meaning "the PDF renderer is down, your payment
+    // is fine" versus a generic failure, which "please try again" actively
+    // misrepresents since retrying will not help.
+    let message = "Failed to download invoice"
+    try {
+      const body = (await res.clone().json()) as { error?: string }
+      if (body?.error) message = body.error
+    } catch {
+      // Non-JSON body (e.g. an nginx error page) — keep the default.
+    }
+    throw new ApiError(res.status, message)
+  }
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
