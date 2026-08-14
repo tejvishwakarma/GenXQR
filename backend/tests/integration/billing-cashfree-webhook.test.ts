@@ -492,7 +492,9 @@ describe("Cashfree payment confirmation", () => {
       const res = await request(app)
         .post("/api/billing/create-order")
         .set("Authorization", `Bearer ${user.token}`)
-        .send({ planName: "PRO", billingCycle: "monthly" })
+        // Checkout requires a mobile number; supplied here so this test exercises
+        // notify_url rather than tripping the phone requirement.
+        .send({ planName: "PRO", billingCycle: "monthly", phone: "9876543210" })
 
       expect(res.status).toBe(200)
 
@@ -507,6 +509,61 @@ describe("Cashfree payment confirmation", () => {
       expect(notifyUrl).toContain("/api/billing/cashfree-webhook")
       // Cashfree's documented ceiling.
       expect(notifyUrl!.length).toBeLessThanOrEqual(250)
+    })
+
+    it("should refuse checkout without a usable mobile number", async () => {
+      const calls: string[] = []
+      vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+        calls.push(String(input))
+        return new Response("{}", { status: 200 })
+      })
+
+      const user = await createUser() // no phone on record
+      const res = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly" })
+
+      // A placeholder number is not acceptable: it is shown to the customer at
+      // checkout, may receive their payment notifications, and every order
+      // sharing one number is what gateway risk systems flag.
+      expect(res.status).toBe(422)
+      expect(calls).toHaveLength(0)
+    })
+
+    it("should store the supplied number and reuse it on the next order", async () => {
+      const bodies: any[] = []
+      vi.stubGlobal("fetch", async (_i: string | URL | Request, init?: RequestInit) => {
+        bodies.push(init?.body ? JSON.parse(String(init.body)) : null)
+        return new Response(
+          JSON.stringify({
+            cf_order_id: "cf_p", order_id: "genxqr_p", order_status: "ACTIVE",
+            order_amount: PRO_MONTHLY_INR, order_currency: "INR",
+            payment_session_id: "session_phone",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        )
+      })
+
+      const user = await createUser()
+
+      const first = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly", phone: "9876543210" })
+      expect(first.status).toBe(200)
+      expect(bodies[0].customer_details.customer_phone).toBe("9876543210")
+
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).phone).toBe("9876543210")
+
+      // Second order sends no phone — the stored one must be used rather than
+      // the request failing or a placeholder being substituted.
+      const second = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly" })
+      expect(second.status).toBe(200)
+      expect(bodies[1].customer_details.customer_phone).toBe("9876543210")
     })
 
     it("should price the order server-side regardless of what the client sends", async () => {
@@ -528,7 +585,7 @@ describe("Cashfree payment confirmation", () => {
         .post("/api/billing/create-order")
         .set("Authorization", `Bearer ${user.token}`)
         // A tampered client trying to buy PRO for one rupee.
-        .send({ planName: "PRO", billingCycle: "monthly", amount: 1, order_amount: 1 })
+        .send({ planName: "PRO", billingCycle: "monthly", phone: "9876543210", amount: 1, order_amount: 1 })
 
       expect(captured[0].order_amount).toBe(PRO_MONTHLY_INR)
     })

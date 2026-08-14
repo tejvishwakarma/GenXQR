@@ -27,6 +27,7 @@ import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
 import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js"
+import { normalizeEmail } from "../utils/normalize-email.util.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -138,6 +139,9 @@ export const PLAN_PRICES_INR: Record<PlanName, { monthly: number; yearly: number
   ENTERPRISE: { monthly: 9999, yearly: 99990 },
 }
 
+/** Length of the free evaluation period granted at signup. */
+const TRIAL_DAYS = 14
+
 /** Plans a user can actually buy through self-serve checkout. */
 const PURCHASABLE_PLANS = ["STARTER", "PRO", "BUSINESS"] as const
 type PurchasablePlan = (typeof PURCHASABLE_PLANS)[number]
@@ -148,20 +152,24 @@ function isPurchasablePlan(value: string): value is PurchasablePlan {
 
 /** Cashfree requires exactly 10 digits; anything else is rejected at order creation. */
 const PHONE_DIGITS = 10
-/** Placeholder used when a user has no phone on file. Cashfree only needs a well-formed value. */
-const FALLBACK_PHONE = "9999999999"
 
 /**
- * Coerces whatever we hold into the 10-digit form Cashfree demands, stripping
- * spaces, punctuation and a +91 country code. Returns the fallback if what is
- * left cannot be a valid Indian mobile number.
+ * Coerces a supplied number into the 10-digit form Cashfree demands, stripping
+ * spaces, punctuation, a +91 country code and a leading trunk 0. Returns null if
+ * what remains is not a plausible Indian mobile number.
+ *
+ * Indian mobile numbers begin 6–9, which is checked: it rejects obvious junk
+ * like 1234567890 that would otherwise sail through a pure length test and be
+ * stored as a real customer contact.
  */
-function normalisePhone(raw: string | null | undefined): string {
-  if (!raw) return FALLBACK_PHONE
+export function normalisePhone(raw: string | null | undefined): string | null {
+  if (!raw) return null
   let digits = raw.replace(/\D/g, "")
   if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
   if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1)
-  return digits.length === PHONE_DIGITS ? digits : FALLBACK_PHONE
+  if (digits.length !== PHONE_DIGITS) return null
+  if (!/^[6-9]/.test(digits)) return null
+  return digits
 }
 
 // ─── Subscription helpers ──────────────────────────────────────────────────────
@@ -235,6 +243,71 @@ export async function getUserPlanLimits(userId: string): Promise<{
 }
 
 /**
+ * Whether this user should get a free trial, or start on FREE.
+ *
+ * One trial per human, not per email address. `parth+1@gmail.com`,
+ * `parth+2@gmail.com` and `p.a.r.t.h@gmail.com` are one inbox, so without this a
+ * single person mints unlimited 14-day PRO trials by signing up again.
+ *
+ * Signup itself stays open — an alias is a legitimate way to file mail, and
+ * refusing it would cost real customers. The alias simply does not earn a second
+ * trial.
+ *
+ * Fails OPEN. If the address cannot be normalised, or the lookup errors, the
+ * user gets their trial: wrongly denying a genuine new customer their evaluation
+ * is a worse outcome than granting one extra trial to someone determined to
+ * farm them.
+ */
+async function isEligibleForTrial(userId: string, email: string): Promise<boolean> {
+  const normalized = normalizeEmail(email)
+  if (!normalized) return true
+
+  try {
+    // Has any OTHER account on this inbox ever held a subscription? A trial that
+    // has since lapsed to FREE still counts — the subscription row persists, so
+    // the evaluation period was already used.
+    const priorAccount = await prisma.user.findFirst({
+      where: {
+        normalizedEmail: normalized,
+        id: { not: userId },
+        subscription: { isNot: null },
+      },
+      select: { id: true },
+    })
+
+    if (priorAccount) {
+      logger.info("Trial withheld: this inbox has already had one", {
+        userId,
+        normalizedEmail: normalized,
+        priorAccountId: priorAccount.id,
+      })
+      return false
+    }
+    return true
+  } catch (err) {
+    logger.error("Trial eligibility check failed — granting the trial", {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return true
+  }
+}
+
+/** Starts a subscription on FREE, used when a trial is not granted. */
+async function createFreeSubscription(userId: string, freePlanId: string): Promise<void> {
+  const now = new Date()
+  await prisma.subscription.create({
+    data: {
+      userId,
+      planId: freePlanId,
+      status: "ACTIVE",
+      currentPeriodStart: now,
+      currentPeriodEnd: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
+    },
+  })
+}
+
+/**
  * Provision a 14-day PRO trial for a brand-new user.
  * Called right after account creation.
  */
@@ -257,8 +330,20 @@ export async function createTrialSubscription(userId: string): Promise<void> {
     return
   }
 
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  })
+  if (!user) return
+
+  if (!(await isEligibleForTrial(userId, user.email))) {
+    const freePlan = await prisma.plan.findUnique({ where: { name: "FREE" } })
+    if (freePlan) await createFreeSubscription(userId, freePlan.id)
+    return
+  }
+
   const now = new Date()
-  const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+  const trialEnd = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000)
 
   await prisma.subscription.create({
     data: {
@@ -370,8 +455,24 @@ export async function createPaymentOrder(
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
-    select: { name: true, email: true },
+    select: { name: true, email: true, phone: true },
   })
+
+  // Cashfree requires a 10-digit mobile on every order. Prefer one supplied now,
+  // otherwise reuse what the user gave last time. A placeholder is NOT
+  // acceptable: it is shown to the customer on the checkout page, it may receive
+  // their payment notifications, and every order sharing one number is exactly
+  // the pattern gateway risk systems flag.
+  const suppliedPhone = normalisePhone(phone)
+  const customerPhone = suppliedPhone ?? normalisePhone(user.phone)
+  if (!customerPhone) {
+    throw new AppError(422, "A valid 10-digit mobile number is required to continue to payment.")
+  }
+
+  // Remember it so a returning customer is not asked again.
+  if (suppliedPhone && suppliedPhone !== user.phone) {
+    await prisma.user.update({ where: { id: userId }, data: { phone: suppliedPhone } })
+  }
 
   const prices = PLAN_PRICES_INR[planName]
   const amountINR = billingCycle === "yearly" ? prices.yearly : prices.monthly
@@ -403,7 +504,7 @@ export async function createPaymentOrder(
       id: userId,
       name: user.name || user.email.split("@")[0] || "Customer",
       email: user.email,
-      phone: normalisePhone(phone),
+      phone: customerPhone,
     },
     // The browser lands back here; the SPA reads cf_order_id and asks the
     // backend to verify it. Carries no proof of payment by itself.

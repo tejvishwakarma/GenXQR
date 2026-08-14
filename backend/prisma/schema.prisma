@@ -10,9 +10,20 @@ datasource db {
 model User {
   id                      String                   @id @default(cuid())
   email                   String                   @unique
+  /// Email reduced to its canonical form: lowercased, `+tag` stripped, and dots
+  /// removed for Gmail. Used ONLY to decide whether this person has already had
+  /// a free trial — `user+1@gmail.com` and `u.s.e.r@gmail.com` are the same
+  /// inbox. Deliberately NOT unique: signing up with an alias stays allowed, it
+  /// just does not earn a second trial. Indexed because it is looked up on every
+  /// trial grant.
+  normalizedEmail         String?
   emailVerified           Boolean                  @default(false)
   passwordHash            String?
   name                    String
+  /// Customer mobile number, 10 digits, no country code. Collected at first
+  /// checkout because Cashfree requires one on every order; reused afterwards so
+  /// returning customers are not asked again.
+  phone                   String?
   avatarUrl               String?
   googleId                String?                  @unique
   driveConnected          Boolean                  @default(false)
@@ -40,6 +51,7 @@ model User {
   teamsOwned              Team[]                   @relation("UserTeamsOwned")
   webhooks                Webhook[]
 
+  @@index([normalizedEmail])
   // No explicit @@index([email]) — the @unique on the email field above
   // already creates a backing index; a second one just duplicates write cost.
   @@map("users")
@@ -369,26 +381,26 @@ model EmailVerificationToken {
 }
 
 model Invoice {
-  id             String       @id @default(cuid())
-  userId         String
-  subscriptionId String
-  amount         Int
-  currency       String       @default("INR")
-  status         String
-  planName       PlanName
-  billingCycle   String
-  periodStart    DateTime
-  periodEnd      DateTime
-  createdAt      DateTime     @default(now())
+  id                String       @id @default(cuid())
+  userId            String
+  subscriptionId    String
+  amount            Int
+  currency          String       @default("INR")
+  status            String
+  planName          PlanName
+  billingCycle      String
+  periodStart       DateTime
+  periodEnd         DateTime
+  createdAt         DateTime     @default(now())
   // Cashfree's own payment reference (cf_order_id), for reconciliation.
   cashfreePaymentId String?
   // The order_id we generate and send to Cashfree. UNIQUE because it is the
   // idempotency key: both the webhook and the browser-return verification race
   // to activate the same subscription, and this constraint is what makes the
   // loser fail instead of double-charging or double-extending the period.
-  cashfreeOrderId   String?   @unique
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cashfreeOrderId   String?      @unique
+  subscription      Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@map("invoices")

@@ -6,6 +6,7 @@ import { env } from "../config/env.js"
 import { hashPassword, verifyPassword } from "../utils/password.js"
 import { generateSecureToken, hashToken } from "../utils/crypto.js"
 import { isDisposableEmail } from "../utils/disposable-email.util.js"
+import { normalizeEmail } from "../utils/normalize-email.util.js"
 import {
   signAccessToken,
   signRefreshToken,
@@ -147,6 +148,9 @@ export async function registerUser(input: z.infer<typeof registerSchema>) {
     data: {
       name: input.name,
       email: input.email,
+      // Canonical inbox, used only to decide trial eligibility so one person
+      // cannot mint unlimited trials with +tag or dotted-Gmail aliases.
+      normalizedEmail: normalizeEmail(input.email),
       passwordHash,
       emailVerified: autoVerify,
     },
@@ -484,6 +488,7 @@ export async function handleGoogleOAuth(
       data: {
         googleId: profile.id,
         email: profile.email,
+        normalizedEmail: normalizeEmail(profile.email),
         name: profile.name,
         avatarUrl: profile.avatarUrl,
         emailVerified: true,
@@ -548,7 +553,9 @@ export async function findUserById(userId: string) {
 export async function getSessionUserById(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, role: true, avatarUrl: true }
+    // `phone` is included so the billing page knows whether to ask for one
+    // before checkout, rather than sending Cashfree a placeholder.
+    select: { id: true, email: true, name: true, role: true, avatarUrl: true, phone: true }
   })
   return user ?? null
 }

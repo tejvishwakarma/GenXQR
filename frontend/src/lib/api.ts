@@ -210,6 +210,8 @@ export interface AuthUser {
   name: string
   role: "USER" | "ADMIN" | "SUPER_ADMIN"
   avatarUrl?: string | null
+  /** 10-digit mobile, collected at first checkout. Null until then. */
+  phone?: string | null
 }
 
 export interface LoginResponse {

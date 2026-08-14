@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   getSubscription, getBillingUsage, getPlans, getInvoices, downloadInvoice,
   createPaymentOrder, verifyPayment, cancelSubscription, downgradeSubscription,
+  getCurrentUser,
   type Plan, type PlanName, type CheckoutSession, type Invoice,
 } from "@/lib/api"
 
@@ -288,6 +289,22 @@ export default function BillingPage() {
     }
   }, [searchParams])
 
+  // Cashfree requires a 10-digit mobile on every order. It is asked for once and
+  // stored, so this only appears for customers who have never paid before.
+  const { data: meData } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: getCurrentUser,
+    staleTime: 5 * 60 * 1000,
+  })
+  const storedPhone = meData?.data?.phone ?? null
+
+  const [phoneInput, setPhoneInput] = useState("")
+  const [phoneError, setPhoneError] = useState("")
+  /** Set when checkout was requested but no phone is on file yet. */
+  const [pendingPurchase, setPendingPurchase] = useState<
+    { planName: PlanName; cycle: "monthly" | "yearly" } | null
+  >(null)
+
   const { data: subData, isLoading: subLoading } = useQuery({
     queryKey: ["subscription"],
     queryFn: getSubscription,
@@ -328,7 +345,11 @@ export default function BillingPage() {
    * order; the SDK then navigates this tab to Cashfree's hosted payment page.
    * On return, the effect above verifies the order server-side.
    */
-  const handleSubscribe = useCallback(async (planName: PlanName, cycle: "monthly" | "yearly") => {
+  const handleSubscribe = useCallback(async (
+    planName: PlanName,
+    cycle: "monthly" | "yearly",
+    phoneOverride?: string,
+  ) => {
     setCheckoutError("")
     setCheckoutLoading(true)
     try {
@@ -348,7 +369,17 @@ export default function BillingPage() {
         return
       }
 
-      const orderRes = await createPaymentOrder(planName, cycle)
+      // Cashfree needs a mobile number on the order. Ask once, then reuse the
+      // stored one — the backend rejects the order without a valid number, so
+      // catching it here avoids a pointless round trip and a raw 422.
+      const phone = phoneOverride ?? storedPhone
+      if (!phone) {
+        setPendingPurchase({ planName, cycle })
+        setCheckoutLoading(false)
+        return
+      }
+
+      const orderRes = await createPaymentOrder(planName, cycle, phone)
       await launchCashfreeCheckout(orderRes.data)
       // The tab navigates to Cashfree — the loading state stays true until unload.
     } catch (err) {
@@ -356,7 +387,21 @@ export default function BillingPage() {
       setCheckoutError(msg)
       setCheckoutLoading(false)
     }
-  }, [subData?.data?.planName, qc])
+  }, [subData?.data?.planName, qc, storedPhone])
+
+  /** Validates the collected number, then resumes the purchase that triggered the prompt. */
+  const handlePhoneSubmit = useCallback(() => {
+    const digits = phoneInput.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")
+    // Mirrors the server check: Indian mobile numbers are 10 digits starting 6-9.
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      setPhoneError("Enter a valid 10-digit Indian mobile number.")
+      return
+    }
+    setPhoneError("")
+    const purchase = pendingPurchase
+    setPendingPurchase(null)
+    if (purchase) void handleSubscribe(purchase.planName, purchase.cycle, digits)
+  }, [phoneInput, pendingPurchase, handleSubscribe])
 
   const handleCancel = useCallback(() => {
     if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period.")) return
@@ -398,6 +443,67 @@ export default function BillingPage() {
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">Billing &amp; Subscription</h1>
         <p className="text-zinc-500 text-sm mt-1">Manage your plan and payment details</p>
       </div>
+
+      {/* Mobile number prompt — Cashfree requires one on every order. Shown only
+          for customers who have not paid before; afterwards it is reused. */}
+      {pendingPurchase && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="phone-prompt-title"
+        >
+          <Card className="w-full max-w-md p-6">
+            <h2 id="phone-prompt-title" className="text-lg font-bold text-zinc-900 dark:text-white mb-1">
+              One more thing
+            </h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+              Your payment provider needs a mobile number to process the payment and send
+              you the receipt. We only ask once.
+            </p>
+
+            <label htmlFor="checkout-phone" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5 block">
+              Mobile number
+            </label>
+            <div className="flex items-stretch gap-2">
+              <span className="flex items-center px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-sm">
+                +91
+              </span>
+              <input
+                id="checkout-phone"
+                type="tel"
+                inputMode="numeric"
+                autoFocus
+                autoComplete="tel-national"
+                maxLength={14}
+                value={phoneInput}
+                onChange={(e) => { setPhoneInput(e.target.value); setPhoneError("") }}
+                onKeyDown={(e) => { if (e.key === "Enter") handlePhoneSubmit() }}
+                placeholder="98765 43210"
+                aria-invalid={phoneError ? true : undefined}
+                aria-describedby={phoneError ? "checkout-phone-error" : undefined}
+                className="flex-1 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2.5 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50"
+              />
+            </div>
+            {phoneError && (
+              <p id="checkout-phone-error" className="text-red-500 text-xs mt-2">{phoneError}</p>
+            )}
+
+            <div className="flex gap-2 mt-5">
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={() => { setPendingPurchase(null); setPhoneError("") }}
+              >
+                Cancel
+              </Button>
+              <Button variant="glow" className="flex-1" onClick={handlePhoneSubmit}>
+                Continue to payment
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Payment result banners (shown after returning from Cashfree) */}
       {verifying && (
