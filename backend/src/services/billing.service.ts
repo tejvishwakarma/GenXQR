@@ -277,6 +277,26 @@ export async function createTrialSubscription(userId: string): Promise<void> {
 /** Orders left unpaid this long can no longer be completed. */
 const ORDER_EXPIRY_MINUTES = 30
 
+/**
+ * Prefix on every order id this app creates.
+ *
+ * Load-bearing when the Cashfree merchant account is SHARED with another site,
+ * which is the normal situation: Cashfree issues one production key pair per
+ * merchant account, and webhooks are registered per account — so every endpoint
+ * on the account receives events for every order on the account, including other
+ * products' orders.
+ *
+ * This prefix is how a foreign order is recognised and ignored, and it also keeps
+ * our order ids from colliding with the other site's (Cashfree requires order_id
+ * to be unique across the whole account, forever).
+ */
+export const ORDER_ID_PREFIX = "genxqr_"
+
+/** True if this order was created by this app, rather than another site on the same account. */
+export function isOwnOrderId(orderId: string): boolean {
+  return orderId.startsWith(ORDER_ID_PREFIX)
+}
+
 export interface CheckoutSession {
   /** Handed to the Cashfree JS SDK to open checkout. */
   paymentSessionId: string
@@ -335,8 +355,9 @@ export async function createPaymentOrder(
 
   // Order ids must be unique per merchant account forever — a collision makes
   // Cashfree reject the order. Timestamp + random suffix, and it doubles as our
-  // idempotency key on Invoice.cashfreeOrderId.
-  const orderId = `genxqr_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  // idempotency key on Invoice.cashfreeOrderId. The prefix also marks the order
+  // as ours on a shared merchant account (see ORDER_ID_PREFIX).
+  const orderId = `${ORDER_ID_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
   const order = await createOrder({
     orderId,
@@ -604,6 +625,16 @@ export async function processCashfreeWebhook(
   if (!orderId) {
     logger.warn("Cashfree payment-success webhook had no order_id", { eventType })
     return { handled: false, reason: "missing_order_id" }
+  }
+
+  // The Cashfree merchant account may be shared with another site. Webhooks are
+  // account-scoped, so this endpoint legitimately receives that site's payments.
+  // They are ignored here — before any API call — because looking them up would
+  // waste a request and then fail validation, which Cashfree would read as an
+  // error worth retrying forever.
+  if (!isOwnOrderId(orderId)) {
+    logger.info("Cashfree webhook ignored (order belongs to another site on this account)", { orderId })
+    return { handled: false, reason: "foreign_order" }
   }
 
   const result = await activateSubscriptionForOrder(orderId)

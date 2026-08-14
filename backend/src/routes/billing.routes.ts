@@ -244,11 +244,24 @@ router.post(
       const result = await processCashfreeWebhook(req.body as Parameters<typeof processCashfreeWebhook>[0])
       res.status(200).json({ success: true, ...result })
     } catch (err) {
+      // Retry only helps for transient faults. A 4xx AppError means the payload
+      // is permanently unprocessable (unknown plan, missing tags, amount
+      // mismatch) — retrying delivers the same bad data forever, so it is
+      // acknowledged instead, loudly. Everything else (DB down, gateway
+      // unreachable) returns 500 so Cashfree's retry is actually useful.
+      const isPermanent =
+        err instanceof AppError && err.statusCode >= 400 && err.statusCode < 500
+
       logger.error("Cashfree webhook: processing failed", {
         error: err instanceof Error ? err.message : String(err),
+        permanent: isPermanent,
         stack: err instanceof Error ? err.stack : undefined,
       })
-      // A real fault — let Cashfree retry.
+
+      if (isPermanent) {
+        res.status(200).json({ success: false, error: "Webhook not processable", retry: false })
+        return
+      }
       res.status(500).json({ success: false, error: "Webhook processing failed" })
     }
   },

@@ -353,6 +353,63 @@ describe("Cashfree payment confirmation", () => {
     })
   })
 
+  describe("shared merchant account", () => {
+    // Cashfree issues one production key pair per merchant account and registers
+    // webhooks per account, so this endpoint legitimately receives payments made
+    // on another site sharing the account.
+    it("should ignore an order belonging to another site without calling the API", async () => {
+      stubCashfree()
+      const user = await createUser()
+      // No genxqr_ prefix — someone else's order on the same Cashfree account.
+      orders.set("othersite_order_991", {
+        order_id: "othersite_order_991",
+        order_status: "PAID",
+        order_amount: 4999,
+        order_tags: null,
+      })
+
+      const res = await postSignedSuccess("othersite_order_991")
+
+      // Acknowledged, so Cashfree stops retrying...
+      expect(res.status).toBe(200)
+      // ...without spending an API call on someone else's order...
+      expect(fetchCalls).toHaveLength(0)
+      // ...and without touching our data.
+      expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).toBeNull()
+      expect(await prisma.invoice.count()).toBe(0)
+    })
+
+    it("should acknowledge rather than endlessly retry an unprocessable own order", async () => {
+      stubCashfree()
+      const user = await createUser()
+      // Our prefix, but the tags are gone — a permanent fault. Retrying would
+      // redeliver identical bad data forever, so it must NOT return 5xx.
+      const order = givenPaidOrder(user, { order_tags: null })
+
+      const res = await postSignedSuccess(order.order_id)
+
+      expect(res.status).toBe(200)
+      expect(res.body.retry).toBe(false)
+      expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).toBeNull()
+    })
+
+    it("should return 5xx so Cashfree retries when the gateway itself is unreachable", async () => {
+      // A transient fault, which is exactly when a retry is worth something.
+      vi.stubGlobal("fetch", async () => {
+        throw new Error("ECONNREFUSED")
+      })
+      const user = await createUser()
+      const orderId = `genxqr_test_transient_${Date.now()}`
+
+      const body = paymentSuccessBody(orderId)
+      const ts = "1755158400"
+      const res = await postWebhook(body, signWebhook(body, ts), ts)
+
+      expect(res.status).toBe(500)
+      expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).toBeNull()
+    })
+  })
+
   describe("replay protection", () => {
     it("should ignore a replayed webhook and not create a second invoice", async () => {
       stubCashfree()
