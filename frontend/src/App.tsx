@@ -1,5 +1,6 @@
 import { useEffect } from "react"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { initAnalytics, trackPageView } from "@/lib/analytics"
 import { MarketingLayout } from "@/components/layout/MarketingLayout"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { AdminLayout } from "@/components/layout/AdminLayout"
@@ -107,10 +108,38 @@ function ScrollToTop() {
   return null
 }
 
+/**
+ * Reports a GA4 page view on every route change.
+ *
+ * Lives inside BrowserRouter because it needs useLocation. Both init and the
+ * first page view happen here rather than in main.tsx, so the initial view is
+ * recorded with the same shape as every later one.
+ *
+ * The report is deferred to the next frame: React Router updates the URL before
+ * the new route's SEOMeta has set document.title, so sending immediately would
+ * attribute the new path to the previous page's title.
+ */
+function AnalyticsTracker() {
+  const location = useLocation()
+
+  useEffect(() => {
+    initAnalytics()
+  }, [])
+
+  useEffect(() => {
+    const path = `${location.pathname}${location.search}`
+    const frame = requestAnimationFrame(() => trackPageView(path))
+    return () => cancelAnimationFrame(frame)
+  }, [location.pathname, location.search])
+
+  return null
+}
+
 function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AnalyticsTracker />
       <Routes>
         {/* Auth Pages (no layout) — redirect to dashboard if already logged in */}
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
