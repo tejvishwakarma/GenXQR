@@ -52,5 +52,24 @@ export default defineConfig({
     // for the first test in a file, which pays connection setup.
     testTimeout: 20_000,
     hookTimeout: 30_000,
+
+    // The app logs every request and every deliberate rejection, so a passing
+    // run buried its own result under ~800 lines. That matters now deploy.sh
+    // gates on this suite: an unreadable gate is half a gate.
+    //
+    // Quiet by default. Vitest's failure report — test name, assertion diff,
+    // file and line — is a SEPARATE stream and is never suppressed, so a failure
+    // is still fully diagnosable (verified by breaking a guard and reading the
+    // output: 5 FAIL blocks with diffs and line numbers, in 168 lines total).
+    //
+    // What IS lost is the app's own log narration, which occasionally explains a
+    // failure the assertion alone does not — e.g. "order amount does not match
+    // the plan price". Measured, not assumed: "passed-only" suppresses those even
+    // for failing tests in Vitest 4.1.10, and --silent=false does not override
+    // it. So the escape hatch is explicit here rather than a CLI flag:
+    //
+    //     VITEST_VERBOSE=1 pnpm test          # full app logs
+    //     VITEST_VERBOSE=1 pnpm test <file>   # …for one suite
+    silent: process.env["VITEST_VERBOSE"] ? false : "passed-only",
   },
 })
