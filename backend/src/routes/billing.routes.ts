@@ -472,15 +472,43 @@ router.get(
 </body>
 </html>`
 
-      // Generate PDF via headless Chromium (puppeteer)
+      // Generate PDF via headless Chromium (puppeteer).
+      //
+      // This is the most environment-sensitive code in the app: it needs a real
+      // browser binary plus its system libraries, neither of which the Node
+      // dependency tree guarantees. Launch failure is caught separately so the
+      // log says what to install rather than just "500".
       const puppeteer = await import("puppeteer")
-      const browser = await puppeteer.default.launch({
-        headless: true,
-        // On ARM servers (Oracle Cloud Ampere), point to the system Chromium.
-        // Set PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser in .env to override.
-        executablePath: process.env["PUPPETEER_EXECUTABLE_PATH"] || undefined,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-      })
+      let browser: Awaited<ReturnType<typeof puppeteer.default.launch>>
+      try {
+        browser = await puppeteer.default.launch({
+          headless: true,
+          // On ARM servers (Oracle Cloud Ampere), point to the system Chromium.
+          // Set PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser in .env to override.
+          executablePath: process.env["PUPPETEER_EXECUTABLE_PATH"] || undefined,
+          args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+        })
+      } catch (launchErr) {
+        const detail = launchErr instanceof Error ? launchErr.message : String(launchErr)
+        logger.error(
+          "Invoice PDF failed: headless Chromium could not start. Either the browser was never " +
+            "downloaded (`pnpm exec puppeteer browsers install chrome` in backend/), its system " +
+            "libraries are missing (`sudo apt-get install -y libnss3 libatk1.0-0 libatk-bridge2.0-0 " +
+            "libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 " +
+            "libgbm1 libpango-1.0-0 libcairo2 libasound2t64`), or PM2 cannot see HOME so the " +
+            "browser cache path does not resolve. Set PUPPETEER_EXECUTABLE_PATH to pin the binary.",
+          {
+            detail,
+            executablePathOverride: process.env["PUPPETEER_EXECUTABLE_PATH"] ?? null,
+            home: process.env["HOME"] ?? null,
+            cacheDir: process.env["PUPPETEER_CACHE_DIR"] ?? null,
+          },
+        )
+        throw new AppError(
+          503,
+          "Invoice PDFs are temporarily unavailable. Your payment and subscription are unaffected — please contact support if you need a copy.",
+        )
+      }
       try {
         const page = await browser.newPage()
         // Lock viewport to A4 width at 96 dpi (8.27" × 96 = 794px) so the

@@ -118,6 +118,23 @@ Fill in, at minimum:
 - `RESEND_API_KEY` (or the `SMTP_*` block).
 - `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` — start with `CASHFREE_API_BASE=https://sandbox.cashfree.com/pg` and do a full sandbox checkout before flipping to `https://api.cashfree.com/pg`. Sandbox and live have separate key pairs. Also register the webhook `https://genxqr.com/api/billing/cashfree-webhook` in the Cashfree dashboard, subscribed to `PAYMENT_SUCCESS_WEBHOOK` — without it, subscriptions only activate when the user's browser makes it back to the site.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
+
+**Invoice PDFs need a real browser.** Invoices are rendered by headless Chromium
+via Puppeteer, which needs both the browser binary and its system libraries.
+Installing the npm dependencies is not enough — without these, invoice downloads
+fail with a 503 while everything else keeps working:
+
+```bash
+sudo apt-get update && sudo apt-get install -y   libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1   libpango-1.0-0 libcairo2 libasound2t64
+
+cd ~/htdocs/genxqr.com/backend && pnpm exec puppeteer browsers install chrome
+```
+
+Puppeteer resolves its browser cache from `$HOME`, which PM2 does not always
+pass through. If the launch still fails, pin the binary explicitly in the env
+file — `PUPPETEER_EXECUTABLE_PATH=/home/<site-user>/.cache/puppeteer/chrome/<version>/chrome-linux64/chrome`
+— or point it at a system Chromium (`/usr/bin/chromium-browser`), which is also
+the ARM path.
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — needed once, by the seed script in step 5.
 
 Lock the file down:
