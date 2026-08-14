@@ -380,8 +380,13 @@ model Invoice {
   periodStart    DateTime
   periodEnd      DateTime
   createdAt      DateTime     @default(now())
-  payuPaymentId  String?
-  payuTxnId      String?      @unique
+  // Cashfree's own payment reference (cf_order_id), for reconciliation.
+  cashfreePaymentId String?
+  // The order_id we generate and send to Cashfree. UNIQUE because it is the
+  // idempotency key: both the webhook and the browser-return verification race
+  // to activate the same subscription, and this constraint is what makes the
+  // loser fail instead of double-charging or double-extending the period.
+  cashfreeOrderId   String?   @unique
   subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 

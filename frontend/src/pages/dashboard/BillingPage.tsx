@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   getSubscription, getBillingUsage, getPlans, getInvoices, downloadInvoice,
-  createPaymentOrder, cancelSubscription, downgradeSubscription,
-  type Plan, type PlanName, type PayUOrderParams, type Invoice,
+  createPaymentOrder, verifyPayment, cancelSubscription, downgradeSubscription,
+  type Plan, type PlanName, type CheckoutSession, type Invoice,
 } from "@/lib/api"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -54,50 +54,38 @@ const PLAN_COLOR: Record<PlanName, string> = {
   ENTERPRISE: "bg-emerald-500/20 border-emerald-500/30",
 }
 
-// ─── PayU form-POST helper ────────────────────────────────────────────────────
+// ─── Cashfree checkout ────────────────────────────────────────────────────────
 //
-// The standard PayU Prebuilt Checkout integration works via a browser form POST:
-//   1. Backend generates hash + returns all payment params
-//   2. We build a hidden <form> and submit it programmatically
-//   3. Browser navigates to PayU's hosted checkout page
-//   4. After payment, PayU POSTs to our backend surl/furl
-//   5. Backend verifies hash, activates subscription, redirects browser back here
+// Flow:
+//   1. Backend prices the plan and creates a Cashfree order, returning a
+//      payment_session_id (the amount is never sent from here)
+//   2. We hand that session id to the Cashfree JS SDK, which navigates the tab
+//      to Cashfree's hosted checkout
+//   3. Cashfree returns the browser to /app/billing?cf_order_id=... and we ask
+//      the backend to verify that order
 //
-// This is the ONLY method that works — the Bolt SDK popup is rate-limited by
-// PayU's test sandbox after just a few attempts.
+// The npm package is a LOADER, not a self-contained bundle: at runtime it
+// injects https://sdk.cashfree.com/js/v3/cashfree.js. Installing from npm
+// therefore does not avoid the external script — the CSP must allow
+// sdk.cashfree.com in script-src and connect-src either way (see
+// deploy/cloudpanel-vhost-nodejs.conf). npm is still preferred over a hand-written
+// <script> tag for the pinned version and the typed entry point.
+//
+// `redirectTarget: "_self"` navigates the whole tab instead of opening a modal.
+// That survives popup blockers and in-app browsers, and matches the redirect UX
+// the app already had.
 
-function submitPayUForm(params: PayUOrderParams): void {
-  const form = document.createElement("form")
-  form.method = "POST"
-  form.action = params.baseUrl   // e.g. https://test.payu.in/_payment
+async function launchCashfreeCheckout(session: CheckoutSession): Promise<void> {
+  // Imported lazily so the SDK is not in the initial bundle for the many page
+  // loads that never reach checkout.
+  const { load } = await import("@cashfreepayments/cashfree-js")
+  const cashfree = await load({ mode: session.mode })
+  if (!cashfree) throw new Error("Could not load the payment gateway. Please refresh and try again.")
 
-  const fields: Record<string, string> = {
-    key:         params.key,
-    txnid:       params.txnid,
-    amount:      params.amount,
-    productinfo: params.productinfo,
-    firstname:   params.firstname,
-    email:       params.email,
-    phone:       params.phone,
-    surl:        params.surl,
-    furl:        params.furl,
-    hash:        params.hash,
-    udf1:        params.udf1,
-    udf2:        params.udf2,
-    udf3:        params.udf3,
-  }
-
-  for (const [name, value] of Object.entries(fields)) {
-    const input = document.createElement("input")
-    input.type  = "hidden"
-    input.name  = name
-    input.value = value ?? ""
-    form.appendChild(input)
-  }
-
-  document.body.appendChild(form)
-  form.submit()
-  // The browser navigates away — no cleanup needed
+  await cashfree.checkout({
+    paymentSessionId: session.paymentSessionId,
+    redirectTarget: "_self",
+  })
 }
 
 // ─── PlanCard ─────────────────────────────────────────────────────────────────
@@ -228,8 +216,49 @@ export default function BillingPage() {
   const [invoicePage, setInvoicePage]           = useState(0)
   const INVOICES_PER_PAGE = 10
 
-  // Read payment result from URL params (set by backend redirect after PayU callback)
+  // Set by the verification effect below, or carried in the URL on failure.
   const paymentResult = searchParams.get("payment")  // "success" | "failure" | null
+
+  // Cashfree returns the browser here with our order id. It proves nothing on
+  // its own, so it is handed straight to the backend, which re-reads the order
+  // from Cashfree before activating anything.
+  const returnedOrderId = searchParams.get("cf_order_id")
+  const [verifying, setVerifying] = useState(false)
+  // React 18 Strict Mode mounts effects twice in dev; without this guard the
+  // order is verified twice on every return trip.
+  const verifiedOrderRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!returnedOrderId || verifiedOrderRef.current === returnedOrderId) return
+    verifiedOrderRef.current = returnedOrderId
+
+    let cancelled = false
+    setVerifying(true)
+
+    void (async () => {
+      let outcome: "success" | "failure" = "failure"
+      try {
+        const res = await verifyPayment(returnedOrderId)
+        // "already_processed" means the webhook got there first — still a success.
+        if (res.status === "activated" || res.status === "already_processed") outcome = "success"
+      } catch {
+        // Network or server error. The webhook is the authoritative path and will
+        // still activate the plan, so this is reported as a failure of *this
+        // check*, not necessarily of the payment.
+        outcome = "failure"
+      }
+
+      if (cancelled) return
+      setVerifying(false)
+      setSearchParams((prev) => {
+        prev.delete("cf_order_id")
+        prev.set("payment", outcome)
+        return prev
+      }, { replace: true })
+    })()
+
+    return () => { cancelled = true }
+  }, [returnedOrderId, setSearchParams])
 
   // Clear the payment param from URL after showing the banner (after 5s)
   useEffect(() => {
@@ -295,10 +324,9 @@ export default function BillingPage() {
   const invoices = invoicesData?.data ?? []
 
   /**
-   * Initiates a PayU payment via the standard Prebuilt Checkout (form POST redirect).
-   * The browser navigates away to PayU's payment page. After payment, PayU POSTs
-   * to our backend /api/billing/payu-success or /api/billing/payu-failure, which
-   * verifies the hash and redirects back here with ?payment=success or ?payment=failure.
+   * Starts a Cashfree checkout. The backend prices the plan and creates the
+   * order; the SDK then navigates this tab to Cashfree's hosted payment page.
+   * On return, the effect above verifies the order server-side.
    */
   const handleSubscribe = useCallback(async (planName: PlanName, cycle: "monthly" | "yearly") => {
     setCheckoutError("")
@@ -321,8 +349,8 @@ export default function BillingPage() {
       }
 
       const orderRes = await createPaymentOrder(planName, cycle)
-      submitPayUForm(orderRes.data)
-      // Browser navigates away — loading state stays true until page unloads
+      await launchCashfreeCheckout(orderRes.data)
+      // The tab navigates to Cashfree — the loading state stays true until unload.
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to process request"
       setCheckoutError(msg)
@@ -364,7 +392,15 @@ export default function BillingPage() {
         <p className="text-zinc-500 text-sm mt-1">Manage your plan and payment details</p>
       </div>
 
-      {/* Payment result banners (shown after returning from PayU) */}
+      {/* Payment result banners (shown after returning from Cashfree) */}
+      {verifying && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-violet-500/10 border border-violet-500/30 text-sm">
+          <Loader2 size={16} className="text-violet-400 shrink-0 animate-spin" />
+          <span className="text-zinc-700 dark:text-zinc-300">
+            Confirming your payment with the gateway…
+          </span>
+        </div>
+      )}
       {paymentResult === "success" && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
           <CheckCircle size={16} className="text-emerald-400 shrink-0" />
@@ -600,9 +636,9 @@ export default function BillingPage() {
                         <div className="text-zinc-500 text-xs">
                           Period: {formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}
                         </div>
-                        {inv.payuTxnId && (
-                          <div className="text-zinc-600 text-xs mt-0.5 font-mono" title={`Transaction ID: ${inv.payuTxnId}`}>
-                            TXN: …{inv.payuTxnId.slice(-12)}
+                        {inv.cashfreeOrderId && (
+                          <div className="text-zinc-600 text-xs mt-0.5 font-mono" title={`Order ID: ${inv.cashfreeOrderId}`}>
+                            ORDER: …{inv.cashfreeOrderId.slice(-12)}
                           </div>
                         )}
                       </div>

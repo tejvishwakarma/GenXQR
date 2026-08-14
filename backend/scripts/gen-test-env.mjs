@@ -92,9 +92,9 @@ JWT_REFRESH_EXPIRES_IN="30d"
 FRONTEND_URL="http://localhost:5173"
 BACKEND_URL="http://localhost:3099"
 EMAIL_FROM="GenXQR Test <test@example.com>"
-PAYU_MERCHANT_KEY="test_merchant_key"
-PAYU_MERCHANT_SALT="test_merchant_salt"
-PAYU_BASE_URL="https://test.payu.in/_payment"
+CASHFREE_APP_ID="test_app_id"
+CASHFREE_SECRET_KEY="test_secret_key"
+CASHFREE_API_BASE="https://sandbox.cashfree.com/pg"
 `
 
 fs.writeFileSync(".env.test", contents)

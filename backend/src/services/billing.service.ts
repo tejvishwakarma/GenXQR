@@ -1,20 +1,32 @@
 /**
- * Billing Service — PayU Bolt payment integration + plan limit enforcement.
+ * Billing Service — Cashfree payment integration + plan limit enforcement.
  *
  * Flow:
- *   1. Client calls POST /api/billing/create-order  → returns PayU Bolt params + hash
- *   2. Frontend launches PayU Bolt popup; user pays
- *   3. Client calls POST /api/billing/verify-payment with PayU response data
- *   4. We verify the reverse SHA-512 hash, activate subscription, create invoice
+ *   1. Client calls POST /api/billing/create-order — we price the plan
+ *      server-side, create a Cashfree order, and return its payment_session_id
+ *   2. Frontend hands that session id to the Cashfree JS SDK, which takes over
+ *   3. Payment is confirmed through TWO independent paths, either of which can
+ *      arrive first:
+ *        a. Cashfree's signed server-to-server webhook (authoritative; fires
+ *           even if the user closes the tab mid-payment)
+ *        b. The browser returning to /app/billing, which triggers a
+ *           POST /api/billing/verify-payment that re-reads the order straight
+ *           from Cashfree's API (fast feedback for the user)
+ *      Both funnel into activateSubscriptionForOrder(), which is idempotent —
+ *      whichever arrives second is a no-op.
+ *
+ * Nothing about the price or the plan is ever taken from the client: the amount
+ * is derived from PLAN_PRICES_INR here, and the plan/cycle are read back out of
+ * the server-set order_tags via Cashfree's authenticated API.
  */
 
-import crypto from "crypto"
 import type { PlanName, SubscriptionStatus } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { env } from "../config/env.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
+import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -126,68 +138,30 @@ export const PLAN_PRICES_INR: Record<PlanName, { monthly: number; yearly: number
   ENTERPRISE: { monthly: 9999, yearly: 99990 },
 }
 
-// ─── PayU config ──────────────────────────────────────────────────────────────
+/** Plans a user can actually buy through self-serve checkout. */
+const PURCHASABLE_PLANS = ["STARTER", "PRO", "BUSINESS"] as const
+type PurchasablePlan = (typeof PURCHASABLE_PLANS)[number]
 
-function getPayUConfig(): { key: string; salt: string; baseUrl: string } {
-  const key  = env.PAYU_MERCHANT_KEY
-  const salt = env.PAYU_MERCHANT_SALT
-  if (!key || !salt) {
-    throw new AppError(503, "Payment gateway is not configured. Add PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT to your .env file.")
-  }
-  return { key, salt, baseUrl: env.PAYU_BASE_URL }
+function isPurchasablePlan(value: string): value is PurchasablePlan {
+  return (PURCHASABLE_PLANS as readonly string[]).includes(value)
 }
 
-/**
- * Compute the forward SHA-512 hash for PayU prebuilt checkout.
- *
- * PayU spec (17 fields, 16 pipes):
- *   SHA512(key|txnid|amount|productinfo|firstname|email|
- *          udf1|udf2|udf3|udf4|udf5||||||SALT)
- *
- *   udf1 = planName  udf2 = billingCycle  udf3 = userId
- *   udf4, udf5 = empty; positions 12-16 = 5 reserved empty padding fields
- */
-function computePayUHash(params: {
-  key: string; salt: string; txnid: string; amount: string
-  productinfo: string; firstname: string; email: string
-  udf1?: string; udf2?: string; udf3?: string
-}): string {
-  const { key, salt, txnid, amount, productinfo, firstname, email, udf1 = "", udf2 = "", udf3 = "" } = params
-  const hashString = [
-    key, txnid, amount, productinfo, firstname, email,
-    udf1, udf2, udf3,   // udf3 = userId for callback identification
-    "", "",             // udf4, udf5 (unused)
-    "", "", "", "", "", // 5 reserved padding fields
-    salt,
-  ].join("|")
-  return crypto.createHash("sha512").update(hashString).digest("hex")
-}
+/** Cashfree requires exactly 10 digits; anything else is rejected at order creation. */
+const PHONE_DIGITS = 10
+/** Placeholder used when a user has no phone on file. Cashfree only needs a well-formed value. */
+const FALLBACK_PHONE = "9999999999"
 
 /**
- * Verify the reverse hash PayU sends in the payment callback POST.
- * Formula: SHA512(SALT|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key)
+ * Coerces whatever we hold into the 10-digit form Cashfree demands, stripping
+ * spaces, punctuation and a +91 country code. Returns the fallback if what is
+ * left cannot be a valid Indian mobile number.
  */
-function verifyPayUHash(params: {
-  key: string; salt: string; status: string; txnid: string; amount: string
-  productinfo: string; firstname: string; email: string
-  udf1?: string; udf2?: string; udf3?: string; responseHash: string
-}): boolean {
-  const { key, salt, status, txnid, amount, productinfo, firstname, email, udf1 = "", udf2 = "", udf3 = "", responseHash } = params
-  const hashString = [
-    salt, status,
-    "", "", "", "", "",  // 5 empty reversed padding fields
-    "",                  // udf5
-    "",                  // udf4
-    udf3,                // userId
-    udf2, udf1,
-    email, firstname, productinfo, amount, txnid, key,
-  ].join("|")
-  const expected = crypto.createHash("sha512").update(hashString).digest("hex")
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected, "hex"), Buffer.from(responseHash, "hex"))
-  } catch {
-    return false
-  }
+function normalisePhone(raw: string | null | undefined): string {
+  if (!raw) return FALLBACK_PHONE
+  let digits = raw.replace(/\D/g, "")
+  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2)
+  if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1)
+  return digits.length === PHONE_DIGITS ? digits : FALLBACK_PHONE
 }
 
 // ─── Subscription helpers ──────────────────────────────────────────────────────
@@ -298,169 +272,263 @@ export async function createTrialSubscription(userId: string): Promise<void> {
   })
 }
 
-// ─── PayU order creation ───────────────────────────────────────────────────────
+// ─── Cashfree order creation ──────────────────────────────────────────────────
 
-export interface PayUOrderParams {
-  key: string
-  txnid: string
-  amount: string        // INR decimal string e.g. "299.00"
-  productinfo: string
-  firstname: string
-  email: string
-  phone: string
-  surl: string
-  furl: string
-  hash: string
-  udf1: string          // planName
-  udf2: string          // billingCycle
-  udf3: string          // userId — used by the backend callback to identify the payer
-  baseUrl: string
+/** Orders left unpaid this long can no longer be completed. */
+const ORDER_EXPIRY_MINUTES = 30
+
+export interface CheckoutSession {
+  /** Handed to the Cashfree JS SDK to open checkout. */
+  paymentSessionId: string
+  /** Our own order id — echoed back on return so we know what to verify. */
+  orderId: string
+  /** "sandbox" | "production" — the SDK must be initialised in the matching mode. */
+  mode: "sandbox" | "production"
+  amount: number
+  currency: string
+  planName: PlanName
+  billingCycle: "monthly" | "yearly"
 }
 
 /**
- * Builds PayU Bolt payment params for the frontend to launch checkout.
- * No external API call needed — just hash computation.
+ * Derives which SDK mode the frontend must use from the configured API base, so
+ * the two can never drift apart. A sandbox session id is rejected by the
+ * production SDK and vice versa, and the resulting error is opaque.
+ */
+function cashfreeMode(): "sandbox" | "production" {
+  return env.CASHFREE_API_BASE.includes("sandbox") ? "sandbox" : "production"
+}
+
+/**
+ * Prices the plan, creates a Cashfree order, and returns what the browser needs
+ * to open checkout.
+ *
+ * The client sends only *which* plan and cycle it wants — the amount is looked
+ * up here, so a tampered request can change what is being bought but never what
+ * it costs. The plan and cycle are also written into order_tags, which Cashfree
+ * stores and returns through its authenticated API; that is how activation
+ * later learns what was purchased without trusting anything client-side.
  */
 export async function createPaymentOrder(
   userId: string,
   planName: PlanName,
   billingCycle: "monthly" | "yearly",
   phone?: string,
-): Promise<PayUOrderParams> {
+): Promise<CheckoutSession> {
   if (planName === "FREE") {
     throw new AppError(400, "Cannot create a payment order for the free plan")
   }
   if (planName === "ENTERPRISE") {
     throw new AppError(400, "Enterprise plan requires direct contact. Please email support@genxqr.com")
   }
-
-  const { key, salt, baseUrl } = getPayUConfig()
+  if (!isPurchasablePlan(planName)) {
+    throw new AppError(400, "That plan cannot be purchased online")
+  }
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     select: { name: true, email: true },
   })
 
-  const prices      = PLAN_PRICES_INR[planName]
-  const amountINR   = billingCycle === "yearly" ? prices.yearly : prices.monthly
-  const amount      = amountINR.toFixed(2)     // PayU expects rupees as decimal string
-  const txnid       = `nqr_${Date.now()}_${userId.slice(-8)}`
-  const productinfo = `GenXQR ${planName} - ${billingCycle}`
-  const firstname   = user.name.split(" ")[0] ?? user.name
-  const email       = user.email
-  const userPhone   = phone ?? "9999999999"
-  const udf1        = planName
-  const udf2        = billingCycle
-  const udf3        = userId   // stored in hash; echoed back by PayU for callback user lookup
+  const prices = PLAN_PRICES_INR[planName]
+  const amountINR = billingCycle === "yearly" ? prices.yearly : prices.monthly
 
-  // surl/furl must be reachable by the user's browser (PayU auto-submits a form via JS).
-  // Use BACKEND_URL (port 3001 in dev, public domain in prod) to bypass the Vite proxy,
-  // which can interfere with redirect chains and urlencoded POST body handling.
-  const callbackBase = env.BACKEND_URL   // e.g. http://localhost:3001 or https://genxqr.com
-  const hash = computePayUHash({ key, salt, txnid, amount, productinfo, firstname, email, udf1, udf2, udf3 })
+  // Order ids must be unique per merchant account forever — a collision makes
+  // Cashfree reject the order. Timestamp + random suffix, and it doubles as our
+  // idempotency key on Invoice.cashfreeOrderId.
+  const orderId = `genxqr_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+
+  const order = await createOrder({
+    orderId,
+    amount: amountINR,
+    currency: "INR",
+    customer: {
+      // Cashfree requires an alphanumeric customer id; cuids qualify.
+      id: userId,
+      name: user.name || user.email.split("@")[0] || "Customer",
+      email: user.email,
+      phone: normalisePhone(phone),
+    },
+    // The browser lands back here; the SPA reads cf_order_id and asks the
+    // backend to verify it. Carries no proof of payment by itself.
+    returnUrl: `${env.FRONTEND_URL}/app/billing?cf_order_id=${orderId}`,
+    tags: {
+      userId,
+      planName,
+      billingCycle,
+    },
+    expiryMinutes: ORDER_EXPIRY_MINUTES,
+  })
+
+  if (!order.payment_session_id) {
+    logger.error("Cashfree created an order without a payment_session_id", { orderId, status: order.order_status })
+    throw new AppError(502, "The payment gateway did not return a usable checkout session.")
+  }
+
+  logger.info("Cashfree order created", { userId, orderId, planName, billingCycle, amountINR })
 
   return {
-    key, txnid, amount, productinfo, firstname, email, phone: userPhone,
-    surl: `${callbackBase}/api/billing/payu-success`,
-    furl: `${callbackBase}/api/billing/payu-failure`,
-    hash, udf1, udf2, udf3, baseUrl,
+    paymentSessionId: order.payment_session_id,
+    orderId,
+    mode: cashfreeMode(),
+    amount: amountINR,
+    currency: "INR",
+    planName,
+    billingCycle,
   }
 }
 
 // ─── Payment verification ──────────────────────────────────────────────────────
 
+/** Outcome of trying to activate a subscription from a paid order. */
+export type ActivationResult =
+  | { status: "activated"; planName: PurchasablePlan; billingCycle: "monthly" | "yearly" }
+  | { status: "already_processed" }
+  | { status: "not_paid"; orderStatus: string }
+
 /**
- * Verifies the PayU response hash, activates/upgrades subscription, creates invoice.
- * Called directly from the /payu-success callback route (no client-side auth required).
+ * Activates a subscription from a Cashfree order that Cashfree itself says is PAID.
+ *
+ * This is the single activation path — both the webhook and the browser-return
+ * verification call it, so the rules below cannot drift between them:
+ *
+ *   - The order is ALWAYS re-fetched from Cashfree's authenticated API. Neither
+ *     caller may pass in an order it merely believes is paid. A signed webhook
+ *     proves Cashfree sent the message, not that it says what we think.
+ *   - Plan, cycle and user come from server-set order_tags, never from a request.
+ *   - The amount is recomputed from PLAN_PRICES_INR and checked against what was
+ *     actually collected, so a tampered or mispriced order cannot grant a plan.
+ *   - Idempotent on Invoice.cashfreeOrderId, so a replayed webhook, a refreshed
+ *     return page, or the two racing each other all settle on one activation.
  */
-export async function verifyAndActivateSubscription(
-  userId: string,
-  txnid: string,
-  mihpayid: string,       // PayU's payment ID
-  status: string,
-  responseHash: string,
-  amount: string,         // amount string from PayU response (e.g. "299.00")
-  productinfo: string,
-  firstname: string,
-  email: string,
-  udf1: string,           // planName
-  udf2: string,           // billingCycle
-  udf3?: string,          // userId (echoed by PayU; included for hash verification)
-): Promise<void> {
-  const { key, salt } = getPayUConfig()
-
-  if (status !== "success") {
-    throw new AppError(400, `Payment was not successful (status: ${status})`)
+export async function activateSubscriptionForOrder(orderId: string): Promise<ActivationResult> {
+  // Cheap pre-check. The unique constraint below is what actually guarantees
+  // correctness under a race; this just avoids the API call in the common case.
+  const existing = await prisma.invoice.findUnique({ where: { cashfreeOrderId: orderId } })
+  if (existing) {
+    logger.info("Cashfree order already processed — activation skipped", { orderId })
+    return { status: "already_processed" }
   }
 
-  // 1. Verify reverse hash — prevents tampered callback payloads
-  const valid = verifyPayUHash({ key, salt, status, txnid, amount, productinfo, firstname, email, udf1, udf2, udf3: udf3 ?? "", responseHash })
-  if (!valid) {
-    throw new AppError(400, "Payment signature verification failed")
+  const order: CashfreeOrder = await getOrder(orderId)
+
+  if (order.order_status !== "PAID") {
+    logger.warn("Cashfree order is not PAID — refusing to activate", { orderId, orderStatus: order.order_status })
+    return { status: "not_paid", orderStatus: order.order_status }
   }
 
-  const planName    = udf1 as PlanName
-  const billingCycle = udf2 as "monthly" | "yearly"
+  // order_tags were set by us at creation and are only readable through an
+  // authenticated call, so they are trustworthy in a way the request is not.
+  const tags = order.order_tags ?? {}
+  const userId = tags["userId"]
+  const planName = tags["planName"]
+  const billingCycle = tags["billingCycle"]
 
-  if (!["STARTER", "PRO", "BUSINESS"].includes(planName)) {
-    throw new AppError(400, "Invalid plan in payment response")
+  if (!userId || !planName || !billingCycle) {
+    logger.error("Cashfree order is missing the tags needed to activate", { orderId, tags })
+    throw new AppError(422, "This payment cannot be matched to a subscription. Please contact support.")
+  }
+  if (!isPurchasablePlan(planName)) {
+    logger.error("Cashfree order carries an unrecognised plan", { orderId, planName })
+    throw new AppError(422, "This payment refers to a plan that no longer exists. Please contact support.")
+  }
+  if (billingCycle !== "monthly" && billingCycle !== "yearly") {
+    logger.error("Cashfree order carries an unrecognised billing cycle", { orderId, billingCycle })
+    throw new AppError(422, "This payment has an invalid billing period. Please contact support.")
   }
 
-  // Idempotency + replay protection: a PayU txnid may be consumed exactly once.
-  // The /payu-success callback is public and every field feeding the signature is
-  // static for a completed payment, so a captured valid callback could otherwise be
-  // replayed to renew a paid plan indefinitely. If an invoice already exists for this
-  // txnid, the subscription was already activated — stop here.
-  const alreadyProcessed = await prisma.invoice.findUnique({ where: { payuTxnId: txnid } })
-  if (alreadyProcessed) {
-    logger.warn("PayU callback replay ignored (txnid already processed)", { userId, txnid })
-    return
+  // Guard against activating a plan that was not actually paid for. Compared as
+  // integer paise because the gateway returns a float.
+  const expectedINR = PLAN_PRICES_INR[planName][billingCycle]
+  const expectedPaise = Math.round(expectedINR * 100)
+  const paidPaise = Math.round(order.order_amount * 100)
+  if (paidPaise !== expectedPaise) {
+    logger.error("Cashfree order amount does not match the plan price", {
+      orderId, planName, billingCycle, expectedPaise, paidPaise,
+    })
+    throw new AppError(422, "The amount paid does not match the plan price. Please contact support.")
   }
 
-  // 2. Find target plan
   const plan = await prisma.plan.findUniqueOrThrow({ where: { name: planName } })
 
-  // 3. Calculate subscription period
   const now = new Date()
   const periodEnd = billingCycle === "yearly"
     ? new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
     : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
 
-  // 4 + 5. Activate the subscription and record the invoice atomically. The unique
-  // constraint on Invoice.payuTxnId makes concurrent replays safe: if two callbacks
-  // race past the check above, the second invoice insert throws P2002 and the entire
-  // transaction — including the subscription renewal — rolls back.
-  const amountPaise = PLAN_PRICES_INR[planName][billingCycle] * 100
-  await prisma.$transaction(async (tx) => {
-    const existingSub = await tx.subscription.findUnique({ where: { userId } })
-    const sub = existingSub
-      ? await tx.subscription.update({
-          where: { userId },
-          data: { planId: plan.id, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false },
-        })
-      : await tx.subscription.create({
-          data: { userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
-        })
+  // Subscription change and invoice are written together. The unique constraint
+  // on cashfreeOrderId is the real concurrency guard: if the webhook and the
+  // return-trip verification both get past the pre-check, the second insert
+  // raises P2002 and rolls the whole transaction back — including the period
+  // extension, so the user cannot be granted two periods for one payment.
+  try {
+    await prisma.$transaction(async (tx) => {
+      const existingSub = await tx.subscription.findUnique({ where: { userId } })
+      const sub = existingSub
+        ? await tx.subscription.update({
+            where: { userId },
+            data: {
+              planId: plan.id, status: "ACTIVE", trialEndsAt: null,
+              currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false,
+            },
+          })
+        : await tx.subscription.create({
+            data: { userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
+          })
 
-    await tx.invoice.create({
-      data: {
-        userId,
-        subscriptionId: sub.id,
-        payuPaymentId: mihpayid,
-        payuTxnId: txnid,
-        amount: amountPaise,
-        currency: "INR",
-        status: "paid",
-        planName,
-        billingCycle,
-        periodStart: now,
-        periodEnd,
-      },
+      await tx.invoice.create({
+        data: {
+          userId,
+          subscriptionId: sub.id,
+          cashfreePaymentId: order.cf_order_id,
+          cashfreeOrderId: orderId,
+          amount: expectedPaise,
+          currency: order.order_currency || "INR",
+          status: "paid",
+          planName,
+          billingCycle,
+          periodStart: now,
+          periodEnd,
+        },
+      })
     })
-  })
+  } catch (err) {
+    // P2002 = unique violation on cashfreeOrderId: the other path won the race
+    // and already activated this order. That is a success, not a failure.
+    if (typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002") {
+      logger.info("Cashfree activation lost the race — already processed", { orderId, userId })
+      return { status: "already_processed" }
+    }
+    throw err
+  }
 
-  logger.info("Subscription activated via PayU", { userId, planName, billingCycle, txnid })
+  logger.info("Subscription activated via Cashfree", { userId, planName, billingCycle, orderId })
   void deliverWebhookEvent(userId, "subscription.activated", { planName, billingCycle })
+
+  return { status: "activated", planName, billingCycle }
+}
+
+/**
+ * Verifies an order on behalf of a signed-in user returning from checkout.
+ *
+ * Ownership matters here: without it any authenticated user could POST someone
+ * else's order id and have that person's payment applied to their own account.
+ * The order's userId tag is therefore checked against the caller before the
+ * order is activated.
+ */
+export async function verifyPaymentForUser(
+  userId: string,
+  orderId: string,
+): Promise<ActivationResult> {
+  const order = await getOrder(orderId)
+  const ownerId = order.order_tags?.["userId"]
+
+  if (ownerId && ownerId !== userId) {
+    logger.warn("User attempted to verify an order belonging to someone else", { userId, ownerId, orderId })
+    throw new AppError(403, "This payment belongs to a different account.")
+  }
+
+  return activateSubscriptionForOrder(orderId)
 }
 
 // ─── Subscription management ───────────────────────────────────────────────────
@@ -500,61 +568,47 @@ export async function downgradeToFree(userId: string): Promise<void> {
   logger.info("Downgraded to FREE — all dynamic QRs deactivated", { userId })
 }
 
-/**
- * Handles PayU's server-to-server POST to /api/billing/payu-success.
- * Verifies the hash, resolves the user from udf3 (userId stored during order creation),
- * and activates their subscription.
- *
- * @returns The FRONTEND_URL to redirect the browser to after processing.
- */
-export async function processPayUCallback(
-  body: Record<string, string> | undefined,
-): Promise<{ redirectUrl: string }> {
-  const frontendBillingUrl = `${env.FRONTEND_URL}/app/billing`
+/** Cashfree event types this app acts on. Everything else is acknowledged and ignored. */
+const PAYMENT_SUCCESS_EVENT = "PAYMENT_SUCCESS_WEBHOOK"
 
-  try {
-    if (!body || typeof body !== "object") {
-      logger.warn("PayU callback: empty or invalid body")
-      return { redirectUrl: `${frontendBillingUrl}?payment=failure&reason=invalid_body` }
-    }
-
-    const { txnid, mihpayid, hash, amount, productinfo, firstname, email, udf1, udf2, udf3 } = body
-    const status = (body.status ?? "").toLowerCase()
-
-    logger.info("PayU callback payload", { txnid, status, udf1, udf2, udf3: udf3 ? "present" : "missing" })
-
-    if (!status || !hash || !txnid) {
-      logger.warn("PayU callback: missing required fields", { txnid, status, hasHash: !!hash })
-      return { redirectUrl: `${frontendBillingUrl}?payment=failure&reason=missing_fields` }
-    }
-
-    if (status !== "success") {
-      logger.warn("PayU callback: non-success status", { txnid, status })
-      return { redirectUrl: `${frontendBillingUrl}?payment=failure` }
-    }
-
-    // udf3 holds the userId set during order creation
-    const userId = udf3
-    if (!userId) {
-      logger.error("PayU callback: udf3 (userId) missing — cannot identify payer", { txnid, email })
-      return { redirectUrl: `${frontendBillingUrl}?payment=failure&reason=missing_user` }
-    }
-
-    await verifyAndActivateSubscription(
-      userId, txnid, mihpayid ?? "", status,
-      hash, amount, productinfo, firstname, email, udf1, udf2, udf3,
-    )
-    logger.info("PayU callback: subscription activated", { txnid, userId, udf1, udf2 })
-    return { redirectUrl: `${frontendBillingUrl}?payment=success` }
-
-  } catch (err) {
-    logger.error("PayU callback: unhandled error", {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      body: JSON.stringify(body),
-    })
-    return { redirectUrl: `${frontendBillingUrl}?payment=failure&reason=server_error` }
+interface CashfreeWebhookPayload {
+  type?: string
+  data?: {
+    order?: { order_id?: string }
   }
+}
+
+/**
+ * Processes a Cashfree webhook whose signature has ALREADY been verified by the
+ * route. This function does not re-check authenticity — keeping verification at
+ * the edge means an unsigned payload can never reach this code path at all.
+ *
+ * Note what it deliberately does not do: trust the payload's contents. It reads
+ * only the order id, then re-fetches that order from Cashfree. A valid signature
+ * proves the message came from Cashfree; re-reading proves what it says is still
+ * true right now.
+ */
+export async function processCashfreeWebhook(
+  payload: CashfreeWebhookPayload,
+): Promise<{ handled: boolean; reason?: string }> {
+  const eventType = payload.type
+
+  if (eventType !== PAYMENT_SUCCESS_EVENT) {
+    // Refunds, failures, disputes and so on are acknowledged so Cashfree stops
+    // retrying, but only a successful payment grants a plan.
+    logger.info("Cashfree webhook ignored (not a payment success)", { eventType })
+    return { handled: false, reason: "unhandled_event" }
+  }
+
+  const orderId = payload.data?.order?.order_id
+  if (!orderId) {
+    logger.warn("Cashfree payment-success webhook had no order_id", { eventType })
+    return { handled: false, reason: "missing_order_id" }
+  }
+
+  const result = await activateSubscriptionForOrder(orderId)
+  logger.info("Cashfree webhook processed", { orderId, result: result.status })
+  return { handled: result.status === "activated", reason: result.status }
 }
 
 /** Get paginated invoices for a user. */
@@ -566,8 +620,8 @@ export async function getUserInvoices(userId: string, limit = 20, offset = 0) {
     skip: offset,
     select: {
       id: true,
-      payuPaymentId: true,
-      payuTxnId: true,
+      cashfreePaymentId: true,
+      cashfreeOrderId: true,
       amount: true,
       currency: true,
       status: true,

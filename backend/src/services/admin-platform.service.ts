@@ -569,7 +569,7 @@ export async function listPayments({ page, limit }: PaginationParams, status?: s
         id: true, amount: true, currency: true, status: true,
         planName: true, billingCycle: true, periodStart: true,
         periodEnd: true, createdAt: true,
-        payuPaymentId: true, payuTxnId: true,
+        cashfreePaymentId: true, cashfreeOrderId: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),

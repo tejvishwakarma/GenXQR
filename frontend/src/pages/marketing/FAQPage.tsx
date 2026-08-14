@@ -94,7 +94,7 @@ const FAQ_JSON_LD = [
         "name": "Does GenXQR work in India?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards via PayU. Scan analytics cover Indian cities across all states. Data is stored on infrastructure in Mumbai, India. The platform is used by restaurants, retailers, event organisers, clinics, and real estate agents across India.",
+          "text": "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics cover Indian cities across all states. Data is stored on infrastructure in Mumbai, India. The platform is used by restaurants, retailers, event organisers, clinics, and real estate agents across India.",
         },
       },
       {
@@ -102,7 +102,7 @@ const FAQ_JSON_LD = [
         "name": "What payment methods does GenXQR accept?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR accepts UPI, debit cards, credit cards, and net banking via PayU — India's payment gateway. All payments are in Indian Rupees (INR). You can choose monthly or yearly billing. Yearly plans save up to 17% compared to monthly. An invoice is sent to your email after every payment.",
+          "text": "GenXQR accepts UPI, debit cards, credit cards, and net banking via Cashfree — India's payment gateway. All payments are in Indian Rupees (INR). You can choose monthly or yearly billing. Yearly plans save up to 17% compared to monthly. An invoice is sent to your email after every payment.",
         },
       },
       {
@@ -157,7 +157,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "Does GenXQR work in India?",
-        a: "Yes — GenXQR is built specifically for India. Pricing is in INR from ₹299/month. Payments accept UPI, debit cards, credit cards, and net banking via PayU. Scan analytics cover Indian cities across every state. Data is stored on infrastructure based in Mumbai. Support is available in Indian Standard Time (IST).",
+        a: "Yes — GenXQR is built specifically for India. Pricing is in INR from ₹299/month. Payments accept UPI, debit cards, credit cards, and net banking via Cashfree. Scan analytics cover Indian cities across every state. Data is stored on infrastructure based in Mumbai. Support is available in Indian Standard Time (IST).",
       },
     ],
   },
@@ -222,7 +222,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "What payment methods does GenXQR accept?",
-        a: "GenXQR accepts UPI, debit cards, credit cards, and net banking — all in Indian Rupees (INR) via PayU. You can choose monthly or yearly billing. An invoice is emailed after every payment. No foreign transaction fees — everything is priced and billed in INR.",
+        a: "GenXQR accepts UPI, debit cards, credit cards, and net banking — all in Indian Rupees (INR) via Cashfree. You can choose monthly or yearly billing. An invoice is emailed after every payment. No foreign transaction fees — everything is priced and billed in INR.",
       },
       {
         q: "Can I cancel anytime?",

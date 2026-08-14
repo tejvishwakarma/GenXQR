@@ -66,7 +66,7 @@ const PRICING_JSON_LD = [
         "name": "What payment methods does GenXQR accept?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR accepts UPI, credit cards, debit cards, and net banking via PayU — all major Indian payment methods. Prices are in Indian Rupees (INR). No international payment required.",
+          "text": "GenXQR accepts UPI, credit cards, debit cards, and net banking via Cashfree — all major Indian payment methods. Prices are in Indian Rupees (INR). No international payment required.",
         },
       },
       {
@@ -253,7 +253,7 @@ const faqItems = [
   },
   {
     q: "What payment methods do you accept?",
-    a: "UPI, credit cards, debit cards, and net banking — all via PayU. Prices are in Indian Rupees (INR). No international payment or USD conversion needed.",
+    a: "UPI, credit cards, debit cards, and net banking — all via Cashfree. Prices are in Indian Rupees (INR). No international payment or USD conversion needed.",
   },
   {
     q: "What happens to my QR codes if I downgrade?",

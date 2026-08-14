@@ -7,7 +7,7 @@
 //   pm2 stop ecosystem.config.cjs                       # stop
 //   pm2 save && pm2 startup                             # persist across server reboots
 //
-// Secrets (DATABASE_URL, JWT secrets, PayU keys, etc.) are NOT set here — they
+// Secrets (DATABASE_URL, JWT secrets, Cashfree keys, etc.) are NOT set here — they
 // live in an env file OUTSIDE the repo (chmod 600, owned by the site user; see
 // backend/.env.production.example for the template) and are loaded via Node's
 // native --env-file flag below with an absolute path. Update ENV_FILE_PATH if

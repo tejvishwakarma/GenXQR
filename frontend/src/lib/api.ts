@@ -715,7 +715,7 @@ export const sendUserPaymentReminder = (userId: string) =>
 export interface AdminPayment {
   id: string; amount: number; currency: string; status: string
   planName: string; billingCycle: string; periodStart: string; periodEnd: string
-  createdAt: string; payuPaymentId: string | null; payuTxnId: string | null
+  createdAt: string; cashfreePaymentId: string | null; cashfreeOrderId: string | null
   user: { id: string; name: string; email: string }
 }
 export const fetchAdminPayments = (page = 1, limit = 20, status = "") =>
@@ -1501,8 +1501,8 @@ export interface SubscriptionInfo {
 
 export interface Invoice {
   id: string
-  payuPaymentId: string | null
-  payuTxnId: string | null
+  cashfreePaymentId: string | null
+  cashfreeOrderId: string | null
   amount: number // paise
   currency: string
   status: string
@@ -1521,21 +1521,26 @@ export interface BillingUsage {
   apiCalls: { used: number; limit: number }
 }
 
-export interface PayUOrderParams {
-  key: string
-  txnid: string
-  amount: string
-  productinfo: string
-  firstname: string
-  email: string
-  phone: string
-  surl: string          // backend endpoint — PayU POSTs here after success
-  furl: string          // backend endpoint — PayU POSTs here after failure
-  hash: string
-  udf1: string          // planName
-  udf2: string          // billingCycle
-  udf3: string          // userId — included in hash; echoed back by PayU in callback
-  baseUrl: string       // https://test.payu.in/_payment or https://secure.payu.in/_payment
+/**
+ * What the backend returns to start a Cashfree checkout. The amount is priced
+ * server-side and echoed here for display only — it is never sent back.
+ */
+export interface CheckoutSession {
+  paymentSessionId: string   // handed to the Cashfree JS SDK
+  orderId: string            // our order id; used to verify on return
+  mode: "sandbox" | "production"
+  amount: number             // rupees
+  currency: string
+  planName: PlanName
+  billingCycle: "monthly" | "yearly"
+}
+
+/** Result of asking the backend to confirm an order after checkout. */
+export interface VerifyPaymentResult {
+  success: boolean
+  status: "activated" | "already_processed" | "not_paid"
+  orderStatus?: string
+  error?: string
 }
 
 export function getPlans() {
@@ -1579,14 +1584,28 @@ export async function downloadInvoice(invoiceId: string, invoiceNumber: string):
 }
 
 export function createPaymentOrder(planName: PlanName, billingCycle: "monthly" | "yearly", phone?: string) {
-  return apiFetch<{ success: boolean; data: PayUOrderParams }>("/api/billing/create-order", {
+  return apiFetch<{ success: boolean; data: CheckoutSession }>("/api/billing/create-order", {
     method: "POST",
     headers: authHeader(),
     body: JSON.stringify({ planName, billingCycle, ...(phone ? { phone } : {}) }),
   })
 }
-// Note: verifyPayment is no longer needed — the backend /api/billing/payu-success
-// endpoint handles hash verification and subscription activation server-to-server.
+
+/**
+ * Asks the backend to confirm a Cashfree order after the browser returns from
+ * checkout. Only the order id is sent — the backend re-reads the order from
+ * Cashfree, so nothing here can assert that a payment succeeded.
+ *
+ * This is for fast feedback only. Cashfree's webhook activates the subscription
+ * independently, so a user who closes the tab still gets what they paid for.
+ */
+export function verifyPayment(orderId: string) {
+  return apiFetch<VerifyPaymentResult>("/api/billing/verify-payment", {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify({ orderId }),
+  })
+}
 
 export function cancelSubscription() {
   return apiFetch<{ success: boolean; message: string }>("/api/billing/cancel", {

@@ -30,8 +30,8 @@ GET {{base}}/api/billing/plans
 
 ###
 
-### 2.2 Initiate checkout (PayU)
-# EXPECT: 200, data.paymentUrl to redirect user to PayU
+### 2.2 Initiate checkout (Cashfree)
+# EXPECT: 200, data.paymentSessionId for the Cashfree JS SDK
 POST {{base}}/api/billing/checkout
 Authorization: Bearer {{token}}
 {{contentType}}

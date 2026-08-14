@@ -24,7 +24,7 @@ Then:
 ```bash
 pnpm test            # single run
 pnpm test:watch      # re-run on change
-pnpm test tests/integration/billing-payu-callback.test.ts   # one file
+pnpm test tests/integration/billing-cashfree-webhook.test.ts  # one file
 ```
 
 Requires the dev Postgres + Redis containers (`pnpm db:up` from the repo root).
@@ -61,7 +61,7 @@ provisions the database itself.
 | File | Covers |
 |---|---|
 | `integration/admin-authz.test.ts` | Authorization on `/admin-api/*`: role gate, SUPER_ADMIN-only actions (role/plan change, password reset, deleting an admin), self-modification guards, impersonation rules. |
-| `integration/billing-payu-callback.test.ts` | The PayU callback — the app's highest-stakes unauthenticated endpoint. Signature verification against forged/wrong-salt/tampered payloads, replay protection, status and field handling. |
+| `integration/billing-cashfree-webhook.test.ts` | The Cashfree webhook and payment verification — the app's highest-stakes unauthenticated endpoint. HMAC signature verification against forged/wrong-secret/tampered payloads, server-side re-read of order status and amount, plan eligibility, ownership on verify-payment, and replay protection. |
 | `integration/qr-idor.test.ts` | Object-level authorization on `/api/qr/:id` — cross-tenant read, list leakage, analytics, update, toggle, delete, duplicate. |
 | `integration/scan-limit.test.ts` | `scanLimit` enforcement on `/r/:slug`, including the cache-staleness regression, exact-limit boundaries, dedup, and limit-raise recovery. |
 
@@ -116,7 +116,7 @@ Every suite here was validated that way:
 | Guard removed | Tests that failed |
 |---|---|
 | Impersonation target-role check | 3 |
-| PayU signature verification | 6 |
+| Cashfree signature verification | 6 |
 | `userId` filter on 3 `qr.service` call sites | 3 |
 | Scan limit reverted to the stale cached count | 4 |
 

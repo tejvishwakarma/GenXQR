@@ -118,8 +118,8 @@ cat <<'EXAMPLE'
     JWT_REFRESH_SECRET="<different-64-char-hex-secret>" \
     RESEND_API_KEY="re_<your-resend-api-key>" \
     SMTP_PASS="<your-smtp-password>" \
-    PAYU_MERCHANT_KEY="<your-payu-key>" \
-    PAYU_MERCHANT_SALT="<your-payu-salt>" \
+    CASHFREE_APP_ID="<your-cashfree-app-id>" \
+    CASHFREE_SECRET_KEY="<your-cashfree-secret-key>" \
     GOOGLE_CLIENT_SECRET="<your-google-client-secret>"
 
   # Verify the secrets were written correctly:

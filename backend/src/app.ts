@@ -41,16 +41,15 @@ const allowedOrigins = new Set(
     .filter(Boolean),
 )
 
-// PayU callback routes are server-to-server POSTs — PayU's servers send an
-// Origin header that is not our frontend. Bypass CORS for these paths entirely.
-// They are protected by HMAC hash verification inside the route handler instead.
-const PAYU_CALLBACK_PATHS = new Set([
-  "/api/billing/payu-success",
-  "/api/billing/payu-failure",
+// The Cashfree webhook is a server-to-server POST — it carries no Origin from
+// our frontend, so CORS is bypassed for that path. It is protected by HMAC
+// signature verification in the route handler instead.
+const GATEWAY_CALLBACK_PATHS = new Set([
+  "/api/billing/cashfree-webhook",
 ])
 
 app.use((req, res, next) => {
-  if (PAYU_CALLBACK_PATHS.has(req.path)) return next()
+  if (GATEWAY_CALLBACK_PATHS.has(req.path)) return next()
   cors({
     origin: (origin, cb) => {
       // Allow requests with no origin (curl, mobile apps, server-to-server)
@@ -67,15 +66,22 @@ app.use((req, res, next) => {
 })
 
 // ─── Body parsing ─────────────────────────────────────────────────────────────
-// The verify callback saves the raw request buffer for the Razorpay webhook
-// route so that HMAC signature verification works against the original bytes.
+// The verify callback saves the raw request buffer for the Cashfree webhook so
+// that HMAC signature verification runs against the original bytes. Cashfree
+// signs `timestamp + rawBody`, and re-serialising the parsed JSON changes key
+// order and whitespace, so the signature would never match without this.
+//
+// Keep this path in step with the route in billing.routes.ts — if they drift,
+// the handler rejects every webhook with a 500 rather than failing silently.
+const WEBHOOK_RAW_BODY_PATH = "/api/billing/cashfree-webhook"
+
 app.use(
   express.json({
     limit: "1mb",
     verify: (req, _res, buf) => {
       if (
-        (req as typeof req & { originalUrl?: string }).originalUrl?.includes(
-          "/billing/webhook",
+        (req as typeof req & { originalUrl?: string }).originalUrl?.startsWith(
+          WEBHOOK_RAW_BODY_PATH,
         )
       ) {
         ;(req as typeof req & { rawBody?: string }).rawBody = buf.toString("utf8")

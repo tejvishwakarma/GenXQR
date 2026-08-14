@@ -278,10 +278,10 @@ export default function AdminPaymentsPage() {
 
                         {/* Payment ID */}
                         <td className="px-4 py-3.5">
-                          {p.payuPaymentId ? (
+                          {p.cashfreePaymentId ? (
                             <div className="flex items-center gap-0.5 text-zinc-500 text-xs font-mono">
-                              <span>{p.payuPaymentId.slice(0, 16)}…</span>
-                              <CopyButton value={p.payuPaymentId} />
+                              <span>{p.cashfreePaymentId.slice(0, 16)}…</span>
+                              <CopyButton value={p.cashfreePaymentId} />
                             </div>
                           ) : (
                             <span className="text-zinc-700 text-xs">—</span>

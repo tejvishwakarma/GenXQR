@@ -20,7 +20,7 @@ migration, but it's unused for now; nothing here depends on it.
 ## 0. Before you start
 
 - [ ] DNS: create an **A record** for `genxqr.com` and `www.genxqr.com` pointing at the VPS's public IP. SSL issuance in step 6 will fail until this has propagated.
-- [ ] Have ready: a **Resend API key** (or SMTP credentials) for email, your **PayU live merchant key + salt** (from https://dashboard.payu.in), and — optionally — a **Google OAuth client ID/secret** if you want Google login (the app works fine without it, login just skips that option).
+- [ ] Have ready: a **Resend API key** (or SMTP credentials) for email, your **Cashfree live App ID + Secret Key** (Cashfree dashboard → Developers → API Keys), and — optionally — a **Google OAuth client ID/secret** if you want Google login (the app works fine without it, login just skips that option).
 - [ ] Decide the CloudPanel **site user** name up front (e.g. `genxqr`) — it determines every path below.
 
 ---
@@ -116,7 +116,7 @@ Fill in, at minimum:
   node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
   ```
 - `RESEND_API_KEY` (or the `SMTP_*` block).
-- `PAYU_MERCHANT_KEY` / `PAYU_MERCHANT_SALT` — start with `PAYU_BASE_URL=https://test.payu.in/_payment` and do a full sandbox checkout before flipping to `secure.payu.in`.
+- `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` — start with `CASHFREE_API_BASE=https://sandbox.cashfree.com/pg` and do a full sandbox checkout before flipping to `https://api.cashfree.com/pg`. Sandbox and live have separate key pairs. Also register the webhook `https://genxqr.com/api/billing/cashfree-webhook` in the Cashfree dashboard, subscribed to `PAYMENT_SUCCESS_WEBHOOK` — without it, subscriptions only activate when the user's browser makes it back to the site.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — needed once, by the seed script in step 5.
 

@@ -22,7 +22,7 @@
    - 6.1 [Enums](#61-enums)
    - 6.2 [Models & Relationships](#62-models--relationships)
 7. [Authentication System](#7-authentication-system)
-8. [Billing System (PayU)](#8-billing-system-payu)
+8. [Billing System (Cashfree)](#8-billing-system-cashfree)
 9. [File Upload & Storage](#9-file-upload--storage)
 10. [QR Code Engine](#10-qr-code-engine)
 11. [Frontend Architecture](#11-frontend-architecture)
@@ -152,7 +152,7 @@ genx-qr/                         ← Repository root
 | CSV parsing | `csv-parse` |
 | ZIP archives | `archiver` |
 | Google Drive | `googleapis` |
-| Payments | PayU (Indian payment gateway) |
+| Payments | Cashfree Payments (Indian payment gateway) |
 | Validation | Zod |
 | Logging | Winston |
 | HTTP logging | Morgan |
@@ -221,10 +221,11 @@ SMTP_USER=""
 SMTP_PASS=""
 EMAIL_FROM="GenXQR <no-reply@genxqr.com>"
 
-# Payments (PayU — Indian gateway)
-PAYU_MERCHANT_KEY=""
-PAYU_MERCHANT_SALT=""
-PAYU_BASE_URL="https://test.payu.in/_payment"  # change to secure.payu.in for live
+# Payments (Cashfree — the only gateway)
+CASHFREE_APP_ID=""
+CASHFREE_SECRET_KEY=""                    # also the webhook signing key
+CASHFREE_API_BASE="https://sandbox.cashfree.com/pg"   # api.cashfree.com/pg for live
+CASHFREE_API_VERSION="2026-01-01"
 ```
 
 ### Frontend `.env.local`
@@ -327,8 +328,9 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `GET  /subscription` — current plan + subscription status + trial info
 - `GET  /usage` — usage counts (QR codes, scans, storage, API calls) vs plan limits
 - `GET  /invoices` — paginated invoice history
-- `POST /checkout` — creates PayU payment hash + returns form data for redirect
-- `POST /webhook` — PayU webhook (HMAC verified from rawBody); activates subscription
+- `POST /create-order` — prices the plan server-side, creates a Cashfree order, returns `paymentSessionId`
+- `POST /verify-payment` — (auth) re-reads an order from Cashfree after the browser returns; ownership-checked
+- `POST /cashfree-webhook` — public; HMAC verified against `req.rawBody`; authoritative activation path
 - `POST /cancel` — schedules subscription cancellation at period end
 
 #### `/api/apikeys` → `apikeys.routes.ts`
@@ -420,7 +422,8 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 | `qr.service.ts` | Create/update/delete QR codes, generate PNG/SVG (server-side qrcode lib) |
 | `scan.service.ts` | Resolve scan slug, apply routing/AB-test logic, record scan with geo data |
 | `analytics.service.ts` | Aggregate scan data (time-series, geo, device, browser breakdown) |
-| `billing.service.ts` | PayU hash generation, webhook processing, subscription creation/cancel, usage calculation |
+| `billing.service.ts` | Cashfree order creation, payment verification, webhook processing, subscription creation/cancel, usage calculation |
+| `cashfree.service.ts` | Cashfree REST client: create order, get order, webhook signature verification |
 | `email.service.ts` | HTML email templates, Resend SDK / Nodemailer fallback, EmailLog writes |
 | `bulk.service.ts` | CSV parsing → batch QR generation → ZIP archive |
 | `geo.service.ts` | IP-to-geo lookup using MaxMind mmdb |
@@ -548,21 +551,41 @@ Standalone tables:
 
 ---
 
-## 8. Billing System (PayU)
+## 8. Billing System (Cashfree)
 
-PayU is an Indian payment gateway (used instead of Stripe for INR payments).
+Cashfree Payments is the **only** payment gateway. There is no PayU, no Stripe,
+and no dual-gateway abstraction — do not add fallbacks for other providers.
 
 **Plans pricing in `Plan` DB model** (seeded via `prisma/seed.mjs`):
 - Prices stored in paise (INR × 100) and USD cents
 - Two billing cycles: `monthly` and `yearly`
 
 **Checkout flow:**
-1. Frontend calls `POST /api/billing/checkout` with `planName` + `billingCycle`
-2. Backend calculates amount, generates PayU hash (HMAC SHA-512 with merchant key+salt+txnid+amount+email)
-3. Returns form fields + PayU URL; frontend POSTs form to PayU
-4. PayU processes payment and POSTs to `/api/billing/webhook`
-5. Webhook verifies HMAC signature against `req.rawBody` (saved during body parsing)
-6. On success: creates/updates `Subscription`, creates `Invoice`, fires limit checks
+1. Frontend calls `POST /api/billing/create-order` with `planName` + `billingCycle`
+2. Backend looks the price up from `PLAN_PRICES_INR` — the client never sends an
+   amount — and calls Cashfree `POST /pg/orders`, tagging the order with
+   `userId` / `planName` / `billingCycle` in `order_tags`
+3. Backend returns `paymentSessionId`; the frontend hands it to the Cashfree JS
+   SDK (`@cashfreepayments/cashfree-js`, npm not CDN — the CSP is `script-src 'self'`),
+   which navigates the tab to Cashfree's hosted checkout
+4. Payment is then confirmed by **two independent paths**, either of which may
+   arrive first:
+   - `POST /api/billing/cashfree-webhook` — Cashfree's signed server-to-server
+     call. Authoritative: fires even if the user closes the tab.
+   - `POST /api/billing/verify-payment` — triggered when the browser returns to
+     `/app/billing?cf_order_id=…`. Gives instant feedback; ownership-checked.
+5. Both funnel into `activateSubscriptionForOrder()`, which **always re-reads the
+   order from Cashfree's authenticated API** rather than trusting any payload,
+   verifies `order_status === "PAID"` and that the amount matches the plan price,
+   then creates/updates `Subscription` and writes the `Invoice`
+
+**Why it is safe to expose the webhook publicly:** authenticity comes from
+`base64(HMAC-SHA256(x-webhook-timestamp + rawBody, CASHFREE_SECRET_KEY))`. A valid
+signature proves Cashfree sent the message — not that its contents are true — which
+is why the order is re-fetched regardless. `Invoice.cashfreeOrderId` is UNIQUE and
+is the idempotency key: if the webhook and the browser-return verification race,
+the loser hits P2002 and its whole transaction rolls back, so one payment can never
+grant two billing periods.
 
 ---
 
@@ -977,7 +1000,7 @@ pnpm preview               # vite preview (serves dist/)
 
 3. **BigInt serialization**: `QRFile.sizeBytes` is stored as `BigInt` in Prisma (maps to PostgreSQL `BigInt`). Since `JSON.stringify` cannot serialize BigInt, `app.ts` patches `BigInt.prototype.toJSON` globally.
 
-4. **PayU webhook raw body**: Express body parser normally consumes the buffer, making HMAC verification impossible. The `verify` callback in `express.json()` configuration saves the raw buffer as `req.rawBody` specifically for the `/billing/webhook` route.
+4. **Cashfree webhook raw body**: Express's body parser normally consumes the buffer, making HMAC verification impossible. The `verify` callback in `express.json()` saves the raw buffer as `req.rawBody` for the `/api/billing/cashfree-webhook` path only. Cashfree signs `timestamp + rawBody`, so re-serialising the parsed JSON would change key order and whitespace and never match. The path constant in `app.ts` must stay in step with the route in `billing.routes.ts` — if they drift the handler returns 500 rather than silently accepting unverified webhooks.
 
 5. **pnpm dedupe**: The `vite.config.ts` has `resolve.dedupe: ["react", "react-dom", "@tanstack/react-query"]` to prevent the "Invalid hook call" error caused by pnpm sometimes hoisting multiple copies of React into both root and frontend `node_modules`.
 
