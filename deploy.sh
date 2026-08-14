@@ -17,7 +17,18 @@ echo "==> git pull"
 git pull
 
 echo "==> pnpm install"
-pnpm install --frozen-lockfile
+# --prod=false is REQUIRED, not a preference. This deploy compiles TypeScript and
+# runs the test suite, so it needs devDependencies (tsc, vitest, the Prisma CLI).
+#
+# pnpm prunes devDependencies whenever NODE_ENV=production, and that variable is
+# easy to inherit — the production env file sets it, so merely having sourced that
+# file in the same shell is enough. Without this flag the install silently removes
+# ~117 packages and the very next step (prisma generate) fails with no obvious
+# link to the cause.
+#
+# confirmModulesPurge=false keeps pnpm from stopping on an interactive
+# "reinstall from scratch?" prompt when it decides to rebuild node_modules.
+pnpm install --frozen-lockfile --prod=false --config.confirmModulesPurge=false
 
 echo "==> loading production secrets from $ENV_FILE"
 set -a
