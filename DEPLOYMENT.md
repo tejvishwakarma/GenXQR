@@ -119,41 +119,14 @@ Fill in, at minimum:
 - `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` — start with `CASHFREE_API_BASE=https://sandbox.cashfree.com/pg` and do a full sandbox checkout before flipping to `https://api.cashfree.com/pg`. Sandbox and live have separate key pairs. Also register the webhook `https://genxqr.com/api/billing/cashfree-webhook` in the Cashfree dashboard, subscribed to `PAYMENT_SUCCESS_WEBHOOK` — without it, subscriptions only activate when the user's browser makes it back to the site.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
 
-**Invoice PDFs need a real browser.** Invoices are rendered by headless Chromium
-via Puppeteer, which needs both the browser binary and its system libraries.
-Installing the npm dependencies is not enough — without these, invoice downloads
-fail with a 503 while everything else keeps working.
+**Invoice PDFs need no browser.** They are drawn directly with pdfkit (pure
+JavaScript), so there are no system libraries to install, no Chromium, and no
+architecture constraints. This previously used headless Chromium via Puppeteer,
+which could not work on this ARM64 host: Chrome for Testing publishes no Linux
+ARM64 build, and the distro's only Chromium is a snap that refuses to launch
+from a PM2-spawned process. If `PUPPETEER_EXECUTABLE_PATH` is still set in the
+env file, it is now unused and can be deleted.
 
-> **On ARM64 (Oracle Cloud Ampere, AWS Graviton) — read this first.**
-> Chrome for Testing publishes **no Linux ARM64 build**. Puppeteer downloads an
-> x86-64 binary that the kernel cannot execute; the shell then tries to read it
-> as a script, giving the confusing `ELF: not found` /
-> `Syntax error: "(" unexpected` stderr. Re-running
-> `puppeteer browsers install chrome` cannot fix this. Install the distro's
-> native browser and pin it instead:
->
-> ```bash
-> sudo apt-get update && sudo apt-get install -y chromium
-> command -v chromium || command -v chromium-browser   # find the real path
-> ```
->
-> Then in the env file: `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium`
-> (or `/snap/bin/chromium` if apt installed the snap wrapper), and
-> `pm2 restart genxqr-api`. Check `uname -m` — `aarch64` means ARM.
-
-On x86-64, the browser download works but still needs these libraries:
-
-```bash
-sudo apt-get update && sudo apt-get install -y   libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0   libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1   libpango-1.0-0 libcairo2 libasound2t64
-
-cd ~/htdocs/genxqr.com/backend && pnpm exec puppeteer browsers install chrome
-```
-
-Puppeteer resolves its browser cache from `$HOME`, which PM2 does not always
-pass through. If the launch still fails, pin the binary explicitly in the env
-file — `PUPPETEER_EXECUTABLE_PATH=/home/<site-user>/.cache/puppeteer/chrome/<version>/chrome-linux64/chrome`
-— or point it at a system Chromium (`/usr/bin/chromium-browser`), which is also
-the ARM path.
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — needed once, by the seed script in step 5.
 
 Lock the file down:

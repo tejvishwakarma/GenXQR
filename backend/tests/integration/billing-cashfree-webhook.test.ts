@@ -353,6 +353,61 @@ describe("Cashfree payment confirmation", () => {
     })
   })
 
+  describe("invoice PDF download", () => {
+    /** Pays for a plan so there is a real invoice row to download. */
+    async function givenPaidInvoice(user: TestUser) {
+      const order = givenPaidOrder(user)
+      await postSignedSuccess(order.order_id)
+      return prisma.invoice.findUniqueOrThrow({ where: { cashfreeOrderId: order.order_id } })
+    }
+
+    it("should return a real PDF to the invoice's owner", async () => {
+      stubCashfree()
+      const user = await createUser()
+      const invoice = await givenPaidInvoice(user)
+
+      const res = await request(app)
+        .get(`/api/billing/invoices/${invoice.id}/download`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .buffer(true)
+        .parse((response, cb) => {
+          const parts: Buffer[] = []
+          response.on("data", (c: Buffer) => parts.push(c))
+          response.on("end", () => cb(null, Buffer.concat(parts)))
+        })
+
+      expect(res.status).toBe(200)
+      expect(res.headers["content-type"]).toContain("application/pdf")
+      // %PDF- magic bytes: proves an actual PDF, not an error page with the
+      // right Content-Type.
+      expect((res.body as Buffer).subarray(0, 5).toString("latin1")).toBe("%PDF-")
+      expect((res.body as Buffer).length).toBeGreaterThan(1000)
+    })
+
+    it("should refuse to hand one user another user's invoice", async () => {
+      stubCashfree()
+      const owner = await createUser()
+      const attacker = await createUser()
+      const invoice = await givenPaidInvoice(owner)
+
+      const res = await request(app)
+        .get(`/api/billing/invoices/${invoice.id}/download`)
+        .set("Authorization", `Bearer ${attacker.token}`)
+
+      expect(res.status).toBe(403)
+    })
+
+    it("should require authentication", async () => {
+      stubCashfree()
+      const user = await createUser()
+      const invoice = await givenPaidInvoice(user)
+
+      const res = await request(app).get(`/api/billing/invoices/${invoice.id}/download`)
+
+      expect(res.status).toBe(401)
+    })
+  })
+
   describe("billing period arithmetic", () => {
     it("should EXTEND the paid period when renewing early, not discard the remainder", async () => {
       stubCashfree()

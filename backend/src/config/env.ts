@@ -43,9 +43,8 @@ const envSchema = z.object({
   // Dev:  http://localhost:3001  (direct backend — bypasses Vite proxy)
   // Prod: https://genxqr.com    (Nginx proxies /api/* to backend)
   BACKEND_URL: z.string().default("http://localhost:3001"),
-  // Override Puppeteer's bundled Chromium — required on ARM servers (Oracle Cloud Ampere).
-  // Set to /usr/bin/chromium-browser on Ubuntu ARM64.
-  PUPPETEER_EXECUTABLE_PATH: z.string().optional(),
+  // (PUPPETEER_EXECUTABLE_PATH removed: invoice PDFs are drawn with pdfkit and
+  // no longer need a browser. The variable can be deleted from any env file.)
 })
 
 export type Env = z.infer<typeof envSchema>
