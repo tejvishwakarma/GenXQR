@@ -155,6 +155,26 @@ async function cashfreeRequest<T>(
 
   if (!response.ok) {
     const detail = parsed as { message?: string; code?: string; type?: string }
+
+    // 401/403 almost always means the key pair does not match the configured
+    // environment: sandbox and production have SEPARATE credentials, so pointing
+    // CASHFREE_API_BASE at one while holding the other's keys fails here. That is
+    // a configuration mistake with a specific fix, so say so in the log rather
+    // than leaving a bare "rejected the request".
+    if (response.status === 401 || response.status === 403) {
+      const environment = base.includes("sandbox") ? "SANDBOX" : "PRODUCTION"
+      logger.error(
+        `Cashfree rejected the credentials (${response.status}). CASHFREE_API_BASE points at ${environment}, ` +
+          `so CASHFREE_APP_ID and CASHFREE_SECRET_KEY must be the ${environment} key pair — ` +
+          `the two environments do not share credentials.`,
+        { path, status: response.status, code: detail.code, message: detail.message, base },
+      )
+      throw new AppError(
+        502,
+        "The payment gateway rejected our credentials. This is a configuration problem on our side — please contact support.",
+      )
+    }
+
     logger.error("Cashfree API error", {
       path,
       status: response.status,
