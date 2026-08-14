@@ -90,18 +90,94 @@ export function initAnalytics(): void {
 }
 
 /**
+ * Query parameters that must never reach Google.
+ *
+ * Several of these are live credentials — a password-reset token or an OAuth
+ * code in an analytics property is an account-takeover path for anyone with
+ * read access to it, and Google's own terms forbid sending PII besides. Sending
+ * a URL verbatim is the usual way this leaks, because the token sits in the
+ * query string of a page the user genuinely visits.
+ *
+ * Anything not listed here is preserved, so utm_source/utm_campaign and similar
+ * attribution parameters still work.
+ */
+const REDACTED_QUERY_PARAMS = new Set([
+  "token",          // password reset + email verification
+  "oauth_code",     // one-time Google OAuth exchange code
+  "code",
+  "access_token",
+  "refresh_token",
+  "secret",
+  "password",
+  "key",
+  "api_key",
+  "email",
+  "cf_order_id",    // payment order identifier
+])
+
+/**
+ * Path patterns carrying a secret in a path SEGMENT rather than the query
+ * string, which query redaction alone would miss.
+ */
+const REDACTED_PATH_PREFIXES: Array<{ prefix: string; replacement: string }> = [
+  // /invite/<team-invite-token> — accepting it joins a team.
+  { prefix: "/invite/", replacement: "/invite/:token" },
+]
+
+/**
+ * Strips credentials out of a URL before it is reported.
+ *
+ * Exported for testing — this is security-relevant enough to assert on directly
+ * rather than only through the gtag call.
+ */
+export function sanitisePath(rawPath: string): string {
+  const [pathname = "", queryString = ""] = rawPath.split("?")
+
+  for (const { prefix, replacement } of REDACTED_PATH_PREFIXES) {
+    if (pathname.startsWith(prefix) && pathname.length > prefix.length) {
+      // The secret is the segment itself; keep the route shape for reporting.
+      return replacement
+    }
+  }
+
+  if (!queryString) return pathname
+
+  const params = new URLSearchParams(queryString)
+  let changed = false
+  for (const name of [...params.keys()]) {
+    if (REDACTED_QUERY_PARAMS.has(name.toLowerCase())) {
+      params.set(name, "REDACTED")
+      changed = true
+    }
+  }
+
+  const rebuilt = params.toString()
+  if (!rebuilt) return pathname
+  // Only note the change in the value, never drop the parameter entirely —
+  // knowing a reset link was opened is useful; knowing the token is not.
+  return changed || rebuilt !== queryString ? `${pathname}?${rebuilt}` : rawPath
+}
+
+/**
  * Records a page view. Call on every route change, including the first.
  *
  * `page_path` is passed explicitly rather than letting GA read location, because
  * at the moment React Router commits a navigation the URL is already updated but
  * the document title is not, so gtag would otherwise attribute the new path to
  * the previous page's title.
+ *
+ * `page_location` is rebuilt from the sanitised path rather than passed as
+ * window.location.href. Passing the raw href would leak every credential this
+ * function just stripped out of page_path — and if page_location is omitted
+ * entirely, gtag falls back to reading document.location itself, which leaks it
+ * anyway. It must be set, and set to something safe.
  */
 export function trackPageView(path: string, title?: string): void {
   if (!initialised || !window.gtag) return
+  const safePath = sanitisePath(path)
   window.gtag("event", "page_view", {
-    page_path: path,
-    page_location: window.location.href,
+    page_path: safePath,
+    page_location: `${window.location.origin}${safePath}`,
     page_title: title ?? document.title,
   })
 }

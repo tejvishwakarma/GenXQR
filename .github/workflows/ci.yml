@@ -114,5 +114,13 @@ jobs:
         working-directory: frontend
         run: pnpm seo:check
 
+      # Several routes carry live credentials in the URL (password-reset and
+      # email-verification tokens, the OAuth exchange code, team invite tokens).
+      # This fails the build if any of them could reach Google Analytics, which
+      # would put working credentials into a third-party property.
+      - name: Verify analytics cannot leak credentials
+        working-directory: frontend
+        run: pnpm analytics:check
+
       - name: Build
         run: pnpm build:frontend
