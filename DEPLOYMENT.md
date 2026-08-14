@@ -119,6 +119,18 @@ Fill in, at minimum:
 - `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` — start with `CASHFREE_API_BASE=https://sandbox.cashfree.com/pg` and do a full sandbox checkout before flipping to `https://api.cashfree.com/pg`. Sandbox and live have separate key pairs. Also register the webhook `https://genxqr.com/api/billing/cashfree-webhook` in the Cashfree dashboard, subscribed to `PAYMENT_SUCCESS_WEBHOOK` — without it, subscriptions only activate when the user's browser makes it back to the site.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
 
+**The deploy runs the test suite first.** `deploy.sh` executes the backend tests
+before it migrates, builds or reloads, so a failure leaves production untouched.
+That needs a one-time setup on the server, because `.env.test` is gitignored and
+the suite uses its own database:
+
+```bash
+cd ~/htdocs/genxqr.com/backend && pnpm test:setup
+```
+
+Until that is done, `./deploy.sh` refuses to run rather than deploying unverified.
+For a deliberate emergency bypass: `SKIP_TESTS=1 ./deploy.sh`.
+
 **Invoice PDFs need no browser.** They are drawn directly with pdfkit (pure
 JavaScript), so there are no system libraries to install, no Chromium, and no
 architecture constraints. This previously used headless Chromium via Puppeteer,

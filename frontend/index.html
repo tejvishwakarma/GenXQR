@@ -11,10 +11,15 @@
          16/32/48/180) — an export setting on the source artwork. Declaring
          the true size is correct; re-exporting at exact sizes would render
          more crisply, since a 17px icon has to be resampled to fit a 16px slot. -->
+    <!-- favicon.ico first for the browsers (and crawlers) that request it by
+         convention rather than reading these tags. The vhost serves .ico straight
+         from disk with no SPA fallback, so a missing file is a hard 404 on every
+         page load. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" sizes="17x17" href="/favicon-16x16.png" />
-    <link rel="icon" type="image/png" sizes="33x33" href="/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="49x49" href="/favicon-48x48.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- PWA -->
