@@ -17,6 +17,7 @@ import {
   PLAN_PRICES_INR,
 } from "../services/billing.service.js"
 import { verifyWebhookSignature } from "../services/cashfree.service.js"
+import { quoteCoupon } from "../services/coupon.service.js"
 import { generateInvoicePDF } from "../services/invoice-pdf.service.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
@@ -88,6 +89,9 @@ const CreateOrderSchema = z.object({
   planName:     z.enum(["STARTER", "PRO", "BUSINESS", "ENTERPRISE"]),
   billingCycle: z.enum(["monthly", "yearly"]),
   phone:        z.string().regex(/^\d{10}$/).optional(),
+  // Only the CODE is accepted. Any amount or discount in the body is ignored —
+  // what a coupon is worth is decided server-side.
+  couponCode:   z.string().trim().min(1).max(40).optional(),
 })
 
 router.post(
@@ -97,7 +101,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const body = CreateOrderSchema.parse(req.body)
-      const result = await createPaymentOrder(uid(req), body.planName as PlanName, body.billingCycle, body.phone)
+      const result = await createPaymentOrder(uid(req), body.planName as PlanName, body.billingCycle, body.phone, body.couponCode)
       res.json({ success: true, data: result })
     } catch (err) {
       next(err)
@@ -141,6 +145,51 @@ router.post(
       next(err)
     }
   }
+)
+
+// ─── POST /api/billing/validate-coupon ────────────────────────────────────────
+//
+// Prices a coupon so the checkout page can show the discount before the customer
+// commits. Deliberately uses the SAME quoteCoupon the order creation uses, so the
+// figure previewed here and the figure charged cannot diverge.
+//
+// This does NOT reserve the code. Validating is free and repeatable; a coupon is
+// only consumed in the transaction that activates a paid subscription.
+//
+// Authenticated and rate-limited: per-user redemption limits cannot be evaluated
+// anonymously, and an open endpoint that reports whether a code exists is a
+// code-guessing oracle.
+
+const ValidateCouponSchema = z.object({
+  code:         z.string().trim().min(1).max(40),
+  planName:     z.enum(["STARTER", "PRO", "BUSINESS"]),
+  billingCycle: z.enum(["monthly", "yearly"]),
+})
+
+router.post(
+  "/validate-coupon",
+  requireAuth,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const body = ValidateCouponSchema.parse(req.body)
+      const quote = await quoteCoupon({
+        code: body.code,
+        userId: uid(req),
+        planName: body.planName as PlanName,
+        billingCycle: body.billingCycle,
+      })
+      res.json({ success: true, data: quote })
+    } catch (err) {
+      // A rejected coupon is an ordinary outcome, not an error worth a stack
+      // trace — answer 200 with the reason so the page can show it inline.
+      if (err instanceof AppError && err.statusCode === 422) {
+        res.json({ success: false, error: err.message })
+        return
+      }
+      next(err)
+    }
+  },
 )
 
 // ─── POST /api/billing/verify-payment ─────────────────────────────────────────

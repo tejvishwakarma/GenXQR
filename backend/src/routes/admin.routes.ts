@@ -31,6 +31,8 @@ import * as AdminUsersService from "../services/admin-users.service.js"
 import * as AdminPlatformService from "../services/admin-platform.service.js"
 import * as AdminModerationService from "../services/admin-moderation.service.js"
 import * as AdminSupportService from "../services/admin-support.service.js"
+import * as AdminCouponsService from "../services/admin-coupons.service.js"
+import { logAudit } from "../services/audit.service.js"
 import type { NotificationType } from "@prisma/client"
 
 const router: IRouter = Router()
@@ -1022,6 +1024,144 @@ router.post(
         actionUrl: parsed.actionUrl || undefined,
       })
       res.json({ success: true, data: result })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── Coupons ───────────────────────────────────────────────────────────────────
+//
+// Discount codes: the admin sets the code and what it is worth. Customers can
+// only quote a code — every amount is derived server-side in coupon.service from
+// these records (see POST /api/billing/validate-coupon).
+//
+// Amounts are handled in PAISE throughout, matching plan prices and invoices, so
+// nothing has to round between layers.
+
+/** Accepts an ISO date string or null; anything unparseable is rejected. */
+const NullableDate = z
+  .union([z.string().datetime(), z.string().length(0), z.null()])
+  .optional()
+  .transform((v) => (v ? new Date(v) : null))
+
+const CouponBodySchema = z.object({
+  code: z.string().trim().min(3).max(40),
+  description: z.string().trim().max(200).nullish(),
+  discountType: z.enum(["PERCENTAGE", "FIXED"]),
+  discountValue: z.coerce.number().int().positive(),
+  maxDiscountPaise: z.coerce.number().int().positive().nullish(),
+  minOrderPaise: z.coerce.number().int().nonnegative().nullish(),
+  applicablePlans: z.array(z.enum(["STARTER", "PRO", "BUSINESS"])).optional(),
+  applicableCycles: z.array(z.enum(["monthly", "yearly"])).optional(),
+  maxRedemptions: z.coerce.number().int().positive().nullish(),
+  maxRedemptionsPerUser: z.coerce.number().int().positive().optional(),
+  validFrom: NullableDate,
+  validUntil: NullableDate,
+  isActive: z.boolean().optional(),
+})
+
+router.get(
+  "/coupons",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const includeInactive = req.query["includeInactive"] === "true"
+      res.json({ success: true, data: await AdminCouponsService.listCoupons({ includeInactive }) })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.get(
+  "/coupons/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json({ success: true, data: await AdminCouponsService.getCoupon(String(req.params["id"])) })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.post(
+  "/coupons",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const body = CouponBodySchema.parse(req.body)
+      const adminId = (req.user as AccessTokenPayload).sub
+      const coupon = await AdminCouponsService.createCoupon(body, adminId)
+
+      logAudit({
+        userId: adminId,
+        action: "admin.coupon.create",
+        category: "admin",
+        entityId: coupon.id,
+        entityType: "Coupon",
+        // Discount codes affect revenue, so who created what is worth recording.
+        metadata: { code: coupon.code, discountType: coupon.discountType, discountValue: coupon.discountValue },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
+
+      res.status(201).json({ success: true, data: coupon })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.put(
+  "/coupons/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const body = CouponBodySchema.parse(req.body)
+      const id = String(req.params["id"])
+      const coupon = await AdminCouponsService.updateCoupon(id, body)
+      const adminId = (req.user as AccessTokenPayload).sub
+
+      logAudit({
+        userId: adminId,
+        action: "admin.coupon.update",
+        category: "admin",
+        entityId: id,
+        entityType: "Coupon",
+        metadata: { code: coupon.code, discountType: coupon.discountType, discountValue: coupon.discountValue },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
+
+      res.json({ success: true, data: coupon })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+router.delete(
+  "/coupons/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = String(req.params["id"])
+      const result = await AdminCouponsService.deleteCoupon(id)
+      const adminId = (req.user as AccessTokenPayload).sub
+
+      logAudit({
+        userId: adminId,
+        action: result.deleted ? "admin.coupon.delete" : "admin.coupon.deactivate",
+        category: "admin",
+        entityId: id,
+        entityType: "Coupon",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
+
+      res.json({
+        success: true,
+        // A coupon that has been redeemed is deactivated rather than deleted —
+        // its redemptions are the audit trail for discounted money.
+        message: result.deleted ? "Coupon deleted." : "Coupon has redemptions, so it was deactivated instead of deleted.",
+      })
     } catch (err) {
       next(err)
     }
