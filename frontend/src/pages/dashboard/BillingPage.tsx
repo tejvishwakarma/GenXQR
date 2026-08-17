@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react"
+import { createPortal } from "react-dom"
 import { useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -418,6 +419,21 @@ export default function BillingPage() {
     }
   }, [subData?.data?.planName, qc, plans])
 
+  // Modal behaviours a hand-rolled dialog does not get for free: Escape closes
+  // it, and the page behind stops scrolling while it is open (a fixed overlay
+  // otherwise lets the wheel scroll the plan list underneath).
+  useEffect(() => {
+    if (!pendingPurchase) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setPendingPurchase(null) }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    window.addEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [pendingPurchase])
+
   /** Prices the entered code against the plan being bought. */
   const handleApplyCoupon = useCallback(async () => {
     if (!pendingPurchase) return
@@ -531,14 +547,28 @@ export default function BillingPage() {
           total, takes a coupon, and collects a mobile number if none is stored.
           The figures here come from the server (validate-coupon), never from
           arithmetic done in the browser. */}
-      {pendingPurchase && (
+      {pendingPurchase && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          // Rendered on document.body via a portal. Inside the page it sat in
+          // whatever stacking context the dashboard layout happened to create,
+          // so the dim never reliably covered the sidebar (z-30) and header
+          // (z-20) — the overlay looked like it stopped partway down the page.
+          // A portal plus z-[100] puts it above the whole app, including the
+          // mobile drawer at z-50, and keeps it that way if the layout changes.
+          //
+          // bg-black/70 rather than /60: over the near-black sidebar, 60% was
+          // almost indistinguishable from undimmed.
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="checkout-title"
+          // Clicking the backdrop dismisses; clicks inside the card must not.
+          onClick={() => setPendingPurchase(null)}
         >
-          <Card className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+          <Card
+            className="w-full max-w-md p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 id="checkout-title" className="text-lg font-bold text-zinc-900 dark:text-white mb-1">
               Confirm your upgrade
             </h2>
@@ -649,7 +679,8 @@ export default function BillingPage() {
               </Button>
             </div>
           </Card>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Payment result banners (shown after returning from Cashfree) */}
