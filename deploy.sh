@@ -62,10 +62,31 @@ else
   (cd backend && npx prisma generate >/dev/null)
 
   # Bring the TEST database up to date with any migrations just pulled in.
-  # Without this, new columns are missing there and the suite fails for a reason
+  # Without this, new tables are missing there and the suite fails for a reason
   # that has nothing to do with the code being deployed.
+  #
+  # DATABASE_URL is passed EXPLICITLY, and this matters more than it looks:
+  # Node's --env-file does NOT override a variable already in the environment,
+  # and this script sources the PRODUCTION env file above. So
+  # `node --env-file=.env.test ... migrate deploy` inherited the production
+  # DATABASE_URL and migrated PRODUCTION under a line that says it is migrating
+  # the test database — leaving the test DB untouched and the suite failing on
+  # missing tables. An inline assignment is part of the environment, so it wins.
   echo "==> migrating the test database"
-  (cd backend && node --env-file=.env.test ./node_modules/prisma/build/index.js migrate deploy >/dev/null)
+  TEST_DB_URL="$(grep -E '^DATABASE_URL=' backend/.env.test | head -1 | cut -d '=' -f2- | tr -d '"')"
+
+  # Refuse rather than risk running migrations against the wrong database.
+  case "$TEST_DB_URL" in
+    */genxqr_test|*/genxqr_test\?*) ;;
+    *)
+      echo "!!  backend/.env.test DATABASE_URL does not target genxqr_test."
+      echo "!!  Got: $(echo "$TEST_DB_URL" | sed 's#:[^:@/]*@#:****@#')"
+      echo "!!  Refusing to run migrations against it."
+      exit 1
+      ;;
+  esac
+
+  (cd backend && DATABASE_URL="$TEST_DB_URL" node ./node_modules/prisma/build/index.js migrate deploy)
 
   echo "==> running tests"
   (cd backend && pnpm test)
