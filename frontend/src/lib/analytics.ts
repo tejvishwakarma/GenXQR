@@ -66,10 +66,23 @@ export function initAnalytics(): void {
   initialised = true
 
   window.dataLayer = window.dataLayer ?? []
-  // gtag must push `arguments` itself — an arrow function spreading into an array
-  // does not produce the object gtag.js expects.
-  function gtag(...args: GtagArgs) {
-    window.dataLayer!.push(args)
+
+  /**
+   * Queues a gtag command.
+   *
+   * It MUST push the `arguments` object, not an array. gtag.js walks the
+   * dataLayer and only treats `arguments`-shaped entries as commands; a plain
+   * Array is silently skipped. Get this wrong and everything still *looks*
+   * correct — the script loads, window.gtag exists, entries appear in the
+   * dataLayer, no error is logged — but js/config/page_view are never processed
+   * and not one request reaches Google.
+   *
+   * That is exactly what shipped: the rest parameter was pushed directly, so the
+   * property was never configured and no hit was ever sent.
+   */
+  function gtag(..._args: GtagArgs) {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer!.push(arguments)
   }
   window.gtag = gtag
 
