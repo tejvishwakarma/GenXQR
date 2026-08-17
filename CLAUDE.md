@@ -281,7 +281,7 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 - `POST /forgot-password` — sends password reset link
 - `POST /reset-password` — validates token, updates password hash
 - `GET  /me` — returns current user profile (requires auth)
-- `PATCH /me` — update name / notification prefs
+- `PATCH /me` — update display name and mobile number (email is NOT changeable here: it needs re-verification and is the key trial eligibility is derived from)
 - `PATCH /me/avatar` — upload avatar (multipart/form-data)
 - `DELETE /me/avatar` — remove avatar
 - `DELETE /me` — delete own account (requires password confirmation)
@@ -410,7 +410,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 | `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer nxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
 | `rateLimit.middleware.ts` | `apiLimiter` (global 60 req/min via Redis store) |
-| `error.middleware.ts` | Global error handler; maps Zod errors → 400, JWT errors → 401, Prisma unique → 409, etc. |
+| `error.middleware.ts` | Global error handler; maps Zod errors → **422**, JWT errors → 401, Prisma unique → 409, etc. Hand-thrown validation failures should use 422 too, so one class of error has one status. |
 
 ### 5.5 Services Layer
 

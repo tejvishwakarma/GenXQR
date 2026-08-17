@@ -294,6 +294,45 @@ router.get(
   },
 )
 
+// ─── PATCH /api/auth/me ────────────────────────────────────────────────────────
+// Updates the profile fields a user owns: display name and mobile number.
+//
+// The settings page had a "Save changes" button with no handler and no endpoint
+// behind it, so editing the profile silently did nothing. The mobile number
+// matters in particular: checkout stores one on first payment and reuses it on
+// every later order, so without this a typo was permanent.
+//
+// Email is intentionally absent — changing it needs re-verification and a
+// uniqueness check, and it is the key trial eligibility is keyed on.
+
+router.patch(
+  "/me",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req.user as unknown as AccessTokenPayload).sub
+      const input = AuthService.updateProfileSchema.parse(req.body)
+      const user = await AuthService.updateProfile(userId, input)
+
+      logAudit({
+        userId,
+        action: "auth.profile.update",
+        category: "auth",
+        entityId: userId,
+        entityType: "User",
+        // Which fields changed, never their values — this log holds no PII.
+        metadata: { fields: Object.keys(input) },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
+
+      res.json({ success: true, data: user, message: "Profile updated" })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 router.get(
   "/preferences",
   requireAuth,

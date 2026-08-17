@@ -1,5 +1,5 @@
 import * as Switch from "@radix-ui/react-switch"
-import { useMemo, useState, useEffect, useRef } from "react"
+import { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { HardDrive, Loader2, CheckCircle2 } from "lucide-react"
@@ -15,6 +15,7 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
   getCurrentUser,
+  updateProfile,
   uploadAvatar,
   removeAvatar,
   type NotificationPreferences,
@@ -124,6 +125,75 @@ export default function SettingsPage() {
     queryFn: getCurrentUser,
     staleTime: 30_000,
   })
+
+  // ─── Profile form ───────────────────────────────────────────────────────────
+  // Controlled, because the previous version used uncontrolled defaultValue
+  // inputs and a Save button with no handler — editing anything here silently
+  // did nothing.
+  const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "", phone: "" })
+  const [profileStatus, setProfileStatus] = useState<{ error?: string; saved?: boolean }>({})
+  // Seed from the server once it answers, rather than from localStorage, so the
+  // phone (which localStorage never held) is included.
+  const seededProfile = useRef(false)
+
+  useEffect(() => {
+    const u = sessionUserData?.data
+    if (!u || seededProfile.current) return
+    seededProfile.current = true
+    const parts = (u.name ?? "").split(" ")
+    setProfileForm({
+      firstName: parts[0] ?? "",
+      lastName: parts.slice(1).join(" "),
+      phone: u.phone ?? "",
+    })
+  }, [sessionUserData])
+
+  const profileMut = useMutation({
+    mutationFn: () => {
+      const name = [profileForm.firstName.trim(), profileForm.lastName.trim()]
+        .filter(Boolean)
+        .join(" ")
+      return updateProfile({
+        name,
+        // Empty means "clear it", which the API models as null.
+        phone: profileForm.phone.trim() === "" ? null : profileForm.phone.trim(),
+      })
+    },
+    onSuccess: (res) => {
+      setProfileStatus({ saved: true })
+      // Keep the cached copy the rest of the app reads in step with the server.
+      try {
+        const raw = localStorage.getItem("user")
+        if (raw) {
+          const u = JSON.parse(raw) as Record<string, unknown>
+          localStorage.setItem("user", JSON.stringify({ ...u, name: res.data.name }))
+        }
+      } catch {
+        // A malformed cached user is not worth failing the save over.
+      }
+      void qc.invalidateQueries({ queryKey: ["session-user"] })
+      void qc.invalidateQueries({ queryKey: ["current-user"] })
+      setTimeout(() => setProfileStatus({}), 3000)
+    },
+    onError: (err: unknown) => {
+      setProfileStatus({ error: err instanceof Error ? err.message : "Could not save your profile." })
+    },
+  })
+
+  const handleProfileSave = useCallback(() => {
+    setProfileStatus({})
+    if (!profileForm.firstName.trim()) {
+      setProfileStatus({ error: "First name is required." })
+      return
+    }
+    // Mirrors the server rule: Indian mobile numbers are 10 digits starting 6-9.
+    const digits = profileForm.phone.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")
+    if (profileForm.phone.trim() !== "" && !/^[6-9]\d{9}$/.test(digits)) {
+      setProfileStatus({ error: "Enter a valid 10-digit Indian mobile number, or leave it blank." })
+      return
+    }
+    profileMut.mutate()
+  }, [profileForm, profileMut])
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl ?? null)
   const [avatarErrored, setAvatarErrored] = useState(false)
@@ -237,23 +307,62 @@ export default function SettingsPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="label-text">First Name</label>
-                <Input defaultValue={user.firstName} />
+                <label className="label-text" htmlFor="profile-first-name">First Name</label>
+                <Input
+                  id="profile-first-name"
+                  value={profileForm.firstName}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, firstName: e.target.value }))}
+                />
               </div>
               <div>
-                <label className="label-text">Last Name</label>
-                <Input defaultValue={user.lastName} />
+                <label className="label-text" htmlFor="profile-last-name">Last Name</label>
+                <Input
+                  id="profile-last-name"
+                  value={profileForm.lastName}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, lastName: e.target.value }))}
+                />
               </div>
             </div>
+
             <div>
-              <label className="label-text">Email</label>
-              <Input type="email" defaultValue={user.email} />
+              <label className="label-text" htmlFor="profile-email">Email</label>
+              {/* Read-only on purpose: changing it needs re-verification and a
+                  uniqueness check, so it is a separate flow rather than a field
+                  that looks editable and silently is not. */}
+              <Input id="profile-email" type="email" value={user.email} readOnly disabled />
+              <p className="text-zinc-500 text-xs mt-1">
+                Contact support to change your email address.
+              </p>
             </div>
+
             <div>
-              <label className="label-text">Company (optional)</label>
-              <Input placeholder="Acme Corp" />
+              <label className="label-text" htmlFor="profile-phone">Mobile number</label>
+              <div className="flex items-stretch gap-2">
+                <span className="flex items-center px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-sm">
+                  +91
+                </span>
+                <Input
+                  id="profile-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  placeholder="98765 43210"
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm((f) => ({ ...f, phone: e.target.value }))}
+                />
+              </div>
+              <p className="text-zinc-500 text-xs mt-1">
+                Used by the payment gateway for your receipts. Asked for once at checkout —
+                change it here if it is wrong.
+              </p>
             </div>
-            <Button>Save changes</Button>
+
+            {profileStatus.error && <p className="text-red-400 text-sm">{profileStatus.error}</p>}
+            {profileStatus.saved && <p className="text-emerald-400 text-sm">Profile saved.</p>}
+
+            <Button onClick={handleProfileSave} disabled={profileMut.isPending}>
+              {profileMut.isPending ? "Saving…" : "Save changes"}
+            </Button>
           </div>
         </CardContent>
       </Card>

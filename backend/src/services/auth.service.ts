@@ -7,6 +7,9 @@ import { hashPassword, verifyPassword } from "../utils/password.js"
 import { generateSecureToken, hashToken } from "../utils/crypto.js"
 import { isDisposableEmail } from "../utils/disposable-email.util.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
+// Reused so a number saved in settings is stored in exactly the form checkout
+// expects — two normalisers would eventually disagree.
+import { normalisePhone } from "./billing.service.js"
 import {
   signAccessToken,
   signRefreshToken,
@@ -572,4 +575,51 @@ export async function updateNotificationPrefs(userId: string, prefs: Notificatio
     where: { id: userId },
     data: { notificationPrefs: JSON.stringify(prefs) }
   })
+}
+
+/** Fields a user may change about themselves from the settings page. */
+export const updateProfileSchema = z.object({
+  name: z.string().trim().min(1, "Name cannot be empty").max(100).optional(),
+  /**
+   * Accepts what a person actually types — spaces, +91, a leading 0 — and stores
+   * the bare 10 digits Cashfree requires. `null` clears it.
+   *
+   * Email is deliberately NOT updatable here. Changing it would need
+   * re-verification and a uniqueness check, and it is also the key the trial
+   * eligibility rule is built on, so it is a separate flow rather than a field
+   * on this form.
+   */
+  phone: z.string().trim().max(20).nullable().optional(),
+})
+
+export async function updateProfile(
+  userId: string,
+  input: z.infer<typeof updateProfileSchema>,
+): Promise<{ id: string; name: string; email: string; phone: string | null; avatarUrl: string | null }> {
+  const data: { name?: string; phone?: string | null } = {}
+
+  if (input.name !== undefined) data.name = input.name
+
+  if (input.phone !== undefined) {
+    if (input.phone === null || input.phone === "") {
+      data.phone = null
+    } else {
+      // Same normalisation the checkout uses, so a number saved here is
+      // immediately usable for a payment and cannot differ in format.
+      const normalised = normalisePhone(input.phone)
+      if (!normalised) {
+        // 422 to match how error.middleware maps every other validation failure
+        // (Zod errors), rather than inventing a second status for the same class.
+        throw new AppError(422, "Enter a valid 10-digit Indian mobile number.")
+      }
+      data.phone = normalised
+    }
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    select: { id: true, name: true, email: true, phone: true, avatarUrl: true },
+  })
+  return user
 }

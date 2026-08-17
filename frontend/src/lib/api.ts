@@ -259,6 +259,20 @@ export function getCurrentUser() {
   })
 }
 
+/**
+ * Updates the profile fields a user owns.
+ *
+ * Email is not updatable here — it needs re-verification and a uniqueness check,
+ * so it is a separate flow. Pass `phone: null` to clear a stored number.
+ */
+export function updateProfile(input: { name?: string; phone?: string | null }) {
+  return apiFetch<{ success: boolean; data: AuthUser; message: string }>("/api/auth/me", {
+    method: "PATCH",
+    headers: authHeader(),
+    body: JSON.stringify(input),
+  })
+}
+
 export async function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
   let token = localStorage.getItem("access_token") ?? ""
   const form = new FormData()
