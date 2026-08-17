@@ -23,6 +23,20 @@ function paiseToRupees(paise: number) {
   return `₹${(paise / 100).toLocaleString("en-IN")}`
 }
 
+/**
+ * Money for the checkout summary, always to two decimals.
+ *
+ * paiseToRupees drops trailing zeros, which is right for a plan card ("₹799/mo")
+ * but wrong in a totals column: ₹799 above −₹791.01 above ₹7.99 reads as a
+ * rounding glitch when it is exactly correct.
+ */
+function paiseToRupeesExact(paise: number) {
+  return `₹${(paise / 100).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
 }
@@ -564,7 +578,7 @@ export default function BillingPage() {
             {couponError && <p className="text-red-500 text-xs mt-2">{couponError}</p>}
             {appliedCoupon && (
               <p className="text-emerald-500 text-xs mt-2">
-                {appliedCoupon.code} applied{appliedCoupon.description ? ` — ${appliedCoupon.description}` : ""}
+                {appliedCoupon.code} applied
               </p>
             )}
 
@@ -572,17 +586,17 @@ export default function BillingPage() {
             <div className="mt-5 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
                 <span>Subtotal</span>
-                <span>{paiseToRupees(appliedCoupon?.originalPaise ?? pendingPurchase.listPaise)}</span>
+                <span>{paiseToRupeesExact(appliedCoupon?.originalPaise ?? pendingPurchase.listPaise)}</span>
               </div>
               {appliedCoupon && (
                 <div className="flex justify-between text-emerald-500">
                   <span>Discount</span>
-                  <span>−{paiseToRupees(appliedCoupon.discountPaise)}</span>
+                  <span>−{paiseToRupeesExact(appliedCoupon.discountPaise)}</span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700 font-bold text-zinc-900 dark:text-white">
                 <span>Total due today</span>
-                <span>{paiseToRupees(appliedCoupon?.finalPaise ?? pendingPurchase.listPaise)}</span>
+                <span>{paiseToRupeesExact(appliedCoupon?.finalPaise ?? pendingPurchase.listPaise)}</span>
               </div>
               {appliedCoupon && (
                 <p className="text-zinc-500 text-xs pt-1">

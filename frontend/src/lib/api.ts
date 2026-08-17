@@ -1657,7 +1657,6 @@ export interface CouponQuote {
   originalPaise: number
   discountPaise: number
   finalPaise: number
-  description: string | null
 }
 
 /**

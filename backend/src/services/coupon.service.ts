@@ -32,8 +32,12 @@ export interface CouponQuote {
   discountPaise: number
   /** What the customer actually pays, in paise. */
   finalPaise: number
-  description: string | null
 }
+
+// Coupon.description is deliberately NOT part of this quote. It is an internal
+// note for the admin listing — real ones read "Diwali campaign" or "Testing" —
+// and it was briefly rendered to customers as "SAVE99 applied — Testing". The
+// code and the discount are all a customer needs.
 
 /** Why a code was refused. The message is safe to show a customer. */
 export class CouponError extends AppError {
@@ -116,7 +120,6 @@ export async function quoteCoupon(params: {
     originalPaise,
     discountPaise,
     finalPaise,
-    description: coupon.description,
   }
 }
 
