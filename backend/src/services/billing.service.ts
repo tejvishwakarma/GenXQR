@@ -28,6 +28,7 @@ import { logger } from "../logger/index.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
 import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
+import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE } from "./coupon.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -442,6 +443,7 @@ export async function createPaymentOrder(
   planName: PlanName,
   billingCycle: "monthly" | "yearly",
   phone?: string,
+  couponCode?: string,
 ): Promise<CheckoutSession> {
   if (planName === "FREE") {
     throw new AppError(400, "Cannot create a payment order for the free plan")
@@ -475,7 +477,13 @@ export async function createPaymentOrder(
   }
 
   const prices = PLAN_PRICES_INR[planName]
-  const amountINR = billingCycle === "yearly" ? prices.yearly : prices.monthly
+  const listPaise = Math.round((billingCycle === "yearly" ? prices.yearly : prices.monthly) * 100)
+
+  // The client sends only a CODE. What it is worth is decided here, against the
+  // coupon record and the price table — never taken from the request.
+  const quote = couponCode ? await quoteCoupon({ code: couponCode, userId, planName, billingCycle }) : null
+  const chargePaise = quote ? quote.finalPaise : listPaise
+  const amountINR = chargePaise / 100
 
   // Order ids must be unique per merchant account forever — a collision makes
   // Cashfree reject the order. Timestamp + random suffix, and it doubles as our
@@ -517,6 +525,12 @@ export async function createPaymentOrder(
       userId,
       planName,
       billingCycle,
+      // What we intend to collect. Activation verifies the payment against THIS
+      // rather than the list price, which is what makes a discounted order
+      // acceptable without loosening the amount check. Bounded on the way back
+      // in: it must not exceed the list price.
+      expectedPaise: String(chargePaise),
+      ...(quote ? { couponCode: quote.code, couponId: quote.couponId } : {}),
     },
     expiryMinutes: ORDER_EXPIRY_MINUTES,
   })
@@ -600,15 +614,40 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
 
   // Guard against activating a plan that was not actually paid for. Compared as
   // integer paise because the gateway returns a float.
-  const expectedINR = PLAN_PRICES_INR[planName][billingCycle]
-  const expectedPaise = Math.round(expectedINR * 100)
+  //
+  // With coupons the expected amount is no longer simply the list price, so the
+  // order carries the amount we intended to collect. That tag is server-set and
+  // only readable through Cashfree's authenticated API — the same trust level as
+  // planName and billingCycle above — but it is still BOUNDED here rather than
+  // believed: it may never exceed the list price, and never fall below the
+  // minimum chargeable amount. So the worst a bad tag could do is charge the
+  // customer correctly and discount nothing; it can never grant a plan for free.
+  const listPaise = Math.round(PLAN_PRICES_INR[planName][billingCycle] * 100)
+
+  let expectedPaise = listPaise
+  const taggedExpected = tags["expectedPaise"]
+  if (taggedExpected !== undefined) {
+    const parsed = Number.parseInt(taggedExpected, 10)
+    if (!Number.isFinite(parsed) || parsed > listPaise || parsed < MINIMUM_CHARGEABLE_PAISE) {
+      logger.error("Cashfree order carries an out-of-range expected amount", {
+        orderId, planName, billingCycle, taggedExpected, listPaise,
+      })
+      throw new AppError(422, "This payment could not be verified. Please contact support.")
+    }
+    expectedPaise = parsed
+  }
+
   const paidPaise = Math.round(order.order_amount * 100)
   if (paidPaise !== expectedPaise) {
-    logger.error("Cashfree order amount does not match the plan price", {
-      orderId, planName, billingCycle, expectedPaise, paidPaise,
+    logger.error("Cashfree order amount does not match what was expected", {
+      orderId, planName, billingCycle, expectedPaise, listPaise, paidPaise,
     })
     throw new AppError(422, "The amount paid does not match the plan price. Please contact support.")
   }
+
+  // Only present when a coupon was applied at checkout.
+  const couponId = tags["couponId"] ?? null
+  const couponCode = tags["couponCode"] ?? null
 
   // All prices are quoted in INR, so a payment collected in anything else has
   // not paid for this plan whatever the numeric total says. Cannot happen while
@@ -693,6 +732,23 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
           periodEnd,
         },
       })
+
+      // Recorded in the SAME transaction as the invoice, so a redemption can
+      // never exist without the payment that earned it — and the unique
+      // constraint on cashfreeOrderId means a replayed webhook cannot count the
+      // same redemption twice against the coupon's limit.
+      if (couponId) {
+        await recordRedemption(tx, {
+          couponId,
+          userId,
+          cashfreeOrderId: orderId,
+          originalPaise: listPaise,
+          discountPaise: listPaise - expectedPaise,
+          finalPaise: expectedPaise,
+          planName,
+          billingCycle,
+        })
+      }
     })
   } catch (err) {
     // P2002 = unique violation on cashfreeOrderId: the other path won the race
@@ -704,7 +760,7 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
     throw err
   }
 
-  logger.info("Subscription activated via Cashfree", { userId, planName, billingCycle, orderId })
+  logger.info("Subscription activated via Cashfree", { userId, planName, billingCycle, orderId, couponCode, discountPaise: listPaise - expectedPaise })
   void deliverWebhookEvent(userId, "subscription.activated", { planName, billingCycle })
 
   return { status: "activated", planName, billingCycle }

@@ -48,6 +48,7 @@ model User {
   supportTickets          SupportTicket[]
   teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
   teamMemberships         TeamMember[]
+  couponRedemptions       CouponRedemption[]
   teamsOwned              Team[]                   @relation("UserTeamsOwned")
   webhooks                Webhook[]
 
@@ -404,6 +405,90 @@ model Invoice {
 
   @@index([userId, createdAt])
   @@map("invoices")
+}
+
+/// A discount code created by a super-admin and redeemed by a customer at checkout.
+///
+/// Discounts apply to the FIRST payment of a subscription, not to renewals —
+/// renewals are separate Cashfree orders created without a coupon.
+model Coupon {
+  id               String             @id @default(cuid())
+  /// Always stored UPPERCASE and matched case-insensitively, so "save20" and
+  /// "SAVE20" are one coupon rather than two.
+  code             String             @unique
+  /// Shown to the admin in listings; never shown to the customer.
+  description      String?
+  discountType     CouponDiscountType
+  /// PERCENTAGE: whole percent, 1-100. FIXED: an amount in PAISE.
+  /// Two meanings in one column is a compromise, but a second nullable column
+  /// invites the pair getting out of step.
+  discountValue    Int
+  /// Caps what a percentage coupon can take off, in paise. Ignored for FIXED.
+  /// Without this, "50% off" on the yearly BUSINESS plan is a ₹11,994 giveaway.
+  maxDiscountPaise Int?
+  /// Order must be at least this much (paise) before the coupon applies.
+  minOrderPaise    Int?
+
+  /// Empty array = every plan. Restricts which plans the code works on.
+  applicablePlans  PlanName[]
+  /// Empty array = both. Values are "monthly" / "yearly".
+  applicableCycles String[]
+
+  /// Total redemptions allowed across all users. Null = unlimited.
+  maxRedemptions        Int?
+  /// Per-user cap. 1 means each customer may use it once.
+  maxRedemptionsPerUser Int  @default(1)
+  /// Incremented atomically on redemption; the source of truth for maxRedemptions.
+  redemptionCount       Int  @default(0)
+
+  validFrom  DateTime?
+  validUntil DateTime?
+  isActive   Boolean   @default(true)
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  redemptions CouponRedemption[]
+
+  @@index([code])
+  @@index([isActive, validUntil])
+  @@map("coupons")
+}
+
+/// One successful use of a coupon, written in the same transaction that activates
+/// the subscription.
+model CouponRedemption {
+  id       String @id @default(cuid())
+  couponId String
+  userId   String
+
+  /// The Cashfree order this discount was applied to. UNIQUE, so a replayed
+  /// webhook or a raced browser-return cannot record the same redemption twice
+  /// or double-count it against the coupon's limit.
+  cashfreeOrderId String @unique
+
+  /// All in paise, kept for audit: what the plan lists at, what came off, and
+  /// what was actually charged.
+  originalPaise Int
+  discountPaise Int
+  finalPaise    Int
+
+  planName     PlanName
+  billingCycle String
+  redeemedAt   DateTime @default(now())
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([userId])
+  @@map("coupon_redemptions")
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED
 }
 
 model SupportTicket {
