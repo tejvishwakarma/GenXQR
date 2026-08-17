@@ -2,8 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import {
   QrCode, LayoutDashboard, Users, BarChart3, DollarSign,
   HardDrive, ScrollText, LogOut, Shield, Menu, X,
-  CreditCard, AlertOctagon, Mail, Send, Settings, HeadphonesIcon, Receipt, Briefcase,
-} from "lucide-react"
+  CreditCard, AlertOctagon, Mail, Send, Settings, HeadphonesIcon, Receipt, Briefcase, Ticket } from "lucide-react"
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -17,6 +16,7 @@ const navItems = [
   { label: "Payments",      href: "/admin/payments",      icon: <Receipt size={18} /> },
   { label: "Analytics",     href: "/admin/analytics",     icon: <BarChart3 size={18} /> },
   { label: "Revenue",       href: "/admin/revenue",       icon: <DollarSign size={18} /> },
+  { label: "Coupons",       href: "/admin/coupons",       icon: <Ticket size={18} /> },
   { label: "Storage",       href: "/admin/storage",       icon: <HardDrive size={18} /> },
   { label: "Abuse",         href: "/admin/abuse",         icon: <AlertOctagon size={18} /> },
   { label: "Email Logs",    href: "/admin/email",         icon: <Mail size={18} /> },

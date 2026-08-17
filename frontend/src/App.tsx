@@ -86,6 +86,7 @@ import AdminUserDetailPage from "@/pages/admin/AdminUserDetailPage"
 import AdminQRCodesPage from "@/pages/admin/AdminQRCodesPage"
 import AdminAnalyticsPage from "@/pages/admin/AdminAnalyticsPage"
 import AdminRevenuePage from "@/pages/admin/AdminRevenuePage"
+import AdminCouponsPage from "@/pages/admin/AdminCouponsPage"
 import AdminStoragePage from "@/pages/admin/AdminStoragePage"
 import AdminAuditPage from "@/pages/admin/AdminAuditPage"
 import AdminSubscriptionsPage from "@/pages/admin/AdminSubscriptionsPage"
@@ -215,6 +216,7 @@ function App() {
           <Route path="qr-codes" element={<AdminQRCodesPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
+          <Route path="coupons" element={<AdminCouponsPage />} />
           <Route path="storage" element={<AdminStoragePage />} />
           <Route path="abuse" element={<AdminAbusePage />} />
           <Route path="email" element={<AdminEmailPage />} />

@@ -1612,11 +1612,23 @@ export async function downloadInvoice(invoiceId: string, invoiceNumber: string):
   URL.revokeObjectURL(url)
 }
 
-export function createPaymentOrder(planName: PlanName, billingCycle: "monthly" | "yearly", phone?: string) {
+export function createPaymentOrder(
+  planName: PlanName,
+  billingCycle: "monthly" | "yearly",
+  phone?: string,
+  couponCode?: string,
+) {
   return apiFetch<{ success: boolean; data: CheckoutSession }>("/api/billing/create-order", {
     method: "POST",
     headers: authHeader(),
-    body: JSON.stringify({ planName, billingCycle, ...(phone ? { phone } : {}) }),
+    // Only the code travels. The server prices it — sending an amount here would
+    // be ignored, and relying on one would be a bug waiting to happen.
+    body: JSON.stringify({
+      planName,
+      billingCycle,
+      ...(phone ? { phone } : {}),
+      ...(couponCode ? { couponCode } : {}),
+    }),
   })
 }
 
@@ -1635,6 +1647,105 @@ export function verifyPayment(orderId: string) {
     body: JSON.stringify({ orderId }),
   })
 }
+
+// ─── Coupons ──────────────────────────────────────────────────────────────────
+
+/** What a coupon is worth for a specific plan and cycle. All amounts in paise. */
+export interface CouponQuote {
+  code: string
+  couponId: string
+  originalPaise: number
+  discountPaise: number
+  finalPaise: number
+  description: string | null
+}
+
+/**
+ * Prices a coupon for preview.
+ *
+ * Resolves to `{ success: false, error }` for an ordinary rejection (unknown,
+ * expired, already used) — that is a normal outcome, not an exception. It only
+ * throws on a transport or server fault.
+ *
+ * The figure returned here comes from the same server-side function that prices
+ * the real order, so what is previewed is what is charged.
+ */
+export function validateCoupon(input: {
+  code: string
+  planName: PlanName
+  billingCycle: "monthly" | "yearly"
+}) {
+  return apiFetch<{ success: boolean; data?: CouponQuote; error?: string }>(
+    "/api/billing/validate-coupon",
+    { method: "POST", headers: authHeader(), body: JSON.stringify(input) },
+  )
+}
+
+// ─── Admin: coupons ───────────────────────────────────────────────────────────
+
+export type CouponDiscountType = "PERCENTAGE" | "FIXED"
+
+export interface AdminCoupon {
+  id: string
+  code: string
+  description: string | null
+  discountType: CouponDiscountType
+  /** Whole percent for PERCENTAGE; paise for FIXED. */
+  discountValue: number
+  maxDiscountPaise: number | null
+  minOrderPaise: number | null
+  applicablePlans: PlanName[]
+  applicableCycles: string[]
+  maxRedemptions: number | null
+  maxRedemptionsPerUser: number
+  redemptionCount: number
+  validFrom: string | null
+  validUntil: string | null
+  isActive: boolean
+  createdAt: string
+  /** Worked example so percentage and fixed codes can be compared at a glance. */
+  examplePaiseOffProMonthly: number
+  _count?: { redemptions: number }
+}
+
+/** Field set accepted by create and update. Amounts in paise. */
+export interface AdminCouponInput {
+  code: string
+  description?: string | null
+  discountType: CouponDiscountType
+  discountValue: number
+  maxDiscountPaise?: number | null
+  minOrderPaise?: number | null
+  applicablePlans?: PlanName[]
+  applicableCycles?: string[]
+  maxRedemptions?: number | null
+  maxRedemptionsPerUser?: number
+  validFrom?: string | null
+  validUntil?: string | null
+  isActive?: boolean
+}
+
+export const fetchAdminCoupons = (includeInactive = true) =>
+  adminFetch<{ success: boolean; data: AdminCoupon[] }>(
+    `/admin-api/coupons?includeInactive=${includeInactive}`,
+  )
+
+export const createAdminCoupon = (input: AdminCouponInput) =>
+  adminFetch<{ success: boolean; data: AdminCoupon }>("/admin-api/coupons", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+
+export const updateAdminCoupon = (id: string, input: AdminCouponInput) =>
+  adminFetch<{ success: boolean; data: AdminCoupon }>(`/admin-api/coupons/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  })
+
+export const deleteAdminCoupon = (id: string) =>
+  adminFetch<{ success: boolean; message: string }>(`/admin-api/coupons/${id}`, {
+    method: "DELETE",
+  })
 
 export function cancelSubscription() {
   return apiFetch<{ success: boolean; message: string }>("/api/billing/cancel", {
