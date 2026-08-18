@@ -281,7 +281,7 @@ function ComparisonCell({ value }: { value: CellValue }) {
 // <button> (not MktButton/<Link>) because it must run `handlePlanCTA`'s
 // localStorage-aware routing logic rather than navigate to a fixed href.
 const PLAN_CTA_BASE =
-  "inline-flex w-full items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 whitespace-nowrap h-11 px-5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-pure"
+  "inline-flex w-full items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 min-h-[44px] lg:min-h-[62px] px-4 py-2.5 text-sm leading-snug text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-pure"
 const PLAN_CTA_VARIANTS = {
   outline: "border border-line bg-paper text-ink hover:border-ink/30 hover:shadow-card",
   filled: "bg-accent text-white hover:bg-accent-ink shadow-[0_12px_34px_-12px_rgba(91,75,255,0.65)]",
@@ -449,7 +449,7 @@ export default function PricingPage() {
                     )}
                   >
                     {plan.cta}
-                    <ChevronRight size={14} />
+                    <ChevronRight size={14} className="shrink-0" />
                   </button>
 
                   {/* Feature list */}
