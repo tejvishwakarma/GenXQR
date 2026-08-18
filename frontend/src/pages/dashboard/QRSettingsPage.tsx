@@ -42,6 +42,7 @@ export default function QRSettingsPage() {
   const [scanLimit, setScanLimit] = useState("")
   const [fallbackUrl, setFallbackUrl] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmRemovePw, setConfirmRemovePw] = useState(false)
   const [fbPixelId, setFbPixelId] = useState("")
   const [gaId, setGaId] = useState("")
   const [gtmId, setGtmId] = useState("")
@@ -59,6 +60,24 @@ export default function QRSettingsPage() {
     setGaId(qr.gaId ?? "")
     setGtmId(qr.gtmId ?? "")
   }, [qr])
+
+  // "" is the API's sentinel for "remove the password"; omitting the key means
+  // "leave unchanged", which is why a blank field cannot clear it.
+  const removePasswordMut = useMutation({
+    mutationFn: () => updateQR(id!, { settings: { password: "" } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["qr", id] })
+      setPassword("")
+      setConfirmRemovePw(false)
+      setSuccessMsg("Password protection removed — this QR is now public.")
+      setErrorMsg("")
+      setTimeout(() => setSuccessMsg(""), 4000)
+    },
+    onError: (err: Error) => {
+      setConfirmRemovePw(false)
+      setErrorMsg(err.message)
+    },
+  })
 
   const saveMut = useMutation({
     mutationFn: () =>
@@ -183,9 +202,48 @@ export default function QRSettingsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-zinc-500 text-xs mb-3">
-            {qr?.isPasswordProtected ? "This QR is currently password protected. Enter a new password to change it, or leave blank to keep the current one." : "Leave blank to keep QR public."}
+            {qr?.isPasswordProtected
+              ? "This QR is password protected. Enter a new password to change it, or leave blank to keep the current one."
+              : "Leave blank to keep QR public."}
           </p>
           <Input type="password" placeholder="New password (min 4 chars)" value={password} onChange={e => setPassword(e.target.value)} className="h-9 text-sm" autoComplete="new-password" />
+
+          {/* Removing protection has to be its own action: a blank field means
+              "keep the current password", so there is otherwise no way to take one
+              off. Confirmed in two steps because it makes the QR public. */}
+          {qr?.isPasswordProtected && (
+            <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              {confirmRemovePw ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-zinc-600 dark:text-zinc-300">
+                    Remove protection? Anyone scanning this QR will reach it without a password.
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => removePasswordMut.mutate()}
+                    disabled={removePasswordMut.isPending}
+                  >
+                    {removePasswordMut.isPending
+                      ? <Loader2 size={13} className="animate-spin mr-1" />
+                      : <Lock size={13} className="mr-1" />}
+                    Yes, remove
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmRemovePw(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmRemovePw(true)}
+                  className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
+                >
+                  Remove password protection
+                </button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

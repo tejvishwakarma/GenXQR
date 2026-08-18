@@ -46,7 +46,11 @@ export const createQRSchema = z.object({
     .default({}),
   settings: z
     .object({
-      password: z.string().min(4).max(100).optional(),
+      // "" is the documented sentinel for "remove the password" (see updateQR
+      // below); undefined means "leave it unchanged". Without the empty-string
+      // branch here, min(4) rejected "" and that clearing path was unreachable —
+      // there was no way to take a password off a QR code at all.
+      password: z.union([z.literal(""), z.string().min(4).max(100)]).optional(),
       activeFrom: z.string().datetime({ offset: true }).nullish(),
       activeUntil: z.string().datetime({ offset: true }).nullish(),
       scanLimit: z.coerce.number().int().positive().nullish(),
