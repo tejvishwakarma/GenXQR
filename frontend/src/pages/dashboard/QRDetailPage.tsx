@@ -4,11 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import QRCodeStyling from "qr-code-styling"
 import jsPDF from "jspdf"
 import { svg2pdf } from "svg2pdf.js"
-import {
-  ArrowLeft, BarChart3, Edit, Trash2, Download, Copy, Check,
-  Power, Loader2, ExternalLink, QrCode, Calendar, Scan, Tag,
-  Settings, GitBranch, FlaskConical,
-} from "lucide-react"
+import { ArrowLeft, BarChart3, Edit, Trash2, Download, Copy, Check, Power, Loader2, ExternalLink, QrCode, Calendar, Scan, Tag, Settings, GitBranch, FlaskConical, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -502,6 +498,29 @@ function CopyButton({ text }: { text: string }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+/**
+ * The per-QR destination features. Kept as data so the section, the plan chips
+ * and the links cannot drift apart, and adding a third feature is one entry.
+ */
+const ADVANCED_FEATURES = [
+  {
+    key: "smartRouting" as const,
+    path: "smart-routing",
+    title: "Smart Routing",
+    blurb: "Send scans to different pages by device, country, or time of day.",
+    Icon: GitBranch,
+    tint: "text-violet-500 dark:text-violet-400",
+  },
+  {
+    key: "abTesting" as const,
+    path: "ab-test",
+    title: "A/B Testing",
+    blurb: "Split scans between two destinations and see which performs better.",
+    Icon: FlaskConical,
+    tint: "text-emerald-500 dark:text-emerald-400",
+  },
+]
+
 export default function QRDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -952,23 +971,46 @@ export default function QRDetailPage() {
             </Card>
           )}
 
+          {/* Advanced — surfaced as an explained section rather than two anonymous
+              buttons in the action row, so the capability is discoverable at the
+              point someone is actually looking at a QR code. Works for static
+              codes too: every dashboard QR encodes /r/<slug>, so all scans pass
+              through the redirect engine regardless of category. */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Advanced</CardTitle>
+              <p className="text-xs text-zinc-500">
+                Change where this code sends people, without reprinting it.
+              </p>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {ADVANCED_FEATURES.map((f) => {
+                const gate = f.key === "abTesting" ? abTesting : smartRouting
+                return (
+                  <Link key={f.key} to={gate.allowed ? `/app/qr/${id}/${f.path}` : "/app/billing"}>
+                    <div className="h-full flex items-start gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
+                      {gate.allowed
+                        ? <f.Icon size={18} className={cn("shrink-0 mt-0.5", f.tint)} />
+                        : <Lock size={18} className="shrink-0 mt-0.5 text-zinc-400 dark:text-zinc-500" />}
+                      <div>
+                        <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                          {f.title}
+                          {!gate.allowed && <PlanChip plan={gate.requiredPlan} />}
+                        </div>
+                        <div className="text-xs text-zinc-500 leading-relaxed">{f.blurb}</div>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </CardContent>
+          </Card>
+
           {/* Quick actions */}
           <div className="flex flex-wrap gap-2 pt-1">
             <Link to={`/app/qr/${id}/analytics`}>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <BarChart3 size={14} /> Analytics
-              </Button>
-            </Link>
-            <Link to={smartRouting.allowed ? `/app/qr/${id}/smart-routing` : "/app/billing"}>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <GitBranch size={14} /> Smart Routing
-                {!smartRouting.allowed && <PlanChip plan={smartRouting.requiredPlan} />}
-              </Button>
-            </Link>
-            <Link to={abTesting.allowed ? `/app/qr/${id}/ab-test` : "/app/billing"}>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <FlaskConical size={14} /> A/B Test
-                {!abTesting.allowed && <PlanChip plan={abTesting.requiredPlan} />}
               </Button>
             </Link>
             <Link to={`/app/qr/${id}/settings`}>
