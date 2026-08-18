@@ -10,6 +10,7 @@ import {
   getQR, getABVariants, createABVariant, updateABVariant, deleteABVariant, patchABTestSettings,
   type ABVariant, type ABVariantPayload,
 } from "@/lib/api"
+import { usePlanFeature, FeatureLocked } from "@/components/PlanFeatureGate"
 
 interface VariantForm { name: string; targetUrl: string; splitPct: string }
 const emptyVariantForm = (): VariantForm => ({ name: "", targetUrl: "", splitPct: "50" })
@@ -33,6 +34,7 @@ export default function ABTestPage() {
 
   const qr = qrData?.data
   const variants = variantsData?.data ?? []
+  const abTesting = usePlanFeature("abTesting")
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["ab-variants", id] })
@@ -95,6 +97,20 @@ export default function ABTestPage() {
           <p className="text-zinc-500 text-sm">{qr?.name ?? "..."} — split traffic between two destinations</p>
         </div>
       </div>
+
+      {/* Reachable directly by URL, and a plan can change under an open tab, so
+          the page states the plan requirement itself rather than letting every
+          mutation fail with a 403. */}
+      {!abTesting.isLoading && !abTesting.allowed && (
+        <FeatureLocked
+          feature="abTesting"
+          title="A/B testing is a Pro feature"
+          description="Send a share of your scans to one destination and the rest to another, then compare which converts better."
+        />
+      )}
+
+      {abTesting.allowed && (
+        <>
 
       {/* Enable / disable toggle + split % */}
       <Card>
@@ -219,6 +235,8 @@ export default function ABTestPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }

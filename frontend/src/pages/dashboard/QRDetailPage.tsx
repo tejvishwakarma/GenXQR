@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { getQR, deleteQR, toggleQR, duplicateQR, getQrBaseUrl, type QRCode as QRCodeType } from "@/lib/api"
+import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -508,6 +509,8 @@ export default function QRDetailPage() {
   const qrRef = useRef<HTMLDivElement>(null)
   const qrInstance = useRef<QRCodeStyling | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
+  const abTesting = usePlanFeature("abTesting")
+  const smartRouting = usePlanFeature("smartRouting")
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["qr", id],
@@ -956,14 +959,16 @@ export default function QRDetailPage() {
                 <BarChart3 size={14} /> Analytics
               </Button>
             </Link>
-            <Link to={`/app/qr/${id}/smart-routing`}>
+            <Link to={smartRouting.allowed ? `/app/qr/${id}/smart-routing` : "/app/billing"}>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <GitBranch size={14} /> Smart Routing
+                {!smartRouting.allowed && <PlanChip plan={smartRouting.requiredPlan} />}
               </Button>
             </Link>
-            <Link to={`/app/qr/${id}/ab-test`}>
+            <Link to={abTesting.allowed ? `/app/qr/${id}/ab-test` : "/app/billing"}>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <FlaskConical size={14} /> A/B Test
+                {!abTesting.allowed && <PlanChip plan={abTesting.requiredPlan} />}
               </Button>
             </Link>
             <Link to={`/app/qr/${id}/settings`}>

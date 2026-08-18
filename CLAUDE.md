@@ -1025,3 +1025,18 @@ pnpm preview               # vite preview (serves dist/)
 11. **Team seat limit = 0**: A `teamSeatsLimit` of 0 on the Plan means the team feature is completely disabled (used on FREE plan, not just "0 additional seats"). This is checked in `plan-gate.middleware.ts`.
 
 12. **QRScanDaily upsert**: The scan worker uses `upsert` on `QRScanDaily` with `date` (PostgreSQL `Date` type) + `qrId` as the unique key. This allows efficient daily rollup without double-counting.
+
+13. **Plan features are described in three places; only one decides access.**
+    `PLAN_LIMITS` in `services/billing.service.ts` is authoritative — `getUserPlanLimits`
+    returns it and `requirePlanFeature` checks it. The `Plan.features` JSON seeded by
+    `prisma/seed.mjs` does **not** contain `abTesting`, `smartRouting` or `qrExpiry` at
+    all, which looks like a bug but is harmless precisely because nothing gates on it.
+    The frontend's `REQUIRED_PLAN` in `components/PlanFeatureGate.tsx` is a third copy,
+    used only to name the plan in upgrade copy. If you move a feature between plans,
+    change `PLAN_LIMITS` first; the other two are cosmetic and will silently disagree.
+
+14. **The dashboard's plan gating fails OPEN, deliberately.** `usePlanFeature` treats an
+    unknown plan (still loading, request failed) as allowed. The server is the only real
+    gate, so guessing "allowed" costs at worst the 403 that would have happened anyway,
+    while guessing "locked" tells a paying customer their feature is gone because one
+    request timed out. Never move authorisation into this hook.

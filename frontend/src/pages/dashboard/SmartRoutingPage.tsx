@@ -13,6 +13,7 @@ import {
   getQR, getSmartRoutes, createSmartRoute, updateSmartRoute, deleteSmartRoute,
   type SmartRoutingRule, type SmartRoutePayload,
 } from "@/lib/api"
+import { usePlanFeature, FeatureLocked } from "@/components/PlanFeatureGate"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -118,6 +119,7 @@ export default function SmartRoutingPage() {
   })
 
   const qr = qrData?.data
+  const smartRouting = usePlanFeature("smartRouting")
   const rules = rulesData?.data ?? []
 
   const invalidate = () => { void qc.invalidateQueries({ queryKey: ["smart-routes", id] }) }
@@ -175,6 +177,19 @@ export default function SmartRoutingPage() {
           <p className="text-zinc-500 text-sm">{qr?.name ?? "..."} — redirect by device, time, or location</p>
         </div>
       </div>
+
+      {/* Same reasoning as the A/B page: this URL is reachable directly, so state
+          the plan requirement here instead of letting each save 403. */}
+      {!smartRouting.isLoading && !smartRouting.allowed && (
+        <FeatureLocked
+          feature="smartRouting"
+          title="Smart routing is a Pro feature"
+          description="Send the same QR code to different destinations depending on the visitor's device, country, or the time of day."
+        />
+      )}
+
+      {smartRouting.allowed && (
+        <>
 
       {/* Info card */}
       <Card className="border-violet-500/20 bg-violet-500/5">
@@ -358,6 +373,8 @@ export default function SmartRoutingPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   )
 }

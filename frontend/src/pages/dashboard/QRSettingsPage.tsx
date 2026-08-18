@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getQR, updateQR, getSubscription } from "@/lib/api"
+import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,10 @@ export default function QRSettingsPage() {
 
   const { data: subData } = useQuery({ queryKey: ["subscription"], queryFn: getSubscription, staleTime: 5 * 60 * 1000 })
   const subInfo = subData?.data
+
+  // Reads the same cached ["subscription"] query as subInfo above — no extra fetch.
+  const smartRouting = usePlanFeature("smartRouting")
+  const abTesting = usePlanFeature("abTesting")
 
   // ── Form state ──
   const [activeFrom, setActiveFrom] = useState("")
@@ -212,20 +217,30 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm">Advanced Features</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Link to={`/app/qr/${id}/smart-routing`}>
+          <Link to={smartRouting.allowed ? `/app/qr/${id}/smart-routing` : "/app/billing"}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
-              <Globe size={18} className="text-violet-400 shrink-0" />
+              {smartRouting.allowed
+                ? <Globe size={18} className="text-violet-400 shrink-0" />
+                : <Lock size={18} className="text-zinc-400 dark:text-zinc-500 shrink-0" />}
               <div>
-                <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Smart Routing</div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  Smart Routing
+                  {!smartRouting.allowed && <PlanChip plan={smartRouting.requiredPlan} />}
+                </div>
                 <div className="text-xs text-zinc-500">Device, time, geo rules</div>
               </div>
             </div>
           </Link>
-          <Link to={`/app/qr/${id}/ab-test`}>
+          <Link to={abTesting.allowed ? `/app/qr/${id}/ab-test` : "/app/billing"}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
-              <FlaskConical size={18} className="text-emerald-400 shrink-0" />
+              {abTesting.allowed
+                ? <FlaskConical size={18} className="text-emerald-400 shrink-0" />
+                : <Lock size={18} className="text-zinc-400 dark:text-zinc-500 shrink-0" />}
               <div>
-                <div className="text-sm font-medium text-zinc-700 dark:text-zinc-200">A/B Testing</div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  A/B Testing
+                  {!abTesting.allowed && <PlanChip plan={abTesting.requiredPlan} />}
+                </div>
                 <div className="text-xs text-zinc-500">Split traffic between URLs</div>
               </div>
             </div>
