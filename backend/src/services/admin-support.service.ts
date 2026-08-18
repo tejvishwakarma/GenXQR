@@ -41,7 +41,12 @@ export async function listTickets({ page, limit, q }: PaginationParams, status?:
       orderBy: { createdAt: "desc" },
       select: {
         id: true, subject: true, status: true, priority: true,
-        assignedTo: true, createdAt: true, updatedAt: true,
+        // category is what the customer chose (billing / technical /
+        // feature_request / other). It was stored and returned by getTicket, but
+        // omitted here — so the admin table could not show it and triage meant
+        // opening every ticket.
+        category: true,
+        assignedTo: true, createdAt: true, updatedAt: true, resolvedAt: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),

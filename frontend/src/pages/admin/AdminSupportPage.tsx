@@ -14,6 +14,34 @@ const STATUS_COLORS: Record<string, string> = {
   CLOSED:      "bg-zinc-700 text-zinc-400",
 }
 
+/**
+ * Human labels for the stored category values. The customer picks these in the
+ * support widget and the DB keeps them snake_cased, so "feature_request" would
+ * otherwise appear verbatim in the admin UI.
+ *
+ * Unknown values fall through to the raw string rather than being hidden — if a
+ * new category is added to the widget, it should still be visible here.
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  billing: "Billing",
+  technical: "Technical",
+  feature_request: "Feature request",
+  other: "Other",
+  general: "General",
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  billing: "bg-amber-500/15 text-amber-400",
+  technical: "bg-blue-500/15 text-blue-400",
+  feature_request: "bg-violet-500/15 text-violet-400",
+  other: "bg-zinc-700 text-zinc-300",
+  general: "bg-zinc-700 text-zinc-300",
+}
+
+function categoryLabel(value: string): string {
+  return CATEGORY_LABELS[value] ?? value
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   LOW:    "bg-zinc-700 text-zinc-400",
   MEDIUM: "bg-blue-500/15 text-blue-400",
@@ -57,11 +85,22 @@ function TicketDrawer({ ticket, onClose }: { ticket: SupportTicketDetail; onClos
 
           {/* Subject + message */}
           <div className="space-y-2">
-            <div className="text-white font-semibold">{ticket.subject}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-white font-semibold">{ticket.subject}</div>
+              {/* The category the customer chose. Stored and returned all along,
+                  but never rendered — so an admin could not tell a billing
+                  problem from a feature request without reading the message. */}
+              <span className={`text-xs px-2 py-0.5 rounded-md ${CATEGORY_COLORS[ticket.category] ?? "bg-zinc-700 text-zinc-300"}`}>
+                {categoryLabel(ticket.category)}
+              </span>
+            </div>
             <div className="text-zinc-400 text-sm leading-relaxed whitespace-pre-wrap bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               {ticket.message}
             </div>
-            <div className="text-zinc-600 text-xs">Created {new Date(ticket.createdAt).toLocaleString()}</div>
+            <div className="text-zinc-600 text-xs">
+              Created {new Date(ticket.createdAt).toLocaleString()}
+              {ticket.resolvedAt && ` · Resolved ${new Date(ticket.resolvedAt).toLocaleString()}`}
+            </div>
           </div>
 
           {/* Status / Priority */}
@@ -167,6 +206,7 @@ export default function AdminSupportPage() {
               <tr className="border-b border-zinc-800">
                 <th className="text-left text-zinc-500 font-medium px-5 py-3">Subject</th>
                 <th className="text-left text-zinc-500 font-medium px-4 py-3">User</th>
+                <th className="text-left text-zinc-500 font-medium px-4 py-3">Category</th>
                 <th className="text-left text-zinc-500 font-medium px-4 py-3">Priority</th>
                 <th className="text-left text-zinc-500 font-medium px-4 py-3">Status</th>
                 <th className="text-left text-zinc-500 font-medium px-4 py-3">Opened</th>
@@ -181,6 +221,11 @@ export default function AdminSupportPage() {
                   <td className="px-4 py-3">
                     <div className="text-zinc-300 text-xs">{t.user.name}</div>
                     <div className="text-zinc-500 text-xs">{t.user.email}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-md ${CATEGORY_COLORS[t.category] ?? "bg-zinc-700 text-zinc-300"}`}>
+                      {categoryLabel(t.category)}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-md ${PRIORITY_COLORS[t.priority] ?? "bg-zinc-700 text-zinc-400"}`}>
@@ -199,7 +244,7 @@ export default function AdminSupportPage() {
                 </tr>
               ))}
               {tickets.length === 0 && (
-                <tr><td colSpan={6} className="px-5 py-12 text-center text-zinc-500">No tickets found.</td></tr>
+                <tr><td colSpan={7} className="px-5 py-12 text-center text-zinc-500">No tickets found.</td></tr>
               )}
             </tbody>
           </table>

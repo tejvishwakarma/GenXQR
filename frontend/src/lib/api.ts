@@ -834,11 +834,14 @@ export const updatePlatformSettings = (updates: Record<string, string>) =>
 // Admin — Support Tickets
 export interface SupportTicket {
   id: string; subject: string; status: string; priority: string
+  /** What the customer picked: "billing" | "technical" | "feature_request" | "other". */
+  category: string
   assignedTo: string | null; createdAt: string; updatedAt: string
+  resolvedAt: string | null
   user: { id: string; name: string; email: string }
 }
 export interface SupportTicketDetail extends SupportTicket {
-  message: string; adminNotes: string | null; resolvedAt: string | null
+  message: string; adminNotes: string | null
 }
 export const fetchSupportTickets = (page = 1, limit = 20, status = "", priority = "", q = "") =>
   adminFetch<{ success: boolean; data: SupportTicket[]; meta: AdminMeta }>(
