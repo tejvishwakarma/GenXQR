@@ -42,6 +42,7 @@ export default function QRSettingsPage() {
   const [scanLimit, setScanLimit] = useState("")
   const [fallbackUrl, setFallbackUrl] = useState("")
   const [password, setPassword] = useState("")
+  const [pwEnabled, setPwEnabled] = useState(false)
   const [confirmRemovePw, setConfirmRemovePw] = useState(false)
   const [fbPixelId, setFbPixelId] = useState("")
   const [gaId, setGaId] = useState("")
@@ -52,6 +53,8 @@ export default function QRSettingsPage() {
   // Populate when QR loads
   useEffect(() => {
     if (!qr) return
+    setPwEnabled(qr.isPasswordProtected)
+    setConfirmRemovePw(false)
     setActiveFrom(toLocalDateTimeInput(qr.activeFrom))
     setActiveUntil(toLocalDateTimeInput(qr.activeUntil))
     setScanLimit(qr.scanLimit != null ? String(qr.scanLimit) : "")
@@ -69,6 +72,7 @@ export default function QRSettingsPage() {
       void qc.invalidateQueries({ queryKey: ["qr", id] })
       setPassword("")
       setConfirmRemovePw(false)
+      setPwEnabled(false)
       setSuccessMsg("Password protection removed — this QR is now public.")
       setErrorMsg("")
       setTimeout(() => setSuccessMsg(""), 4000)
@@ -201,47 +205,83 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm flex items-center gap-2"><Lock size={15} className="text-amber-400" />Password Protection</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-zinc-500 text-xs mb-3">
-            {qr?.isPasswordProtected
-              ? "This QR is password protected. Enter a new password to change it, or leave blank to keep the current one."
-              : "Leave blank to keep QR public."}
-          </p>
-          <Input type="password" placeholder="New password (min 4 chars)" value={password} onChange={e => setPassword(e.target.value)} className="h-9 text-sm" autoComplete="new-password" />
+          {/* A toggle states the current condition at a glance; the old design only
+              had a text field whose blank state silently meant "keep whatever is
+              already set", which is why protection could never be turned off. */}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                {pwEnabled ? "Password required to open" : "No password"}
+              </div>
+              <p className="text-zinc-500 text-xs mt-0.5">
+                {!pwEnabled
+                  ? "Anyone who scans this code opens it directly."
+                  : qr?.isPasswordProtected
+                    ? "Visitors must enter the password before they reach the destination."
+                    : "Enter a password below and save to protect this code."}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pwEnabled}
+              aria-label="Password protection"
+              disabled={removePasswordMut.isPending}
+              onClick={() => {
+                if (!pwEnabled) { setPwEnabled(true); return }
+                // Turning it off only needs a confirmed server call when a password
+                // is actually stored; if they just switched it on and changed their
+                // mind, nothing has been saved yet.
+                if (qr?.isPasswordProtected) { setConfirmRemovePw(true); return }
+                setPwEnabled(false)
+                setPassword("")
+              }}
+              className={`shrink-0 w-10 h-6 rounded-full transition-colors flex items-center disabled:opacity-50 ${
+                pwEnabled ? "bg-violet-600" : "bg-zinc-300 dark:bg-zinc-700"
+              }`}
+            >
+              <span
+                className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                  pwEnabled ? "translate-x-5" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
 
-          {/* Removing protection has to be its own action: a blank field means
-              "keep the current password", so there is otherwise no way to take one
-              off. Confirmed in two steps because it makes the QR public. */}
-          {qr?.isPasswordProtected && (
-            <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
-              {confirmRemovePw ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-zinc-600 dark:text-zinc-300">
-                    Remove protection? Anyone scanning this QR will reach it without a password.
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => removePasswordMut.mutate()}
-                    disabled={removePasswordMut.isPending}
-                  >
-                    {removePasswordMut.isPending
-                      ? <Loader2 size={13} className="animate-spin mr-1" />
-                      : <Lock size={13} className="mr-1" />}
-                    Yes, remove
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmRemovePw(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmRemovePw(true)}
-                  className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline"
-                >
-                  Remove password protection
-                </button>
-              )}
+          {pwEnabled && (
+            <Input
+              type="password"
+              // Dots only ever go in the placeholder, never the value — a real
+              // value here would be submitted as if it were the password.
+              placeholder={qr?.isPasswordProtected
+                ? "••••••••  — leave blank to keep the current password"
+                : "New password (min 4 chars)"}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="h-9 text-sm mt-3"
+              autoComplete="new-password"
+            />
+          )}
+
+          {confirmRemovePw && (
+            <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-zinc-600 dark:text-zinc-300">
+                Remove protection? Anyone scanning this QR will reach it without a password.
+              </span>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => removePasswordMut.mutate()}
+                disabled={removePasswordMut.isPending}
+              >
+                {removePasswordMut.isPending
+                  ? <Loader2 size={13} className="animate-spin mr-1" />
+                  : <Lock size={13} className="mr-1" />}
+                Yes, remove
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmRemovePw(false)}>
+                Cancel
+              </Button>
             </div>
           )}
         </CardContent>
