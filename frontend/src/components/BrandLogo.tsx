@@ -37,7 +37,7 @@ export function BrandLogo({
   alt?: string
 }) {
   const width = Math.round(height * ASPECT)
-  const shared = cn("w-auto select-none", className)
+  const shared = cn("w-auto shrink-0 select-none", className)
 
   return (
     <>

@@ -741,8 +741,16 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 #### Layout (`/src/components/layout/`)
 | File | Exports | Notes |
 |---|---|---|
-| `Navbar.tsx` | `Navbar` | Marketing navbar; links: Static QR, Dynamic QR, QR Scanner, Pricing, Contact |
-| `Footer.tsx` | `Footer` | Marketing footer with remaining nav links |
+| `Navbar.tsx` | `Navbar` | Marketing navbar. Links come from the `LINKS` array at the top of the file — Features, Dynamic QR, QR Scanner, Use Cases, Pricing, Docs — and that one array feeds BOTH the desktop nav and the mobile menu, so adding a link is a single edit. Desktop nav / auth buttons / hamburger / mobile panel switch at `lg`, not `md`: all four must flip at the same width or you get both or neither. The brand lockup is `shrink-0` because it is a wide fixed-height image in a flex row — without it, any shortfall is absorbed by horizontally squashing the logo instead of by the nav. |
+| `Footer.tsx` | `Footer` | Marketing footer; `LINK_GROUPS` covers Product / Company / Legal / Policies / Tools |
+
+**Every public route must be linked from the header or footer.** `/scanner` and
+`/generate/instagram` each sat in `sitemap.xml` for a while while being reachable
+from nothing in the app — real pages, submitted to Google, that no visitor could
+navigate to. To check, diff the absolute `<Route path="...">` values in `App.tsx`
+against the `href:`/`to=` values in the two layout files; note the links are
+object properties (`href: "/x"`), not JSX attributes, so a regex written for
+`href="` silently matches nothing and reports every route as orphaned.
 | `MarketingLayout.tsx` | `MarketingLayout` | `<Navbar /> + <Outlet /> + <Footer />` |
 | `DashboardLayout.tsx` | `DashboardLayout` | Sidebar (fixed 256px desktop) + mobile drawer + top header; shows plan badge, QR usage bar, trial countdown |
 | `AdminLayout.tsx` | `AdminLayout` | Admin sidebar + content area |

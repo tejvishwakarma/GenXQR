@@ -10,6 +10,7 @@ import { BrandLogo } from "@/components/BrandLogo"
 const LINKS = [
   { label: "Features", href: "/features" },
   { label: "Dynamic QR", href: "/dynamic-qr" },
+  { label: "QR Scanner", href: "/scanner" },
   { label: "Use Cases", href: "/use-cases" },
   { label: "Pricing", href: "/pricing" },
   { label: "Docs", href: "/api-docs" },
@@ -54,11 +55,11 @@ export function Navbar() {
     <>
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-2.5 group" aria-label="GenXQR home">
+        <Link to="/" className="flex items-center gap-2.5 group shrink-0" aria-label="GenXQR home">
           <BrandLogo height={32} />
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-1">
           {LINKS.map((l) => (
             <Link
               key={l.label}
@@ -82,7 +83,7 @@ export function Navbar() {
             {dark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             {isLoggedIn ? (
               <MktButton href="/app/dashboard" variant="accent" size="md">
                 <Zap size={14} /> Dashboard
@@ -96,7 +97,7 @@ export function Navbar() {
           </div>
 
           <button
-            className="md:hidden grid place-items-center w-10 h-10 rounded-lg text-ink hover:bg-ink/5"
+            className="lg:hidden grid place-items-center w-10 h-10 rounded-lg text-ink hover:bg-ink/5"
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
@@ -115,7 +116,7 @@ export function Navbar() {
       <div
         id="mobile-menu"
         className={cn(
-          "fixed inset-x-0 top-16 bottom-0 z-40 bg-paper md:hidden",
+          "fixed inset-x-0 top-16 bottom-0 z-40 bg-paper lg:hidden",
           "transition-all duration-300 ease-out",
           open ? "opacity-100 visible" : "opacity-0 invisible",
         )}
