@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { QrCode, Menu, X, Sun, Moon, Zap } from "lucide-react"
+import { Menu, X, Sun, Moon, Zap } from "lucide-react"
 import { MktButton } from "@/components/marketing/ui"
 import { cn } from "@/lib/utils"
+import { BrandLogo } from "@/components/BrandLogo"
 
 // Real, page-safe destinations only — this header wraps every marketing route,
 // not just the redesigned homepage, so no in-page (#anchor) links here.
@@ -54,12 +55,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-line/70 bg-paper/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between gap-4">
         <Link to="/" className="flex items-center gap-2.5 group" aria-label="GenXQR home">
-          <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center shadow-[0_0_15px_rgba(91,75,255,0.4)] group-hover:shadow-[0_0_20px_rgba(91,75,255,0.6)] transition-shadow">
-            <QrCode className="text-white" size={18} />
-          </div>
-          <span className="font-display text-lg font-bold tracking-tightest text-ink">
-            Gen<span className="text-accent">XQR</span>
-          </span>
+          <BrandLogo height={32} />
         </Link>
 
         <nav className="hidden md:flex items-center gap-1">

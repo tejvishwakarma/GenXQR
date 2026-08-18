@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { QrCode } from "lucide-react"
+import { BrandLogo } from "@/components/BrandLogo"
 
 const footerLinks = {
   Product: [
@@ -41,12 +41,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[1.4fr_repeat(4,1fr)] lg:gap-10">
           <div className="col-span-2 max-w-xs lg:col-span-1">
             <Link to="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-accent flex items-center justify-center">
-                <QrCode className="text-white" size={18} />
-              </div>
-              <span className="font-display text-lg font-bold tracking-tightest text-ink">
-                Gen<span className="text-accent">XQR</span>
-              </span>
+              <BrandLogo height={32} />
             </Link>
             <p className="mt-4 text-sm leading-relaxed text-ink-soft">
               The QR platform for business — branded, dynamic, and fully tracked. Made in India, used worldwide.

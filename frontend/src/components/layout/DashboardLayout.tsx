@@ -21,6 +21,7 @@ import {
 import type { AuthUser } from "@/lib/api"
 import { useTheme } from "@/hooks/useTheme"
 import { SupportModal } from "@/components/SupportModal"
+import { BrandLogo } from "@/components/BrandLogo"
 
 const navItems: { label: string; href: string; icon: ReactElement; badge?: string }[] = [
   { label: "Dashboard", href: "/app/dashboard", icon: <LayoutDashboard size={18} /> },
@@ -302,10 +303,7 @@ export function DashboardLayout() {
         {/* Logo */}
         <div className="p-5 border-b border-zinc-200 dark:border-zinc-800">
         <Link to="/" className="flex items-center gap-2.5" onClick={() => setSidebarOpen(false)}>
-          <div className="w-8 h-8 rounded-xl bg-violet-600 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.4)]">
-            <QrCode size={18} className="text-white" />
-          </div>
-          <span className="text-zinc-900 dark:text-white font-bold text-lg">GenX<span className="gradient-text">QR</span></span>
+          <BrandLogo height={30} />
         </Link>
       </div>
 
