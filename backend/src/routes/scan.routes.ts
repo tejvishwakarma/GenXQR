@@ -48,6 +48,17 @@ router.get(
 
       const resolution = await resolveQRScan(slug, ip, ua, ref)
 
+      // Never let a scan response be cached. The whole premise of a dynamic QR is
+      // that its destination can change after the code is printed, so a cached
+      // redirect is a wrong answer with a long life: a phone that scanned before a
+      // smart-routing rule, an A/B test or an edited URL was added will keep going
+      // to the old destination, and the owner sees their change "not working" with
+      // no way to tell why. Set before the switch so every branch is covered —
+      // redirect, pixel trampoline, landing page, password and expired alike.
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+      res.setHeader("Pragma", "no-cache")   // for HTTP/1.0 proxies still in the path
+      res.setHeader("Expires", "0")
+
       switch (resolution.action) {
         case "redirect":
           // Validate destination is a safe URL before redirecting
