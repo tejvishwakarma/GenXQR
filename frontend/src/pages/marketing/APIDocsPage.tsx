@@ -519,8 +519,8 @@ function FieldTable({ fields, title }: { fields: Field[]; title: string }) {
   return (
     <div className="mb-6">
       <h4 className="text-xs font-semibold text-ink-faint uppercase tracking-wider mb-3">{title}</h4>
-      <div className="border border-line rounded-xl overflow-hidden">
-        <table className="w-full text-xs">
+      <div className="min-w-0 border border-line rounded-xl overflow-x-auto">
+        <table className="w-full min-w-[380px] text-xs">
           <thead>
             <tr className="border-b border-line bg-paper-pure">
               <th className="text-left px-4 py-2.5 text-ink-faint font-medium w-36">Name</th>
@@ -552,7 +552,7 @@ function FieldTable({ fields, title }: { fields: Field[]; title: string }) {
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
   // Simple token colouring for common patterns
   return (
-    <div className="relative group">
+    <div className="relative group min-w-0">
       <div className="bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/60">
           <span className="text-zinc-600 text-xs font-mono">{lang}</span>
@@ -594,9 +594,9 @@ function EndpointSection({ ep, lang }: { ep: Endpoint; lang: Lang }) {
   return (
     <section id={ep.id} className="scroll-mt-32 mb-16">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <MethodBadge method={ep.method} />
-        <code className="text-ink text-sm font-mono bg-paper-pure border border-line px-3 py-1 rounded-lg">
+        <code className="min-w-0 break-all text-ink text-sm font-mono bg-paper-pure border border-line px-3 py-1 rounded-lg">
           {ep.path}
         </code>
       </div>
@@ -604,7 +604,7 @@ function EndpointSection({ ep, lang }: { ep: Endpoint; lang: Lang }) {
       <p className="text-ink-soft text-sm leading-relaxed mb-6">{ep.description}</p>
 
       {/* Request */}
-      <div className="grid lg:grid-cols-[1fr_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
           {ep.queryParams && <FieldTable fields={ep.queryParams} title="Query Parameters" />}
           {ep.bodyParams && <FieldTable fields={ep.bodyParams} title="Request Body" />}
@@ -1083,20 +1083,20 @@ export default function APIDocsPage() {
       {/* ── Top bar ── */}
       <div className="sticky top-16 z-40 border-b border-line bg-paper/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
-              className="lg:hidden text-ink-faint hover:text-ink transition-colors"
+              className="lg:hidden shrink-0 text-ink-faint hover:text-ink transition-colors"
               onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
             >
               {mobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-ink-faint">API Reference</span>
-              <ChevronRight size={14} className="text-ink-faint/50" />
-              <span className="text-ink capitalize">{activeSection.replace("ep-", "").replace("-", " ")}</span>
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="hidden sm:inline text-ink-faint">API Reference</span>
+              <ChevronRight size={14} className="hidden sm:inline shrink-0 text-ink-faint/50" />
+              <span className="truncate text-ink capitalize">{activeSection.replace("ep-", "").replace("-", " ")}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <LangToggle lang={lang} setLang={setLang} />
             <Link
               to="/app/api-keys"

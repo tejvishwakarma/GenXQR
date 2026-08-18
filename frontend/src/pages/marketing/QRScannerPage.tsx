@@ -513,7 +513,7 @@ export default function QRScannerPage() {
 
           {/* ── Camera panel ── */}
           <MktCard interactive={false} className="p-0 overflow-hidden">
-            <div className="h-[400px] flex flex-col items-center justify-center relative bg-paper">
+            <div className="min-h-[400px] flex flex-col items-center justify-center relative bg-paper">
 
               {/* Live video */}
               <video
@@ -550,8 +550,7 @@ export default function QRScannerPage() {
               {/* Idle state */}
               {mode !== "camera" && (
                 <>
-                  <div className="absolute inset-x-12 inset-y-24 border-2 border-line rounded-3xl pointer-events-none" />
-                  <div className="z-10 flex flex-col items-center text-center px-6">
+                  <div className="z-10 mx-6 flex flex-col items-center rounded-3xl border-2 border-line px-6 py-8 text-center">
                     <Camera className="text-ink-faint mb-4" size={48} />
                     <h3 className="text-ink font-medium mb-2">Use your camera</h3>
                     <p className="text-ink-soft text-sm mb-6 max-w-xs">

@@ -352,7 +352,7 @@ export default function StaticGeneratePage() {
         </div>
 
         {/* ── Generator tool ───────────────────────────────────────────────── */}
-        <div className="grid lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
 
           {/* Left: Controls */}
           <div className="space-y-6">
