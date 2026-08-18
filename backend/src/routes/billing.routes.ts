@@ -375,12 +375,34 @@ router.get(
       const inv = invoice as InvoiceWithUser
       const invoiceNumber = `INV-${inv.createdAt.getFullYear()}${String(inv.createdAt.getMonth() + 1).padStart(2, "0")}-${inv.id.slice(-6).toUpperCase()}`
 
+      // A coupon's figures live on CouponRedemption, not on the invoice, so they
+      // have to be joined in — without this the PDF shows only the discounted
+      // total and a ₹799 plan bought with a 99% code reads as costing ₹7.99 with
+      // no explanation. Keyed on the order id, which both records share.
+      const redemption = inv.cashfreeOrderId
+        ? await prisma.couponRedemption.findUnique({
+            where: { cashfreeOrderId: inv.cashfreeOrderId },
+            select: {
+              originalPaise: true,
+              discountPaise: true,
+              coupon: { select: { code: true } },
+            },
+          })
+        : null
+
       const pdfBuffer = await generateInvoicePDF({
         invoiceNumber,
         createdAt: inv.createdAt,
         periodStart: inv.periodStart,
         periodEnd: inv.periodEnd,
         amount: inv.amount,
+        discount: redemption
+          ? {
+              code: redemption.coupon.code,
+              originalPaise: redemption.originalPaise,
+              discountPaise: redemption.discountPaise,
+            }
+          : null,
         currency: inv.currency,
         status: inv.status,
         planName: inv.planName,

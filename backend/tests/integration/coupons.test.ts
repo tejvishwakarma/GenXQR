@@ -363,6 +363,48 @@ describe("coupons", () => {
       expect((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).redemptionCount).toBe(1)
     })
 
+    it("should put the discount breakdown on the invoice PDF", async () => {
+      const user = await createUser()
+      const coupon = await givenCoupon({ discountValue: 99 })
+      const orderId = `genxqr_inv_${Date.now()}`
+      const discountPaise = Math.floor(PRO_MONTHLY_PAISE * 0.99)
+      const finalPaise = PRO_MONTHLY_PAISE - discountPaise
+
+      stubPaidOrder(orderId, finalPaise, {
+        userId: user.id, planName: "PRO", billingCycle: "monthly",
+        expectedPaise: String(finalPaise), couponCode: coupon.code, couponId: coupon.id,
+      })
+      await signedWebhook(orderId)
+
+      const invoice = await prisma.invoice.findUniqueOrThrow({ where: { cashfreeOrderId: orderId } })
+
+      // The invoice row only stores what was CHARGED, so the PDF has to join the
+      // redemption to show a breakdown. Without that join the receipt showed a
+      // ₹799 plan as simply costing ₹7.99, with no discount line at all.
+      const redemption = await prisma.couponRedemption.findUniqueOrThrow({
+        where: { cashfreeOrderId: orderId },
+        select: { originalPaise: true, discountPaise: true, coupon: { select: { code: true } } },
+      })
+      expect(redemption.originalPaise).toBe(PRO_MONTHLY_PAISE)
+      expect(redemption.discountPaise).toBe(discountPaise)
+      expect(redemption.coupon.code).toBe(coupon.code)
+      expect(invoice.amount).toBe(finalPaise)
+
+      // And the route still produces a real PDF with that data joined in.
+      const res = await request(app)
+        .get(`/api/billing/invoices/${invoice.id}/download`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .buffer(true)
+        .parse((response, cb) => {
+          const parts: Buffer[] = []
+          response.on("data", (c: Buffer) => parts.push(c))
+          response.on("end", () => cb(null, Buffer.concat(parts)))
+        })
+
+      expect(res.status).toBe(200)
+      expect((res.body as Buffer).subarray(0, 5).toString("latin1")).toBe("%PDF-")
+    })
+
     it("should still charge full price when an order carries no coupon", async () => {
       const user = await createUser()
       const orderId = `genxqr_full_${Date.now()}`

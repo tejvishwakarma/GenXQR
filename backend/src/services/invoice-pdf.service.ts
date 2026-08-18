@@ -36,8 +36,23 @@ export interface InvoiceData {
   createdAt: Date
   periodStart: Date
   periodEnd: Date
-  /** Minor units (paise). */
+  /**
+   * What was actually charged, in paise. With a coupon this is the DISCOUNTED
+   * figure, which is why `discount` below is needed to show an honest breakdown —
+   * otherwise a ₹799 plan bought with a 99% code reads as a ₹799 plan that costs
+   * ₹7.99, with no explanation of where the difference went.
+   */
   amount: number
+  /**
+   * Present only when a coupon was applied. originalPaise is the plan's list
+   * price; discountPaise is what came off. Sourced from CouponRedemption, which
+   * records all three figures at the moment of payment.
+   */
+  discount?: {
+    code: string
+    originalPaise: number
+    discountPaise: number
+  } | null
   currency: string
   status: string
   planName: PlanName
@@ -216,11 +231,14 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     .text(`${formatDate(data.periodStart)}\nto ${formatDate(data.periodEnd)}`, colPeriodX, rowTop + 13, {
       width: CONTENT_WIDTH * 0.24,
     })
+  // The line item is the plan at LIST price; the discount is applied in the
+  // totals below, the way a receipt is normally read.
+  const lineItemPaise = data.discount ? data.discount.originalPaise : data.amount
   doc
     .fillColor(COLOR.ink)
     .font("Helvetica-Bold")
     .fontSize(11)
-    .text(formatAmount(data.amount, data.currency), left, rowTop + 14, {
+    .text(formatAmount(lineItemPaise, data.currency), left, rowTop + 14, {
       width: colAmountRight - left,
       align: "right",
     })
@@ -237,7 +255,9 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
   const totalsTop = tableTop + headerHeight + rowHeight + 18
   const totalsWidth = 220
   const totalsLeft = right - totalsWidth
-  const totalsHeight = 74
+  // One extra row when a coupon was used, so the box grows rather than overlapping
+  // the payment-details grid beneath it.
+  const totalsHeight = data.discount ? 92 : 74
   const formatted = formatAmount(data.amount, data.currency)
 
   doc.roundedRect(totalsLeft, totalsTop, totalsWidth, totalsHeight, 8).fill(COLOR.panel)
@@ -251,16 +271,30 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     doc.text(value, totalsLeft, y, { width: totalsWidth - 14, align: "right" })
   }
 
-  totalsRow("Subtotal", formatted, totalsTop + 12)
-  totalsRow("Tax (GST)", "Included", totalsTop + 30)
+  totalsRow("Subtotal", formatAmount(lineItemPaise, data.currency), totalsTop + 12)
+
+  let rowY = totalsTop + 30
+  if (data.discount) {
+    // Naming the code matters: without it the customer cannot tell a discount
+    // from a pricing error, and support cannot either.
+    totalsRow(
+      `Discount (${data.discount.code})`,
+      `-${formatAmount(data.discount.discountPaise, data.currency)}`,
+      rowY,
+    )
+    rowY += 18
+  }
+  totalsRow("Tax (GST)", "Included", rowY)
+  rowY += 18
+
   doc
-    .moveTo(totalsLeft + 14, totalsTop + 48)
-    .lineTo(totalsLeft + totalsWidth - 14, totalsTop + 48)
+    .moveTo(totalsLeft + 14, rowY)
+    .lineTo(totalsLeft + totalsWidth - 14, rowY)
     .dash(2, { space: 2 })
     .lineWidth(0.8)
     .stroke("#d1d5db")
   doc.undash()
-  totalsRow("Total Paid", formatted, totalsTop + 55, true)
+  totalsRow("Total Paid", formatted, rowY + 7, true)
 
   // ── Payment reference ─────────────────────────────────────────────────────
   let cursor = totalsTop + totalsHeight + 24
