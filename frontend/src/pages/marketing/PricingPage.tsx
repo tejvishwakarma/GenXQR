@@ -114,7 +114,7 @@ const plans = [
     yearlySaving: 0,
     perDay: null as string | null,
     desc: "Test the platform. Create static QR codes — no account needed.",
-    cta: "Create Free QR Codes",
+    cta: "Start free",
     ctaVariant: "outline" as const,
     href: "/signup",
     highlight: false,
@@ -140,7 +140,7 @@ const plans = [
     yearlySaving: 600,
     perDay: "₹8",
     desc: "Your first 50 dynamic QR codes with scan tracking. Perfect for small businesses.",
-    cta: "Try Starter Free — 14 Days",
+    cta: "Start free trial",
     ctaVariant: "outline" as const,
     href: "/signup?plan=starter",
     highlight: false,
@@ -170,7 +170,7 @@ const plans = [
     yearlySaving: 1800,
     perDay: "₹22",
     desc: "250 dynamic QR codes, A/B testing, smart routing — the full marketer's toolkit.",
-    cta: "Try Pro Free — 14 Days",
+    cta: "Start free trial",
     ctaVariant: "default" as const,
     href: "/signup?plan=pro",
     highlight: true,
@@ -202,7 +202,7 @@ const plans = [
     yearlySaving: 6000,
     perDay: "₹67",
     desc: "2,000 QR codes for teams, agencies, and brands that run at scale.",
-    cta: "Try Business Free — 14 Days",
+    cta: "Start free trial",
     ctaVariant: "glow" as const,
     href: "/signup?plan=business",
     highlight: false,
@@ -281,7 +281,7 @@ function ComparisonCell({ value }: { value: CellValue }) {
 // <button> (not MktButton/<Link>) because it must run `handlePlanCTA`'s
 // localStorage-aware routing logic rather than navigate to a fixed href.
 const PLAN_CTA_BASE =
-  "inline-flex w-full items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 min-h-[44px] lg:min-h-[62px] px-4 py-2.5 text-sm leading-snug text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-pure"
+  "inline-flex w-full items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 whitespace-nowrap h-11 px-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-pure"
 const PLAN_CTA_VARIANTS = {
   outline: "border border-line bg-paper text-ink hover:border-ink/30 hover:shadow-card",
   filled: "bg-accent text-white hover:bg-accent-ink shadow-[0_12px_34px_-12px_rgba(91,75,255,0.65)]",
@@ -408,7 +408,7 @@ export default function PricingPage() {
                   {/* Plan name + desc + price */}
                   <div className="mb-6">
                     <h2 className="font-display font-bold text-xl text-ink mb-1">{plan.name}</h2>
-                    <p className="text-ink-faint text-xs mb-4 leading-relaxed">{plan.desc}</p>
+                    <p className="text-ink-faint text-xs mb-4 leading-relaxed md:min-h-[3.75rem] lg:min-h-[5rem]">{plan.desc}</p>
 
                     <div className="flex items-end gap-1">
                       <span className="font-mono text-4xl font-semibold text-ink">{displayPrice}</span>
@@ -431,11 +431,15 @@ export default function PricingPage() {
                       </p>
                     )}
 
-                    {/* Per-day equivalent */}
-                    {plan.perDay && plan.priceMonthly > 0 && (
+                    {/* Per-day equivalent. The free plan has none, so it keeps an
+                        invisible stand-in — without it that card's CTA rides 20px
+                        higher than the rest of the row. */}
+                    {plan.perDay && plan.priceMonthly > 0 ? (
                       <p className="text-ink-faint text-xs mt-1">
                         Less than {plan.perDay}/day
                       </p>
+                    ) : (
+                      <p aria-hidden="true" className="invisible text-xs mt-1">&nbsp;</p>
                     )}
                   </div>
 
