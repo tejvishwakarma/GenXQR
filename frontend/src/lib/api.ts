@@ -1271,7 +1271,10 @@ export interface RecentScan {
 }
 
 export interface QRAnalytics {
+  /** Every scan, repeats from the same device included. */
   totalScans: number
+  /** One per device per dedup window — the old "scans" figure. */
+  uniqueScans: number
   scansToday: number
   scansThisWeek: number
   scansThisMonth: number
@@ -1292,7 +1295,10 @@ export function getQRAnalytics(qrId: string, days = 30) {
 }
 
 export interface GlobalAnalytics {
+  /** Every scan, repeats from the same device included. */
   totalScans: number
+  /** One per device per dedup window — the old "scans" figure. */
+  uniqueScans: number
   scansToday: number
   scansThisWeek: number
   scansThisMonth: number

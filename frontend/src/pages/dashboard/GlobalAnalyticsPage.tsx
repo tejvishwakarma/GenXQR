@@ -315,6 +315,7 @@ export default function GlobalAnalyticsPage() {
             <StatCard
               label="Total Scans"
               value={analytics.totalScans}
+              sub={`${analytics.uniqueScans.toLocaleString()} unique ${analytics.uniqueScans === 1 ? "device" : "devices"}`}
               icon={<Scan size={18} />}
               trend={trendPct}
               accentColor="violet"

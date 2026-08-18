@@ -97,10 +97,12 @@ function DonutLabel({ cx, cy, total }: { cx?: number; cy?: number; total: number
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
 function StatCard({
-  label, value, icon, trend, highlight,
+  label, value, sub, icon, trend, highlight,
 }: {
   label: string
   value: string | number
+  /** Secondary line, e.g. the unique-device count beneath a total. */
+  sub?: string
   icon: React.ReactNode
   trend?: number | null
   highlight?: boolean
@@ -127,6 +129,7 @@ function StatCard({
           {typeof value === "number" ? value.toLocaleString() : value}
         </div>
         <div className="text-zinc-500 text-xs mt-1">{label}</div>
+        {sub && <div className="text-zinc-400 dark:text-zinc-500 text-[11px] mt-0.5">{sub}</div>}
       </CardContent>
     </Card>
   )
@@ -317,7 +320,14 @@ export default function QRAnalyticsPage() {
 
           {/* ── Stat cards ──────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="Total Scans"  value={analytics.totalScans}     icon={<Scan size={18} className="text-violet-400" />} trend={trendPct} highlight />
+            <StatCard
+              label="Total Scans"
+              value={analytics.totalScans}
+              sub={`${analytics.uniqueScans.toLocaleString()} unique ${analytics.uniqueScans === 1 ? "device" : "devices"}`}
+              icon={<Scan size={18} className="text-violet-400" />}
+              trend={trendPct}
+              highlight
+            />
             <StatCard label="Today"        value={analytics.scansToday}     icon={<TrendingUp size={18} className="text-emerald-400" />} />
             <StatCard label="This Week"    value={analytics.scansThisWeek}  icon={<Globe size={18} className="text-blue-400" />} />
             <StatCard label="This Month"   value={analytics.scansThisMonth} icon={<Smartphone size={18} className="text-amber-400" />} />

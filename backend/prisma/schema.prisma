@@ -104,7 +104,11 @@ model QRCode {
   slug                String             @unique
   tags                String[]
   isActive            Boolean            @default(true)
+  /// Every scan, repeats included. This is the number the per-QR scanLimit is
+  /// measured against.
   scanCount           Int                @default(0)
+  /// Distinct devices, by the same rule as QRScan.isUnique.
+  uniqueScanCount     Int                @default(0)
   isPasswordProtected Boolean            @default(false)
   passwordHash        String?
   activeFrom          DateTime?
@@ -198,6 +202,10 @@ model QRScan {
   id          String     @id @default(cuid())
   qrId        String
   scannedAt   DateTime   @default(now())
+  /// False when the same device+IP already scanned this code inside the dedup
+  /// window. Every scan is stored now; this is what separates total from unique.
+  /// Historical rows are all true because the old code only ever stored uniques.
+  isUnique    Boolean    @default(true)
   ip          String
   country     String?
   countryCode String?
@@ -220,11 +228,14 @@ model QRScan {
 }
 
 model QRScanDaily {
-  id     String   @id @default(cuid())
-  qrId   String
-  date   DateTime @db.Date
-  count  Int      @default(0)
-  qrCode QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  qrId        String
+  date        DateTime @db.Date
+  /// Total scans that day, including repeats from the same device.
+  count       Int      @default(0)
+  /// Distinct devices that day, by the same rule as QRScan.isUnique.
+  uniqueCount Int      @default(0)
+  qrCode      QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
 
   // @@unique below already backs lookups/upserts on [qrId, date] with an
   // index — no need for a duplicate @@index on the identical columns.

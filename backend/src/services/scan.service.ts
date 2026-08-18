@@ -25,6 +25,8 @@ export interface ScanJobData {
   referrer: string | undefined
   scannedAt: string
   abVariantId: string | undefined
+  /** False when this device+IP already scanned inside DEDUP_TTL_SECONDS. */
+  isUnique: boolean
 }
 
 // ─── BullMQ Queue ──────────────────────────────────────────────────────────────
@@ -486,14 +488,15 @@ async function queueScan(
       .digest("hex")
       .slice(0, 12)
     const dedupKey = `scan:dedup:${qrId}:${ip}:${uaFingerprint}`
-    const acquired = await redis.set(dedupKey, "1", "EX", DEDUP_TTL_SECONDS, "NX")
-    if (!acquired) {
-      logger.debug("Scan deduped", { qrId })
-      return
-    }
+    // The marker no longer decides whether the scan is recorded — only whether it
+    // counts as unique. Repeat scans used to be dropped entirely, which made the
+    // dashboard silently under-report: someone testing their own code, or a
+    // visitor opening it twice, simply did not appear.
+    const isUnique = Boolean(await redis.set(dedupKey, "1", "EX", DEDUP_TTL_SECONDS, "NX"))
 
-    // This scan counts toward scanLimit — bump the live counter synchronously,
-    // in the same request, rather than waiting on the async worker's DB write.
+    // Every scan counts toward scanLimit, matching the total now shown as the
+    // headline figure. Previously only unique scans did, so a limit of 100 could
+    // absorb far more than 100 actual opens.
     await incrementLiveScanCount(slug)
 
     await scanQueue.add("log-scan" as string, {
@@ -503,6 +506,7 @@ async function queueScan(
       referrer,
       scannedAt: new Date().toISOString(),
       abVariantId,
+      isUnique,
     })
   } catch (err) {
     logger.error("Failed to queue scan job", { qrId, error: String(err) })

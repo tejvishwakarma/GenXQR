@@ -67,6 +67,9 @@ function parseUA(ua: string | undefined): UAInfo {
 
 async function processScanJob(job: Job<ScanJobData>): Promise<void> {
   const { qrId, ip, userAgent, referrer, scannedAt, abVariantId } = job.data
+  // Jobs queued before this field existed are treated as unique, which is what
+  // they were: the old pipeline only ever enqueued unique scans.
+  const isUnique = job.data.isUnique ?? true
 
   const { deviceType, os, browser } = parseUA(userAgent)
   const { country, countryCode, city, region, lat, lng } = await lookupGeo(ip)
@@ -83,6 +86,7 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
       userAgent: userAgent ?? null,
       referrer: referrer ?? null,
       scannedAt: scannedAtDate,
+      isUnique,
       abVariantId: abVariantId ?? null,
       country,
       countryCode,
@@ -98,6 +102,7 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
     where: { id: qrId },
     data: {
       scanCount: { increment: 1 },
+      ...(isUnique && { uniqueScanCount: { increment: 1 } }),
       lastScannedAt: scannedAtDate,
     },
     select: { userId: true, name: true, slug: true },
@@ -122,6 +127,9 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
           monthStart.setUTCDate(1)
           monthStart.setUTCHours(0, 0, 0, 0)
           const monthlyScans = await prisma.qRScan.count({
+            // Must match the quota rule in billing.routes.ts — every scan, repeats
+            // included — or the "near your limit" email reports a different number
+            // than the billing page.
             where: { qrCode: { userId: updated.userId }, scannedAt: { gte: monthStart } },
           })
           await checkAndNotifyLimit(updated.userId!, "scans", monthlyScans, limits.scanLimitPerMonth, planName)
@@ -138,8 +146,11 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
   )
   await prisma.qRScanDaily.upsert({
     where: { qrId_date: { qrId, date: dateOnly } },
-    create: { qrId, date: dateOnly, count: 1 },
-    update: { count: { increment: 1 } },
+    create: { qrId, date: dateOnly, count: 1, uniqueCount: isUnique ? 1 : 0 },
+    update: {
+      count: { increment: 1 },
+      ...(isUnique && { uniqueCount: { increment: 1 } }),
+    },
   })
 
   // Increment A/B variant counter if applicable

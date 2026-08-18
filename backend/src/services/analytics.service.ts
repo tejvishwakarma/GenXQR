@@ -50,7 +50,10 @@ export interface RecentScan {
 }
 
 export interface QRAnalyticsResult {
+  /** Every scan, repeats included. */
   totalScans: number
+  /** One per device per dedup window. */
+  uniqueScans: number
   scansToday: number
   scansThisWeek: number
   scansThisMonth: number
@@ -136,7 +139,7 @@ export async function getQRAnalytics(
 
   // Run all queries in parallel for performance
   const [
-    totalScans,
+    scanCounts,
     scansToday,
     scansThisWeek,
     scansThisMonth,
@@ -148,11 +151,12 @@ export async function getQRAnalytics(
     cityRows,
     recentScanRows,
   ] = await Promise.all([
-    // Total scan count from the denormalised column (fast)
+    // Both counters come from the denormalised columns (fast). scanCount is every
+    // scan; uniqueScanCount counts one per device per dedup window.
     prisma.qRCode.findUnique({
       where: { id: qrId },
-      select: { scanCount: true },
-    }).then((r) => r?.scanCount ?? 0),
+      select: { scanCount: true, uniqueScanCount: true },
+    }).then((r) => ({ total: r?.scanCount ?? 0, unique: r?.uniqueScanCount ?? 0 })),
 
     // Scans today
     prisma.qRScan.count({
@@ -241,7 +245,8 @@ export async function getQRAnalytics(
   const timeline = buildFilledTimeline(dailyRows, days)
 
   return {
-    totalScans: typeof totalScans === "number" ? totalScans : 0,
+    totalScans: scanCounts.total,
+    uniqueScans: scanCounts.unique,
     scansToday,
     scansThisWeek,
     scansThisMonth,
@@ -275,7 +280,10 @@ export async function getQRAnalytics(
 // ─── Global analytics (aggregate across all of a user's QRs) ─────────────────
 
 export interface GlobalAnalyticsResult {
+  /** Every scan, repeats included. */
   totalScans: number
+  /** One per device per dedup window. */
+  uniqueScans: number
   scansToday: number
   scansThisWeek: number
   scansThisMonth: number
@@ -301,12 +309,12 @@ export async function getGlobalAnalytics(
   // Get all QR code IDs belonging to the user
   const userQRs = await prisma.qRCode.findMany({
     where: { userId },
-    select: { id: true, name: true, type: true, scanCount: true, isActive: true },
+    select: { id: true, name: true, type: true, scanCount: true, uniqueScanCount: true, isActive: true },
   })
 
   if (userQRs.length === 0) {
     return {
-      totalScans: 0, scansToday: 0, scansThisWeek: 0, scansThisMonth: 0,
+      totalScans: 0, uniqueScans: 0, scansToday: 0, scansThisWeek: 0, scansThisMonth: 0,
       totalQRs: 0, activeQRs: 0,
       timeline: buildFilledTimeline([], days),
       byDevice: [], byOS: [], byBrowser: [], byCountry: [], topQRs: [],
@@ -362,9 +370,11 @@ export async function getGlobalAnalytics(
 
   const timeline = buildFilledTimeline(dailyRows, days)
   const totalScans = userQRs.reduce((s, q) => s + q.scanCount, 0)
+  const uniqueScans = userQRs.reduce((s, q) => s + q.uniqueScanCount, 0)
 
   return {
     totalScans,
+    uniqueScans,
     scansToday,
     scansThisWeek,
     scansThisMonth,

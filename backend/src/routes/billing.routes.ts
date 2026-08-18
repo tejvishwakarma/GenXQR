@@ -446,6 +446,10 @@ router.get(
           _sum: { sizeBytes: true },
         }),
         prisma.qRScan.count({
+          // Quota counts EVERY scan, repeats included — the same figure the
+          // dashboard shows as "Total Scans", so the two can never disagree.
+          // Note this consumes quota faster than the pre-split behaviour, where
+          // repeat scans were discarded before they were ever recorded.
           where: { qrCode: { userId }, scannedAt: { gte: monthStart } },
         }),
       ])
