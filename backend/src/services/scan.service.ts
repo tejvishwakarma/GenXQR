@@ -316,7 +316,16 @@ function normalizeUrl(raw: unknown): string | null {
   return `https://${s}`
 }
 
-function buildDestinationFromContent(type: string, content: Record<string, unknown>): string | null {
+/**
+ * Builds a direct destination for the content types that have one.
+ *
+ * NOTE: step 9's REDIRECT_TYPES gate only lets WHATSAPP and INSTAGRAM through, so
+ * a URL or FACEBOOK code normally lands on its landing page instead. The password
+ * path has always redirected those two straight to their target, and that
+ * behaviour is preserved deliberately rather than quietly changed — see the
+ * caller in scan.routes.ts.
+ */
+export function buildDestinationFromContent(type: string, content: Record<string, unknown>): string | null {
   switch (type) {
     case "URL":
       return normalizeUrl(content.url)
@@ -351,6 +360,13 @@ export async function resolveQRScan(
   ip: string,
   ua: string | undefined,
   ref: string | undefined,
+  /**
+   * Set once the visitor has entered the correct password. Everything after the
+   * password gate — smart routing, A/B split, destination building, scan logging
+   * — then runs exactly as it does for an unprotected code, instead of being
+   * reimplemented by the caller.
+   */
+  opts?: { passwordVerified?: boolean },
 ): Promise<QRResolution> {
   // 1. Cache lookup
   let qr = await getCachedQR(slug)
@@ -391,7 +407,7 @@ export async function resolveQRScan(
   }
 
   // 5. Password protection check
-  if (qr.isPasswordProtected) {
+  if (qr.isPasswordProtected && !opts?.passwordVerified) {
     return { action: "password", slug }
   }
 

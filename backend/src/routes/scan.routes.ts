@@ -2,7 +2,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
-import { resolveQRScan } from "../services/scan.service.js"
+import { resolveQRScan, buildDestinationFromContent } from "../services/scan.service.js"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 import { authLimiter } from "../middleware/rateLimit.middleware.js"
@@ -161,8 +161,6 @@ router.post(
           isActive: true,
           isPasswordProtected: true,
           passwordHash: true,
-          type: true,
-          content: { select: { data: true } },
         },
       })
 
@@ -182,50 +180,48 @@ router.post(
         return
       }
 
-      // Determine destination after successful password verification
-      const REDIRECT_TYPES = new Set(["URL", "WHATSAPP", "INSTAGRAM", "FACEBOOK"])
-      const content = (qr.content as { data?: Record<string, unknown> } | null)?.data ?? {}
+      // Hand off to the same resolver the plain scan path uses, with the gate
+      // now satisfied. The previous code reimplemented destination building here
+      // and only understood URL/WHATSAPP/INSTAGRAM/FACEBOOK, so for a
+      // password-protected code it silently skipped smart routing and the A/B
+      // split, never logged the scan, and ignored the expiry window and scan
+      // limit. Delegating fixes all of those at once and cannot drift again.
+      const ip = getClientIP(req)
+      const uaHeader = req.headers["user-agent"]
+      const ua = typeof uaHeader === "string" ? uaHeader : undefined
+      const refHeader = req.headers["referer"] ?? req.headers["referrer"]
+      const ref = typeof refHeader === "string" ? refHeader : undefined
+
+      const resolution = await resolveQRScan(slug, ip, ua, ref, { passwordVerified: true })
 
       let destination: string | null = null
-
-      if (REDIRECT_TYPES.has(qr.type)) {
-        switch (qr.type) {
-          case "URL": {
-            const raw = typeof content.url === "string" ? content.url.trim() : null
-            if (raw) {
-              if (/^https?:\/\//i.test(raw)) {
-                destination = raw
-              } else if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-                destination = `https://${raw}`
-              }
-            }
-            break
-          }
-          case "WHATSAPP": {
-            const phone = String(content.phone ?? "").replace(/\D/g, "")
-            const msg = content.message ? `?text=${encodeURIComponent(String(content.message))}` : ""
-            destination = phone ? `https://wa.me/${phone}${msg}` : null
-            break
-          }
-          case "INSTAGRAM":
-            destination = typeof content.username === "string"
-              ? `https://instagram.com/${content.username}`
-              : null
-            break
-          case "FACEBOOK": {
-            const raw = typeof (content.pageUrl ?? content.url) === "string"
-              ? String(content.pageUrl ?? content.url).trim() : null
-            if (raw) {
-              if (/^https?:\/\//i.test(raw)) {
-                destination = raw
-              } else if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
-                // Only prepend https:// if the value has no scheme at all (not javascript:, data:, etc.)
-                destination = `https://${raw}`
-              }
-            }
-            break
-          }
-        }
+      switch (resolution.action) {
+        case "redirect":
+        // The pixel trampoline cannot run here — the caller navigates straight to
+        // the destination — so the tracking pixels do not fire on this path.
+        case "pixel_redirect":
+          destination = resolution.url
+          break
+        case "landing":
+          // The resolver sends URL and FACEBOOK codes to their landing page, but
+          // this path has always redirected them straight to their target. Keeping
+          // that: the point of this change is to make smart routing and the A/B
+          // split apply, not to relocate where existing codes land. The two paths
+          // disagreeing about URL is a pre-existing inconsistency, left alone.
+          destination = buildDestinationFromContent(resolution.type, resolution.content)
+            ?? `${env.FRONTEND_URL}/l/${slug}`
+          break
+        case "expired":
+          // Became unavailable between the prompt being shown and the password
+          // being submitted, e.g. the scan limit was reached.
+          destination = resolution.fallbackUrl
+            ?? `${env.FRONTEND_URL}/r/${slug}/expired?reason=${resolution.reason}`
+          break
+        case "password":
+          // Unreachable with passwordVerified set; treated as a failure rather
+          // than silently sending the visitor somewhere.
+          res.status(500).json({ success: false, error: "Could not resolve destination" })
+          return
       }
 
       if (!destination) {
