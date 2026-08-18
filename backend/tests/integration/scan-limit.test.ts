@@ -3,6 +3,7 @@ import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
 import { redis } from "../../src/redis/client.js"
+import { scanQueue } from "../../src/services/scan.service.js"
 import { createQRCode, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
 
 /**
@@ -18,10 +19,11 @@ import { createQRCode, createUser, giveSubscription, seedPlans } from "../helper
  * Two details the tests have to work around, both inherent to the design
  * rather than test scaffolding:
  *
- *  1. Scans are deduplicated for 4 hours on qrId + IP + a User-Agent
- *     fingerprint. Supertest always calls from the same loopback IP, so each
- *     simulated device must send a distinct User-Agent — which is exactly how
- *     a real attacker would dodge the dedup too.
+ *  1. Scans from the same qrId + IP + User-Agent fingerprint within 4 hours are
+ *     recorded but marked isUnique=false. Supertest always calls from the same
+ *     loopback IP, so each simulated device must send a distinct User-Agent to
+ *     register as a separate unique — which is exactly how a real attacker would
+ *     dodge the dedup too.
  *  2. The counter is incremented from a fire-and-forget `void queueScan(...)`,
  *     so it can land just after the HTTP response. Tests wait for the counter
  *     rather than assuming it is already written.
@@ -121,16 +123,47 @@ describe("scan limit enforcement", () => {
     }
   })
 
-  it("should deduplicate repeat scans from the same device", async () => {
-    const qr = await makeLimitedQR(5)
+  /**
+   * Repeat scans from one device used to be discarded outright, so the dashboard
+   * under-reported and a scanLimit absorbed far more opens than its number
+   * suggested. They are recorded now: every scan counts toward the total and
+   * toward the limit, while only the first counts as unique.
+   */
+  it("should record repeat scans from the same device but count them once as unique", async () => {
+    const qr = await makeLimitedQR(null)   // no limit: this test is about counting
+
+    for (let i = 0; i < 5; i++) await scanAs(qr.slug, "same")
+    await waitForScanCount(qr.slug, 5)
+
+    // Every scan now counts toward the total, where repeats were previously
+    // discarded before they were recorded at all.
+    expect(Number(await redis.get(scanCountKey(qr.slug)))).toBe(5)
+
+    // This suite runs Express but not the BullMQ workers, so nothing drains the
+    // queue and the QRScan rows are never written. Assert on the enqueued jobs
+    // instead: deciding isUnique is the part of the change that lives in
+    // scan.service, and it is fully observable here. The worker's own job is
+    // only to increment by that flag.
+    const jobs = await scanQueue.getJobs(["waiting", "delayed", "prioritized"])
+    const mine = jobs.filter((j) => j.data.qrId === qr.id)
+    expect(mine).toHaveLength(5)
+    expect(mine.filter((j) => j.data.isUnique)).toHaveLength(1)
+    expect(mine.filter((j) => !j.data.isUnique)).toHaveLength(4)
+  })
+
+  /**
+   * The consequence of the above: a limit is now measured in opens, not devices.
+   * Previously one person could reload past a scanLimit indefinitely.
+   */
+  it("should let one device exhaust a scan limit by repeating", async () => {
+    const qr = await makeLimitedQR(2)
 
     await scanAs(qr.slug, "same")
-    await waitForScanCount(qr.slug, 1)
+    await scanAs(qr.slug, "same")
+    await waitForScanCount(qr.slug, 2)
 
-    // Four more from the identical device: all deduplicated, count stays at 1.
-    for (let i = 0; i < 4; i++) await scanAs(qr.slug, "same")
-
-    expect(Number(await redis.get(scanCountKey(qr.slug)))).toBe(1)
+    const blocked = await scanAs(qr.slug, "same")
+    expect(isLimitBlocked(blocked.headers.location)).toBe(true)
   })
 
   /**

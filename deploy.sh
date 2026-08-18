@@ -35,6 +35,16 @@ set -a
 source "$ENV_FILE"
 set +a
 
+# Regenerate the Prisma client BEFORE anything compiles or runs against it.
+#
+# This used to live inside the test gate's else-branch, so SKIP_TESTS=1 skipped it
+# while still building — and a build against a stale client either fails to compile
+# or ships code addressing columns the client does not know. Any deploy that adds a
+# field hit this. Its own comment said "needed by both the tests and the build",
+# which is precisely why it cannot sit inside a branch that only covers the tests.
+echo "==> prisma generate"
+(cd backend && npx prisma generate >/dev/null)
+
 # ─── Test gate ────────────────────────────────────────────────────────────────
 # Runs BEFORE the migration, build and reload, so a failure leaves production
 # completely untouched. Every payment guard — webhook signature verification,
@@ -58,9 +68,6 @@ elif [ ! -f backend/.env.test ]; then
   echo "!!  Refusing to deploy unverified."
   exit 1
 else
-  echo "==> prisma generate (needed by both the tests and the build)"
-  (cd backend && npx prisma generate >/dev/null)
-
   # Bring the TEST database up to date with any migrations just pulled in.
   # Without this, new tables are missing there and the suite fails for a reason
   # that has nothing to do with the code being deployed.
