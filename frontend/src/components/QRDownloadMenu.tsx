@@ -11,10 +11,27 @@ type DownloadExt = "png" | "svg" | "jpeg" | "webp"
  * Renders the styled QR client-side via qr-code-styling and triggers a download.
  * Shared by the dashboard and the dedicated My QR Codes page.
  */
+/** w-48 in Tailwind. Kept in sync by hand because the value is needed before paint. */
+const MENU_W = 192
+/** Roughly the natural height of the four format rows plus the heading. */
+const MENU_MAX_H = 280
+/** Never shrink below this — below it, scroll inside the menu instead. */
+const MENU_MIN_H = 140
+const GAP = 6
+const EDGE = 8
+
+type MenuPos = {
+  left: number
+  /** Exactly one of top/bottom is set: bottom is used when the menu opens upwards. */
+  top?: number
+  bottom?: number
+  maxHeight: number
+}
+
 export function DownloadMenu({ qr }: { qr: QRCode }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+  const [menuPos, setMenuPos] = useState<MenuPos>({ left: 0, top: 0, maxHeight: MENU_MAX_H })
   const btnRef = useRef<HTMLButtonElement>(null)
 
   const handleDownload = useCallback(async (ext: DownloadExt) => {
@@ -77,21 +94,41 @@ export function DownloadMenu({ qr }: { qr: QRCode }) {
   const openMenu = useCallback(() => {
     if (!btnRef.current) return
     const rect = btnRef.current.getBoundingClientRect()
-    setMenuPos({
-      top: rect.bottom + window.scrollY + 4,
-      right: window.innerWidth - rect.right - window.scrollX,
-    })
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const spaceBelow = vh - rect.bottom
+    const spaceAbove = rect.top
+
+    // Right-align the menu to the button, but never let it cross either viewport
+    // edge — the old version computed `right` from the button alone, which went
+    // negative for a button flush against the right edge of the window.
+    const left = Math.max(EDGE, Math.min(rect.right - MENU_W, vw - MENU_W - EDGE))
+
+    // Open upwards when there is not enough room below. Without this the menu was
+    // planted 271px under a button that could be a few pixels from the bottom of
+    // the screen, so it rendered entirely below the fold — and because scrolling
+    // closes the menu, it could not be reached by scrolling either.
+    const flipUp = spaceBelow < MENU_MAX_H && spaceAbove > spaceBelow
+
+    setMenuPos(flipUp
+      ? { left, bottom: vh - rect.top + GAP, maxHeight: Math.max(MENU_MIN_H, spaceAbove - GAP - EDGE) }
+      : { left, top: rect.bottom + GAP,      maxHeight: Math.max(MENU_MIN_H, spaceBelow - GAP - EDGE) })
     setOpen(true)
   }, [])
 
   useEffect(() => {
     if (!open) return
     const close = () => setOpen(false)
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
     document.addEventListener("mousedown", close)
     document.addEventListener("scroll", close, true)
+    window.addEventListener("resize", close)
+    document.addEventListener("keydown", onKey)
     return () => {
       document.removeEventListener("mousedown", close)
       document.removeEventListener("scroll", close, true)
+      window.removeEventListener("resize", close)
+      document.removeEventListener("keydown", onKey)
     }
   }, [open])
 
@@ -115,9 +152,16 @@ export function DownloadMenu({ qr }: { qr: QRCode }) {
       </button>
       {open && createPortal(
         <div
+          role="menu"
           onMouseDown={(e) => e.stopPropagation()}
-          style={{ position: "absolute", top: menuPos.top, right: menuPos.right }}
-          className="z-[9999] bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl shadow-2xl w-48 py-1 text-sm"
+          style={{
+            position: "fixed",
+            left: menuPos.left,
+            top: menuPos.top,
+            bottom: menuPos.bottom,
+            maxHeight: menuPos.maxHeight,
+          }}
+          className="z-[9999] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl shadow-2xl w-48 py-1 text-sm"
         >
           <div className="px-3 py-1.5 text-zinc-500 text-[10px] uppercase tracking-widest font-semibold border-b border-zinc-200 dark:border-zinc-800 mb-1">
             Download as
