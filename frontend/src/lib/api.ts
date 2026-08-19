@@ -2122,9 +2122,12 @@ export type SupportTicketCategory = "billing" | "technical" | "feature_request" 
 export interface MyTicket {
   id: string
   subject: string
+  /** What the customer wrote. Selected for them, unlike the internal adminNotes. */
+  message: string
   category: string
   status: string
   priority: string
+  resolvedAt: string | null
   createdAt: string
   updatedAt: string
 }

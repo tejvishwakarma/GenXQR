@@ -272,6 +272,9 @@ router.get(
           select: {
             id: true, subject: true, category: true,
             status: true, priority: true,
+            // The submitter should be able to re-read what they sent, and see when
+            // it was closed. adminNotes stays out — it is internal.
+            message: true, resolvedAt: true,
             createdAt: true, updatedAt: true,
           },
         }),

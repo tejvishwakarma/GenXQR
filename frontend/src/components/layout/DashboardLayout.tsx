@@ -1,9 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import {
-  QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle,
-  Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock,
-} from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -33,6 +30,7 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "API Keys", href: "/app/api-keys", icon: <Key size={18} /> },
   { label: "Webhooks", href: "/app/webhooks", icon: <Webhook size={18} /> },
   { label: "Report / Abuse", href: "/app/report", icon: <Flag size={18} /> },
+  { label: "Help & Support", href: "/app/support", icon: <LifeBuoy size={18} /> },
 ]
 
 const bottomItems = [
