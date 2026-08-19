@@ -43,6 +43,36 @@ const CreateTicketSchema = z.object({
  * confirms receipt to the sender. Both sends are recorded in EmailLog, so there is
  * still a durable trail visible under Admin → Email.
  */
+/**
+ * Records a contact enquiry in EmailLog.
+ *
+ * sendEmail itself does not log — only a handful of callers do — so this has to be
+ * explicit. `to` holds the visitor's address rather than the support inbox: it is
+ * the useful key when someone later asks "did our reply go anywhere?".
+ */
+async function logContactEmail(
+  to: string,
+  subject: string,
+  status: "sent" | "failed",
+  error: string | null,
+): Promise<void> {
+  try {
+    await prisma.emailLog.create({
+      data: {
+        to,
+        subject,
+        template: "contact-form",
+        status,
+        error,
+        provider: env.RESEND_API_KEY ? "resend" : env.SMTP_HOST ? "smtp" : "console",
+      },
+    })
+  } catch (err) {
+    // Never fail a delivered enquiry because the audit row would not write.
+    logger.warn("Could not write contact EmailLog row", { error: String(err) })
+  }
+}
+
 const ContactSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required").max(80),
   lastName:  z.string().trim().max(80).optional().default(""),
@@ -103,6 +133,7 @@ router.post(
         // Lets support hit reply and reach the sender, rather than replying to us.
         replyTo: input.email,
         })
+        await logContactEmail(input.email, `[Contact] ${subject}`, "sent", null)
       } catch (mailErr) {
         // The real cause (unverified domain, provider outage, bad key) is for us,
         // not the visitor — but they get a route that still works.
@@ -110,6 +141,9 @@ router.post(
           error: String(mailErr),
           category: input.category,
         })
+        // Recorded even on failure: a lost enquiry with no trace is the worst
+        // outcome, and Admin -> Email is where someone would go looking.
+        await logContactEmail(input.email, `[Contact] ${subject}`, "failed", String(mailErr))
         res.status(502).json({
           success: false,
           error: `We could not send your message right now. Please email us directly at ${ADMIN_SUPPORT_EMAIL}.`,
