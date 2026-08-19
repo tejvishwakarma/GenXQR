@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Send, Loader2, LifeBuoy, CheckCircle2, RotateCcw, Lock, Plus } from "lucide-react"
+import { ArrowLeft, Send, Loader2, LifeBuoy, CheckCircle2, RotateCcw, Lock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getMyTicket, replyToTicket, reopenTicket } from "@/lib/api"
@@ -150,28 +150,32 @@ export default function TicketThreadPage() {
         </CardContent>
       </Card>
 
-      {/* The composer is one of three states, following the ticket's lifecycle the
-          way support tools conventionally do:
+      {/* Two composer states, following the ticket's lifecycle:
 
-            open / in progress  the conversation is live
-            resolved            closed to replies, reopening is an explicit choice
-            closed              terminal; a new issue means a new ticket
+            open / in progress   the conversation is live
+            resolved / closed    support has finished with it, so replies are off
+                                 and reopening is a deliberate choice
 
-          Reopening is deliberately not a side effect of replying. A reply that
-          silently reopened left the customer unsure whether anyone would come back
-          to it, and pulled finished work into the queue without anyone saying so. */}
-      {ticket && ticket.status === "RESOLVED" && (
+          Support decides when a ticket is done and is the only side that can
+          resolve, close or answer. Reopening is the customer's one lever, and it is
+          kept separate from replying so a message never quietly pulls finished work
+          back into the queue without anyone saying so. */}
+      {ticket && (ticket.status === "RESOLVED" || ticket.status === "CLOSED") && (
         <Card>
           <CardContent className="py-6 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10">
-              <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+            <div className={`mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl ${
+              ticket.status === "RESOLVED" ? "bg-emerald-500/10" : "bg-zinc-100 dark:bg-zinc-800"
+            }`}>
+              {ticket.status === "RESOLVED"
+                ? <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
+                : <Lock size={18} className="text-zinc-500 dark:text-zinc-400" />}
             </div>
-            <p className="text-sm font-medium text-zinc-900 dark:text-white">This ticket is resolved</p>
+            <p className="text-sm font-medium text-zinc-900 dark:text-white">
+              {ticket.status === "RESOLVED" ? "This ticket is resolved" : "This ticket is closed"}
+            </p>
             <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-              {ticket.resolvedAt
-                ? `Marked resolved on ${formatWhen(ticket.resolvedAt)}. `
-                : ""}
-              If it is still not right, reopen it and we will pick it back up.
+              {ticket.resolvedAt ? `Closed by support on ${formatWhen(ticket.resolvedAt)}. ` : ""}
+              If the same problem comes back, reopen it and we will pick it up again.
             </p>
             {error && <p role="alert" className="text-red-500 text-xs mt-3">{error}</p>}
             <Button
@@ -183,27 +187,15 @@ export default function TicketThreadPage() {
               {reopen.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
               Reopen ticket
             </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {ticket && ticket.status === "CLOSED" && (
-        <Card>
-          <CardContent className="py-6 text-center">
-            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
-              <Lock size={18} className="text-zinc-500 dark:text-zinc-400" />
-            </div>
-            <p className="text-sm font-medium text-zinc-900 dark:text-white">This ticket is closed</p>
-            <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
-              Closed tickets cannot be reopened. If you need more help, raise a new
-              one and mention <span className="font-mono">#{ticket.id.slice(0, 8).toUpperCase()}</span> so we
-              have the history.
+            <p className="text-[11px] text-zinc-500 mt-3">
+              {/* Steers a genuinely different problem to its own ticket, so one
+                  thread does not turn into a catch-all. */}
+              For an unrelated problem,{" "}
+              <Link to="/app/support?new=1" className="text-violet-600 dark:text-violet-400 hover:underline">
+                raise a new ticket
+              </Link>
+              .
             </p>
-            <Link to="/app/support?new=1">
-              <Button size="sm" className="gap-1.5 mt-4">
-                <Plus size={14} /> Raise a new ticket
-              </Button>
-            </Link>
           </CardContent>
         </Card>
       )}

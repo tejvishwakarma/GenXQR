@@ -348,10 +348,14 @@ router.get(
 /**
  * POST /api/support/tickets/:id/reopen — customer says it is not fixed after all.
  *
- * Only from RESOLVED. CLOSED is terminal on purpose: it is the state that lets
- * support end a thread for good, and if it could be reopened it would mean nothing
- * different from RESOLVED. A customer with a new problem raises a new ticket, which
- * also keeps one ticket to one issue rather than a thread that runs for months.
+ * Allowed from either finished state. Support decides when a ticket is done —
+ * resolving or closing it — and reopening is the one lever the customer has if the
+ * same problem turns out to persist. Refusing it on CLOSED would leave them with no
+ * route back to a conversation support had ended, which is why closed is not
+ * treated as terminal here.
+ *
+ * Reopening is still separate from replying: a reply must not quietly pull finished
+ * work back into the queue.
  */
 router.post(
   "/tickets/:id/reopen",
@@ -361,10 +365,7 @@ router.post(
       const userId = (req.user as unknown as AccessTokenPayload).sub
       const ticket = await requireOwnTicket(String(req.params["id"]), userId)
 
-      if (ticket.status === "CLOSED") {
-        throw new AppError(409, "This ticket is closed. Please raise a new ticket instead.")
-      }
-      if (ticket.status !== "RESOLVED") {
+      if (ticket.status !== "RESOLVED" && ticket.status !== "CLOSED") {
         throw new AppError(409, "This ticket is already open.")
       }
 
@@ -431,7 +432,7 @@ router.post(
         throw new AppError(409, "This ticket is resolved. Reopen it to continue the conversation.")
       }
       if (ticket.status === "CLOSED") {
-        throw new AppError(409, "This ticket is closed. Please raise a new ticket instead.")
+        throw new AppError(409, "This ticket is closed. Reopen it to continue the conversation.")
       }
 
       const message = await prisma.ticketMessage.create({
