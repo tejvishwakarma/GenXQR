@@ -2193,9 +2193,21 @@ export function getMyTicket(id: string) {
 }
 
 export function replyToTicket(id: string, body: string) {
-  return apiFetch<{ success: boolean; data: TicketMessage; reopened: boolean }>(
+  return apiFetch<{ success: boolean; data: TicketMessage }>(
     `/api/support/tickets/${id}/messages`,
     { method: "POST", headers: authHeader(), body: JSON.stringify({ body }) },
+  )
+}
+
+/**
+ * Reopens a resolved ticket. Deliberately separate from replying: a reply must not
+ * silently pull finished work back into the queue. CLOSED is terminal and the
+ * server refuses it.
+ */
+export function reopenTicket(id: string) {
+  return apiFetch<{ success: boolean; data: { id: string; status: string; resolvedAt: string | null } }>(
+    `/api/support/tickets/${id}/reopen`,
+    { method: "POST", headers: authHeader() },
   )
 }
 

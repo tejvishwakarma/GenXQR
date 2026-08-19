@@ -1,10 +1,10 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Send, Loader2, LifeBuoy } from "lucide-react"
+import { ArrowLeft, Send, Loader2, LifeBuoy, CheckCircle2, RotateCcw, Lock, Plus } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getMyTicket, replyToTicket } from "@/lib/api"
+import { getMyTicket, replyToTicket, reopenTicket } from "@/lib/api"
 
 /**
  * One support ticket as a conversation the customer can read and add to.
@@ -59,6 +59,16 @@ export default function TicketThreadPage() {
       void qc.invalidateQueries({ queryKey: ["my-tickets"] })
     },
     onError: (err: Error) => setError(err.message || "Could not send your reply. Please try again."),
+  })
+
+  const reopen = useMutation({
+    mutationFn: () => reopenTicket(id!),
+    onSuccess: () => {
+      setError("")
+      void qc.invalidateQueries({ queryKey: ["ticket", id] })
+      void qc.invalidateQueries({ queryKey: ["my-tickets"] })
+    },
+    onError: (err: Error) => setError(err.message || "Could not reopen this ticket."),
   })
 
   const onSubmit = (e: React.FormEvent) => {
@@ -140,38 +150,94 @@ export default function TicketThreadPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="py-4">
-          <form onSubmit={onSubmit} noValidate className="space-y-3">
-            <label htmlFor="reply-body" className="text-xs text-zinc-500 block">
-              Add a reply
-            </label>
-            <textarea
-              id="reply-body"
-              name="body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Type your reply…"
-              className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 resize-none h-24"
-            />
-            {error && <p role="alert" className="text-red-500 text-xs">{error}</p>}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <p className="text-[11px] text-zinc-500 flex items-center gap-1.5">
-                <LifeBuoy size={12} />
-                {/* Replying here reopens a resolved ticket, which is worth saying
-                    so it does not come as a surprise. */}
-                {ticket && (ticket.status === "RESOLVED" || ticket.status === "CLOSED")
-                  ? "Replying will reopen this ticket."
-                  : "We'll email you when support replies."}
-              </p>
-              <Button type="submit" size="sm" disabled={reply.isPending} className="gap-1.5">
-                {reply.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                Send reply
-              </Button>
+      {/* The composer is one of three states, following the ticket's lifecycle the
+          way support tools conventionally do:
+
+            open / in progress  the conversation is live
+            resolved            closed to replies, reopening is an explicit choice
+            closed              terminal; a new issue means a new ticket
+
+          Reopening is deliberately not a side effect of replying. A reply that
+          silently reopened left the customer unsure whether anyone would come back
+          to it, and pulled finished work into the queue without anyone saying so. */}
+      {ticket && ticket.status === "RESOLVED" && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10">
+              <CheckCircle2 size={18} className="text-emerald-600 dark:text-emerald-400" />
             </div>
-          </form>
-        </CardContent>
-      </Card>
+            <p className="text-sm font-medium text-zinc-900 dark:text-white">This ticket is resolved</p>
+            <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
+              {ticket.resolvedAt
+                ? `Marked resolved on ${formatWhen(ticket.resolvedAt)}. `
+                : ""}
+              If it is still not right, reopen it and we will pick it back up.
+            </p>
+            {error && <p role="alert" className="text-red-500 text-xs mt-3">{error}</p>}
+            <Button
+              size="sm"
+              className="gap-1.5 mt-4"
+              onClick={() => reopen.mutate()}
+              disabled={reopen.isPending}
+            >
+              {reopen.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+              Reopen ticket
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {ticket && ticket.status === "CLOSED" && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-800">
+              <Lock size={18} className="text-zinc-500 dark:text-zinc-400" />
+            </div>
+            <p className="text-sm font-medium text-zinc-900 dark:text-white">This ticket is closed</p>
+            <p className="text-xs text-zinc-500 mt-1 max-w-sm mx-auto">
+              Closed tickets cannot be reopened. If you need more help, raise a new
+              one and mention <span className="font-mono">#{ticket.id.slice(0, 8).toUpperCase()}</span> so we
+              have the history.
+            </p>
+            <Link to="/app/support?new=1">
+              <Button size="sm" className="gap-1.5 mt-4">
+                <Plus size={14} /> Raise a new ticket
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {ticket && ticket.status !== "RESOLVED" && ticket.status !== "CLOSED" && (
+        <Card>
+          <CardContent className="py-4">
+            <form onSubmit={onSubmit} noValidate className="space-y-3">
+              <label htmlFor="reply-body" className="text-xs text-zinc-500 block">
+                Add a reply
+              </label>
+              <textarea
+                id="reply-body"
+                name="body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Type your reply…"
+                className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5 text-sm text-zinc-800 dark:text-zinc-200 resize-none h-24"
+              />
+              {error && <p role="alert" className="text-red-500 text-xs">{error}</p>}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-[11px] text-zinc-500 flex items-center gap-1.5">
+                  <LifeBuoy size={12} />
+                  We&apos;ll email you when support replies.
+                </p>
+                <Button type="submit" size="sm" disabled={reply.isPending} className="gap-1.5">
+                  {reply.isPending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  Send reply
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

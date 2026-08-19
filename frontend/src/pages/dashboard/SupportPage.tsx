@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { LifeBuoy, Plus, Loader2, Check, X, MessageSquare } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,7 +59,11 @@ function formatDate(iso: string): string {
 
 export default function SupportPage() {
   const qc = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
+  // A closed ticket links here with ?new=1, since closed is terminal and the way
+  // forward is a fresh ticket. Opening the form straight away saves a second click
+  // at the point someone has already decided.
+  const [params] = useSearchParams()
+  const [showForm, setShowForm] = useState(params.get("new") === "1")
   const [subject, setSubject] = useState("")
   const [category, setCategory] = useState<SupportTicketCategory>("technical")
   const [message, setMessage] = useState("")

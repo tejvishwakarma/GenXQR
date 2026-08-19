@@ -345,6 +345,68 @@ router.get(
   },
 )
 
+/**
+ * POST /api/support/tickets/:id/reopen — customer says it is not fixed after all.
+ *
+ * Only from RESOLVED. CLOSED is terminal on purpose: it is the state that lets
+ * support end a thread for good, and if it could be reopened it would mean nothing
+ * different from RESOLVED. A customer with a new problem raises a new ticket, which
+ * also keeps one ticket to one issue rather than a thread that runs for months.
+ */
+router.post(
+  "/tickets/:id/reopen",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req.user as unknown as AccessTokenPayload).sub
+      const ticket = await requireOwnTicket(String(req.params["id"]), userId)
+
+      if (ticket.status === "CLOSED") {
+        throw new AppError(409, "This ticket is closed. Please raise a new ticket instead.")
+      }
+      if (ticket.status !== "RESOLVED") {
+        throw new AppError(409, "This ticket is already open.")
+      }
+
+      const updated = await prisma.supportTicket.update({
+        where: { id: ticket.id },
+        // resolvedAt is cleared so the ticket stops claiming a resolution date that
+        // no longer holds, and so it does not read as resolved in either UI.
+        data: { status: "OPEN", resolvedAt: null },
+        select: { id: true, status: true, resolvedAt: true },
+      })
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true },
+      })
+
+      // Support needs to know it is back in the queue; best-effort, since the state
+      // change has already been saved and is visible to both sides.
+      void sendEmail({
+        to: ADMIN_SUPPORT_EMAIL,
+        subject: `[Support] Reopened: ${ticket.subject}`,
+        html: buildSupportTicketAdminEmail({
+          userName: user?.name ?? "Customer",
+          userEmail: user?.email ?? "unknown",
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          category: ticket.category,
+          message: "The customer reopened this ticket — it was not resolved.",
+          adminUrl: `${env.FRONTEND_URL}/admin/support`,
+        }),
+        replyTo: user?.email,
+      }).catch((err: unknown) => {
+        logger.warn("Ticket reopen notification failed", { error: String(err), ticketId: ticket.id })
+      })
+
+      res.json({ success: true, data: updated })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 /** POST /api/support/tickets/:id/messages — customer adds to the conversation. */
 router.post(
   "/tickets/:id/messages",
@@ -360,22 +422,26 @@ router.post(
         select: { name: true, email: true },
       })
 
-      // A reply to something already closed means it was not actually finished, so
-      // reopen it rather than letting the message land on a resolved ticket where
-      // nobody is looking. resolvedAt is cleared so it does not claim a resolution
-      // date that no longer holds.
-      const reopened = ticket.status === "RESOLVED" || ticket.status === "CLOSED"
+      // A resolved or closed ticket does not accept replies. Reopening is its own
+      // deliberate action (see below), because a reply that silently reopens leaves
+      // the customer unsure whether anyone is coming back to it, and quietly pulls
+      // finished work back into the queue. This mirrors how Zendesk, Freshdesk and
+      // Intercom all treat a solved conversation.
+      if (ticket.status === "RESOLVED") {
+        throw new AppError(409, "This ticket is resolved. Reopen it to continue the conversation.")
+      }
+      if (ticket.status === "CLOSED") {
+        throw new AppError(409, "This ticket is closed. Please raise a new ticket instead.")
+      }
 
-      const [message] = await prisma.$transaction([
-        prisma.ticketMessage.create({
-          data: { ticketId: ticket.id, authorId: userId, isStaff: false, body: input.body },
-          select: { id: true, body: true, isStaff: true, createdAt: true },
-        }),
-        prisma.supportTicket.update({
-          where: { id: ticket.id },
-          data: reopened ? { status: "OPEN", resolvedAt: null } : { updatedAt: new Date() },
-        }),
-      ])
+      const message = await prisma.ticketMessage.create({
+        data: { ticketId: ticket.id, authorId: userId, isStaff: false, body: input.body },
+        select: { id: true, body: true, isStaff: true, createdAt: true },
+      })
+      await prisma.supportTicket.update({
+        where: { id: ticket.id },
+        data: { updatedAt: new Date() },
+      })
 
       // Best-effort: the reply is already saved and visible in the app, so a mail
       // failure must not report it as lost.
@@ -396,7 +462,7 @@ router.post(
         logger.warn("Ticket reply notification failed", { error: String(err), ticketId: ticket.id })
       })
 
-      res.status(201).json({ success: true, data: message, reopened })
+      res.status(201).json({ success: true, data: message })
     } catch (err) {
       next(err)
     }
