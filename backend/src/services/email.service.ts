@@ -97,6 +97,12 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
  * All transactional and broadcast emails use this shell for visual consistency.
  */
 function buildEmailShell(subject: string, innerHtml: string): string {
+  // Must be absolute and publicly reachable — a relative path resolves against
+  // the mail client, not our site. In development FRONTEND_URL points at
+  // localhost, so the image simply will not load there and the alt text shows.
+  const logoLightUrl = `${env.FRONTEND_URL}/logo_full.png`
+  const logoDarkUrl = `${env.FRONTEND_URL}/logo_full_dark.png`
+
   const year = new Date().getFullYear()
 
   return `<!DOCTYPE html>
@@ -171,7 +177,8 @@ function buildEmailShell(subject: string, innerHtml: string): string {
       .body-wrap  { background-color: #09090b !important; }
       .card       { background-color: #18181b !important; border-color: #27272a !important; }
       .footer-row { background-color: #111113 !important; border-color: #27272a !important; }
-      .logo-text  { color: #a5b4fc !important; }
+      .logo-light { display: none !important; }
+      .logo-dark  { display: block !important; }
       .footer-txt { color: #52525b !important; }
       .footer-lnk { color: #818cf8 !important; }
       .email-body h1  { color: #f4f4f5 !important; }
@@ -203,13 +210,26 @@ function buildEmailShell(subject: string, innerHtml: string): string {
             <td align="center">
               <table cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
-                  <td width="36" height="36" align="center" valign="middle"
-                    style="background:linear-gradient(135deg,#6366f1 0%,#818cf8 100%);border-radius:9px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:17px;font-weight:800;color:#ffffff;line-height:36px;text-align:center">
-                    N
-                  </td>
-                  <td width="10"></td>
-                  <td valign="middle">
-                    <span class="logo-text" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;color:#4f46e5;letter-spacing:-0.4px;line-height:1">GenXQR</span>
+                  <td align="center" valign="middle">
+                    <!--
+                      Two copies of the lockup, because the artwork is not
+                      theme-neutral: the light one has a near-black tagline that
+                      disappears on a dark background, and vice versa.
+
+                      The light copy is display:block INLINE and the dark copy is
+                      display:none INLINE, so a client that strips <style> (Gmail
+                      does, in places) still shows exactly one — the light one.
+                      Clients that honour prefers-color-scheme swap them via the
+                      rules in <style>. alt text carries the brand when images are
+                      blocked, which is the default in many clients.
+
+                      width/height are attributes as well as CSS because Outlook
+                      ignores CSS sizing on images.
+                    -->
+                    <img class="logo-light" src="${logoLightUrl}" alt="GenXQR" width="150" height="29"
+                      style="display:block;width:150px;height:29px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic" />
+                    <img class="logo-dark" src="${logoDarkUrl}" alt="GenXQR" width="150" height="29"
+                      style="display:none;width:150px;height:29px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic" />
                   </td>
                 </tr>
               </table>

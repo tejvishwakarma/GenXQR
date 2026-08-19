@@ -27,9 +27,27 @@ export default function ContactPage() {
   const [company, setCompany] = useState("")
   const [error, setError] = useState("")
 
+  /**
+   * Wraps a field setter so typing dismisses a previous success banner. Without
+   * this the confirmation from the last message would sit above a half-written new
+   * one, reading as though that one had already been sent.
+   */
+  const edit = <T,>(setter: (value: T) => void) => (value: T) => {
+    if (send.isSuccess) send.reset()
+    setter(value)
+  }
+
   const send = useMutation({
     mutationFn: () => sendContactMessage({ firstName, lastName, email, category, message, company }),
-    onSuccess: () => setError(""),
+    onSuccess: () => {
+      setError("")
+      setFirstName("")
+      setLastName("")
+      setEmail("")
+      setCategory("general")
+      setMessage("")
+      setCompany("")
+    },
     onError: (err: Error) => setError(err.message || "Could not send your message. Please try again."),
   })
 
@@ -137,7 +155,7 @@ export default function ContactPage() {
                       type="text"
                       name="firstName"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => edit(setFirstName)(e.target.value)}
                       autoComplete="given-name"
                       placeholder="John"
                       className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors"
@@ -149,7 +167,7 @@ export default function ContactPage() {
                       type="text"
                       name="lastName"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => edit(setLastName)(e.target.value)}
                       autoComplete="family-name"
                       placeholder="Doe"
                       className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors"
@@ -163,7 +181,7 @@ export default function ContactPage() {
                     type="email"
                     name="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => edit(setEmail)(e.target.value)}
                     autoComplete="email"
                     placeholder="john@company.com"
                     className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors"
@@ -175,7 +193,7 @@ export default function ContactPage() {
                   <select
                     name="category"
                     value={category}
-                    onChange={(e) => setCategory(e.target.value as ContactCategory)}
+                    onChange={(e) => edit(setCategory)(e.target.value as ContactCategory)}
                     className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors appearance-none"
                   >
                     {SUBJECTS.map((subject) => (
@@ -190,7 +208,7 @@ export default function ContactPage() {
                     className="w-full rounded-xl border border-line bg-paper-pure px-4 py-3 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors resize-none h-32"
                     name="message"
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(e) => edit(setMessage)(e.target.value)}
                     placeholder="How can we help you?"
                   ></textarea>
                 </div>
@@ -214,22 +232,22 @@ export default function ContactPage() {
                   <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
                 )}
 
-                {send.isSuccess ? (
+                {send.isSuccess && (
                   <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 size={16} className="shrink-0" />
                     <span>Thanks — your message is on its way. We&apos;ll reply by email.</span>
                   </div>
-                ) : (
-                  <MktButton variant="accent" size="lg" className="w-full" type="submit" disabled={send.isPending}>
-                    {send.isPending ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" /> Sending&hellip;
-                      </>
-                    ) : (
-                      "Send Message"
-                    )}
-                  </MktButton>
                 )}
+
+                <MktButton variant="accent" size="lg" className="w-full" type="submit" disabled={send.isPending}>
+                  {send.isPending ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" /> Sending&hellip;
+                    </>
+                  ) : (
+                    "Send Message"
+                  )}
+                </MktButton>
               </form>
             </MktCard>
           </Reveal>
