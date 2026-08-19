@@ -24,6 +24,9 @@
 import fs_mod from "fs"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
+import { env } from "../config/env.js"
+import { logger } from "../logger/index.js"
+import { sendEmail, buildTicketReplyEmail } from "../services/email.service.js"
 import { requireAdmin } from "../middleware/admin.middleware.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { broadcastNotification } from "../services/notification.service.js"
@@ -772,6 +775,49 @@ router.get(
     try {
       const ticket = await AdminSupportService.getTicket(req.params["id"] as string)
       res.json({ success: true, data: ticket })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+const TicketReplySchema = z.object({
+  body: z.string().trim().min(2, "Write a reply first").max(5000),
+})
+
+/**
+ * POST /admin-api/support/tickets/:id/messages
+ * Staff reply, which also emails the customer so they do not have to be watching
+ * the dashboard to learn they have an answer.
+ */
+router.post(
+  "/support/tickets/:id/messages",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const adminId = (req.user as unknown as AccessTokenPayload).sub
+      const input = TicketReplySchema.parse(req.body)
+      const ticketId = req.params["id"] as string
+      const { message, ticket } = await AdminSupportService.addStaffReply(ticketId, adminId, input.body)
+
+      // Best-effort: the reply is stored and visible in the customer's dashboard,
+      // so a mail failure must not turn a saved answer into an error.
+      if (ticket.user?.email) {
+        void sendEmail({
+          to: ticket.user.email,
+          subject: `Re: ${ticket.subject} — GenXQR`,
+          html: buildTicketReplyEmail({
+            userName: ticket.user.name ?? "there",
+            subject: ticket.subject,
+            reply: input.body,
+            ticketUrl: `${env.FRONTEND_URL}/app/support/${ticket.id}`,
+            shortId: ticket.id.slice(0, 8).toUpperCase(),
+          }),
+        }).catch((err: unknown) => {
+          logger.warn("Ticket reply email failed", { error: String(err), ticketId })
+        })
+      }
+
+      res.status(201).json({ success: true, data: message })
     } catch (err) {
       next(err)
     }

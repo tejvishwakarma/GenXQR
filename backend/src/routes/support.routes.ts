@@ -12,6 +12,7 @@ import { requireAuth } from "../middleware/auth.middleware.js"
 import { contactLimiter } from "../middleware/rateLimit.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
+import { AppError } from "../middleware/error.middleware.js"
 import { env } from "../config/env.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import {
@@ -198,6 +199,13 @@ router.post(
           subject:  input.subject,
           message:  input.message,
           category: input.category,
+          // The opening message is also the first entry in the conversation.
+          // Written in the same create so a ticket can never exist with an empty
+          // thread — the migration backfilled old tickets, and this covers new
+          // ones. `message` is kept in step for anything still reading the column.
+          messages: {
+            create: { authorId: userId, isStaff: false, body: input.message },
+          },
         },
       })
 
@@ -285,6 +293,110 @@ router.get(
         data: tickets,
         meta: { total, page, limit, pages: Math.ceil(total / limit) },
       })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── Ticket conversation (customer side) ──────────────────────────────────────
+
+const ReplySchema = z.object({
+  body: z.string().trim().min(2, "Write a reply first").max(5000),
+})
+
+/**
+ * Loads a ticket the caller is allowed to see, or throws.
+ *
+ * Ownership is checked in the same query rather than fetched-then-compared, so
+ * there is no window in which the wrong ticket is in hand, and a miss is
+ * indistinguishable from "does not exist" — a stranger cannot probe for valid ids.
+ */
+async function requireOwnTicket(ticketId: string, userId: string) {
+  const ticket = await prisma.supportTicket.findFirst({
+    where: { id: ticketId, userId },
+    select: { id: true, subject: true, status: true, category: true, priority: true, createdAt: true, resolvedAt: true },
+  })
+  if (!ticket) throw new AppError(404, "Ticket not found")
+  return ticket
+}
+
+/** GET /api/support/tickets/:id — one ticket with its whole conversation. */
+router.get(
+  "/tickets/:id",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req.user as unknown as AccessTokenPayload).sub
+      const ticket = await requireOwnTicket(String(req.params["id"]), userId)
+
+      const messages = await prisma.ticketMessage.findMany({
+        where: { ticketId: ticket.id },
+        orderBy: { createdAt: "asc" },
+        // authorId is deliberately not exposed: the customer needs to know whether
+        // a message came from staff, not which staff account wrote it.
+        select: { id: true, body: true, isStaff: true, createdAt: true },
+      })
+
+      res.json({ success: true, data: { ...ticket, messages } })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/** POST /api/support/tickets/:id/messages — customer adds to the conversation. */
+router.post(
+  "/tickets/:id/messages",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req.user as unknown as AccessTokenPayload).sub
+      const ticket = await requireOwnTicket(String(req.params["id"]), userId)
+      const input = ReplySchema.parse(req.body)
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, email: true },
+      })
+
+      // A reply to something already closed means it was not actually finished, so
+      // reopen it rather than letting the message land on a resolved ticket where
+      // nobody is looking. resolvedAt is cleared so it does not claim a resolution
+      // date that no longer holds.
+      const reopened = ticket.status === "RESOLVED" || ticket.status === "CLOSED"
+
+      const [message] = await prisma.$transaction([
+        prisma.ticketMessage.create({
+          data: { ticketId: ticket.id, authorId: userId, isStaff: false, body: input.body },
+          select: { id: true, body: true, isStaff: true, createdAt: true },
+        }),
+        prisma.supportTicket.update({
+          where: { id: ticket.id },
+          data: reopened ? { status: "OPEN", resolvedAt: null } : { updatedAt: new Date() },
+        }),
+      ])
+
+      // Best-effort: the reply is already saved and visible in the app, so a mail
+      // failure must not report it as lost.
+      void sendEmail({
+        to: ADMIN_SUPPORT_EMAIL,
+        subject: `[Support] Re: ${ticket.subject}`,
+        html: buildSupportTicketAdminEmail({
+          userName: user?.name ?? "Customer",
+          userEmail: user?.email ?? "unknown",
+          ticketId: ticket.id,
+          subject: ticket.subject,
+          category: ticket.category,
+          message: input.body,
+          adminUrl: `${env.FRONTEND_URL}/admin/support`,
+        }),
+        replyTo: user?.email,
+      }).catch((err: unknown) => {
+        logger.warn("Ticket reply notification failed", { error: String(err), ticketId: ticket.id })
+      })
+
+      res.status(201).json({ success: true, data: message, reopened })
     } catch (err) {
       next(err)
     }

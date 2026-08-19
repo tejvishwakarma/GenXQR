@@ -58,10 +58,55 @@ export async function listTickets({ page, limit, q }: PaginationParams, status?:
 export async function getTicket(ticketId: string) {
   const ticket = await prisma.supportTicket.findUnique({
     where: { id: ticketId },
-    include: { user: { select: { id: true, name: true, email: true } } },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      // Oldest first: a conversation reads top to bottom. The author's name is
+      // included for staff replies so the team can see who answered.
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, body: true, isStaff: true, createdAt: true,
+          author: { select: { name: true } },
+        },
+      },
+    },
   })
   if (!ticket) throw new AppError(404, "Ticket not found")
   return ticket
+}
+
+/**
+ * Staff reply on a ticket.
+ *
+ * isStaff is recorded on the row rather than inferred later from the author's role,
+ * so a reply stays a staff reply even if that account is demoted or removed.
+ *
+ * An OPEN ticket becomes IN_PROGRESS: someone has now picked it up, and leaving it
+ * OPEN would keep it in the untouched queue. A RESOLVED or CLOSED ticket is left
+ * alone — answering a closing question should not reopen it.
+ */
+export async function addStaffReply(ticketId: string, adminId: string, body: string) {
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: ticketId },
+    select: {
+      id: true, subject: true, status: true,
+      user: { select: { name: true, email: true } },
+    },
+  })
+  if (!ticket) throw new AppError(404, "Ticket not found")
+
+  const [message] = await prisma.$transaction([
+    prisma.ticketMessage.create({
+      data: { ticketId, authorId: adminId, isStaff: true, body },
+      select: { id: true, body: true, isStaff: true, createdAt: true },
+    }),
+    prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: ticket.status === "OPEN" ? { status: "IN_PROGRESS" } : { updatedAt: new Date() },
+    }),
+  ])
+
+  return { message, ticket }
 }
 
 export interface TicketUpdateInput {

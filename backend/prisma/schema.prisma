@@ -46,6 +46,7 @@ model User {
   refreshTokens           RefreshToken[]
   subscription            Subscription?
   supportTickets          SupportTicket[]
+  ticketMessages      TicketMessage[]
   teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
   teamMemberships         TeamMember[]
   couponRedemptions       CouponRedemption[]
@@ -506,6 +507,10 @@ model SupportTicket {
   id         String         @id @default(cuid())
   userId     String
   subject    String
+  /// The opening message. Superseded by TicketMessage, which now holds the whole
+  /// thread including this first entry (backfilled by migration). Kept rather than
+  /// dropped so nothing that still reads it breaks, but the thread is the source of
+  /// truth for display.
   message    String
   status     TicketStatus   @default(OPEN)
   priority   TicketPriority @default(MEDIUM)
@@ -516,10 +521,32 @@ model SupportTicket {
   updatedAt  DateTime       @updatedAt
   category   String         @default("general")
   user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages   TicketMessage[]
 
   @@index([userId, createdAt])
   @@index([status])
   @@map("support_tickets")
+}
+
+/// One message in a support conversation, from either side.
+///
+/// isStaff is stored rather than derived from the author's current role: a support
+/// agent may later be demoted, or their account deleted, and a reply must not
+/// silently become a customer message years after it was written. authorId is
+/// nullable for the same reason — the thread outlives the account.
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  authorId  String?
+  /// True when written by support staff. Fixed at write time, never recomputed.
+  isStaff   Boolean       @default(false)
+  body      String
+  createdAt DateTime      @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
 }
 
 model AbuseReport {

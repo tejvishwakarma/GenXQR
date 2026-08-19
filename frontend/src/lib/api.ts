@@ -841,12 +841,28 @@ export interface SupportTicket {
   user: { id: string; name: string; email: string }
 }
 export interface SupportTicketDetail extends SupportTicket {
+  messages?: AdminTicketMessage[]
   message: string; adminNotes: string | null
 }
 export const fetchSupportTickets = (page = 1, limit = 20, status = "", priority = "", q = "") =>
   adminFetch<{ success: boolean; data: SupportTicket[]; meta: AdminMeta }>(
     `/admin-api/support/tickets?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}${priority ? `&priority=${priority}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
   )
+export interface AdminTicketMessage {
+  id: string
+  body: string
+  isStaff: boolean
+  createdAt: string
+  /** Present on staff replies so the team can see who answered. */
+  author: { name: string } | null
+}
+
+export const replyToTicketAsAdmin = (id: string, body: string) =>
+  adminFetch<{ success: boolean; data: AdminTicketMessage }>(
+    `/admin-api/support/tickets/${id}/messages`,
+    { method: "POST", body: JSON.stringify({ body }) },
+  )
+
 export const fetchSupportTicket = (id: string) =>
   adminFetch<{ success: boolean; data: SupportTicketDetail }>(`/admin-api/support/tickets/${id}`)
 export const updateSupportTicket = (id: string, data: Partial<{ status: string; priority: string; assignedTo: string; adminNotes: string }>) =>
@@ -2146,6 +2162,40 @@ export function createSupportTicket(input: CreateTicketInput) {
       headers: authHeader(),
       body: JSON.stringify(input),
     },
+  )
+}
+
+/** One entry in a support conversation, as the customer sees it. */
+export interface TicketMessage {
+  id: string
+  body: string
+  /** True for a support reply. The staff member's identity is not exposed. */
+  isStaff: boolean
+  createdAt: string
+}
+
+export interface MyTicketThread {
+  id: string
+  subject: string
+  status: string
+  category: string
+  priority: string
+  resolvedAt: string | null
+  createdAt: string
+  messages: TicketMessage[]
+}
+
+export function getMyTicket(id: string) {
+  return apiFetch<{ success: boolean; data: MyTicketThread }>(
+    `/api/support/tickets/${id}`,
+    { headers: authHeader() },
+  )
+}
+
+export function replyToTicket(id: string, body: string) {
+  return apiFetch<{ success: boolean; data: TicketMessage; reopened: boolean }>(
+    `/api/support/tickets/${id}/messages`,
+    { method: "POST", headers: authHeader(), body: JSON.stringify({ body }) },
   )
 }
 

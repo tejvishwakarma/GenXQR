@@ -74,6 +74,7 @@ import BillingPage from "@/pages/dashboard/BillingPage"
 import SettingsPage from "@/pages/dashboard/SettingsPage"
 import UserReportPage from "@/pages/dashboard/UserReportPage"
 import SupportPage from "@/pages/dashboard/SupportPage"
+import TicketThreadPage from "@/pages/dashboard/TicketThreadPage"
 import SmartRoutingPage from "@/pages/dashboard/SmartRoutingPage"
 import ABTestPage from "@/pages/dashboard/ABTestPage"
 import QRSettingsPage from "@/pages/dashboard/QRSettingsPage"
@@ -200,6 +201,7 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="report" element={<UserReportPage />} />
           <Route path="support" element={<SupportPage />} />
+          <Route path="support/:id" element={<TicketThreadPage />} />
         </Route>
 
         {/* QR Landing / Scan pages (public, no layout) */}

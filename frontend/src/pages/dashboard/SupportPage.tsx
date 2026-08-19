@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { LifeBuoy, Plus, Loader2, Check, X, MessageSquare } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -107,7 +108,7 @@ export default function SupportPage() {
             Help &amp; Support
           </h1>
           <p className="text-zinc-500 text-sm mt-0.5">
-            Raise a ticket and follow its progress here. We reply by email as well.
+            Raise a ticket, read our replies, and follow up — all in one place.
           </p>
         </div>
         {!showForm && (
@@ -206,13 +207,17 @@ export default function SupportPage() {
               </div>
               <p className="text-sm text-zinc-600 dark:text-zinc-300">No tickets yet.</p>
               <p className="text-xs text-zinc-500 mt-1">
-                Raise one and it will appear here with its status.
+                Raise one and it will appear here with its whole conversation.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {tickets.map((t) => (
-                <div key={t.id} className="py-4 first:pt-0 last:pb-0">
+                <Link
+                  key={t.id}
+                  to={`/app/support/${t.id}`}
+                  className="block py-4 first:pt-0 last:pb-0 -mx-2 px-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors"
+                >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="min-w-0">
                       <div className="text-sm font-medium text-zinc-900 dark:text-white">{t.subject}</div>
@@ -227,10 +232,10 @@ export default function SupportPage() {
                       {STATUS_LABEL[t.status] ?? t.status}
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 whitespace-pre-wrap break-words">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 line-clamp-2 break-words">
                     {t.message}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -240,8 +245,8 @@ export default function SupportPage() {
       <Card>
         <CardContent className="py-4">
           <p className="text-xs text-zinc-500">
-            Replies arrive by email, so keep an eye on the address on your account.
-            Statuses here are updated by our team as they work through the queue.
+            We email you when support replies, and you can answer right on the
+            ticket. Replying to a resolved ticket reopens it.
           </p>
         </CardContent>
       </Card>

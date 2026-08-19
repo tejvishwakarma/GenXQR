@@ -649,6 +649,58 @@ export function buildSupportTicketConfirmationEmail(opts: {
 
 // ─── Job Application email ────────────────────────────────────────────────────
 
+/**
+ * Sent to the customer when support answers their ticket.
+ *
+ * The reply body is included so it can be read without signing in, and the link
+ * goes to the thread so a follow-up stays on the ticket instead of starting a new
+ * one. Text is escaped here like everywhere else in this file.
+ */
+export function buildTicketReplyEmail(opts: {
+  userName: string
+  subject: string
+  reply: string
+  ticketUrl: string
+  shortId: string
+}): string {
+  const safe = {
+    userName: escapeHtml(opts.userName),
+    subject: escapeHtml(opts.subject),
+    reply: escapeHtml(opts.reply).replace(/\n/g, "<br />"),
+    shortId: escapeHtml(opts.shortId),
+    ticketUrl: opts.ticketUrl,
+  }
+  const inner = `
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Support reply</p>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      ${safe.subject}
+    </h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Hi ${safe.userName}, our team has replied to your ticket <strong>#${safe.shortId}</strong>:
+    </p>
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;background:#f4f4f5;border-radius:12px">
+      <tr>
+        <td style="padding:16px 18px;font-size:15px;color:#3f3f46;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+          ${safe.reply}
+        </td>
+      </tr>
+    </table>
+    <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 8px">
+      <tr>
+        <td align="center" style="border-radius:10px;background:#6366f1">
+          <a href="${safe.ticketUrl}" style="display:inline-block;padding:12px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none">
+            View and reply
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#71717a;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Replying on the ticket keeps everything in one place.
+    </p>
+  `
+  return buildEmailShell(`Re: ${opts.subject} — GenXQR`, inner)
+}
+
 export function buildJobApplicationEmail(opts: {
   candidateName: string
   candidateEmail: string

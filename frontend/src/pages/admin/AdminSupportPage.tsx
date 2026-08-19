@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Search, ChevronDown } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
 import {
-  fetchSupportTickets, fetchSupportTicket, updateSupportTicket,
+  fetchSupportTickets, fetchSupportTicket, updateSupportTicket, replyToTicketAsAdmin,
   type SupportTicket, type SupportTicketDetail,
 } from "@/lib/api"
 
@@ -56,6 +56,37 @@ function TicketDrawer({ ticket, onClose }: { ticket: SupportTicketDetail; onClos
   const [adminNotes, setAdminNotes] = useState(ticket.adminNotes ?? "")
   const [status, setStatus]         = useState(ticket.status)
   const [priority, setPriority]     = useState(ticket.priority)
+  const [reply, setReply]           = useState("")
+  const [replyError, setReplyError] = useState("")
+
+  /**
+   * A staff reply is not the same thing as an admin note: the note is internal and
+   * the customer never sees it, whereas this is sent to them and emailed.
+   */
+  const sendReply = useMutation({
+    mutationFn: () => replyToTicketAsAdmin(ticket.id, reply),
+    onSuccess: () => {
+      setReply("")
+      setReplyError("")
+      // The thread, the list and the badge can all change: replying moves an OPEN
+      // ticket to IN_PROGRESS.
+      qc.invalidateQueries({ queryKey: ["admin", "support-ticket", ticket.id] })
+      qc.invalidateQueries({ queryKey: ["admin", "support-tickets"] })
+      qc.invalidateQueries({ queryKey: ["admin", "support-ticket-count"] })
+    },
+    onError: (err: Error) => setReplyError(err.message || "Could not send the reply."),
+  })
+
+  const onReply = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (sendReply.isPending) return
+    if (reply.trim().length < 2) {
+      setReplyError("Write a reply first.")
+      return
+    }
+    setReplyError("")
+    sendReply.mutate()
+  }
 
   const mutation = useMutation({
     mutationFn: () => updateSupportTicket(ticket.id, { status, priority, adminNotes }),
@@ -94,13 +125,61 @@ function TicketDrawer({ ticket, onClose }: { ticket: SupportTicketDetail; onClos
                 {categoryLabel(ticket.category)}
               </span>
             </div>
-            <div className="text-zinc-400 text-sm leading-relaxed whitespace-pre-wrap bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              {ticket.message}
+            {/* The whole conversation, not just the opening message. Falls back to
+                ticket.message for any ticket whose thread is somehow empty, so an
+                admin is never shown a blank ticket. */}
+            <div className="space-y-3">
+              {(ticket.messages?.length ? ticket.messages : [{
+                id: "legacy",
+                body: ticket.message,
+                isStaff: false,
+                createdAt: ticket.createdAt,
+                author: null,
+              }]).map((m) => (
+                <div key={m.id} className={m.isStaff ? "flex justify-end" : "flex justify-start"}>
+                  <div className={`max-w-[85%] rounded-xl px-4 py-3 border ${
+                    m.isStaff
+                      ? "bg-violet-500/10 border-violet-500/30"
+                      : "bg-zinc-900 border-zinc-800"
+                  }`}>
+                    <div className="text-[11px] text-zinc-500 mb-1">
+                      {m.isStaff ? (m.author?.name ? `${m.author.name} (support)` : "Support") : "Customer"}
+                      {" · "}
+                      {new Date(m.createdAt).toLocaleString()}
+                    </div>
+                    <p className="text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap break-words">{m.body}</p>
+                  </div>
+                </div>
+              ))}
             </div>
+
             <div className="text-zinc-600 text-xs">
               Created {new Date(ticket.createdAt).toLocaleString()}
               {ticket.resolvedAt && ` · Resolved ${new Date(ticket.resolvedAt).toLocaleString()}`}
             </div>
+
+            {/* Reply box */}
+            <form onSubmit={onReply} noValidate className="space-y-2 pt-1">
+              <label htmlFor="admin-reply" className="text-xs text-zinc-500 block">
+                Reply to the customer — they see this on their ticket and receive it by email
+              </label>
+              <textarea
+                id="admin-reply"
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                rows={4}
+                placeholder="Type your reply…"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-zinc-200 resize-none"
+              />
+              {replyError && <p role="alert" className="text-red-400 text-xs">{replyError}</p>}
+              <button
+                type="submit"
+                disabled={sendReply.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-medium transition-colors"
+              >
+                {sendReply.isPending ? "Sending…" : "Send reply"}
+              </button>
+            </form>
           </div>
 
           {/* Status / Priority */}
