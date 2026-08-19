@@ -94,6 +94,26 @@ export const apiLimiter = rateLimit({
 /**
  * Job application submissions: 5 per hour per IP to prevent spam.
  */
+/**
+ * Public contact form. Unauthenticated and it sends mail, so it is worth its own
+ * budget: a separate Redis prefix from careersApplyLimiter means a burst of job
+ * applications cannot lock people out of contacting support, or the reverse.
+ */
+export const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1_000,
+  max: 5,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.ip ?? "unknown",
+  store: makeRedisStore("rl:contact:"),
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      error: "Too many messages sent. Please try again later, or email us directly.",
+    })
+  },
+})
+
 export const careersApplyLimiter = rateLimit({
   windowMs: 60 * 60 * 1_000,
   max: 5,

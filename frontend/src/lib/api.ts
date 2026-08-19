@@ -1270,6 +1270,30 @@ export interface RecentScan {
   referrer: string | null
 }
 
+/** Subject values the public contact form may send; mirrors the server enum. */
+export type ContactCategory = "general" | "sales" | "technical" | "billing"
+
+export interface ContactMessage {
+  firstName: string
+  lastName: string
+  email: string
+  category: ContactCategory
+  message: string
+  /** Honeypot — must stay empty. Bots that fill every field give themselves away. */
+  company?: string
+}
+
+/**
+ * Public contact form. No auth: anyone browsing the marketing site can use it,
+ * which is why the server rate-limits it per IP.
+ */
+export function sendContactMessage(body: ContactMessage) {
+  return apiFetch<{ success: boolean }>("/api/support/contact", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
 export interface QRAnalytics {
   /** Every scan, repeats from the same device included. */
   totalScans: number

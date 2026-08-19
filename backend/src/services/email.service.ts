@@ -32,6 +32,12 @@ interface SendEmailOptions {
   to: string
   subject: string
   html: string
+  /**
+   * Address replies should go to, when it differs from EMAIL_FROM. The contact
+   * form sets this to the visitor so support can reply straight to them, rather
+   * than to our own no-reply sender.
+   */
+  replyTo?: string
   text?: string
   attachments?: EmailAttachment[]
 }
@@ -43,6 +49,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
       to:          opts.to,
       subject:     opts.subject,
       html:        opts.html,
+      ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
       text:        opts.text,
       attachments: opts.attachments?.map((a) => ({
         filename:    a.filename,
@@ -59,6 +66,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
       to:          opts.to,
       subject:     opts.subject,
       html:        opts.html,
+      ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
       text:        opts.text,
       attachments: opts.attachments?.map((a) => ({
         filename:    a.filename,
@@ -256,6 +264,24 @@ function buildEmailShell(subject: string, innerHtml: string): string {
 }
 
 // ─── Transactional emails ─────────────────────────────────────────────────────
+
+/**
+ * Escapes text destined for an HTML email body.
+ *
+ * These templates interpolate caller-supplied strings straight into markup. That
+ * was reachable only by authenticated users before; the public contact form makes
+ * it reachable by anyone, so an unescaped subject or message could inject markup
+ * into the support inbox. Escaping happens inside the builders so every caller is
+ * covered rather than each one having to remember.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
 
 export function buildVerificationEmail(name: string, verifyUrl: string): string {
   const inner = `
@@ -478,10 +504,21 @@ export function buildSupportTicketAdminEmail(opts: {
   message: string
   adminUrl: string
 }): string {
+  // Generated ids and our own URLs are not user input; everything else is.
+  const safe = {
+    userName: escapeHtml(opts.userName),
+    userEmail: escapeHtml(opts.userEmail),
+    subject: escapeHtml(opts.subject),
+    category: escapeHtml(opts.category),
+    message: escapeHtml(opts.message),
+    ticketId: opts.ticketId,
+    adminUrl: opts.adminUrl,
+  }
+
   const inner = `
     <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">New Support Ticket</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      ${opts.subject}
+      ${safe.subject}
     </h1>
 
     <!-- Ticket meta -->
@@ -491,7 +528,7 @@ export function buildSupportTicketAdminEmail(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
             <tr>
               <td style="font-size:12px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">From</td>
-              <td align="right" style="font-size:14px;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:500">${opts.userName} &lt;${opts.userEmail}&gt;</td>
+              <td align="right" style="font-size:14px;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:500">${safe.userName} &lt;${safe.userEmail}&gt;</td>
             </tr>
           </table>
         </td>
@@ -501,7 +538,7 @@ export function buildSupportTicketAdminEmail(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
             <tr>
               <td style="font-size:12px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Category</td>
-              <td align="right" style="font-size:14px;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:500">${opts.category}</td>
+              <td align="right" style="font-size:14px;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:500">${safe.category}</td>
             </tr>
           </table>
         </td>
@@ -511,7 +548,7 @@ export function buildSupportTicketAdminEmail(opts: {
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
             <tr>
               <td style="font-size:12px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Ticket ID</td>
-              <td align="right" style="font-size:14px;color:#6366f1;font-family:'SF Mono',Menlo,Monaco,'Courier New',monospace;font-weight:500">${opts.ticketId.slice(0, 8).toUpperCase()}</td>
+              <td align="right" style="font-size:14px;color:#6366f1;font-family:'SF Mono',Menlo,Monaco,'Courier New',monospace;font-weight:500">${safe.ticketId.slice(0, 8).toUpperCase()}</td>
             </tr>
           </table>
         </td>
@@ -522,7 +559,7 @@ export function buildSupportTicketAdminEmail(opts: {
     <h2 style="margin:0 0 12px;font-size:15px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Message</h2>
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
-        <td style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:4px solid #6366f1;border-radius:10px;padding:16px 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${opts.message}</td>
+        <td style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:4px solid #6366f1;border-radius:10px;padding:16px 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${safe.message}</td>
       </tr>
     </table>
 
@@ -530,7 +567,7 @@ export function buildSupportTicketAdminEmail(opts: {
     <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
         <td style="border-radius:10px;background:#6366f1">
-          <a href="${opts.adminUrl}" target="_blank"
+          <a href="${safe.adminUrl}" target="_blank"
             style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
             View Ticket in Admin →
           </a>
@@ -542,7 +579,7 @@ export function buildSupportTicketAdminEmail(opts: {
       This notification was sent because a user submitted a support ticket on GenXQR.
     </p>`
 
-  return buildEmailShell(`[Support] ${opts.subject} — GenXQR`, inner)
+  return buildEmailShell(`[Support] ${safe.subject} — GenXQR`, inner)
 }
 
 /**
@@ -554,12 +591,20 @@ export function buildSupportTicketConfirmationEmail(opts: {
   subject: string
   category: string
 }): string {
+  // Generated ids and our own URLs are not user input; everything else is.
+  const safe = {
+    userName: escapeHtml(opts.userName),
+    subject: escapeHtml(opts.subject),
+    category: escapeHtml(opts.category),
+    ticketId: opts.ticketId,
+  }
+
   const inner = `
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       We've received your request
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${opts.userName}, thanks for reaching out! Your support ticket has been submitted and our team will get back to you as soon as possible.
+      Hi ${safe.userName}, thanks for reaching out! Your support ticket has been submitted and our team will get back to you as soon as possible.
     </p>
 
     <!-- Ticket summary -->
@@ -567,9 +612,9 @@ export function buildSupportTicketConfirmationEmail(opts: {
       <tr>
         <td style="padding:20px 24px">
           <p style="margin:0 0 8px;font-size:12px;color:#818cf8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Ticket Summary</p>
-          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${opts.subject}</p>
+          <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${safe.subject}</p>
           <p style="margin:0;font-size:13px;color:#6366f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            Category: ${opts.category} &nbsp;·&nbsp; Ticket ID: <strong>${opts.ticketId.slice(0, 8).toUpperCase()}</strong>
+            Category: ${safe.category} &nbsp;·&nbsp; Ticket ID: <strong>${safe.ticketId.slice(0, 8).toUpperCase()}</strong>
           </p>
         </td>
       </tr>

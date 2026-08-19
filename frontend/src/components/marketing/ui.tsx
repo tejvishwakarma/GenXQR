@@ -112,8 +112,15 @@ type MktButtonProps = {
   size?: "md" | "lg"
   className?: string
   onClick?: () => void
+  /**
+   * Renders a real <button> instead of a link. Without this the component always
+   * produced an <a href="#">, so using it inside a form gave a control that could
+   * never submit — which is exactly how the contact form ended up inert.
+   */
+  type?: "button" | "submit"
+  disabled?: boolean
 }
-export function MktButton({ children, href = "#", variant = "accent", size = "md", className = "", onClick }: MktButtonProps) {
+export function MktButton({ children, href = "#", variant = "accent", size = "md", className = "", onClick, type, disabled }: MktButtonProps) {
   const base =
     "inline-flex items-center justify-center gap-2 font-medium rounded-full transition-all duration-200 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
   const sizes = { md: "h-11 px-5 text-sm", lg: "h-[52px] px-7 text-[15px]" }
@@ -125,6 +132,16 @@ export function MktButton({ children, href = "#", variant = "accent", size = "md
     ghost: "text-ink hover:bg-ink/[0.05]",
   }
   const classes = cn(base, sizes[size], variants[variant], className)
+
+  // A form control has to be a button, and must come before the href fallback:
+  // href defaults to "#", so an unset href would otherwise win.
+  if (type) {
+    return (
+      <button type={type} onClick={onClick} disabled={disabled} className={cn(classes, "disabled:opacity-60 disabled:cursor-not-allowed")}>
+        {children}
+      </button>
+    )
+  }
 
   if (href.startsWith("#")) {
     return (

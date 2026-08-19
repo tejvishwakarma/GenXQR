@@ -6,9 +6,12 @@
  */
 
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
+import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import { contactLimiter } from "../middleware/rateLimit.middleware.js"
 import { prisma } from "../db/prisma.js"
+import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import {
@@ -31,6 +34,111 @@ const CreateTicketSchema = z.object({
  * POST /api/support/tickets
  * Creates a support ticket and sends admin + user emails.
  */
+/**
+ * Public contact form (POST /api/support/contact).
+ *
+ * Separate from /tickets, which requires a login and creates a SupportTicket row.
+ * SupportTicket.userId is non-nullable, so an anonymous enquiry cannot be stored
+ * as one without a schema change; this path notifies support by email instead and
+ * confirms receipt to the sender. Both sends are recorded in EmailLog, so there is
+ * still a durable trail visible under Admin → Email.
+ */
+const ContactSchema = z.object({
+  firstName: z.string().trim().min(1, "First name is required").max(80),
+  lastName:  z.string().trim().max(80).optional().default(""),
+  email:     z.string().trim().email("Enter a valid email address").max(200),
+  category:  z.enum(["general", "sales", "technical", "billing"]).default("general"),
+  message:   z.string().trim().min(20, "Please provide more detail (at least 20 characters)").max(5000),
+  /**
+   * Honeypot. Hidden from people by CSS, so a human never fills it and a bot that
+   * fills every field does. Filled submissions are accepted and silently dropped —
+   * answering 200 tells the bot nothing about why nothing happened.
+   */
+  company:   z.string().max(200).optional().default(""),
+})
+
+const CONTACT_CATEGORY_LABEL: Record<string, string> = {
+  general:   "General Inquiry",
+  sales:     "Sales & Enterprise",
+  technical: "Technical Support",
+  billing:   "Billing Question",
+}
+
+router.post(
+  "/contact",
+  contactLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const input = ContactSchema.parse(req.body)
+
+      if (input.company.trim() !== "") {
+        logger.info("Contact form honeypot triggered", { ip: req.ip })
+        res.json({ success: true })
+        return
+      }
+
+      const name = `${input.firstName} ${input.lastName}`.trim()
+      // Not a ticket id — there is no ticket. A short reference so a reply can be
+      // tied back to this submission in the email log.
+      const reference = randomUUID()
+      const label = CONTACT_CATEGORY_LABEL[input.category] ?? input.category
+      const subject = `${label} — ${name}`
+
+      // Awaited deliberately: if support never receives this, the visitor must be
+      // told rather than thanked. The alternative — answering 200 and logging —
+      // loses enquiries silently, which is the worse failure for a contact form.
+      try {
+        await sendEmail({
+        to:      ADMIN_SUPPORT_EMAIL,
+        subject: `[Contact] ${subject}`,
+        html:    buildSupportTicketAdminEmail({
+          userName:  name,
+          userEmail: input.email,
+          ticketId:  reference,
+          subject,
+          category:  label,
+          message:   input.message,
+          adminUrl:  `${env.FRONTEND_URL}/admin/support`,
+        }),
+        // Lets support hit reply and reach the sender, rather than replying to us.
+        replyTo: input.email,
+        })
+      } catch (mailErr) {
+        // The real cause (unverified domain, provider outage, bad key) is for us,
+        // not the visitor — but they get a route that still works.
+        logger.error("Contact form email failed to send", {
+          error: String(mailErr),
+          category: input.category,
+        })
+        res.status(502).json({
+          success: false,
+          error: `We could not send your message right now. Please email us directly at ${ADMIN_SUPPORT_EMAIL}.`,
+        })
+        return
+      }
+
+      // Confirmation is best-effort: the enquiry has already reached support, so a
+      // bounce on the visitor's own address must not report the form as failed.
+      void sendEmail({
+        to:      input.email,
+        subject: "We've received your message — GenXQR",
+        html:    buildSupportTicketConfirmationEmail({
+          userName: input.firstName,
+          ticketId: reference,
+          subject,
+          category: label,
+        }),
+      }).catch((err: unknown) => {
+        logger.warn("Contact confirmation email failed", { error: String(err) })
+      })
+
+      res.json({ success: true })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 router.post(
   "/tickets",
   requireAuth,
