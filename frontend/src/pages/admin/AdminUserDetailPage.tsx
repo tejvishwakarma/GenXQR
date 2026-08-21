@@ -409,8 +409,12 @@ export default function AdminUserDetailPage() {
             </button>
           ) : (
             <div className="flex flex-col gap-3 max-w-sm">
+              {/* Sets ANOTHER user's password, so the admin's own saved
+                  credential must never be autofilled here. */}
               <input
                 type="password"
+                name="target-user-new-password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="New password (min. 8 characters)"

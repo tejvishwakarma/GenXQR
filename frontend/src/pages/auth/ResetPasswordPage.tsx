@@ -121,6 +121,8 @@ export default function ResetPasswordPage() {
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
+                    name="new-password"
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min. 8 characters"
@@ -160,6 +162,8 @@ export default function ResetPasswordPage() {
                 <label className="label-text">Confirm new password</label>
                 <Input
                   type="password"
+                  name="confirm-new-password"
+                  autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Re-enter your new password"

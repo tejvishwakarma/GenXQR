@@ -49,8 +49,23 @@ export default function PasswordPage() {
         {/* Form */}
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div>
+            {/* This is a per-QR access code, NOT a GenXQR account credential.
+                The distinction has to be stated to the browser, not just to the
+                reader: an unnamed, unannotated password field on a public page
+                makes Chrome's password manager offer the visitor's saved
+                genxqr.com password, and Chrome then warns about credentials
+                being entered somewhere it does not recognise as our sign-in
+                form. That is what Search Console reports as "Possible Phishing
+                Detected on User Login".
+
+                name is deliberately not "password", and new-password stops the
+                saved account credential being offered — Chrome ignores
+                autoComplete="off" on password inputs, so "off" would not do it. */}
             <input
               type="password"
+              name="qr-access-code"
+              autoComplete="new-password"
+              aria-label="Access code for this QR code"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"

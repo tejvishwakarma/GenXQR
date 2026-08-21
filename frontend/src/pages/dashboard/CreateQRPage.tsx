@@ -1199,7 +1199,7 @@ export default function CreateQRPage() {
                       </div>
                       <div>
                         <label className="label-text">Password</label>
-                        <Input {...register("wifi_password")} type="password" placeholder="••••••••" />
+                        <Input {...register("wifi_password")} type="password" name="wifi-passphrase" autoComplete="off" placeholder="••••••••" />
                       </div>
                       <div>
                         <label className="label-text mb-1 block">Security Type</label>

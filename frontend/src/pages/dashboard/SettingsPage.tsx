@@ -521,8 +521,12 @@ export default function SettingsPage() {
             </p>
             <div className="mb-4">
               <label className="label-text">Confirm your password</label>
+              {/* Re-authentication before deletion — this genuinely IS the
+                  account password, so the saved one should be offered. */}
               <Input
                 type="password"
+                name="password"
+                autoComplete="current-password"
                 placeholder="Enter your password"
                 value={deletePassword}
                 onChange={(e) => setDeletePassword(e.target.value)}

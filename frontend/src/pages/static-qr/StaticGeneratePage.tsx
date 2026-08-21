@@ -419,8 +419,13 @@ export default function StaticGeneratePage() {
                   </div>
                   <div>
                     <label className="label-text">Password</label>
+                    {/* A WiFi passphrase being encoded into a QR code — nothing
+                        to do with a GenXQR account, so the browser must not
+                        offer the saved one. This page is public. */}
                     <Input
                       type="password"
+                      name="wifi-passphrase"
+                      autoComplete="off"
                       placeholder="••••••••"
                       value={fields.password ?? ""}
                       onChange={(e) => setField("password", e.target.value)}
