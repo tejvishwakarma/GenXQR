@@ -1,6 +1,7 @@
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { sendEmail, buildBroadcastEmail } from "./email.service.js"
+import { invalidateBlocklistCache } from "./blocklist.service.js"
 
 type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN"
 
@@ -91,11 +92,16 @@ export async function addToBlocklist(
   value: string,
   reason?: string,
 ) {
-  return prisma.blocklist.upsert({
+  const entry = await prisma.blocklist.upsert({
     where: { type_value: { type, value } },
     update: { isActive: true, reason, addedBy: adminId },
     create: { type, value, reason, addedBy: adminId, isActive: true },
   })
+  // The scan path reads this list from a 5-minute Redis cache. A block is
+  // normally entered while someone is actively abusing the service, so waiting
+  // out the TTL is the part that would hurt.
+  await invalidateBlocklistCache()
+  return entry
 }
 
 /**
@@ -117,6 +123,10 @@ export async function removeFromBlocklist(adminRole: AdminRole, entryId: string)
     where: { id: entryId },
     data: { isActive: false, ...(entry.isPermanent ? { isPermanent: false } : {}) },
   })
+  // Unblocking matters just as much: without this, a lifted block leaves the
+  // customer's QR codes dark for up to the cache TTL with nothing in the admin
+  // UI to explain why.
+  await invalidateBlocklistCache()
 }
 
 // ─── Email logs & broadcast ────────────────────────────────────────────────────

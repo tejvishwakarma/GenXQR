@@ -5,11 +5,17 @@ import { getCountryCode } from "./geo.service.js"
 import { env } from "../config/env.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
+import { isDestinationBlocked, isOwnerBlocked } from "./blocklist.service.js"
 import type { QRCode, QRContent, QRDesign, SmartRoutingRule, ABTestVariant } from "@prisma/client"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-export type ExpiredReason = "deactivated" | "expired" | "limit"
+/**
+ * "blocked" is moderation, not the customer's own scheduling. It is kept
+ * distinct so the expired page can say the content was removed rather than
+ * imply the owner let it lapse.
+ */
+export type ExpiredReason = "deactivated" | "expired" | "limit" | "blocked"
 
 export type QRResolution =
   | { action: "redirect"; url: string }
@@ -47,6 +53,9 @@ const CACHE_TTL_SECONDS = 600 // 10 minutes
 
 type CachedQR = {
   id: string
+  /** Owner, for the blocklist check. Absent on blobs cached before this field
+   *  existed — treated as not-blocked, and self-heals within the 10-minute TTL. */
+  userId: string | null
   type: string
   category: string
   slug: string
@@ -157,6 +166,7 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
     where: { slug },
     select: {
       id: true,
+      userId: true,
       type: true,
       category: true,
       slug: true,
@@ -213,6 +223,7 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
 
   return {
     id: qr.id,
+    userId: qr.userId,
     type: qr.type,
     category: qr.category,
     slug: qr.slug,
@@ -385,6 +396,16 @@ export async function resolveQRScan(
     })
   }
 
+  // 1b. Owner blocklisted — takes every code they own down at once, and applies
+  // to landing pages as well as redirects, so it sits ahead of everything else.
+  //
+  // fallbackUrl is deliberately dropped for a block: it is customer-controlled,
+  // so honouring it would let whoever earned the block point the fallback at the
+  // same destination and carry on.
+  if (await isOwnerBlocked(qr.userId)) {
+    return { action: "expired", slug, fallbackUrl: null, reason: "blocked" }
+  }
+
   // 2. Check isActive flag
   if (!qr.isActive) {
     return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "deactivated" }
@@ -420,7 +441,7 @@ export async function resolveQRScan(
   const smartUrl = evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode })
   if (smartUrl) {
     void queueScan(qr.id, qr.slug, ip, ua, ref)
-    return wrapRedirect(smartUrl, qr)
+    return await wrapRedirect(smartUrl, qr)
   }
 
   // 7. A/B test
@@ -428,7 +449,7 @@ export async function resolveQRScan(
     const variant = pickABVariant(qr.abVariants, qr.abTestSplitPct)
     if (variant) {
       void queueScan(qr.id, qr.slug, ip, ua, ref, variant.variantId)
-      return wrapRedirect(variant.url, qr)
+      return await wrapRedirect(variant.url, qr)
     }
   }
 
@@ -438,7 +459,7 @@ export async function resolveQRScan(
   // 9. Determine destination
   if (REDIRECT_TYPES.has(qr.type) && qr.content) {
     const url = buildDestinationFromContent(qr.type, qr.content)
-    if (url) return wrapRedirect(url, qr)
+    if (url) return await wrapRedirect(url, qr)
   }
 
   // 10. Landing page
@@ -453,7 +474,16 @@ export async function resolveQRScan(
 
 // ─── Pixel redirect helper ────────────────────────────────────────────────────
 
-function wrapRedirect(url: string, qr: CachedQR): QRResolution {
+async function wrapRedirect(url: string, qr: CachedQR): Promise<QRResolution> {
+  // Every redirect in resolveQRScan funnels through here — smart routing, A/B
+  // variants and the content-derived destination alike — so screening once here
+  // cannot be bypassed by picking a different route through the resolver. A
+  // smart-routing rule or A/B variant is exactly where a blocked destination
+  // would otherwise reappear, since those URLs never pass through QRContent.
+  if (await isDestinationBlocked(url)) {
+    return { action: "expired", slug: qr.slug, fallbackUrl: null, reason: "blocked" }
+  }
+
   if (qr.fbPixelId || qr.gaId || qr.gtmId) {
     return {
       action: "pixel_redirect",

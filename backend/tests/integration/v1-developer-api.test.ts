@@ -1,6 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest"
+import { createHash } from "node:crypto"
 import request from "supertest"
 import app from "../../src/app.js"
+import { prisma } from "../../src/db/prisma.js"
 import { createApiKey } from "../../src/services/apikeys.service.js"
 import { createUser, giveSubscription, seedPlans, type TestUser } from "../helpers/factories.js"
 
@@ -84,8 +86,70 @@ describe("/v1 developer API", () => {
     it("should reject a well-formed but unknown API key", async () => {
       const res = await request(app)
         .get("/v1/qr")
-        .set("Authorization", "Bearer nxqr_live_0000000000000000000000000000000000000000000000000000000000000000")
+        .set("Authorization", `Bearer gxqr_live_${"0".repeat(64)}`)
       expect(res.status).toBe(401)
+    })
+
+    it("should reject a token with no recognised key prefix", async () => {
+      const res = await request(app)
+        .get("/v1/qr")
+        .set("Authorization", `Bearer sk_live_${"0".repeat(64)}`)
+      expect(res.status).toBe(401)
+      expect(res.body.error).toMatch(/API key/i)
+    })
+  })
+
+  /**
+   * The key prefix moved from `nxqr_live_` to `gxqr_live_` — nxqr dated from the
+   * product's previous name, NexusQR.
+   *
+   * The rename is only safe because verification hashes the whole key and treats
+   * the prefix purely as a lookup narrowing. Had the middleware simply been
+   * repointed at the new prefix, every key already sitting in a customer's Zap,
+   * Make scenario or n8n credential would have started 401ing the moment this
+   * deployed — and the failure would surface inside somebody else's automation,
+   * not here.
+   */
+  describe("API key prefix rename", () => {
+    it("should issue new keys with the gxqr_live_ prefix", async () => {
+      const issued = await createApiKey(user.id, "new key")
+      expect(issued.rawKey.startsWith("gxqr_live_")).toBe(true)
+      // The stored prefix is what lookups match on, so it has to follow the key.
+      expect(issued.key.prefix.startsWith("gxqr_live_")).toBe(true)
+    })
+
+    it("should authenticate a freshly issued gxqr key", async () => {
+      const issued = await createApiKey(user.id, "gxqr key")
+      const res = await request(app).get("/v1/qr").set("Authorization", `Bearer ${issued.rawKey}`)
+      expect(res.status).toBe(200)
+    })
+
+    /**
+     * Written the way a legacy row actually looks: the raw key is never stored, so
+     * this reproduces one from its hash exactly as the old generator would have.
+     */
+    it("should still authenticate a legacy nxqr key issued before the rename", async () => {
+      const legacyRaw = `nxqr_live_${"a1b2c3d4".repeat(8)}`
+      await prisma.apiKey.create({
+        data: {
+          userId: user.id,
+          name: "legacy key",
+          keyHash: createHash("sha256").update(legacyRaw).digest("hex"),
+          keyPrefix: legacyRaw.slice(0, 18),
+        },
+      })
+
+      const res = await request(app).get("/v1/qr").set("Authorization", `Bearer ${legacyRaw}`)
+      expect(res.status, "a key issued before the rename must keep working").toBe(200)
+    })
+
+    it("should reject an unknown key that merely uses the legacy prefix", async () => {
+      const res = await request(app)
+        .get("/v1/qr")
+        .set("Authorization", `Bearer nxqr_live_${"0".repeat(64)}`)
+      expect(res.status).toBe(401)
+      // Accepting the old prefix must not weaken verification for it.
+      expect(res.body.error).toMatch(/invalid or revoked/i)
     })
   })
 

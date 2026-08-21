@@ -1,7 +1,7 @@
 import { useParams, useSearchParams, Link } from "react-router-dom"
-import { QrCode, Clock, ArrowRight, Ban, AlertTriangle } from "lucide-react"
+import { QrCode, Clock, ArrowRight, Ban, AlertTriangle, ShieldAlert } from "lucide-react"
 
-type Reason = "deactivated" | "expired" | "limit"
+type Reason = "deactivated" | "expired" | "limit" | "blocked"
 
 const CONTENT: Record<Reason, { icon: React.ReactNode; badge: string; heading: string; description: string }> = {
   deactivated: {
@@ -25,14 +25,28 @@ const CONTENT: Record<Reason, { icon: React.ReactNode; badge: string; heading: s
     description:
       "This QR code has reached its maximum number of allowed scans and is no longer accepting new visitors. Please contact the creator for assistance.",
   },
+  // Moderation, not the owner's own scheduling. Worded so a visitor who scanned
+  // a code in the wild understands they were protected from its destination, and
+  // is NOT invited to contact the creator — that is the person who was blocked.
+  blocked: {
+    icon: <ShieldAlert size={40} className="text-red-500/70" />,
+    badge: "Blocked",
+    heading: "This QR code has been blocked",
+    description:
+      "We blocked this QR code because its destination was reported as unsafe or breached our acceptable use policy. You have not been taken there. Nothing further is needed from you.",
+  },
 }
 
 export default function ExpiredPage() {
   const { slug } = useParams<{ slug: string }>()
   const [searchParams] = useSearchParams()
 
+  // Validated against the known set rather than cast: the value arrives in a
+  // query string a visitor can edit, and an unknown reason must fall back rather
+  // than index CONTENT with undefined and blank the page.
+  const REASONS: Reason[] = ["deactivated", "expired", "limit", "blocked"]
   const rawReason = searchParams.get("reason") ?? "expired"
-  const reason: Reason = rawReason === "deactivated" || rawReason === "limit" ? rawReason : "expired"
+  const reason: Reason = (REASONS as string[]).includes(rawReason) ? (rawReason as Reason) : "expired"
   const content = CONTENT[reason]
 
   return (
