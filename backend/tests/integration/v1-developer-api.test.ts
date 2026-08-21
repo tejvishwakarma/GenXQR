@@ -270,4 +270,81 @@ describe("/v1 developer API", () => {
       expect(res.status).toBe(404)
     })
   })
+
+  /**
+   * The scan path reads a 10-minute Redis cache. qr.routes.ts invalidated it on
+   * every mutation; v1.routes.ts never did, and the service didn't either — so a
+   * mutation through the developer API applied to the database immediately and to
+   * scans up to ten minutes later.
+   *
+   * That is the whole proposition of a dynamic QR inverted: "change the
+   * destination without reprinting" quietly meant "…and wait ten minutes", with
+   * nothing to point at. Worse for toggle and delete, where a QR taken down for a
+   * wrong or abusive destination kept resolving to it.
+   *
+   * Each test scans once first — that is what populates the cache. Without the
+   * priming scan there is nothing stale to serve and the test passes either way.
+   */
+  describe("scan cache invalidation on mutation", () => {
+    // INSTAGRAM deliberately, not URL: REDIRECT_TYPES admits only WHATSAPP and
+    // INSTAGRAM, so every other type resolves to its landing page at /l/<slug> —
+    // a URL that does not change when the destination does, and therefore cannot
+    // show whether the cache was invalidated.
+    const ORIGINAL = "https://instagram.com/before"
+    const CHANGED = "https://instagram.com/after"
+
+    async function createAndPrime(): Promise<{ id: string; slug: string }> {
+      const created = await request(app)
+        .post("/v1/qr")
+        .set("Authorization", `Bearer ${apiKey}`)
+        .send({ name: "cached", type: "INSTAGRAM", content: { data: { username: "before" } } })
+        .expect(201)
+
+      const { id, slug } = created.body.data
+      const first = await request(app).get(`/r/${slug}`).expect(302)
+      expect(first.headers.location, "priming scan should hit the original").toBe(ORIGINAL)
+      return { id, slug }
+    }
+
+    it("should serve the new destination on the very next scan after a change", async () => {
+      const { id, slug } = await createAndPrime()
+
+      await request(app)
+        .patch(`/v1/qr/${id}`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .send({ content: { data: { username: "after" } } })
+        .expect(200)
+
+      const after = await request(app).get(`/r/${slug}`).expect(302)
+      expect(after.headers.location).toBe(CHANGED)
+    })
+
+    it("should stop resolving to the destination once deactivated", async () => {
+      const { id, slug } = await createAndPrime()
+
+      await request(app)
+        .patch(`/v1/qr/${id}/toggle`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .expect(200)
+
+      const after = await request(app).get(`/r/${slug}`).expect(302)
+      expect(after.headers.location).not.toBe(ORIGINAL)
+      expect(after.headers.location).toContain("reason=deactivated")
+    })
+
+    it("should stop resolving to the destination once deleted", async () => {
+      const { id, slug } = await createAndPrime()
+
+      await request(app)
+        .delete(`/v1/qr/${id}`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .expect(204)
+
+      // Asserted as "not the old destination" rather than a specific status, so
+      // the test pins the security-relevant property without freezing the exact
+      // not-found rendering.
+      const after = await request(app).get(`/r/${slug}`)
+      expect(after.headers.location).not.toBe(ORIGINAL)
+    })
+  })
 })

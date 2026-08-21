@@ -6,6 +6,14 @@ import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { getOrCreateSubscription, PLAN_LIMITS } from "./billing.service.js"
+// Invalidation lives here rather than only in the route because it is a
+// correctness requirement of the mutation, not a concern of one caller: the scan
+// path reads a 10-minute Redis cache, so a mutation that skips this keeps serving
+// the old destination. qr.routes.ts invalidated; v1.routes.ts did not, so every
+// integration's "Update Destination" silently took up to 10 minutes to apply and
+// a deleted or deactivated QR kept resolving. DEL is idempotent, so the existing
+// explicit calls in qr.routes.ts remain harmless.
+import { invalidateQRCache } from "./scan.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -452,6 +460,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
     select: qrSelect,
   })
 
+  await invalidateQRCache(qr.slug)
   logger.info("QR code updated", { qrId: id, userId })
   return serializeQR(qr)
 }
@@ -460,9 +469,12 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
  * Permanently delete a QR code and all associated data (cascade in DB).
  */
 export async function deleteQR(id: string, userId: string) {
-  const existing = await prisma.qRCode.findFirst({ where: { id, userId }, select: { id: true } })
+  // slug is selected so the cache entry can be dropped after the row is gone —
+  // without it a deleted QR keeps redirecting until the cache expires.
+  const existing = await prisma.qRCode.findFirst({ where: { id, userId }, select: { id: true, slug: true } })
   if (!existing) throw new AppError(404, "QR code not found")
   await prisma.qRCode.delete({ where: { id } })
+  await invalidateQRCache(existing.slug)
   logger.info("QR code deleted", { qrId: id, userId })
 }
 
@@ -480,6 +492,7 @@ export async function toggleQR(id: string, userId: string) {
     data: { isActive: !qr.isActive },
     select: { id: true, isActive: true, slug: true },
   })
+  await invalidateQRCache(updated.slug)
   logger.info("QR code toggled", { qrId: id, userId, isActive: updated.isActive })
   return updated
 }

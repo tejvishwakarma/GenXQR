@@ -28,6 +28,7 @@ import {
   deleteWebhook,
   listWebhooks,
   getWebhookWithSecret,
+  deliverWebhookEvent,
   WEBHOOK_EVENTS,
   type WebhookEvent,
 } from "../services/webhook.service.js"
@@ -82,6 +83,10 @@ router.post("/qr", async (req, res, next) => {
   try {
     const input = createQRSchema.parse(req.body)
     const qr = await createQR(uid(req), input)
+    // Same events qr.routes.ts fires. Without these, a QR created through the
+    // developer API raised no qr.created — so an integration's own "New QR Code"
+    // trigger never saw anything it created, or anything another integration did.
+    void deliverWebhookEvent(uid(req), "qr.created", { qr })
     res.status(201).json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -108,6 +113,7 @@ router.get("/qr/:id", async (req, res, next) => {
 router.patch("/qr/:id", async (req, res, next) => {
   try {
     const qr = await updateQR(req.params.id!, uid(req), req.body)
+    void deliverWebhookEvent(uid(req), "qr.updated", { qr })
     res.json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -133,7 +139,11 @@ router.patch("/qr/:id/toggle", async (req, res, next) => {
  */
 router.delete("/qr/:id", async (req, res, next) => {
   try {
+    // Read the name before deleting: the qr.deleted payload carries it, and after
+    // the row is gone there is nothing left to read it from.
+    const existing = await getQR(req.params.id!, uid(req))
     await deleteQR(req.params.id!, uid(req))
+    void deliverWebhookEvent(uid(req), "qr.deleted", { qrId: req.params.id!, name: existing?.name ?? "" })
     res.status(204).end()
   } catch (err) {
     next(err)
