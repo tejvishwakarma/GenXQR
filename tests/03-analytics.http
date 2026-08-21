@@ -71,13 +71,13 @@ Authorization: Bearer {{token}}
 # EXPECT: 200, array of scan objects
 # Requires: valid API key from /app/api-keys
 GET {{base}}/v1/qr/{{qrId}}/scans?limit=25
-Authorization: Bearer nxqr_live_YOUR_API_KEY_HERE
+Authorization: Bearer gxqr_live_YOUR_API_KEY_HERE
 
 ###
 
 ### 3.2 Scans — limit capped at 100
 GET {{base}}/v1/qr/{{qrId}}/scans?limit=999
-Authorization: Bearer nxqr_live_YOUR_API_KEY_HERE
+Authorization: Bearer gxqr_live_YOUR_API_KEY_HERE
 
 ###
 

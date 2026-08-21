@@ -3,7 +3,7 @@ import { apiUrl } from "./utils/api"
 
 /**
  * Custom auth: the user pastes an API key from GenXQR dashboard → API Keys.
- * The key is sent as `Authorization: Bearer nxqr_...` on every request.
+ * The key is sent as `Authorization: Bearer gxqr_...` on every request.
  */
 const authentication = {
   type: "custom" as const,
@@ -32,7 +32,7 @@ const authentication = {
       required: true,
       type: "string" as const,
       helpText:
-        "Create an API key at [genxqr.com/app/api-keys](https://genxqr.com/app/api-keys). Requires a PRO plan or higher. The key starts with `nxqr_`.",
+        "Create an API key at [genxqr.com/app/api-keys](https://genxqr.com/app/api-keys). Requires a PRO plan or higher. The key starts with `gxqr_`.",
     },
   ],
   connectionLabel: "GenXQR ({{bundle.authData.label}})",

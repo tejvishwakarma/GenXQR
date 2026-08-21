@@ -47,7 +47,7 @@ Run the **Login** request in `01-auth.http`. Copy the `accessToken` from the res
 
 1. Log into the frontend at `http://localhost:5173`
 2. Go to **Settings → API Keys** → Create new key
-3. Copy the key (starts with `nxqr_live_`) and paste into `@apiKey` in `05-v1-api.http` and `09-integrations.sh`
+3. Copy the key (starts with `gxqr_live_`) and paste into `@apiKey` in `05-v1-api.http` and `09-integrations.sh`
 
 ---
 
@@ -187,7 +187,7 @@ Tests the complete auth lifecycle:
 End-to-end lifecycle test for Zapier/Make/n8n webhook pattern:
 
 ```bash
-API_KEY=nxqr_live_yourkey \
+API_KEY=gxqr_live_yourkey \
 WEBHOOK_SITE=your-uuid \
 bash tests/09-integrations.sh
 ```

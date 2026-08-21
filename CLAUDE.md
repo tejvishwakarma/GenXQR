@@ -407,7 +407,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 |---|---|
 | `auth.middleware.ts` | Extracts + verifies JWT Bearer token; attaches `req.user` |
 | `admin.middleware.ts` | Requires `req.user.role === ADMIN or SUPER_ADMIN` |
-| `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer nxqr_...`; attaches `req.user` |
+| `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer gxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
 | `rateLimit.middleware.ts` | `apiLimiter` (global 60 req/min via Redis store) |
 | `error.middleware.ts` | Global error handler; maps Zod errors → **422**, JWT errors → 401, Prisma unique → 409, etc. Hand-thrown validation failures should use 422 too, so one class of error has one status. |
@@ -921,7 +921,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Secrets loaded via `node_args: "--env-file=/home/genxqr/genxqr.env"` (the `ENV_FILE_PATH` constant at the top of `ecosystem.config.cjs`) — same `--env-file` mechanism as `pnpm start` locally, just pointed at an absolute path outside the repo
 
 **Dev infra (Docker):**
-- PostgreSQL + Redis run as dedicated GenXQR containers via `docker-compose.yml` at the repo root (`genxqr_postgres` on host port **5433**, `genxqr_redis` on **6380**). Isolated from any other project on the machine.
+- PostgreSQL + Redis run as dedicated GenXQR containers via `docker-compose.yml` at the repo root (`gegxqr_postgres` on host port **5433**, `gegxqr_redis` on **6380**). Isolated from any other project on the machine.
 - Compose credentials come from the gitignored root `.env` (see `.env.example`); `backend/.env` connects via stable `localhost:5433` / `localhost:6380` — no WSL-IP syncing.
 - Start with `pnpm db:up` (or `docker compose up -d`); `pnpm dev` brings the stack up then runs both servers. On Windows, Docker runs inside WSL, so the scripts invoke `wsl -d Debian docker compose`.
 
@@ -952,7 +952,7 @@ pnpm geo:update            # Download/update MaxMind GeoLite2 database
 pnpm dev                   # tsx watch --env-file=.env src/index.ts
 pnpm build                 # tsc
 pnpm start                 # node --env-file=.env dist/index.js
-pnpm test:setup            # one-time: create genxqr_test DB + apply migrations
+pnpm test:setup            # one-time: create gegxqr_test DB + apply migrations
 pnpm test                  # vitest run — integration tests (needs pnpm db:up)
 pnpm test:watch            # vitest in watch mode
 pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking)
@@ -960,7 +960,7 @@ pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking
 
 **Testing** — two suites, see [`backend/tests/README.md`](./backend/tests/README.md):
 - `backend/tests/` — automated Vitest + supertest integration tests against a real
-  Postgres (`genxqr_test`, never the dev DB) and Redis logical DB 15. This is where
+  Postgres (`gegxqr_test`, never the dev DB) and Redis logical DB 15. This is where
   new regression coverage goes.
 - `tests/` (repo root) — the older manual suite: `.http` files for VS Code REST
   Client plus a PowerShell runner against a live server. Broader surface area,

@@ -116,7 +116,7 @@ Authorization: Bearer {{token}}
 ### 3.5 Toggle another user's QR (v1 API)
 # EXPECT: 404
 PATCH {{base}}/v1/qr/{{qrId}}/toggle
-Authorization: Bearer nxqr_live_YOUR_KEY_HERE
+Authorization: Bearer gxqr_live_YOUR_KEY_HERE
 
 ###
 

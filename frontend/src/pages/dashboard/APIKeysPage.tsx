@@ -115,7 +115,7 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                   <p>
                     <span className="text-amber-300">curl</span>{" "}
                     <span className="text-violet-300">-H</span>{" "}
-                    <span className="text-emerald-300">"Authorization: Bearer nxqr_••••••••"</span>{" "}
+                    <span className="text-emerald-300">"Authorization: Bearer gxqr_••••••••"</span>{" "}
                     <span className="text-cyan-300">https://genxqr.com/v1/qr</span>
                   </p>
                 </div>
@@ -223,8 +223,8 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
               {[
                 {
                   title: "Store keys in environment variables",
-                  desc: "Never hardcode your API key in source files or commit it to git. Use environment variables: GenXQR_API_KEY=nxqr_...",
-                  bad: "const key = 'nxqr_abc123'  // ❌ never do this",
+                  desc: "Never hardcode your API key in source files or commit it to git. Use environment variables: GenXQR_API_KEY=gxqr_...",
+                  bad: "const key = 'gxqr_abc123'  // ❌ never do this",
                   good: "const key = process.env.GenXQR_API_KEY  // ✓ server-side only",
                 },
                 {

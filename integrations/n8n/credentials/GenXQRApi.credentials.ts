@@ -19,7 +19,7 @@ export class GenXQRApi implements ICredentialType {
 			default: '',
 			required: true,
 			description:
-				'Create an API key at https://genxqr.com/app/api-keys. Requires a PRO plan or higher. The key starts with nxqr_.',
+				'Create an API key at https://genxqr.com/app/api-keys. Requires a PRO plan or higher. The key starts with gxqr_.',
 		},
 		{
 			displayName: 'Base URL',

@@ -41,5 +41,5 @@ ADMIN_EMAIL=admin@genxqr.com
 ADMIN_PASS=your_admin_password
 USER_EMAIL=testuser@example.com
 USER_PASS=TestPass123!
-API_KEY=nxqr_live_your_key_here
+API_KEY=gxqr_live_your_key_here
 ```

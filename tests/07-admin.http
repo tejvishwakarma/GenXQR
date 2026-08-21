@@ -15,7 +15,7 @@ POST {{base}}/api/admin/auth/login
 {{contentType}}
 
 {
-  "email": "admin@nexusqr.in",
+  "email": "admin@genxqr.com",
   "password": "YOUR_ADMIN_PASSWORD"
 }
 
@@ -142,7 +142,7 @@ Authorization: Bearer {{adminToken}}
 
 {
   "subject": "Platform Update",
-  "body": "Hello from NexusQR team!",
+  "body": "Hello from GenXQR team!",
   "targetPlans": ["PRO", "ELITE"],
   "dryRun": true
 }

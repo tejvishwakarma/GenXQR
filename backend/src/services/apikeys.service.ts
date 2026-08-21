@@ -5,17 +5,57 @@ import { checkAndNotifyLimit } from "./limit-notification.service.js"
 import { getUserPlanLimits } from "./billing.service.js"
 import { logger } from "../logger/index.js"
 
-const KEY_PREFIX = "nxqr_live_"
+/** Prefix every newly issued key carries. */
+const KEY_PREFIX = "gxqr_live_"
+
+/**
+ * Prefixes accepted on an inbound request.
+ *
+ * `nxqr_live_` dates from the product's previous name (NexusQR). Keys issued
+ * under it are still in customers' hands, in their Zaps, Make scenarios and n8n
+ * credentials — so it stays accepted. Removing it would 401 every existing key
+ * the moment this deployed, with the failure surfacing inside somebody else's
+ * automation rather than here.
+ *
+ * Nothing distinguishes a legacy key beyond these ten characters: the stored
+ * hash covers the whole key, so verification is prefix-agnostic and both forms
+ * are equally valid. Drop the legacy entry only once `keyPrefix LIKE 'nxqr_%'`
+ * returns no active rows.
+ */
+const ACCEPTED_KEY_PREFIXES = [KEY_PREFIX, "nxqr_live_"] as const
+
+/**
+ * Both generation and lookup slice the stored prefix at a FIXED offset
+ * (KEY_PREFIX.length + 8), so an accepted prefix of a different length would
+ * produce a keyPrefix that never matches — the key would fail with "invalid or
+ * revoked" and nothing would say why. Fail at import instead.
+ */
+for (const accepted of ACCEPTED_KEY_PREFIXES) {
+  if (accepted.length !== KEY_PREFIX.length) {
+    throw new Error(
+      `API key prefix "${accepted}" is ${accepted.length} chars but the lookup offset assumes ` +
+        `${KEY_PREFIX.length}. All accepted prefixes must be the same length.`,
+    )
+  }
+}
+
+const PREFIX_LOOKUP_LENGTH = KEY_PREFIX.length + 8
+
 const MAX_KEYS_PER_USER = 10
+
+/** True if the token looks like an API key at all — any accepted prefix. */
+export function isApiKeyFormat(token: string): boolean {
+  return ACCEPTED_KEY_PREFIXES.some((accepted) => token.startsWith(accepted))
+}
 
 /**
  * Generate a new raw API key and its stored hash.
- * Format: nxqr_live_<64 hex chars>
+ * Format: gxqr_live_<64 hex chars>
  */
 function generateRawKey(): { raw: string; hash: string; prefix: string } {
   const raw = KEY_PREFIX + randomBytes(32).toString("hex")
   const hash = createHash("sha256").update(raw).digest("hex")
-  const prefix = raw.slice(0, KEY_PREFIX.length + 8) // "nxqr_live_XXXXXXXX"
+  const prefix = raw.slice(0, PREFIX_LOOKUP_LENGTH) // "gxqr_live_XXXXXXXX"
   return { raw, hash, prefix }
 }
 
@@ -146,14 +186,15 @@ export async function deleteApiKey(userId: string, keyId: string): Promise<void>
 export async function verifyApiKey(
   rawKey: string,
 ): Promise<{ userId: string; keyId: string }> {
-  if (!rawKey.startsWith(KEY_PREFIX)) {
+  // Accepts legacy prefixes too — see ACCEPTED_KEY_PREFIXES.
+  if (!isApiKeyFormat(rawKey)) {
     throw new AppError(401, "Invalid API key format")
   }
 
   const incomingHash = createHash("sha256").update(rawKey).digest("hex")
 
   // Look up by prefix first (narrow the set), then timing-safe compare full hash
-  const prefix = rawKey.slice(0, KEY_PREFIX.length + 8)
+  const prefix = rawKey.slice(0, PREFIX_LOOKUP_LENGTH)
   const candidates = await prisma.apiKey.findMany({
     where: { keyPrefix: prefix, isActive: true },
     select: { id: true, userId: true, keyHash: true, expiresAt: true, isActive: true },

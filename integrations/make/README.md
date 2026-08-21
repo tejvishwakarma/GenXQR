@@ -79,5 +79,5 @@ Each `respond.imljson` uses `"output": "{{body.data}}"` to unwrap this and pass 
 
 - **Type**: Custom (API key)
 - **Header**: `Authorization: Bearer {{connection.apiKey}}`
-- **Key format**: `nxqr_...` — generated at genxqr.com/app/api-keys
+- **Key format**: `gxqr_...` — generated at genxqr.com/app/api-keys
 - **Plan required**: PRO or higher

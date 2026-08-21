@@ -77,7 +77,7 @@ Authorization: Bearer {{token}}
 ### 3.2 Free plan: access v1 API
 # EXPECT: 403 "Plan upgrade required"
 GET {{base}}/v1/qr
-Authorization: Bearer nxqr_live_FREE_PLAN_KEY_HERE
+Authorization: Bearer gxqr_live_FREE_PLAN_KEY_HERE
 
 ###
 

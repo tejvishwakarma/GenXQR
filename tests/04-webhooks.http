@@ -3,7 +3,7 @@
 @base = http://localhost:3001
 @contentType = Content-Type: application/json
 @token = PASTE_ACCESS_TOKEN_HERE
-@apiKey = nxqr_live_YOUR_API_KEY_HERE
+@apiKey = gxqr_live_YOUR_API_KEY_HERE
 @webhookId = PASTE_WEBHOOK_ID_HERE
 
 # ─────────────────────────────────────────────────────────────
@@ -202,14 +202,14 @@ Authorization: Bearer {{apiKey}}
 # 1. Get the secret from GET /api/webhooks/:id
 # 2. When a delivery arrives, compute:
 #    signature = HMAC-SHA256(secret, body_as_string).hexdigest()
-# 3. Compare with X-NexusQR-Signature header: "sha256=<signature>"
+# 3. Compare with X-GenXQR-Signature header: "sha256=<signature>"
 #
 # Node.js example:
 #   const crypto = require('crypto')
 #   const sig = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
-#   const match = `sha256=${sig}` === req.headers['x-nexusqr-signature']
+#   const match = `sha256=${sig}` === req.headers['x-genxqr-signature']
 #
 # Python example:
 #   import hmac, hashlib
 #   sig = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
-#   match = f"sha256={sig}" == request.headers.get("x-nexusqr-signature")
+#   match = f"sha256={sig}" == request.headers.get("x-genxqr-signature")

@@ -754,7 +754,7 @@ function AuthSection() {
       </p>
       <CodeBlock lang="bash" code={`# Every request must include this header
 curl https://genxqr.com/v1/qr \\
-  -H "Authorization: Bearer nxqr_••••••••••••••••••••••••••••••••"`} />
+  -H "Authorization: Bearer gxqr_••••••••••••••••••••••••••••••••"`} />
       <div className="mt-4 p-4 border border-amber-500/20 bg-amber-500/10 rounded-xl">
         <div className="flex items-start gap-3">
           <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />

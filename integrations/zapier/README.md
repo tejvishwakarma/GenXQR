@@ -18,7 +18,7 @@ Private Zapier app that lets users connect their GenXQR account to 7,000+ Zapier
 
 ## Architecture
 
-- **Auth**: Custom API key, sent as `Authorization: Bearer nxqr_...`.
+- **Auth**: Custom API key, sent as `Authorization: Bearer gxqr_...`.
 - **Backed by**: `/v1/*` on the GenXQR API (see `backend/src/routes/v1.routes.ts`).
 - **Subscription model**: each trigger creates one webhook on subscribe (source=`zapier`) and deletes it on unsubscribe.
 - **Polling fallback**: `performList` uses `/v1/qr` with `sort=updatedAt` + `updatedSince` for Zapier's sample-data step and fallback polling.

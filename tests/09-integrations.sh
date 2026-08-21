@@ -7,12 +7,12 @@
 #   - jq       (brew install jq / apt install jq)
 #   - curl
 #   - A running GenXQR backend (localhost:3001)
-#   - A valid API key (nxqr_live_...)
+#   - A valid API key (gxqr_live_...)
 #   - webhook.site UUID for receiving callbacks
 #
 # Usage:
 #   chmod +x tests/09-integrations.sh
-#   API_KEY=nxqr_live_yourkey WEBHOOK_SITE=your-uuid bash tests/09-integrations.sh
+#   API_KEY=gxqr_live_yourkey WEBHOOK_SITE=your-uuid bash tests/09-integrations.sh
 
 set -euo pipefail
 
