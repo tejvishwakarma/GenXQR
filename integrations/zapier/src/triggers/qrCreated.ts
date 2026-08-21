@@ -33,8 +33,8 @@ export default {
       type: "PDF",
       category: "DYNAMIC",
       isActive: true,
-      redirectUrl: "https://genxqr.in/r/product-brochure",
-      shortUrl: "https://genxqr.in/r/product-brochure",
+      redirectUrl: "https://genxqr.com/r/product-brochure",
+      shortUrl: "https://genxqr.com/r/product-brochure",
       createdAt: "2026-04-17T10:30:00.000Z",
     },
     outputFields: [

@@ -1,6 +1,6 @@
 ﻿# n8n-nodes-GenXQR
 
-[n8n](https://n8n.io/) community node for the [GenXQR](https://genxqr.in) dynamic QR code platform.
+[n8n](https://n8n.io/) community node for the [GenXQR](https://genxqr.com) dynamic QR code platform.
 
 Create, manage, and track dynamic QR codes directly from your n8n workflows. Trigger automations when QR codes are scanned, created, updated, or deleted.
 
@@ -43,7 +43,7 @@ The trigger uses GenXQR's webhook system with HMAC-SHA256 signature verification
 
 ## Authentication
 
-This node uses **API Key** authentication. Generate an API key from your GenXQR dashboard at [genxqr.in/app/api-keys](https://genxqr.in/app/api-keys). Requires a **PRO plan** or higher.
+This node uses **API Key** authentication. Generate an API key from your GenXQR dashboard at [genxqr.com/app/api-keys](https://genxqr.com/app/api-keys). Requires a **PRO plan** or higher.
 
 ## Development
 

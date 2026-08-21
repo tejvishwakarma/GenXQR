@@ -33,7 +33,7 @@ pnpm --filter GenXQR-zapier validate
 
 Point at staging during development via the Zapier env var:
 ```bash
-zapier env:set 1.0.0 GenXQR_API_URL=https://staging.genxqr.in
+zapier env:set 1.0.0 GenXQR_API_URL=https://staging.genxqr.com
 ```
 
 ## Deployment

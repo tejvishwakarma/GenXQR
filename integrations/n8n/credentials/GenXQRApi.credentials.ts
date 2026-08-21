@@ -8,7 +8,7 @@ import type {
 export class GenXQRApi implements ICredentialType {
 	name = 'GenXQRApi';
 	displayName = 'GenXQR API';
-	documentationUrl = 'https://genxqr.in/api-docs';
+	documentationUrl = 'https://genxqr.com/api-docs';
 
 	properties: INodeProperties[] = [
 		{
@@ -19,13 +19,13 @@ export class GenXQRApi implements ICredentialType {
 			default: '',
 			required: true,
 			description:
-				'Create an API key at https://genxqr.in/app/api-keys. Requires a PRO plan or higher. The key starts with nxqr_.',
+				'Create an API key at https://genxqr.com/app/api-keys. Requires a PRO plan or higher. The key starts with nxqr_.',
 		},
 		{
 			displayName: 'Base URL',
 			name: 'baseUrl',
 			type: 'string',
-			default: 'https://genxqr.in',
+			default: 'https://genxqr.com',
 			description: 'The base URL of the GenXQR API. Override for self-hosted or staging instances.',
 		},
 	];

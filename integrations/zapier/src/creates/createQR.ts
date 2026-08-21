@@ -75,7 +75,7 @@ export default {
       type: "URL",
       category: "DYNAMIC",
       isActive: true,
-      shortUrl: "https://genxqr.in/r/product-brochure",
+      shortUrl: "https://genxqr.com/r/product-brochure",
     },
   },
 }

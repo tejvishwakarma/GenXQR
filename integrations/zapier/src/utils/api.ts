@@ -8,7 +8,7 @@ import type { ZObject, Bundle, HttpRequestOptions } from "zapier-platform-core"
 export function apiBaseUrl(z: ZObject): string {
   const override = (z as unknown as { process?: { env?: Record<string, string | undefined> } })
     .process?.env?.["GenXQR_API_URL"]
-  return override ?? "https://genxqr.in"
+  return override ?? "https://genxqr.com"
 }
 
 export function apiUrl(z: ZObject, path: string): string {

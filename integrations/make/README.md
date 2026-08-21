@@ -48,7 +48,7 @@ src/
 ## How to import
 
 1. Go to [Make Developer Platform](https://www.make.com/en/app-builder) and create a new app named **GenXQR**.
-2. Under **General** → set base URL to `https://genxqr.in` and paste `base.imljson`.
+2. Under **General** → set base URL to `https://genxqr.com` and paste `base.imljson`.
 3. Under **Connections** → create `api-key` connection and upload the 3 files.
 4. Under **Webhooks** → create each of the 4 webhooks and upload their 3 files each.
 5. Under **RPCs** → create `list-qrs` RPC and upload its `api.imljson`.
@@ -79,5 +79,5 @@ Each `respond.imljson` uses `"output": "{{body.data}}"` to unwrap this and pass 
 
 - **Type**: Custom (API key)
 - **Header**: `Authorization: Bearer {{connection.apiKey}}`
-- **Key format**: `nxqr_...` — generated at genxqr.in/app/api-keys
+- **Key format**: `nxqr_...` — generated at genxqr.com/app/api-keys
 - **Plan required**: PRO or higher

@@ -232,7 +232,7 @@ export class GenXQR implements INodeType {
 		const resource = this.getNodeParameter('resource', 0) as string;
 		const operation = this.getNodeParameter('operation', 0) as string;
 		const credentials = await this.getCredentials('GenXQRApi');
-		const baseUrl = (credentials.baseUrl as string || 'https://genxqr.in').replace(/\/$/, '');
+		const baseUrl = (credentials.baseUrl as string || 'https://genxqr.com').replace(/\/$/, '');
 
 		for (let i = 0; i < items.length; i++) {
 			try {

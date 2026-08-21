@@ -14,7 +14,7 @@ const authentication = {
     })
     if (response.status === 401 || response.status === 403) {
       throw new z.errors.Error(
-        "The API key is invalid. Generate one at genxqr.in/app/api-keys and paste it here.",
+        "The API key is invalid. Generate one at genxqr.com/app/api-keys and paste it here.",
         "AuthenticationError",
         response.status,
       )
@@ -32,7 +32,7 @@ const authentication = {
       required: true,
       type: "string" as const,
       helpText:
-        "Create an API key at [genxqr.in/app/api-keys](https://genxqr.in/app/api-keys). Requires a PRO plan or higher. The key starts with `nxqr_`.",
+        "Create an API key at [genxqr.com/app/api-keys](https://genxqr.com/app/api-keys). Requires a PRO plan or higher. The key starts with `nxqr_`.",
     },
   ],
   connectionLabel: "GenXQR ({{bundle.authData.label}})",

@@ -86,7 +86,7 @@ export class GenXQRTrigger implements INodeType {
 				if (!webhookId) return false;
 
 				const credentials = await this.getCredentials('GenXQRApi');
-				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.in').replace(/\/$/, '');
+				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.com').replace(/\/$/, '');
 
 				try {
 					await this.helpers.httpRequestWithAuthentication.call(this, 'GenXQRApi', {
@@ -104,7 +104,7 @@ export class GenXQRTrigger implements INodeType {
 				const event = this.getNodeParameter('event') as string;
 				const webhookUrl = this.getNodeWebhookUrl('default');
 				const credentials = await this.getCredentials('GenXQRApi');
-				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.in').replace(/\/$/, '');
+				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.com').replace(/\/$/, '');
 
 				const response = await this.helpers.httpRequestWithAuthentication.call(
 					this,
@@ -136,7 +136,7 @@ export class GenXQRTrigger implements INodeType {
 				if (!webhookId) return true;
 
 				const credentials = await this.getCredentials('GenXQRApi');
-				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.in').replace(/\/$/, '');
+				const baseUrl = (credentials.baseUrl as string || 'https://genxqr.com').replace(/\/$/, '');
 
 				try {
 					await this.helpers.httpRequestWithAuthentication.call(this, 'GenXQRApi', {
