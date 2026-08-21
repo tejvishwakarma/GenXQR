@@ -13,10 +13,22 @@
     "required": true,
     "default": "URL",
     "options": [
-      { "label": "URL", "value": "URL" },
-      { "label": "WhatsApp", "value": "WHATSAPP" },
-      { "label": "Instagram", "value": "INSTAGRAM" },
-      { "label": "Facebook", "value": "FACEBOOK" }
+      {
+        "label": "URL",
+        "value": "URL"
+      },
+      {
+        "label": "WhatsApp",
+        "value": "WHATSAPP"
+      },
+      {
+        "label": "Instagram",
+        "value": "INSTAGRAM"
+      },
+      {
+        "label": "Facebook",
+        "value": "FACEBOOK"
+      }
     ]
   },
   {
@@ -30,13 +42,10 @@
     "name": "tags",
     "label": "Tags",
     "type": "array",
-    "spec": [
-      {
-        "name": "value",
-        "label": "Tag",
-        "type": "text"
-      }
-    ],
+    "spec": {
+      "label": "Tag",
+      "type": "text"
+    },
     "required": false,
     "help": "Optional tags for organisation (max 10)."
   }

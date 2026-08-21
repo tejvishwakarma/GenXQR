@@ -5,7 +5,7 @@
     "name": "{{parameters.name}}",
     "type": "{{parameters.type}}",
     "category": "DYNAMIC",
-    "tags": "{{parameters.tags[]}}",
+    "tags": "{{parameters.tags}}",
     "content": {
       "data": {
         "url": "{{parameters.destinationUrl}}"
