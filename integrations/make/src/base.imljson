@@ -1,5 +1,5 @@
 {
-  "baseUrl": "https://genxqr.in",
+  "baseUrl": "https://genxqr.com",
   "headers": {
     "Authorization": "Bearer {{connection.apiKey}}",
     "Content-Type": "application/json",

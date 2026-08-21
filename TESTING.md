@@ -37,7 +37,7 @@ pnpm dev:backend
 Create `tests/.env.test` (never commit):
 ```
 BASE_URL=http://localhost:3001
-ADMIN_EMAIL=admin@genxqr.in
+ADMIN_EMAIL=admin@genxqr.com
 ADMIN_PASS=your_admin_password
 USER_EMAIL=testuser@example.com
 USER_PASS=TestPass123!
