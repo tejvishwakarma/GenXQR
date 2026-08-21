@@ -7,6 +7,7 @@
  */
 import { Router, type IRouter } from "express"
 import { z } from "zod"
+import { QRType } from "@prisma/client"
 import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { prisma } from "../db/prisma.js"
@@ -44,7 +45,9 @@ router.use(v1Limiter)
 const listSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
-  type: z.string().optional(),
+  // nativeEnum, not string: an unrecognised type must be a 422 naming the field,
+  // not a plain string handed to Prisma's enum column, which errors as a 500.
+  type: z.nativeEnum(QRType).optional(),
   search: z.string().optional(),
   updatedSince: z.string().datetime({ offset: true }).optional(),
   sort: z.enum(["createdAt", "updatedAt"]).default("createdAt"),
@@ -60,6 +63,7 @@ router.get("/qr", async (req, res, next) => {
     const result = await listQRs(uid(req), {
       page: query.page,
       limit: query.limit,
+      type: query.type,
       search: query.search,
       updatedSince: query.updatedSince,
       sort: query.sort,

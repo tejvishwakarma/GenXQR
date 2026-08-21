@@ -29,6 +29,34 @@ pnpm test tests/integration/billing-cashfree-webhook.test.ts  # one file
 
 Requires the dev Postgres + Redis containers (`pnpm db:up` from the repo root).
 
+#### On Windows: hold the WSL session open
+
+Docker runs inside WSL here, and Windows tears down the port forwards to 5433 /
+6380 when no session is holding the distro open. A full run takes ~55s, which is
+long enough for that to happen mid-suite. The symptom looks nothing like a
+connection problem:
+
+```
+Tests  18 failed | 20 passed | 102 skipped
+Error: connect ECONNREFUSED 127.0.0.1:6380
+```
+
+Every file fails at the suite level, including files the change never touched,
+and most tests report as *skipped* rather than failed — which reads like the
+change broke something global. `docker compose ps` then shows both containers
+healthy, because they are: only the forward died.
+
+Chaining `pnpm db:up && pnpm test` re-establishes the forward and is enough for a
+single file. For a full run, hold the distro open in another terminal first:
+
+```bash
+wsl -d Debian -- sleep 900     # leave running
+pnpm db:up && pnpm test
+```
+
+Before believing any red result, check for `ECONNREFUSED 127.0.0.1:6380` in the
+output. If it's there, the run says nothing about your code.
+
 ### In CI
 
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs the same
