@@ -273,6 +273,25 @@ export function updateProfile(input: { name?: string; phone?: string | null }) {
   })
 }
 
+/**
+ * Rotates the signed-in user's password.
+ *
+ * The server revokes every refresh token and issues a fresh pair, so the caller
+ * MUST store the returned accessToken: the one in localStorage is about to stop
+ * refreshing, and keeping it would sign the user out of the tab they just used to
+ * change their password.
+ */
+export async function changePassword(input: { currentPassword: string; newPassword: string }) {
+  const res = await apiFetch<{ success: boolean; data: { accessToken: string }; message: string }>(
+    "/api/auth/change-password",
+    { method: "POST", headers: authHeader(), body: JSON.stringify(input) },
+  )
+  if (res.data?.accessToken) {
+    localStorage.setItem("access_token", res.data.accessToken)
+  }
+  return res
+}
+
 export async function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
   let token = localStorage.getItem("access_token") ?? ""
   const form = new FormData()

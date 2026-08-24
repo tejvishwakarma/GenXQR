@@ -225,6 +225,40 @@ router.post(
 )
 
 /**
+ * POST /api/auth/change-password
+ *
+ * Rotates the signed-in user's own password. authLimiter applies because this
+ * takes the current password as input: without a limit it is an oracle for
+ * guessing it, and one an attacker holding a stolen access token could use
+ * offline of the login page's own throttling.
+ */
+router.post(
+  "/change-password",
+  authLimiter,
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req.user as unknown as AccessTokenPayload).sub
+      const input = AuthService.changePasswordSchema.parse(req.body)
+      const { accessToken, refreshToken } = await AuthService.changePassword(userId, input)
+      logAudit({ userId, action: "auth.password.change", category: "auth", entityId: userId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
+      // Every refresh token was just revoked, this one included. Replacing the
+      // cookie keeps the tab that made the change signed in while every other
+      // session ends — which is the whole point if the old password had leaked.
+      res
+        .cookie("refresh_token", refreshToken, REFRESH_COOKIE_OPTIONS)
+        .json({
+          success: true,
+          data: { accessToken },
+          message: "Password updated. You have been signed out on all other devices.",
+        })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
  * GET /api/auth/verify-email/:token
  */
 router.get(

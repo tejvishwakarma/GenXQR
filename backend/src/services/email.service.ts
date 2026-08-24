@@ -371,6 +371,52 @@ export function buildPasswordResetEmail(name: string, resetUrl: string): string 
   return buildEmailShell("Reset your password — GenXQR", inner)
 }
 
+/**
+ * Sent after a signed-in user changes their own password.
+ *
+ * This is a security notification, not a courtesy: if the change was made by
+ * somebody who had obtained the password, this mail is the account holder's only
+ * signal that it happened. So it names what changed, says other sessions were
+ * ended, and gives a concrete next step — and deliberately contains no link to
+ * click, since a "was this you?" link in an email about credentials is the exact
+ * shape of a phishing message.
+ */
+export function buildPasswordChangedEmail(name: string): string {
+  const inner = `
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;letter-spacing:-0.4px;line-height:1.35;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Your password was changed
+    </h1>
+    <p style="margin:0 0 8px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Hi ${name},
+    </p>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      The password on your GenXQR account was just changed from the account settings page. You have also been signed out everywhere else, so any other browser or device will need the new password.
+    </p>
+    <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin-bottom:24px">
+      <tr>
+        <td style="padding:14px 16px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:6px">
+          <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.65;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+            <strong>If this wasn't you</strong>, your account may be compromised. Reset your password immediately using the "Forgot password" link on the sign-in page, then contact us at support@genxqr.com.
+          </p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      We never ask for your password by email, and this message contains no link to sign in with.
+    </p>`
+
+  return buildEmailShell("Your GenXQR password was changed", inner)
+}
+
+/** Sends the password-changed security notification. */
+export async function sendPasswordChangedEmail(to: string, name: string): Promise<void> {
+  await sendEmail({
+    to,
+    subject: "Your GenXQR password was changed",
+    html: buildPasswordChangedEmail(name),
+  })
+}
+
 // ─── Renewal reminder emails ──────────────────────────────────────────────────
 
 /**

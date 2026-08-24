@@ -54,8 +54,18 @@ wsl -d Debian -- sleep 900     # leave running
 pnpm db:up && pnpm test
 ```
 
-Before believing any red result, check for `ECONNREFUSED 127.0.0.1:6380` in the
-output. If it's there, the run says nothing about your code.
+It presents differently depending on which service the run needed first, so watch
+for either:
+
+- `ECONNREFUSED 127.0.0.1:6380` — Redis was gone before a test connected
+- `Raw query failed. Code: 57P01` / `FATAL: terminating connection due to
+  administrator command` — Postgres went away *mid-run*, which is the more
+  confusing one: earlier tests in the same file pass and later ones fail, so it
+  reads as order-dependent test pollution rather than infrastructure
+
+Before believing any red result, grep the output for both. If either is there, the
+run says nothing about your code — and note a passing first run proves nothing
+either, since the teardown happens on a timer, not per run.
 
 ### In CI
 

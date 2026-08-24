@@ -19,7 +19,9 @@ import {
   sendEmail,
   buildVerificationEmail,
   buildPasswordResetEmail,
+  sendPasswordChangedEmail,
 } from "./email.service.js"
+import { logger } from "../logger/index.js"
 import { createTrialSubscription } from "./billing.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
@@ -533,6 +535,86 @@ export async function handleGoogleOAuth(
 /**
  * Permanently delete a user account and all associated data.
  */
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Current password is required"),
+  newPassword: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128)
+    .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Must contain at least one number"),
+})
+
+/**
+ * Change the password of the signed-in user, having re-verified the current one.
+ *
+ * Until now there was no way to do this. The Settings page showed a Change
+ * Password form that was never wired to anything, and no endpoint existed — the
+ * only routes to a new password were the emailed reset flow and an admin forcing
+ * one. So a user who suspected their password was compromised could not simply
+ * rotate it; they had to go through a password-reset email, which is a strange
+ * thing to need while already signed in.
+ *
+ * Every existing refresh token is revoked, then a fresh pair is issued for the
+ * caller. That combination is the point: if the reason for the change is that
+ * somebody else has the old password, leaving their session alive defeats the
+ * exercise — but signing the legitimate user out of the tab they just used to
+ * change it reads as a failure. So other sessions end and this one continues.
+ */
+export async function changePassword(
+  userId: string,
+  input: z.infer<typeof changePasswordSchema>,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, role: true, passwordHash: true },
+  })
+  if (!user) throw new AppError(404, "Account not found")
+
+  // Google sign-in accounts have no password to change. Say so plainly rather
+  // than reporting the current password as wrong, which is what a bare
+  // verifyPassword against null would amount to.
+  if (!user.passwordHash) {
+    throw new AppError(
+      400,
+      "This account signs in with Google and has no password. Use \"Forgot password\" to set one.",
+    )
+  }
+
+  const valid = await verifyPassword(input.currentPassword, user.passwordHash)
+  if (!valid) throw new AppError(403, "Current password is incorrect")
+
+  // Refuse a no-op. It would otherwise revoke every other session and send a
+  // "your password changed" email for a password that did not change.
+  if (await verifyPassword(input.newPassword, user.passwordHash)) {
+    throw new AppError(422, "New password must be different from your current password")
+  }
+
+  const passwordHash = await hashPassword(input.newPassword)
+
+  await prisma.$transaction(async (tx: any) => {
+    await tx.user.update({ where: { id: userId }, data: { passwordHash } })
+    await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    })
+  })
+
+  const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)
+  const refreshToken = await persistRefreshToken(user.id, jti, refreshExpiresAt)
+
+  // Fire-and-forget: the password IS changed by this point, so a mail outage must
+  // not surface as a failed change and tempt the user into trying again.
+  void sendPasswordChangedEmail(user.email, user.name).catch((err: unknown) => {
+    logger.error("Failed to send password-changed notification", {
+      userId, error: String(err),
+    })
+  })
+
+  return { accessToken, refreshToken }
+}
+
 export async function deleteAccount(userId: string, password: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new AppError(404, "Account not found")

@@ -2,7 +2,7 @@ import * as Switch from "@radix-ui/react-switch"
 import { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { HardDrive, Loader2, CheckCircle2 } from "lucide-react"
+import { HardDrive, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,6 +16,7 @@ import {
   updateNotificationPreferences,
   getCurrentUser,
   updateProfile,
+  changePassword,
   uploadAvatar,
   removeAvatar,
   type NotificationPreferences,
@@ -38,6 +39,9 @@ export default function SettingsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [driveFlash, setDriveFlash] = useState<"connected" | "error" | null>(null)
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" })
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwDone, setPwDone] = useState(false)
   const [notificationFlash, setNotificationFlash] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [avatarUploadState, setAvatarUploadState] = useState<{ loading: boolean; error: string | null }>({ loading: false, error: null })
@@ -179,6 +183,33 @@ export default function SettingsPage() {
       setProfileStatus({ error: err instanceof Error ? err.message : "Could not save your profile." })
     },
   })
+
+  // ─── Change password ────────────────────────────────────────────────────────
+  // Same story as the profile form above: this card had three inputs with no
+  // value binding and a button with no handler, and no endpoint existed behind
+  // it either. A signed-in user had no way to rotate their password at all.
+  const passwordMut = useMutation({
+    mutationFn: () => changePassword({ currentPassword: pw.current, newPassword: pw.next }),
+    onSuccess: () => {
+      setPw({ current: "", next: "", confirm: "" })
+      setPwError(null)
+      setPwDone(true)
+      setTimeout(() => setPwDone(false), 6000)
+    },
+    onError: (err: unknown) => {
+      setPwError(err instanceof ApiError ? err.message : "Could not change your password. Please try again.")
+    },
+  })
+
+  const handlePasswordChange = useCallback(() => {
+    setPwError(null)
+    if (!pw.current) return setPwError("Enter your current password.")
+    // Checked here as well as on the server so the mismatch is caught before a
+    // round trip — the server never sees `confirm` at all.
+    if (pw.next !== pw.confirm) return setPwError("The new passwords do not match.")
+    if (pw.next === pw.current) return setPwError("Your new password must be different from your current one.")
+    passwordMut.mutate()
+  }, [pw, passwordMut])
 
   const handleProfileSave = useCallback(() => {
     setProfileStatus({})
@@ -371,21 +402,81 @@ export default function SettingsPage() {
       <Card>
         <CardHeader><CardTitle className="text-base">Change Password</CardTitle></CardHeader>
         <CardContent>
-          <div className="space-y-4 max-w-sm">
+          <form
+            className="space-y-4 max-w-sm"
+            onSubmit={(e) => { e.preventDefault(); handlePasswordChange() }}
+          >
+            {/* Hidden username field: without one, password managers cannot tell
+                which account a saved credential update belongs to, and Chrome
+                treats a bare current/new password pair as an unidentified
+                credential form. */}
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              value={user.email}
+              readOnly
+              hidden
+            />
             <div>
-              <label className="label-text">Current password</label>
-              <Input type="password" placeholder="••••••••" />
+              <label htmlFor="current-password" className="label-text">Current password</label>
+              <Input
+                id="current-password"
+                name="current-password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={pw.current}
+                onChange={(e) => setPw((v) => ({ ...v, current: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="label-text">New password</label>
-              <Input type="password" placeholder="Min 8 characters" />
+              <label htmlFor="new-password" className="label-text">New password</label>
+              <Input
+                id="new-password"
+                name="new-password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Min 8 characters, with upper, lower and a number"
+                value={pw.next}
+                onChange={(e) => setPw((v) => ({ ...v, next: e.target.value }))}
+              />
             </div>
             <div>
-              <label className="label-text">Confirm new password</label>
-              <Input type="password" placeholder="••••••••" />
+              <label htmlFor="confirm-new-password" className="label-text">Confirm new password</label>
+              <Input
+                id="confirm-new-password"
+                name="confirm-new-password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="••••••••"
+                value={pw.confirm}
+                onChange={(e) => setPw((v) => ({ ...v, confirm: e.target.value }))}
+              />
             </div>
-            <Button>Update password</Button>
-          </div>
+
+            {pwError && (
+              <p role="alert" className="text-red-500 text-xs flex items-start gap-1.5">
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                {pwError}
+              </p>
+            )}
+            {pwDone && (
+              <p role="status" className="text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-1.5">
+                <CheckCircle2 size={13} className="mt-0.5 shrink-0" />
+                Password updated. You have been signed out on every other device.
+              </p>
+            )}
+
+            <Button type="submit" disabled={passwordMut.isPending} className="gap-1.5">
+              {passwordMut.isPending && <Loader2 size={14} className="animate-spin" />}
+              Update password
+            </Button>
+            <p className="text-[11px] text-zinc-500">
+              Changing your password signs you out everywhere else. You will stay
+              signed in here.
+            </p>
+          </form>
         </CardContent>
       </Card>
 
