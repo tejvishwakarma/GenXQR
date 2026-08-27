@@ -1,6 +1,8 @@
 import { useState } from "react"
 import { useParams } from "react-router-dom"
-import { verifyQRPassword, ApiError } from "@/lib/api"
+import { useQuery } from "@tanstack/react-query"
+import { verifyQRPassword, getPublicBranding, GENXQR_BRANDING, ApiError } from "@/lib/api"
+import { ScanBrandHeader, ScanBrandFooter } from "@/components/ScanBranding"
 
 /**
  * The password gate for a protected QR code, at /r/:slug/password.
@@ -33,6 +35,23 @@ export default function PasswordPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  /**
+   * Whose name this page carries. White-label swaps GenXQR's identity for the
+   * customer's — it never leaves the page anonymous, which is the state Search
+   * Console reported as deceptive.
+   *
+   * Placeholder data means the first paint is GenXQR-branded rather than blank:
+   * a flash of no identity on a page asking for a password is the exact thing
+   * being avoided, and it resolves within one request.
+   */
+  const { data: branding = GENXQR_BRANDING } = useQuery({
+    queryKey: ["scan-branding", slug],
+    queryFn: () => getPublicBranding(slug!),
+    enabled: !!slug,
+    staleTime: 5 * 60_000,
+    placeholderData: GENXQR_BRANDING,
+  })
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!slug || !password) return
@@ -59,27 +78,10 @@ export default function PasswordPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        {/* Who is asking. The page is always dark regardless of the visitor's
-            theme, so the dark-background logo is used directly rather than via
-            BrandLogo, whose light/dark swap keys off the theme class and would
-            show the light-background art here half the time.
-            Linked to the homepage so the entity behind the request is
-            verifiable rather than merely asserted. */}
-        <div className="text-center mb-7">
-          <a
-            href="https://genxqr.com"
-            className="inline-block"
-            aria-label="GenXQR home"
-          >
-            <img
-              src="/logo_full_dark.png"
-              alt="GenXQR"
-              width={164}
-              height={32}
-              className="h-8 w-auto mx-auto select-none"
-            />
-          </a>
-        </div>
+        {/* Who is asking — GenXQR, or the customer on a white-label plan. Never
+            nothing: an unidentified page asking for a password is what got this
+            one flagged. */}
+        <ScanBrandHeader branding={branding} className="mb-7" />
 
         <div className="text-center mb-7">
           <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -159,17 +161,13 @@ export default function PasswordPage() {
         <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
           <p className="text-xs text-gray-300 leading-relaxed">
             <strong className="text-white">This is not a sign-in page.</strong>{" "}
-            It asks only for the password set on this one QR code. Never enter
-            your GenXQR account password — or any other account password — here.
+            It asks only for the password set on this one QR code. Never enter an
+            account password — for {branding.mode === "custom" ? "any service" : "GenXQR"} or
+            anywhere else — here.
           </p>
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-400">
-          Password protection by{" "}
-          <a href="https://genxqr.com" className="text-gray-300 underline hover:text-white">
-            GenXQR
-          </a>
-        </p>
+        <ScanBrandFooter branding={branding} className="mt-8 rounded-xl border-white/10 bg-white/[0.03]" />
       </div>
     </div>
   )

@@ -1,5 +1,8 @@
 import { useParams, useSearchParams, Link } from "react-router-dom"
-import { QrCode, Clock, ArrowRight, Ban, AlertTriangle, ShieldAlert } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { getPublicBranding, GENXQR_BRANDING } from "@/lib/api"
+import { ScanBrandHeader, ScanBrandFooter } from "@/components/ScanBranding"
+import { Clock, ArrowRight, Ban, AlertTriangle, ShieldAlert } from "lucide-react"
 
 type Reason = "deactivated" | "expired" | "limit" | "blocked"
 
@@ -45,6 +48,15 @@ export default function ExpiredPage() {
   // query string a visitor can edit, and an unknown reason must fall back rather
   // than index CONTENT with undefined and blank the page.
   const REASONS: Reason[] = ["deactivated", "expired", "limit", "blocked"]
+  /** Whose name this page carries — GenXQR, or the customer on a white-label plan. */
+  const { data: branding = GENXQR_BRANDING } = useQuery({
+    queryKey: ["scan-branding", slug],
+    queryFn: () => getPublicBranding(slug!),
+    enabled: !!slug,
+    staleTime: 5 * 60_000,
+    placeholderData: GENXQR_BRANDING,
+  })
+
   const rawReason = searchParams.get("reason") ?? "expired"
   const reason: Reason = (REASONS as string[]).includes(rawReason) ? (rawReason as Reason) : "expired"
   const content = CONTENT[reason]
@@ -59,13 +71,7 @@ export default function ExpiredPage() {
 
       <div className="relative w-full max-w-sm text-center">
 
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2.5 mb-12">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-500 flex items-center justify-center">
-            <QrCode size={15} className="text-white" />
-          </div>
-          <span className="text-white font-bold text-lg tracking-tight">GenXQR</span>
-        </div>
+        <ScanBrandHeader branding={branding} className="mb-12" />
 
         {/* Icon */}
         <div className="relative mx-auto mb-8 w-fit">
@@ -93,24 +99,25 @@ export default function ExpiredPage() {
           </div>
         )}
 
-        {/* Divider */}
-        <div className="border-t border-zinc-800 mb-8" />
-
-        {/* CTA */}
-        <p className="text-zinc-500 text-sm mb-4">Want to create your own QR codes?</p>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
-        >
-          Get started free
-          <ArrowRight size={15} />
-        </Link>
+        {/* Our signup pitch, shown only on our own branding. On a white-label
+            customer's page this is an advert for their supplier placed in front
+            of their audience — the clearest thing the paid feature should buy. */}
+        {branding.mode === "genxqr" && (
+          <>
+            <div className="border-t border-zinc-800 mb-8" />
+            <p className="text-zinc-500 text-sm mb-4">Want to create your own QR codes?</p>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors"
+            >
+              Get started free
+              <ArrowRight size={15} />
+            </Link>
+          </>
+        )}
       </div>
 
-      {/* Footer */}
-      <p className="relative mt-16 text-xs text-zinc-700">
-        Powered by GenXQR
-      </p>
+      <ScanBrandFooter branding={branding} className="relative mt-16 border-zinc-800 bg-transparent" />
     </div>
   )
 }

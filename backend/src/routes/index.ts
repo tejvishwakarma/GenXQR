@@ -15,6 +15,7 @@ import reportRouter from "./report.routes.js"
 import supportRouter from "./support.routes.js"
 import careersRouter from "./careers.routes.js"
 import notificationRouter from "./notification.routes.js"
+import brandingRouter from "./branding.routes.js"
 
 const router: IRouter = Router()
 
@@ -32,6 +33,7 @@ router.use("/gdrive", gdriveRouter)
 router.use("/team", teamRouter)
 router.use("/report", reportRouter)
 router.use("/support", supportRouter)
+router.use("/branding", brandingRouter)
 router.use("/careers", careersRouter)
 router.use("/notifications", notificationRouter)
 

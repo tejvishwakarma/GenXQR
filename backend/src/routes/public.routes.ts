@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { prisma } from "../db/prisma.js"
-import { getPlanLimitsReadOnly } from "../services/billing.service.js"
+import { resolveBrandingForSlug, resolveBrandingForUser } from "../services/branding.service.js"
 
 const router: IRouter = Router()
 
@@ -92,15 +92,7 @@ router.get(
        * un-branding everyone's is a silent loss of both the attribution and the
        * paid feature's meaning.
        */
-      let showBranding = true
-      if (qr.userId) {
-        try {
-          const limits = await getPlanLimitsReadOnly(qr.userId)
-          showBranding = !limits.whiteLabel
-        } catch {
-          // Keep serving the page; branding is not worth a 500 over.
-        }
-      }
+      const branding = await resolveBrandingForUser(qr.userId)
 
       // Return minimal data — no password hash, no userId
       res.json({
@@ -114,9 +106,40 @@ router.get(
           content: qr.content?.data ?? {},
           design: qr.design ?? {},
           files: qr.files,
-          showBranding,
+          branding,
         },
       })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * GET /api/public/branding/:slug
+ *
+ * Whose name the scan-facing pages should carry. Returns branding and NOTHING
+ * else — no destination, no content, no owner identity.
+ *
+ * It exists separately from /qr/:slug because the pages that need it are exactly
+ * the ones that must not receive content: the password gate (content is released
+ * only after the password is verified) and the expired notice (the QR is
+ * inactive). Reusing /qr/:slug would have meant relaxing the 404 those rely on.
+ *
+ * Always 200, even for an unknown slug — it answers "what should I render",
+ * and every answer including the fallback is safe to give away. A 404 here
+ * would also turn the endpoint into an oracle for which slugs exist.
+ */
+router.get(
+  "/branding/:slug",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const slug = String(req.params["slug"] ?? "")
+      if (!slug || !/^[a-zA-Z0-9_-]{4,32}$/.test(slug)) {
+        res.json({ success: true, data: { mode: "genxqr", name: null, logoUrl: null } })
+        return
+      }
+      res.json({ success: true, data: await resolveBrandingForSlug(slug) })
     } catch (err) {
       next(err)
     }

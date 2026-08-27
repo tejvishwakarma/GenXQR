@@ -6,6 +6,7 @@ import { HardDrive, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BrandingSettings } from "./BrandingSettings"
 import {
   deleteAccount,
   getDriveStatus,
@@ -479,6 +480,10 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* White-label branding — its own component because it carries a preview,
+          an upload, and the plan gate, none of which the rest of this page needs. */}
+      <BrandingSettings />
 
       {/* Notifications */}
       <Card>

@@ -25,6 +25,12 @@ model User {
   /// returning customers are not asked again.
   phone                   String?
   avatarUrl               String?
+  /// White-label branding, shown to SCANNERS in place of GenXQR's own on the
+  /// landing, password and expired pages. Only honoured when the account's plan
+  /// has whiteLabel (BUSINESS, ENTERPRISE) — the columns are always writable,
+  /// but a downgrade stops them being used rather than destroying them.
+  brandName               String?
+  brandLogoUrl            String?
   googleId                String?                  @unique
   driveConnected          Boolean                  @default(false)
   driveFolderId           String?
@@ -46,7 +52,7 @@ model User {
   refreshTokens           RefreshToken[]
   subscription            Subscription?
   supportTickets          SupportTicket[]
-  ticketMessages      TicketMessage[]
+  ticketMessages          TicketMessage[]
   teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
   teamMemberships         TeamMember[]
   couponRedemptions       CouponRedemption[]
@@ -504,7 +510,7 @@ enum CouponDiscountType {
 }
 
 model SupportTicket {
-  id         String         @id @default(cuid())
+  id         String          @id @default(cuid())
   userId     String
   subject    String
   /// The opening message. Superseded by TicketMessage, which now holds the whole
@@ -512,15 +518,15 @@ model SupportTicket {
   /// dropped so nothing that still reads it breaks, but the thread is the source of
   /// truth for display.
   message    String
-  status     TicketStatus   @default(OPEN)
-  priority   TicketPriority @default(MEDIUM)
+  status     TicketStatus    @default(OPEN)
+  priority   TicketPriority  @default(MEDIUM)
   assignedTo String?
   adminNotes String?
   resolvedAt DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  category   String         @default("general")
-  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  category   String          @default("general")
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages   TicketMessage[]
 
   @@index([userId, createdAt])

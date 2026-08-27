@@ -48,7 +48,7 @@ describe("plan features that gate behaviour", () => {
     })
 
     /** A landing-page QR, fetched the way the public /l/:slug page fetches it. */
-    async function publicQR(): Promise<{ showBranding: boolean; status: number }> {
+    async function publicQR(): Promise<{ branding: { mode: string }; status: number }> {
       const created = await request(app)
         .post("/api/qr")
         .set("Authorization", `Bearer ${owner.token}`)
@@ -56,21 +56,57 @@ describe("plan features that gate behaviour", () => {
         .expect(201)
 
       const res = await request(app).get(`/api/public/qr/${created.body.data.slug}`)
-      return { showBranding: res.body?.data?.showBranding, status: res.status }
+      return { branding: res.body?.data?.branding, status: res.status }
     }
 
-    it("should show branding for a plan without whiteLabel", async () => {
+    it("should show GenXQR branding for a plan without whiteLabel", async () => {
       await giveSubscription(owner.id, "PRO")
-      const { status, showBranding } = await publicQR()
+      const { status, branding } = await publicQR()
       expect(status).toBe(200)
-      expect(showBranding).toBe(true)
+      expect(branding.mode).toBe("genxqr")
     })
 
-    it("should hide branding for a plan with whiteLabel", async () => {
+    /**
+     * whiteLabel alone is not enough — the account must also have said who it is.
+     * The alternative would be an anonymous page, and an anonymous page asking
+     * for a password is what Search Console called deceptive.
+     */
+    it("should still show GenXQR when whiteLabel is on but no brand name is set", async () => {
       await giveSubscription(owner.id, "BUSINESS")
-      const { status, showBranding } = await publicQR()
-      expect(status).toBe(200)
-      expect(showBranding, "BUSINESS pays for white-label; the badge must go").toBe(false)
+      const { branding } = await publicQR()
+      expect(branding.mode).toBe("genxqr")
+    })
+
+    it("should show the customer's brand once configured on a whiteLabel plan", async () => {
+      await giveSubscription(owner.id, "BUSINESS")
+      await prisma.user.update({
+        where: { id: owner.id },
+        data: { brandName: "Acme Corp", brandLogoUrl: "/uploads/qr-files/acme.png" },
+      })
+      const { branding } = await publicQR() as { branding: { mode: string; name: string; logoUrl: string } }
+      expect(branding.mode).toBe("custom")
+      expect(branding.name).toBe("Acme Corp")
+      expect(branding.logoUrl).toBe("/uploads/qr-files/acme.png")
+    })
+
+    /**
+     * A downgrade must stop the branding being USED without destroying what the
+     * customer typed, so re-subscribing restores it rather than asking them to
+     * enter it again.
+     */
+    it("should stop honouring branding after a downgrade, without deleting it", async () => {
+      await giveSubscription(owner.id, "BUSINESS")
+      await prisma.user.update({ where: { id: owner.id }, data: { brandName: "Acme Corp" } })
+      expect((await publicQR()).branding.mode).toBe("custom")
+
+      await giveSubscription(owner.id, "PRO")
+      expect((await publicQR()).branding.mode, "PRO has no whiteLabel").toBe("genxqr")
+
+      const still = await prisma.user.findUniqueOrThrow({
+        where: { id: owner.id },
+        select: { brandName: true },
+      })
+      expect(still.brandName, "the customer's data must survive a downgrade").toBe("Acme Corp")
     })
 
     /**
@@ -116,10 +152,143 @@ describe("plan features that gate behaviour", () => {
       await prisma.subscription.deleteMany({ where: { userId: owner.id } })
 
       const res = await request(app).get(`/api/public/qr/${created.body.data.slug}`).expect(200)
-      expect(res.body.data.showBranding, "no subscription means no whiteLabel").toBe(true)
+      expect(res.body.data.branding.mode, "no subscription means no whiteLabel").toBe("genxqr")
 
       const count = await prisma.subscription.count({ where: { userId: owner.id } })
       expect(count, "a public page view must not write to the database").toBe(0)
+    })
+  })
+
+  /**
+   * The branding API and the public endpoint the scan-facing pages call.
+   *
+   * The password gate and the expired notice cannot use /api/public/qr/:slug —
+   * that endpoint 404s for password-protected and inactive codes on purpose, so
+   * it never leaks a protected destination. /api/public/branding/:slug answers
+   * the narrower question those pages actually have.
+   */
+  describe("branding API", () => {
+    it("should refuse to save branding on a plan without whiteLabel", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+
+      const res = await request(app)
+        .patch("/api/branding")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ brandName: "Acme Corp" })
+      expect(res.status).toBe(403)
+
+      const row = await prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+        select: { brandName: true },
+      })
+      expect(row.brandName, "a 403 must not write").toBeNull()
+    })
+
+    it("should save branding on a plan with whiteLabel", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "BUSINESS")
+
+      const res = await request(app)
+        .patch("/api/branding")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ brandName: "Acme Corp", brandLogoUrl: "/uploads/qr-files/logo.png" })
+        .expect(200)
+
+      expect(res.body.data.brandName).toBe("Acme Corp")
+      expect(res.body.data.whiteLabelEnabled).toBe(true)
+    })
+
+    /**
+     * brandLogoUrl is written straight into an <img src> on a public page, so a
+     * javascript: or data: URL here is stored XSS against every visitor who
+     * scans the customer's code.
+     */
+    it("should reject a logo URL that is not an upload or https", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "BUSINESS")
+
+      for (const bad of ["javascript:alert(1)", "data:text/html;base64,PHN2Zz4=", "http://insecure.test/x.png"]) {
+        const res = await request(app)
+          .patch("/api/branding")
+          .set("Authorization", `Bearer ${user.token}`)
+          .send({ brandName: "Acme", brandLogoUrl: bad })
+        expect(res.status, `${bad} must be rejected`).toBe(422)
+      }
+    })
+
+    it("should let a customer read their branding even without the plan feature", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+
+      const res = await request(app)
+        .get("/api/branding")
+        .set("Authorization", `Bearer ${user.token}`)
+        .expect(200)
+
+      // The dashboard needs this to render the upgrade prompt rather than a 403.
+      expect(res.body.data.whiteLabelEnabled).toBe(false)
+    })
+
+    it("should require authentication", async () => {
+      await request(app).get("/api/branding").expect(401)
+      await request(app).patch("/api/branding").send({ brandName: "x" }).expect(401)
+    })
+  })
+
+  describe("public branding endpoint", () => {
+    async function brandingFor(slug: string) {
+      const res = await request(app).get(`/api/public/branding/${slug}`).expect(200)
+      return res.body.data as { mode: string; name: string | null; logoUrl: string | null }
+    }
+
+    async function makeQR(user: TestUser, extra: Record<string, unknown> = {}) {
+      const res = await request(app)
+        .post("/api/qr")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ name: "q", type: "URL", content: { data: { url: "https://example.com" } }, ...extra })
+        .expect(201)
+      return res.body.data.slug as string
+    }
+
+    it("should return the customer's brand for a white-label owner", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "BUSINESS")
+      await prisma.user.update({ where: { id: user.id }, data: { brandName: "Acme Corp" } })
+      expect((await brandingFor(await makeQR(user))).name).toBe("Acme Corp")
+    })
+
+    /**
+     * The whole reason this endpoint exists: the password gate must be able to
+     * say who is asking, and /api/public/qr/:slug deliberately 404s for
+     * password-protected codes so it cannot leak the destination.
+     */
+    it("should serve branding for a password-protected QR, which /qr/:slug will not", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "BUSINESS")
+      await prisma.user.update({ where: { id: user.id }, data: { brandName: "Acme Corp" } })
+
+      const slug = await makeQR(user, { settings: { password: "s3cret" } })
+
+      await request(app).get(`/api/public/qr/${slug}`).expect(404)
+      expect((await brandingFor(slug)).name, "the gate still needs an identity").toBe("Acme Corp")
+    })
+
+    it("should fall back to GenXQR for an unknown slug rather than 404", async () => {
+      // A 404 here would also make the endpoint an oracle for which slugs exist.
+      expect((await brandingFor("nosuchslug")).mode).toBe("genxqr")
+    })
+
+    it("should never expose the owner's identity or plan", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "BUSINESS")
+      await prisma.user.update({ where: { id: user.id }, data: { brandName: "Acme Corp" } })
+
+      const res = await request(app).get(`/api/public/branding/${await makeQR(user)}`).expect(200)
+      const body = JSON.stringify(res.body)
+      expect(body).not.toContain("BUSINESS")
+      expect(body).not.toContain(user.id)
+      expect(body).not.toContain(user.email)
     })
   })
 

@@ -1,7 +1,7 @@
 import { useParams, Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { QrCode } from "lucide-react"
-import { getPublicQR } from "@/lib/api"
+import { ScanBrandFooter } from "@/components/ScanBranding"
+import { getPublicQR, GENXQR_BRANDING } from "@/lib/api"
 
 // Landing page templates
 import PDFLandingPage from "./templates/PDFLandingPage"
@@ -88,46 +88,15 @@ export default function LandingPage() {
     return <Navigate to="/" replace />
   }
 
-  // Defaults to shown when the field is absent, matching the server: a page that
-  // renders before the API is redeployed, or from a cached response, should
-  // attribute rather than silently drop it.
-  const showBranding = qr.showBranding !== false
+  // Falls back to GenXQR when the field is absent — a page rendering from a
+  // cached response, or before the API is redeployed, should attribute rather
+  // than silently drop it.
+  const branding = qr.branding ?? GENXQR_BRANDING
 
   return (
     <>
       {template}
-      {showBranding && <PoweredByGenXQR />}
+      <ScanBrandFooter branding={branding} />
     </>
-  )
-}
-
-/**
- * Attribution shown on landing pages, unless the owner's plan includes
- * whiteLabel.
- *
- * Two reasons it exists. It is what the white-label feature actually removes —
- * that plan flag has been on the pricing page since launch while removing
- * nothing, because there was no branding here to take away. And it says whose
- * platform is hosting the page: these render customer-authored content on
- * genxqr.com, and an unattributed page is one a visitor cannot place, which is
- * the same omission Google flagged on the QR password gate.
- *
- * Deliberately quiet — the customer's content is the point, not this.
- */
-function PoweredByGenXQR() {
-  return (
-    <div className="w-full border-t border-black/5 bg-white/60 py-4 text-center backdrop-blur-sm dark:border-white/10 dark:bg-black/30">
-      <a
-        href="https://genxqr.com/?utm_source=landing&utm_medium=badge&utm_campaign=powered_by"
-        target="_blank"
-        rel="noopener"
-        className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
-      >
-        <QrCode size={13} aria-hidden="true" />
-        <span>
-          Powered by <span className="font-semibold">GenXQR</span>
-        </span>
-      </a>
-    </div>
   )
 }

@@ -1238,15 +1238,66 @@ export interface PublicQRData {
   content: Record<string, unknown>
   design: Record<string, unknown>
   files: PublicQRFile[]
-  /**
-   * Whether to show the "Powered by GenXQR" footer. False only when the QR's
-   * owner is on a plan with whiteLabel (BUSINESS, ENTERPRISE).
-   *
-   * A boolean rather than the plan name on purpose: this endpoint is public, so
-   * returning the tier would leak what a customer pays to anyone holding a slug
-   * printed on a poster. Optional so an older cached response still renders.
-   */
-  showBranding?: boolean
+  /** Whose name this page carries. Optional so an older cached response renders. */
+  branding?: ResolvedBranding
+}
+
+/**
+ * Whose branding a scanner-facing page shows.
+ *
+ * There is no "none" mode on purpose. These pages ask a stranger to trust them —
+ * the password gate asks for a secret — and an unattributed page asking for a
+ * password is what Search Console classified as deceptive. White-label moves the
+ * identity from GenXQR to the customer; it never removes it. An account with
+ * whiteLabel but no brand name configured resolves to "genxqr".
+ *
+ * The plan name is never sent: these endpoints are public, so returning the tier
+ * would leak what a customer pays to anyone holding a slug from a printed poster.
+ */
+export interface ResolvedBranding {
+  mode: "genxqr" | "custom"
+  name: string | null
+  logoUrl: string | null
+}
+
+export const GENXQR_BRANDING: ResolvedBranding = { mode: "genxqr", name: null, logoUrl: null }
+
+/**
+ * Branding for the pages that must not receive QR content — the password gate
+ * and the expired notice. Always resolves; never rejects on an unknown slug.
+ */
+export async function getPublicBranding(slug: string): Promise<ResolvedBranding> {
+  try {
+    const res = await apiFetch<{ success: boolean; data: ResolvedBranding }>(
+      `/api/public/branding/${slug}`,
+    )
+    return res.data ?? GENXQR_BRANDING
+  } catch {
+    // A branding lookup must never stop someone reaching the content they
+    // scanned for.
+    return GENXQR_BRANDING
+  }
+}
+
+export interface BrandingSettings {
+  brandName: string | null
+  brandLogoUrl: string | null
+  /** Whether the account's plan actually lets the branding take effect. */
+  whiteLabelEnabled: boolean
+}
+
+export function getBrandingSettings() {
+  return apiFetch<{ success: boolean; data: BrandingSettings }>("/api/branding", {
+    headers: authHeader(),
+  })
+}
+
+export function updateBrandingSettings(input: { brandName?: string | null; brandLogoUrl?: string | null }) {
+  return apiFetch<{ success: boolean; data: BrandingSettings; message: string }>("/api/branding", {
+    method: "PATCH",
+    headers: authHeader(),
+    body: JSON.stringify(input),
+  })
 }
 
 export function getPublicQR(slug: string) {
