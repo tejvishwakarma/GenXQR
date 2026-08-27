@@ -40,6 +40,11 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap"
     />
 
+    <!-- SEO-FALLBACK-START — scripts/prerender.mjs replaces everything between
+         these two markers with the page's own tags when building a prerendered
+         route. The markers are load-bearing: matching individual tags by regex
+         instead would break the first time one is reworded. dist/index.html,
+         the SPA fallback, keeps the block below as-is. -->
     <!--
       Fallback SEO tags only. Every marketing page overrides these at runtime
       via <SEOMeta> (react-helmet-async), which also emits the canonical URL.
@@ -84,6 +89,7 @@
     />
     <meta name="twitter:image" content="https://genxqr.com/og-image.png" />
     <meta name="twitter:image:alt" content="GenXQR — QR Code Generator with Analytics" />
+    <!-- SEO-FALLBACK-END -->
 
     <!-- Inline theme init: prevents flash of wrong theme before React mounts -->
     <script>

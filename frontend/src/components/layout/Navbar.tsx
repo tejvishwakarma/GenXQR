@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { Menu, X, Sun, Moon, Zap } from "lucide-react"
 import { MktButton } from "@/components/marketing/ui"
-import { cn } from "@/lib/utils"
+import { cn, readStoredValue } from "@/lib/utils"
 import { BrandLogo } from "@/components/BrandLogo"
 
 // Real, page-safe destinations only — this header wraps every marketing route,
@@ -30,7 +30,7 @@ export function Navbar() {
   // Theme toggle scoped to marketing pages only, independent of the dashboard's
   // own `dashboard-theme` key — applied/cleaned up on mount/unmount so it never
   // leaks into the dashboard/admin, matching how the dashboard's own toggle works.
-  const [dark, setDark] = useState(() => localStorage.getItem(THEME_KEY) === "dark")
+  const [dark, setDark] = useState(() => readStoredValue(THEME_KEY) === "dark")
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark)
     localStorage.setItem(THEME_KEY, dark ? "dark" : "light")

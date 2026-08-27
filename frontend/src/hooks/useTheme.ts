@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react"
+import { readStoredValue } from "@/lib/utils"
 
 type Theme = "light" | "dark"
 
 const DASHBOARD_THEME_KEY = "dashboard-theme"
 
 function getDashboardTheme(): Theme {
-  const stored = localStorage.getItem(DASHBOARD_THEME_KEY) as Theme | null
+  const stored = readStoredValue(DASHBOARD_THEME_KEY) as Theme | null
   if (stored === "light" || stored === "dark") return stored
   return "light"
 }

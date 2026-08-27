@@ -138,9 +138,17 @@ function AnalyticsTracker() {
   return null
 }
 
-function App() {
+/**
+ * Every route in the app, without a router around them.
+ *
+ * Split out from App so the prerender step can render the same tree inside a
+ * StaticRouter (see entry-server.tsx). Keeping one definition is the point: a
+ * second copy of the route table would drift, and the failure mode is a page
+ * that prerenders to the catch-all redirect while working fine in the browser.
+ */
+export function AppRoutes() {
   return (
-    <BrowserRouter>
+    <>
       <ScrollToTop />
       <AnalyticsTracker />
       <Routes>
@@ -237,6 +245,14 @@ function App() {
         {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </>
+  )
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   )
 }
