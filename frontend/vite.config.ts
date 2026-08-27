@@ -116,10 +116,22 @@ export default defineConfig({
     // Force Vite to bundle exactly one copy of React, preventing the
     // "Invalid hook call" error caused by pnpm hoisting react into both
     // root node_modules and frontend/node_modules simultaneously.
-    // react-router / react-router-dom added for the SSR build: react-router-dom
-    // re-exports react-router, so without deduping, the bundle can end up with
-    // two router-context modules and every useLocation() throws.
-    dedupe: ["react", "react-dom", "@tanstack/react-query", "react-router", "react-router-dom"],
+    // Do NOT add react-router / react-router-dom here. Deduping them broke the
+    // CLIENT build on the production server, where pnpm's layout differs from a
+    // dev machine's:
+    //
+    //   Rollup failed to resolve import "react-router-dom" from
+    //   ".../.pnpm/react-router-dom@7.15.1_.../react-router-dom/dist/index.mjs"
+    //
+    // — the package failing to resolve itself. It built cleanly locally, so the
+    // breakage only appeared on deploy.
+    //
+    // They were added while chasing two copies of the router context during
+    // prerendering ("useLocation() may be used only in the context of a
+    // <Router>"). That was actually fixed by importing StaticRouter from
+    // react-router-dom, the same specifier every component uses; the dedupe was
+    // belt-and-braces and is not needed.
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
   },
 })
 
