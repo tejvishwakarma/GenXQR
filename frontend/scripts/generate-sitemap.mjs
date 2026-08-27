@@ -16,7 +16,23 @@ import { fileURLToPath } from "node:url"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import { PUBLIC_ROUTES, SITE_URL } from "./public-routes.mjs"
 
-const OUT_PATH = path.resolve(__dirname, "../public/sitemap.xml")
+/**
+ * Written to dist/, NOT public/.
+ *
+ * public/sitemap.xml was tracked in git, and this script rewrites it on every
+ * build — the lastmod date alone changes daily. So every deploy left the server's
+ * working tree dirty and the next `git pull` aborted with "Your local changes to
+ * the following files would be overwritten by merge". A generated file has no
+ * business being tracked, and nginx already serves /sitemap.xml from dist:
+ *
+ *     location = /sitemap.xml { root .../frontend/dist; }
+ *
+ * so the public/ copy was only ever an indirection Vite then copied to dist.
+ *
+ * Consequence: this must run AFTER `vite build`, which empties dist. See the
+ * build script in package.json.
+ */
+const OUT_PATH = path.resolve(__dirname, "../dist/sitemap.xml")
 
 // The route manifest and SITE_URL live in public-routes.mjs, shared with
 // prerender.mjs. They used to be defined here, which meant the sitemap could
@@ -39,6 +55,13 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 ${body}
 </urlset>
 `
+
+if (!fs.existsSync(path.dirname(OUT_PATH))) {
+  console.error(
+    `generate-sitemap: ${path.dirname(OUT_PATH)} does not exist. This script must run AFTER \`vite build\`.`,
+  )
+  process.exit(1)
+}
 
 fs.writeFileSync(OUT_PATH, xml, "utf8")
 console.log(`sitemap.xml — ${PUBLIC_ROUTES.length} URLs written for ${SITE_URL}`)

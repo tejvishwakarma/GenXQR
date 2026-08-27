@@ -25,3 +25,7 @@ dist-ssr
 
 # Playwright MCP scratch output (page snapshots, console logs)
 .playwright-mcp/
+
+# Generated into dist/ by scripts/generate-sitemap.mjs — never tracked, or every
+# build dirties the working tree and the next `git pull` on the server aborts.
+public/sitemap.xml
