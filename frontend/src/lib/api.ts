@@ -1238,6 +1238,15 @@ export interface PublicQRData {
   content: Record<string, unknown>
   design: Record<string, unknown>
   files: PublicQRFile[]
+  /**
+   * Whether to show the "Powered by GenXQR" footer. False only when the QR's
+   * owner is on a plan with whiteLabel (BUSINESS, ENTERPRISE).
+   *
+   * A boolean rather than the plan name on purpose: this endpoint is public, so
+   * returning the tier would leak what a customer pays to anyone holding a slug
+   * printed on a poster. Optional so an older cached response still renders.
+   */
+  showBranding?: boolean
 }
 
 export function getPublicQR(slug: string) {

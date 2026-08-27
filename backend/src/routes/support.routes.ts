@@ -20,6 +20,7 @@ import {
   buildSupportTicketAdminEmail,
   buildSupportTicketConfirmationEmail,
 } from "../services/email.service.js"
+import { getUserPlanLimits } from "../services/billing.service.js"
 
 const router: IRouter = Router()
 
@@ -192,6 +193,30 @@ router.post(
         return
       }
 
+      /**
+       * Priority comes from the plan — this is what "Priority support" means.
+       *
+       * That benefit has been listed on the pricing page since launch and was
+       * enforced nowhere: every ticket was created at the schema default of
+       * MEDIUM regardless of who opened it, so a Business customer queued
+       * exactly alongside a free one. The admin list already filters and sorts
+       * on this column; nothing was ever setting it.
+       *
+       * Failure here must not lose the ticket. Someone contacting support may
+       * already be having a bad time, and a billing lookup is not a reason to
+       * refuse their message — so a lookup error falls back to MEDIUM, the same
+       * value every ticket got before.
+       */
+      let priority: "MEDIUM" | "HIGH" = "MEDIUM"
+      try {
+        const { limits } = await getUserPlanLimits(userId)
+        if (limits.prioritySupport) priority = "HIGH"
+      } catch (err) {
+        logger.warn("Could not resolve plan for ticket priority; defaulting to MEDIUM", {
+          userId, error: String(err),
+        })
+      }
+
       // Create ticket
       const ticket = await prisma.supportTicket.create({
         data: {
@@ -199,6 +224,7 @@ router.post(
           subject:  input.subject,
           message:  input.message,
           category: input.category,
+          priority,
           // The opening message is also the first entry in the conversation.
           // Written in the same create so a ticket can never exist with an empty
           // thread — the migration backfilled old tickets, and this covers new

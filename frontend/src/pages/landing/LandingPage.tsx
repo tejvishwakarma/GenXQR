@@ -1,5 +1,6 @@
 import { useParams, Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
+import { QrCode } from "lucide-react"
 import { getPublicQR } from "@/lib/api"
 
 // Landing page templates
@@ -57,22 +58,76 @@ export default function LandingPage() {
     files: qr.files,
   }
 
-  switch (qr.type) {
-    case "URL":           return <URLLandingPage {...props} />
-    case "PDF":           return <PDFLandingPage {...props} />
-    case "VIDEO":         return <VideoLandingPage {...props} />
-    case "LINKS":         return <LinksLandingPage {...props} />
-    case "SOCIAL_MEDIA":  return <SocialMediaLandingPage {...props} />
-    case "VCARD":         return <VCardLandingPage {...props} />
-    case "IMAGE_GALLERY": return <ImageGalleryLandingPage {...props} />
-    case "BUSINESS":      return <BusinessLandingPage {...props} />
-    case "APP":           return <AppLandingPage {...props} />
-    case "MP3":           return <MP3LandingPage {...props} />
-    case "MENU":          return <MenuLandingPage {...props} />
-    case "WIFI":          return <WiFiLandingPage {...props} />
-    case "COUPON":        return <CouponLandingPage {...props} />
-    case "FACEBOOK":      return <FacebookLandingPage {...props} />
-    default:
-      return <Navigate to="/" replace />
+  /**
+   * The template is chosen first and the attribution appended around it, rather
+   * than added to each of the 14 templates. One place to change, and a new
+   * template cannot ship without it by omission — which is how these pages came
+   * to carry no attribution at all.
+   */
+  const template = (() => {
+    switch (qr.type) {
+      case "URL":           return <URLLandingPage {...props} />
+      case "PDF":           return <PDFLandingPage {...props} />
+      case "VIDEO":         return <VideoLandingPage {...props} />
+      case "LINKS":         return <LinksLandingPage {...props} />
+      case "SOCIAL_MEDIA":  return <SocialMediaLandingPage {...props} />
+      case "VCARD":         return <VCardLandingPage {...props} />
+      case "IMAGE_GALLERY": return <ImageGalleryLandingPage {...props} />
+      case "BUSINESS":      return <BusinessLandingPage {...props} />
+      case "APP":           return <AppLandingPage {...props} />
+      case "MP3":           return <MP3LandingPage {...props} />
+      case "MENU":          return <MenuLandingPage {...props} />
+      case "WIFI":          return <WiFiLandingPage {...props} />
+      case "COUPON":        return <CouponLandingPage {...props} />
+      case "FACEBOOK":      return <FacebookLandingPage {...props} />
+      default:              return null
+    }
+  })()
+
+  if (template === null) {
+    return <Navigate to="/" replace />
   }
+
+  // Defaults to shown when the field is absent, matching the server: a page that
+  // renders before the API is redeployed, or from a cached response, should
+  // attribute rather than silently drop it.
+  const showBranding = qr.showBranding !== false
+
+  return (
+    <>
+      {template}
+      {showBranding && <PoweredByGenXQR />}
+    </>
+  )
+}
+
+/**
+ * Attribution shown on landing pages, unless the owner's plan includes
+ * whiteLabel.
+ *
+ * Two reasons it exists. It is what the white-label feature actually removes —
+ * that plan flag has been on the pricing page since launch while removing
+ * nothing, because there was no branding here to take away. And it says whose
+ * platform is hosting the page: these render customer-authored content on
+ * genxqr.com, and an unattributed page is one a visitor cannot place, which is
+ * the same omission Google flagged on the QR password gate.
+ *
+ * Deliberately quiet — the customer's content is the point, not this.
+ */
+function PoweredByGenXQR() {
+  return (
+    <div className="w-full border-t border-black/5 bg-white/60 py-4 text-center backdrop-blur-sm dark:border-white/10 dark:bg-black/30">
+      <a
+        href="https://genxqr.com/?utm_source=landing&utm_medium=badge&utm_campaign=powered_by"
+        target="_blank"
+        rel="noopener"
+        className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+      >
+        <QrCode size={13} aria-hidden="true" />
+        <span>
+          Powered by <span className="font-semibold">GenXQR</span>
+        </span>
+      </a>
+    </div>
+  )
 }

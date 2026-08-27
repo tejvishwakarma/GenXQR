@@ -244,6 +244,40 @@ export async function getUserPlanLimits(userId: string): Promise<{
 }
 
 /**
+ * Plan limits for a user, WITHOUT creating or modifying anything.
+ *
+ * getUserPlanLimits above goes through getOrCreateSubscription and lazily writes
+ * a downgrade when a trial has lapsed. That is right for an authenticated request
+ * — the user is there, and the write is theirs. It is wrong for a public path:
+ * /api/public/qr/:slug is unauthenticated and hit by every landing-page view, so
+ * using it would let an anonymous visitor trigger subscription writes for the QR
+ * code's owner simply by loading the page, as fast as they cared to.
+ *
+ * The trial-expiry rule is applied in memory instead, so the answer matches
+ * getUserPlanLimits exactly; only the persistence is skipped. The real downgrade
+ * still happens the next time the owner does anything authenticated.
+ *
+ * Not cached: it is one indexed lookup by userId, and caching would mean a plan
+ * upgrade took time to show. Revisit if landing-page traffic ever makes it hurt.
+ */
+export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits> {
+  const sub = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { status: true, trialEndsAt: true, plan: { select: { name: true } } },
+  })
+
+  // No subscription row yet — the same thing getOrCreateSubscription would have
+  // decided before writing one.
+  if (!sub) return PLAN_LIMITS["FREE"]
+
+  if (sub.status === "TRIALING" && sub.trialEndsAt && sub.trialEndsAt < new Date()) {
+    return PLAN_LIMITS["FREE"]
+  }
+
+  return PLAN_LIMITS[sub.plan.name as PlanName] ?? PLAN_LIMITS["FREE"]
+}
+
+/**
  * Whether this user should get a free trial, or start on FREE.
  *
  * One trial per human, not per email address. `parth+1@gmail.com`,

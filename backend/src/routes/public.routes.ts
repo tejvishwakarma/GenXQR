@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { prisma } from "../db/prisma.js"
+import { getPlanLimitsReadOnly } from "../services/billing.service.js"
 
 const router: IRouter = Router()
 
@@ -20,6 +21,9 @@ router.get(
         where: { slug },
         select: {
           id: true,
+          // Selected only to resolve the owner's plan for the branding decision.
+          // Never returned — see the response below.
+          userId: true,
           type: true,
           name: true,
           slug: true,
@@ -69,6 +73,35 @@ router.get(
         return
       }
 
+      /**
+       * Whether the landing page shows "Powered by GenXQR".
+       *
+       * Exposed as a BOOLEAN, never the plan name. This endpoint is public and
+       * unauthenticated, so anyone holding a slug can call it; returning the
+       * owner's tier would leak what a customer pays from a URL printed on a
+       * poster. The boolean tells the page what to render and nothing else.
+       *
+       * whiteLabel is true on BUSINESS and ENTERPRISE. It has been sold on the
+       * pricing page since launch and, until now, removed nothing — there was no
+       * branding on landing pages for it to take away, so those customers were
+       * paying for a feature indistinguishable from the free tier.
+       *
+       * Fails towards showing branding: an ownerless QR (userId is nullable) or
+       * a lookup that throws both leave showBranding true. Wrongly branding a
+       * Business customer's page is a visible, reportable annoyance; wrongly
+       * un-branding everyone's is a silent loss of both the attribution and the
+       * paid feature's meaning.
+       */
+      let showBranding = true
+      if (qr.userId) {
+        try {
+          const limits = await getPlanLimitsReadOnly(qr.userId)
+          showBranding = !limits.whiteLabel
+        } catch {
+          // Keep serving the page; branding is not worth a 500 over.
+        }
+      }
+
       // Return minimal data — no password hash, no userId
       res.json({
         success: true,
@@ -81,6 +114,7 @@ router.get(
           content: qr.content?.data ?? {},
           design: qr.design ?? {},
           files: qr.files,
+          showBranding,
         },
       })
     } catch (err) {

@@ -38,7 +38,16 @@ export async function listTickets({ page, limit, q }: PaginationParams, status?:
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: "desc" },
+      /**
+       * Priority first, then newest.
+       *
+       * Sorting by createdAt alone meant "Priority support" changed nothing an
+       * agent would ever see: a Business ticket sat wherever it happened to fall
+       * in the queue. Prisma orders enums by their declaration order in
+       * schema.prisma — LOW, MEDIUM, HIGH, URGENT — so "desc" puts URGENT and
+       * HIGH at the top, which is what paying customers are promised.
+       */
+      orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       select: {
         id: true, subject: true, status: true, priority: true,
         // category is what the customer chose (billing / technical /
