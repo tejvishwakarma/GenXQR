@@ -100,8 +100,44 @@ else
   echo "==> tests passed"
 fi
 
+# Show what is about to change before changing it. On a deploy that turns out to
+# have broken something, the first question is always "did the schema move?", and
+# the answer belongs in the log rather than in a later reconstruction.
+#
+# `migrate status` exits non-zero when migrations are pending — which is the
+# normal state here, a moment before applying them — so its exit code is
+# explicitly ignored. The gate is the check AFTER the deploy, below.
+echo "==> prisma migrate status (before)"
+(cd backend && npx prisma migrate status) || true
+
 echo "==> prisma migrate deploy"
 (cd backend && npx prisma migrate deploy)
+
+# Verify, rather than assume, that the schema is now current.
+#
+# `migrate deploy` can legitimately exit 0 having applied nothing — including
+# when DATABASE_URL points at a database that is already ahead, or at the wrong
+# database entirely. Without this check the deploy would carry on and build,
+# reload PM2, and report success while the app ran against a schema missing the
+# columns its new code selects. The failure then surfaces as 500s in production
+# with nothing in the deploy log to suggest why.
+#
+# This runs BEFORE the build and the PM2 reload on purpose: at this point the
+# running app is still the old version, which matches the old schema, so aborting
+# here leaves production working rather than half-updated.
+echo "==> prisma migrate status (verify)"
+if ! (cd backend && npx prisma migrate status); then
+  echo
+  echo "!!  The database schema is NOT up to date after migrate deploy."
+  echo "!!  Nothing has been built or reloaded, so production is untouched and"
+  echo "!!  still running the previous version against its matching schema."
+  echo
+  echo "!!  Check that DATABASE_URL in $ENV_FILE points at the production"
+  echo "!!  database, then run from the repo root:"
+  echo "!!      set -a; . \"$ENV_FILE\"; set +a"
+  echo "!!      cd backend && npx prisma migrate status"
+  exit 1
+fi
 
 echo "==> build backend"
 pnpm build:backend
