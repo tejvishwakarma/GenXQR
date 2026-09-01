@@ -28,17 +28,45 @@ app.set("trust proxy", 1)
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(
   helmet({
-    // Relax CSP in dev so the API works with the Vite dev server
-    contentSecurityPolicy: env.NODE_ENV === "production",
+    // These four headers are owned by the nginx vhost (origin) and Cloudflare
+    // (edge). Helmet setting them too stacked a second/third copy on every
+    // backend-served route — pentest finding #4 measured X-Frame-Options ×3 and
+    // three conflicting Referrer-Policy values on /health and /r/:slug, plus a
+    // duplicate CSP. The tell was Helmet's own defaults leaking through:
+    // "referrer-policy: no-referrer" and a "default-src 'self';base-uri 'self';
+    // font-src…" CSP, neither of which is in our nginx config.
+    //
+    // In production the Node app is only reachable through nginx (PM2 binds
+    // 127.0.0.1:3001), so nginx is guaranteed to add the canonical set — turning
+    // these off in Helmet removes the duplicates without leaving a gap. nginx is
+    // the single origin source; Cloudflare the edge.
+    contentSecurityPolicy: false,
+    frameguard: false,
+    referrerPolicy: false,
+    strictTransportSecurity: false,
+    // X-Content-Type-Options (noSniff) and the rest of Helmet's defaults stay on:
+    // they carry a single fixed value with no conflicting variant, so a
+    // duplicate is harmless, and they add defense-in-depth on the localhost-only
+    // dev server where there is no nginx in front.
   }),
 )
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
-// In dev, accept both http and https variants of the frontend URL so Vite's
-// optional HTTPS mode doesn't cause preflight failures.
+// Production accepts ONLY the exact https frontend origin. The http/https
+// juggling is a dev-only convenience for Vite's optional HTTPS mode; reflecting a
+// plaintext http:// origin back with credentials in production is a needless
+// downgrade surface (pentest finding #6), so it is excluded there. Normalising to
+// https also means a FRONTEND_URL accidentally set as http:// in prod still
+// yields an https allowlist entry, not an http one.
 const allowedOrigins = new Set(
-  [env.FRONTEND_URL, env.FRONTEND_URL.replace(/^http:/, "https:"), env.FRONTEND_URL.replace(/^https:/, "http:")]
-    .filter(Boolean),
+  (env.NODE_ENV === "production"
+    ? [env.FRONTEND_URL.replace(/^http:/, "https:")]
+    : [
+        env.FRONTEND_URL,
+        env.FRONTEND_URL.replace(/^http:/, "https:"),
+        env.FRONTEND_URL.replace(/^https:/, "http:"),
+      ]
+  ).filter(Boolean),
 )
 
 // The Cashfree webhook is a server-to-server POST — it carries no Origin from
@@ -57,7 +85,12 @@ app.use((req, res, next) => {
       // In development, allow any localhost or private-network origin regardless of port
       if (env.NODE_ENV === "development" && /^https?:\/\/(localhost|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin)) return cb(null, true)
       if (allowedOrigins.has(origin)) return cb(null, true)
-      cb(new Error(`CORS: origin '${origin}' not allowed`))
+      // Deny CLEANLY: cb(null, false) omits the Access-Control-Allow-Origin
+      // header and lets the request proceed to its normal handler, so the
+      // browser blocks the cross-origin read. cb(new Error(...)) — the previous
+      // code — threw, which the error middleware turned into a 500 (finding #3):
+      // log noise and a trivial error-oracle for a disallowed origin.
+      cb(null, false)
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
