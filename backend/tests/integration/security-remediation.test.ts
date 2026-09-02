@@ -170,6 +170,62 @@ describe("security remediation", () => {
     })
   })
 
+  // ─── #7: API keys re-authorized against the CURRENT plan on every use ─────
+  describe("#7 API key entitlement on use", () => {
+    it("stops honouring a key after the plan loses apiAccess", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO") // apiAccess: true
+      const { createApiKey } = await import("../../src/services/apikeys.service.js")
+      const { rawKey } = await createApiKey(user.id, "k")
+
+      await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`).expect(200)
+
+      await giveSubscription(user.id, "FREE") // apiAccess: false
+      const res = await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`)
+      expect(res.status, "a downgraded plan must reject the still-active key").toBe(403)
+    })
+  })
+
+  // ─── #8: monthly API call quota is enforced, not just notified ────────────
+  describe("#8 monthly API call quota", () => {
+    it("rejects once the month's call limit is reached", async () => {
+      const { PLAN_LIMITS } = await import("../../src/services/billing.service.js")
+      const { redis } = await import("../../src/redis/client.js")
+      const { createApiKey } = await import("../../src/services/apikeys.service.js")
+
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const { rawKey } = await createApiKey(user.id, "k")
+
+      // Pre-seed the counter to the plan limit rather than making 100k calls.
+      const month = new Date().toISOString().slice(0, 7)
+      await redis.set(`apiusage:${user.id}:${month}`, String(PLAN_LIMITS.PRO.apiCallsLimit))
+
+      const res = await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`)
+      expect(res.status, "the call over the limit must be refused").toBe(429)
+    })
+
+    it("allows calls below the limit and reports usage in billing", async () => {
+      const { redis } = await import("../../src/redis/client.js")
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const { createApiKey } = await import("../../src/services/apikeys.service.js")
+      const { rawKey } = await createApiKey(user.id, "k")
+
+      await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`).expect(200)
+
+      const month = new Date().toISOString().slice(0, 7)
+      const counted = Number(await redis.get(`apiusage:${user.id}:${month}`))
+      expect(counted, "the call must be metered").toBeGreaterThanOrEqual(1)
+
+      const usage = await request(app)
+        .get("/api/billing/usage")
+        .set("Authorization", `Bearer ${user.token}`)
+        .expect(200)
+      expect(usage.body.data.apiCalls.used, "billing must report the real count, not 0").toBeGreaterThanOrEqual(1)
+    })
+  })
+
   afterAll(async () => {
     await prisma.$disconnect().catch(() => undefined)
   })

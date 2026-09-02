@@ -2,7 +2,8 @@ import { randomBytes, createHash, timingSafeEqual } from "node:crypto"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { checkAndNotifyLimit } from "./limit-notification.service.js"
-import { getUserPlanLimits } from "./billing.service.js"
+import { getUserPlanLimits, getPlanLimitsReadOnly } from "./billing.service.js"
+import { redis } from "../redis/client.js"
 import { logger } from "../logger/index.js"
 
 /** Prefix every newly issued key carries. */
@@ -216,33 +217,73 @@ export async function verifyApiKey(
     throw new AppError(401, "API key has expired")
   }
 
-  // Bump usage stats asynchronously (don't block request)
+  // ── Finding #7: authorize the CURRENT plan on every use, not just at issuance ──
+  // A key issued while on a paid plan otherwise kept working forever after a
+  // downgrade or trial expiry. Read-only (getPlanLimitsReadOnly) so an API call
+  // never triggers a subscription write.
+  const limits = await getPlanLimitsReadOnly(matched.userId)
+  if (!limits.apiAccess) {
+    throw new AppError(403, "Your current plan does not include API access.")
+  }
+
+  // ── Finding #8: enforce the monthly call quota, don't just notify ──────────
+  // callCount is all-time and the old check only sent an email. This is an
+  // atomic per-user, per-calendar-month Redis counter that REJECTS once the plan
+  // limit is reached. A limit of 0 means unlimited (see PLAN_LIMITS), so only a
+  // positive limit gates.
+  if (limits.apiCallsLimit > 0) {
+    const month = new Date().toISOString().slice(0, 7) // YYYY-MM (UTC)
+    const usageKey = `apiusage:${matched.userId}:${month}`
+    let count: number
+    try {
+      count = await redis.incr(usageKey)
+      if (count === 1) await redis.expire(usageKey, 35 * 24 * 60 * 60) // outlive the month
+    } catch (err) {
+      // Redis down: fail OPEN on metering rather than block a paying customer's
+      // integration over an infra blip. Enforcement resumes when Redis returns.
+      logger.error("API quota counter unavailable — allowing the call", {
+        userId: matched.userId, error: String(err),
+      })
+      count = 0
+    }
+    if (count > limits.apiCallsLimit) {
+      // Do not count the rejected call.
+      void redis.decr(usageKey).catch(() => undefined)
+      throw new AppError(429, "Monthly API call limit reached for your plan.")
+    }
+  }
+
+  // Bump per-key stats + fire the 80%/100% warning email asynchronously.
   void (async () => {
     try {
       await prisma.apiKey.update({
         where: { id: matched.id },
         data: { lastUsedAt: new Date(), callCount: { increment: 1 } },
       })
-
-      // Check monthly API call limit across all keys for this user
-      const { limits, planName } = await getUserPlanLimits(matched.userId)
-      if (limits.apiCallsLimit > 0) {
-        const monthStart = new Date()
-        monthStart.setUTCDate(1)
-        monthStart.setUTCHours(0, 0, 0, 0)
-        // Sum callCount across all keys — approximation since callCount is all-time,
-        // so we use a direct DB aggregate that's already tracked per-key
-        const agg = await prisma.apiKey.aggregate({
-          where: { userId: matched.userId },
-          _sum: { callCount: true },
-        })
-        const totalCalls = agg._sum.callCount ?? 0
-        await checkAndNotifyLimit(matched.userId, "api_calls", totalCalls, limits.apiCallsLimit, planName)
+      const { limits: freshLimits, planName } = await getUserPlanLimits(matched.userId)
+      if (freshLimits.apiCallsLimit > 0) {
+        const month = new Date().toISOString().slice(0, 7)
+        const used = Number((await redis.get(`apiusage:${matched.userId}:${month}`)) ?? 0)
+        await checkAndNotifyLimit(matched.userId, "api_calls", used, freshLimits.apiCallsLimit, planName)
       }
     } catch (err) {
-      logger.warn("API call limit check failed", { userId: matched.userId, error: String(err) })
+      logger.warn("API usage notification failed", { userId: matched.userId, error: String(err) })
     }
   })()
 
   return { userId: matched.userId, keyId: matched.id }
+}
+
+/**
+ * Current-month API call count for a user, from the same Redis counter the
+ * middleware enforces (finding #8). Exposed so billing usage reports the real
+ * number instead of zero. Returns 0 when Redis is unavailable.
+ */
+export async function getMonthlyApiCallCount(userId: string): Promise<number> {
+  try {
+    const month = new Date().toISOString().slice(0, 7)
+    return Number((await redis.get(`apiusage:${userId}:${month}`)) ?? 0)
+  } catch {
+    return 0
+  }
 }

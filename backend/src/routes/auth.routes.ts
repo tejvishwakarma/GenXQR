@@ -514,8 +514,28 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
     res.status(503).json({ success: false, error: "Google OAuth is not configured" })
     return
   }
+  // Finding #5: the state used to be the (predictable) return path, so the
+  // callback was never bound to the browser that started the flow — an attacker
+  // could complete a login into their own account in a victim's browser (login
+  // CSRF). State is now unguessable, stored server-side with the return path,
+  // and mirrored in a short-lived cookie so the callback can prove it came from
+  // the same browser. The path is NEVER carried in state itself.
   const nextPath = safeFrontendPath(req.query["next"], "/app/dashboard")
-  passport.authenticate("google", { session: false, scope: ["profile", "email"], state: nextPath })(
+  const state = randomBytes(32).toString("hex")
+  void redis.setex(`oauth:state:${state}`, 600, nextPath) // 10 min to finish the flow
+
+  res.cookie("oauth_state", state, {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    // Lax, not Strict: the callback is a top-level GET navigation FROM google.com,
+    // and Strict would drop the cookie on that cross-site redirect. Lax still
+    // sends it on top-level GETs while blocking it on cross-site subrequests.
+    sameSite: "lax",
+    maxAge: 10 * 60 * 1000,
+    path: "/api/auth",
+  })
+
+  passport.authenticate("google", { session: false, scope: ["profile", "email"], state })(
     req,
     res,
     next,
@@ -535,6 +555,24 @@ router.get(
   },
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
+      // Finding #5: bind the callback to the browser that initiated the flow.
+      // The state must be present, must match the cookie set at /google, and must
+      // still exist server-side (single-use). Any mismatch means this callback
+      // did not originate from a login this browser started — refuse it rather
+      // than complete a login CSRF into someone else's account.
+      const returnedState = typeof req.query["state"] === "string" ? req.query["state"] : ""
+      const cookieState = (req.cookies as Record<string, string | undefined>)["oauth_state"] ?? ""
+      res.clearCookie("oauth_state", { path: "/api/auth" })
+
+      const storedNextPath = returnedState ? await redis.get(`oauth:state:${returnedState}`) : null
+      if (storedNextPath !== null) await redis.del(`oauth:state:${returnedState}`) // consume once
+
+      if (!returnedState || returnedState !== cookieState || storedNextPath === null) {
+        logger.warn("Google OAuth callback rejected: state mismatch", { hasState: Boolean(returnedState) })
+        res.redirect(`${env.FRONTEND_URL}/login?error=oauth_state`)
+        return
+      }
+
       // Passport sets req.user to the GoogleProfile object in this callback chain,
       // not the JWT AccessTokenPayload — cast through unknown to reflect this.
       const profile = req.user as unknown as {
@@ -547,7 +585,7 @@ router.get(
         profile,
         req.ip ?? "",
       )
-      const nextPath = safeFrontendPath(req.query["state"], "/app/dashboard")
+      const nextPath = safeFrontendPath(storedNextPath, "/app/dashboard")
 
       // Store the access token server-side under a short-lived one-time code.
       // The frontend redeems the code via POST /api/auth/oauth-token within 60 s.

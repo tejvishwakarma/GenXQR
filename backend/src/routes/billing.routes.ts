@@ -22,6 +22,7 @@ import { generateInvoicePDF } from "../services/invoice-pdf.service.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
+import { getMonthlyApiCallCount } from "../services/apikeys.service.js"
 
 const router: IRouter = Router()
 
@@ -439,7 +440,7 @@ router.get(
       monthStart.setDate(1)
       monthStart.setHours(0, 0, 0, 0)
 
-      const [qrCount, storage, scansThisMonth] = await Promise.all([
+      const [qrCount, storage, scansThisMonth, apiCallsThisMonth] = await Promise.all([
         prisma.qRCode.count({ where: { userId } }),
         prisma.qRFile.aggregate({
           where: { qrCode: { userId } },
@@ -452,6 +453,9 @@ router.get(
           // repeat scans were discarded before they were ever recorded.
           where: { qrCode: { userId }, scannedAt: { gte: monthStart } },
         }),
+        // The same Redis counter the API-key middleware enforces (finding #8),
+        // so what a customer sees here matches what actually gets rejected.
+        getMonthlyApiCallCount(userId),
       ])
 
       const storageBytesUsed = Number(storage._sum.sizeBytes ?? 0)
@@ -464,7 +468,7 @@ router.get(
           qrCodes:   { used: qrCount,                                      limit: limits.dynamicQRLimit     },
           scans:     { used: scansThisMonth,                                limit: limits.scanLimitPerMonth  },
           storageGB: { used: Math.round(storageGBUsed * 100) / 100,        limit: limits.fileStorageGB      },
-          apiCalls:  { used: 0,                                             limit: limits.apiCallsLimit      },
+          apiCalls:  { used: apiCallsThisMonth,                             limit: limits.apiCallsLimit      },
         },
       })
     } catch (err) {
