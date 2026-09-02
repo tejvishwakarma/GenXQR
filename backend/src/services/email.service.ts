@@ -765,33 +765,54 @@ export function buildJobApplicationEmail(opts: {
         </tr>`
       : ""
 
+  // Every applicant-controlled field is escaped before interpolation (finding
+  // #9). Without this, a closing tag or quote in any field is trusted markup in
+  // the recruiter's inbox — injected links, tracking pixels, layout spoofing on
+  // an email that looks like it came from us. mailto and LinkedIn are
+  // encoded/allowlisted separately because href is a different context.
+  const safe = {
+    candidateName: escapeHtml(opts.candidateName),
+    candidateEmail: escapeHtml(opts.candidateEmail),
+    candidatePhone: opts.candidatePhone ? escapeHtml(opts.candidatePhone) : "",
+    experience: opts.experience ? escapeHtml(opts.experience) : "",
+    jobTitle: escapeHtml(opts.jobTitle),
+    coverLetter: escapeHtml(opts.coverLetter),
+    cvFilename: escapeHtml(opts.cvFilename),
+    // href contexts: encode the mailto value, and only render a LinkedIn link
+    // when it is an https URL — otherwise show the raw (escaped) text, never a
+    // clickable javascript:/http: link.
+    mailtoEmail: encodeURIComponent(opts.candidateEmail),
+    linkedInHref: opts.linkedIn && /^https:\/\//i.test(opts.linkedIn) ? opts.linkedIn : null,
+    linkedInText: opts.linkedIn ? escapeHtml(opts.linkedIn) : "",
+  }
+
   const inner = `
     <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">New Job Application</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      ${opts.candidateName} applied for ${opts.jobTitle}
+      ${safe.candidateName} applied for ${safe.jobTitle}
     </h1>
 
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;border:1px solid #e4e4e7;border-radius:10px;overflow:hidden">
-      ${row("Position", opts.jobTitle)}
-      ${row("Name", opts.candidateName)}
-      ${row("Email", `<a href="mailto:${opts.candidateEmail}" style="color:#6366f1">${opts.candidateEmail}</a>`)}
-      ${opts.candidatePhone ? row("Phone", opts.candidatePhone) : ""}
-      ${opts.linkedIn ? row("LinkedIn", `<a href="${opts.linkedIn}" style="color:#6366f1">View profile</a>`) : ""}
-      ${opts.experience ? row("Experience", opts.experience) : ""}
-      ${row("CV / Resume", `📎 ${opts.cvFilename} (attached)`)}
+      ${row("Position", safe.jobTitle)}
+      ${row("Name", safe.candidateName)}
+      ${row("Email", `<a href="mailto:${safe.candidateEmail}" style="color:#6366f1">${safe.candidateEmail}</a>`)}
+      ${safe.candidatePhone ? row("Phone", safe.candidatePhone) : ""}
+      ${safe.linkedInHref ? row("LinkedIn", `<a href="${safe.linkedInHref}" style="color:#6366f1">View profile</a>`) : (safe.linkedInText ? row("LinkedIn", safe.linkedInText) : "")}
+      ${safe.experience ? row("Experience", safe.experience) : ""}
+      ${row("CV / Resume", `📎 ${safe.cvFilename} (attached)`)}
     </table>
 
     <h2 style="margin:0 0 12px;font-size:15px;font-weight:600;color:#18181b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Cover Letter</h2>
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
-        <td style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:4px solid #6366f1;border-radius:10px;padding:16px 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${opts.coverLetter}</td>
+        <td style="background:#f5f3ff;border:1px solid #ddd6fe;border-left:4px solid #6366f1;border-radius:10px;padding:16px 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${safe.coverLetter}</td>
       </tr>
     </table>
 
     <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
         <td style="border-radius:10px;background:#6366f1">
-          <a href="mailto:${opts.candidateEmail}?subject=Re: Your application for ${encodeURIComponent(opts.jobTitle)} at GenXQR"
+          <a href="mailto:${safe.mailtoEmail}?subject=Re:%20Your%20application%20for%20${encodeURIComponent(opts.jobTitle)}%20at%20GenXQR"
             style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
             Reply to Candidate →
           </a>

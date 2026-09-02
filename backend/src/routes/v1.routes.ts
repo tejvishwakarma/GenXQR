@@ -13,6 +13,7 @@ import type { AccessTokenPayload } from "../utils/jwt.js"
 import { prisma } from "../db/prisma.js"
 import { requireApiKey } from "../middleware/apikey.middleware.js"
 import { v1Limiter } from "../middleware/rateLimit.middleware.js"
+import { requireQRSlot } from "../middleware/plan-gate.middleware.js"
 import {
   createQR,
   listQRs,
@@ -79,7 +80,7 @@ router.get("/qr", async (req, res, next) => {
  * POST /v1/qr
  * Create a new dynamic QR code.
  */
-router.post("/qr", async (req, res, next) => {
+router.post("/qr", requireQRSlot, async (req, res, next) => {
   try {
     const input = createQRSchema.parse(req.body)
     const qr = await createQR(uid(req), input)

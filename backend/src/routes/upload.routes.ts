@@ -150,6 +150,33 @@ function uploadHandler(type: keyof typeof CONFIGS) {
           bytes: req.file.size,
         })
 
+        // ─── Enforce the storage quota BEFORE accepting the file (finding #2) ──
+        // Previously this ran fire-and-forget AFTER responding and only sent a
+        // notification, so any authenticated user could fill the shared disk, and
+        // a zero-quota (FREE) plan was skipped entirely. Now the server-observed
+        // byte count is checked against the plan up front; over-quota or
+        // zero-quota uploads are unlinked and refused. This is not perfectly
+        // atomic against simultaneous uploads, but it turns "unbounded" into
+        // "bounded by the plan plus a small concurrency margin".
+        const userId = uid(req)
+        const { limits, planName } = await getUserPlanLimits(userId)
+        const limitBytes = limits.fileStorageGB * 1024 ** 3
+
+        if (limitBytes <= 0) {
+          fs.unlink(req.file.path, () => undefined)
+          throw new AppError(403, "Your plan does not include file storage. Upgrade to upload files.")
+        }
+
+        const agg = await prisma.qRFile.aggregate({
+          where: { qrCode: { userId } },
+          _sum: { sizeBytes: true },
+        })
+        const usedBytes = Number(agg._sum.sizeBytes ?? 0)
+        if (usedBytes + req.file.size > limitBytes) {
+          fs.unlink(req.file.path, () => undefined)
+          throw new AppError(413, "This upload would exceed your plan's storage limit.")
+        }
+
         res.status(201).json({
           success: true,
           data: {
@@ -161,23 +188,14 @@ function uploadHandler(type: keyof typeof CONFIGS) {
           },
         })
 
-        // Check storage limit after responding (fire-and-forget)
-        const userId = uid(req)
-        void (async () => {
-          try {
-            const { limits, planName } = await getUserPlanLimits(userId)
-            if (limits.fileStorageGB > 0) {
-              const agg = await prisma.qRFile.aggregate({
-                where: { qrCode: { userId } },
-                _sum: { sizeBytes: true },
-              })
-              const usedGB = Number(agg._sum.sizeBytes ?? 0) / (1024 ** 3)
-              await checkAndNotifyLimit(userId, "storage", Math.round(usedGB * 100) / 100, limits.fileStorageGB, planName)
-            }
-          } catch (err) {
-            logger.warn("Storage limit check failed", { userId, error: String(err) })
-          }
-        })()
+        // Fire the 80%/100% warning email now that the file is accepted.
+        void checkAndNotifyLimit(
+          userId,
+          "storage",
+          Math.round(((usedBytes + req.file.size) / 1024 ** 3) * 100) / 100,
+          limits.fileStorageGB,
+          planName,
+        ).catch((err) => logger.warn("Storage limit notification failed", { userId, error: String(err) }))
       } catch (err) {
         // Clean up on error to avoid orphaned temp files
         if (req.file) {
@@ -219,13 +237,25 @@ router.delete(
       if (!diskPath.startsWith(UPLOAD_BASE + path.sep) && diskPath !== UPLOAD_BASE) {
         throw new AppError(400, "Invalid file path")
       }
-      fs.unlink(diskPath, (err) => {
-        if (err && err.code !== "ENOENT") {
-          logger.warn("Failed to delete uploaded file from disk", { path: diskPath, error: err.message })
-        }
-      })
 
+      // Delete the DB row first, then unlink the bytes ONLY if no other QRFile
+      // still references the same path (finding #1). fileUrl is derived from a
+      // client-supplied tempUrl, so a tenant can create a QRFile whose fileUrl
+      // aliases another tenant's file (it legitimately lives under UPLOAD_BASE,
+      // so the traversal guard above passes). Reference-counting means deleting
+      // such an alias removes only the alias row — the bytes survive as long as
+      // the real owner's row points at them. Full provenance binding at attach
+      // time is the remaining hardening (see the security follow-up).
       await prisma.qRFile.delete({ where: { id: file.id } })
+
+      const stillReferenced = await prisma.qRFile.count({ where: { fileUrl: file.fileUrl } })
+      if (stillReferenced === 0) {
+        fs.unlink(diskPath, (err) => {
+          if (err && err.code !== "ENOENT") {
+            logger.warn("Failed to delete uploaded file from disk", { path: diskPath, error: err.message })
+          }
+        })
+      }
 
       res.json({ success: true, message: "File deleted" })
     } catch (err) {

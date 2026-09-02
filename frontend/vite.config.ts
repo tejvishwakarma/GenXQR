@@ -21,12 +21,20 @@ const pwaConfig = VitePWA({
     globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
     runtimeCaching: [
       {
-        urlPattern: /^\/api\/(?!admin).+/,
+        // Pentest finding #11: this used to be /^\/api\/(?!admin).+/, which
+        // cached EVERY non-admin API GET — including authenticated, per-user
+        // responses — in one URL-keyed cache. The cache is not partitioned by
+        // user and logout does not clear it, so on a shared browser the
+        // NetworkFirst fallback could serve one account's cached JSON to the
+        // next. Restricted to the genuinely public, non-personalised endpoints
+        // only. Anything authenticated now always hits the network and is never
+        // written to Cache Storage.
+        urlPattern: /^\/api\/public\//,
         handler: 'NetworkFirst',
         options: {
-          cacheName: 'api-cache',
+          cacheName: 'public-api-cache',
           networkTimeoutSeconds: 10,
-          expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
+          expiration: { maxEntries: 30, maxAgeSeconds: 60 * 5 },
         },
       },
     ],

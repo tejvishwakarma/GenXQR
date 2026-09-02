@@ -6,6 +6,7 @@ import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { getOrCreateSubscription, PLAN_LIMITS } from "./billing.service.js"
+import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // Invalidation lives here rather than only in the route because it is a
 // correctness requirement of the mutation, not a concern of one caller: the scan
 // path reads a 10-minute Redis cache, so a mutation that skips this keeps serving
@@ -62,7 +63,7 @@ export const createQRSchema = z.object({
       activeFrom: z.string().datetime({ offset: true }).nullish(),
       activeUntil: z.string().datetime({ offset: true }).nullish(),
       scanLimit: z.coerce.number().int().positive().nullish(),
-      fallbackUrl: z.string().url().nullish(),
+      fallbackUrl: safeHttpUrlSchema.nullish(),  // http(s)-only (finding #3)
       // Strict format validation prevents stored XSS when these IDs are embedded
       // in the pixel-redirect trampoline page served to QR code scanners.
       fbPixelId: z.string().regex(/^\d{1,20}$/, "FB Pixel ID must be a numeric string (up to 20 digits)").nullish(),

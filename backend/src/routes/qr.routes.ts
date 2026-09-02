@@ -10,6 +10,7 @@ import { invalidateQRCache } from "../services/scan.service.js"
 import { deliverWebhookEvent } from "../services/webhook.service.js"
 import type { Prisma } from "@prisma/client"
 import { requireQRSlot, requirePlanFeature } from "../middleware/plan-gate.middleware.js"
+import { safeHttpUrlSchema } from "../utils/safe-url.js"
 import { logAudit } from "../services/audit.service.js"
 
 const router: IRouter = Router()
@@ -165,7 +166,7 @@ const SmartRouteConditionSchema = z.discriminatedUnion("type", [
 const SmartRouteBodySchema = z.object({
   conditionType:  z.enum(["device", "time", "geo"]),
   conditionValue: z.record(z.unknown()),
-  targetUrl:      z.string().url().max(2048),
+  targetUrl:      safeHttpUrlSchema,
   priority:       z.number().int().min(1).max(100),
   isActive:       z.boolean().optional().default(true),
 })
@@ -293,7 +294,7 @@ const ABSettingsSchema = z.object({
 
 const ABVariantSchema = z.object({
   name:      z.string().min(1).max(80),
-  targetUrl: z.string().url().max(2048),
+  targetUrl: safeHttpUrlSchema,
   splitPct:  z.number().int().min(1).max(99),
 })
 

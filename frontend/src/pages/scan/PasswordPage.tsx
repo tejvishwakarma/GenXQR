@@ -62,7 +62,21 @@ export default function PasswordPage() {
     try {
       const res = await verifyQRPassword(slug, password)
       if (res.success && res.data.destination) {
-        window.location.href = res.data.destination
+        // Defense-in-depth for finding #3: the backend already refuses non-http(s)
+        // destinations, but this is the actual navigation sink, so re-check the
+        // scheme here too. A javascript:/data: value never reaches location.href.
+        let safe = false
+        try {
+          const proto = new URL(res.data.destination, window.location.origin).protocol
+          safe = proto === "http:" || proto === "https:"
+        } catch {
+          safe = false
+        }
+        if (safe) {
+          window.location.href = res.data.destination
+        } else {
+          setError("This QR code points to an unsupported destination.")
+        }
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

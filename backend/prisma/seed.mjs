@@ -85,8 +85,12 @@ async function main() {
 
   console.log("\nDone!")
   console.log("─────────────────────────────────────────────")
-  console.log(`  Email    : ${SUPER_ADMIN.email}`)
-  console.log(`  Password : ${SUPER_ADMIN.password}`)
+  console.log(`  Super admin: ${SUPER_ADMIN.email}`)
+  // The password is NEVER printed (pentest finding #10). It is set from
+  // ADMIN_PASSWORD in the environment; whoever ran the seed already has it.
+  // Printing it put a SUPER_ADMIN credential into terminal scrollback and
+  // deploy logs, where it became an alternate credential store.
+  console.log("  Password   : (set from ADMIN_PASSWORD — not shown)")
   console.log("─────────────────────────────────────────────")
 }
 

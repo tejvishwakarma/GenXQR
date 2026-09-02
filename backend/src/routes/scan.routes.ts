@@ -6,6 +6,7 @@ import { resolveQRScan, buildDestinationFromContent } from "../services/scan.ser
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 import { authLimiter } from "../middleware/rateLimit.middleware.js"
+import { safeRedirectTarget } from "../utils/safe-url.js"
 
 const router: IRouter = Router()
 
@@ -224,11 +225,18 @@ router.post(
           return
       }
 
-      if (!destination) {
-        destination = `${env.FRONTEND_URL}/l/${slug}`
-      }
+      // Final scheme guard before the frontend navigates to this (finding #3).
+      // A stored javascript:/data: destination — or any legacy row written before
+      // safeHttpUrlSchema — is refused here and falls back to the landing page,
+      // matching the http(s)-only rule the ordinary redirect path already applies.
+      const safeDestination =
+        (destination && safeRedirectTarget(destination)) ??
+        (destination && destination.startsWith(env.FRONTEND_URL) ? destination : null)
 
-      res.json({ success: true, data: { destination } })
+      res.json({
+        success: true,
+        data: { destination: safeDestination ?? `${env.FRONTEND_URL}/l/${slug}` },
+      })
     } catch (err) {
       next(err)
     }
