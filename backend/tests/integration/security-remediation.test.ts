@@ -226,6 +226,104 @@ describe("security remediation", () => {
     })
   })
 
+  // ─── #1 remainder: attach-time upload ownership ───────────────────────────
+  describe("#1 attach-time upload ownership", () => {
+    it("refuses to attach a file this user did not upload", async () => {
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const res = await request(app)
+        .post("/api/qr")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({
+          name: "aliased",
+          type: "PDF",
+          content: { data: {} },
+          uploadedFiles: [{
+            tempUrl: "/uploads/qr-files/someone-elses-file.pdf",
+            fileName: "x.pdf", mimeType: "application/pdf", sizeBytes: 100, fileType: "PDF",
+          }],
+        })
+      expect(res.status, "an unowned tempUrl must be refused").toBe(403)
+    })
+
+    it("attaches a file this user did upload (ownership recorded)", async () => {
+      const { redis } = await import("../../src/redis/client.js")
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const tempUrl = `/uploads/qr-files/mine-${Date.now()}.pdf`
+      await redis.set(`upload:owner:${tempUrl}`, user.id)
+
+      const res = await request(app)
+        .post("/api/qr")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({
+          name: "mine",
+          type: "PDF",
+          content: { data: {} },
+          uploadedFiles: [{ tempUrl, fileName: "x.pdf", mimeType: "application/pdf", sizeBytes: 100, fileType: "PDF" }],
+        })
+      expect(res.status).toBe(201)
+    })
+  })
+
+  // ─── #4: OAuth-only account deletion requires fresh proof ─────────────────
+  describe("#4 OAuth-only deletion reauth", () => {
+    async function oauthUser() {
+      const u = await createUser()
+      // Make it OAuth-only: no password to confirm.
+      await prisma.user.update({ where: { id: u.id }, data: { passwordHash: null } })
+      return u
+    }
+
+    it("refuses deletion without a fresh reauth grant", async () => {
+      const u = await oauthUser()
+      const res = await request(app)
+        .delete("/api/auth/me")
+        .set("Authorization", `Bearer ${u.token}`)
+        .send({})
+      expect(res.status).toBe(403)
+      expect(res.body.error).toMatch(/reauth_required/i)
+
+      // The account must still exist.
+      expect(await prisma.user.count({ where: { id: u.id } })).toBe(1)
+    })
+
+    it("refuses deletion even when a password string is supplied (OAuth account)", async () => {
+      const u = await oauthUser()
+      const res = await request(app)
+        .delete("/api/auth/me")
+        .set("Authorization", `Bearer ${u.token}`)
+        .send({ password: "anything-at-all" })
+      expect(res.status, "any-non-empty-string bypass is closed").toBe(403)
+    })
+
+    it("deletes once a fresh reauth grant is present", async () => {
+      const { redis } = await import("../../src/redis/client.js")
+      const u = await oauthUser()
+      await redis.setex(`reauth:delete:${u.id}`, 300, "1") // as the Google callback would mint
+
+      await request(app)
+        .delete("/api/auth/me")
+        .set("Authorization", `Bearer ${u.token}`)
+        .send({})
+        .expect(200)
+
+      expect(await prisma.user.count({ where: { id: u.id } })).toBe(0)
+      // The grant is single-use — consumed by the deletion.
+      expect(await redis.get(`reauth:delete:${u.id}`)).toBeNull()
+    })
+
+    it("still deletes a password account with the correct password", async () => {
+      const u = await createUser({ password: "CorrectHorse1" })
+      await request(app)
+        .delete("/api/auth/me")
+        .set("Authorization", `Bearer ${u.token}`)
+        .send({ password: "CorrectHorse1" })
+        .expect(200)
+      expect(await prisma.user.count({ where: { id: u.id } })).toBe(0)
+    })
+  })
+
   afterAll(async () => {
     await prisma.$disconnect().catch(() => undefined)
   })

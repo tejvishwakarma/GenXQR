@@ -22,6 +22,7 @@ import {
   sendPasswordChangedEmail,
 } from "./email.service.js"
 import { logger } from "../logger/index.js"
+import { redis } from "../redis/client.js"
 import { createTrialSubscription } from "./billing.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
@@ -615,13 +616,43 @@ export async function changePassword(
   return { accessToken, refreshToken }
 }
 
-export async function deleteAccount(userId: string, password: string): Promise<void> {
+/**
+ * A single-use, short-lived grant that a fresh Google re-authentication mints,
+ * proving an OAuth-only user re-controlled their Google account moments ago.
+ */
+const DELETE_GRANT_TTL_SECONDS = 5 * 60
+const deleteGrantKey = (userId: string) => `reauth:delete:${userId}`
+
+/** Called by the reauth callback after it confirms the Google identity matches. */
+export async function grantDeleteReauth(userId: string): Promise<void> {
+  await redis.setex(deleteGrantKey(userId), DELETE_GRANT_TTL_SECONDS, "1")
+}
+
+/**
+ * Permanently delete the caller's account. Requires FRESH proof, not just a
+ * valid session (finding #4):
+ *
+ *  - password accounts confirm their password (as before);
+ *  - OAuth-only accounts (no passwordHash) must present a delete grant minted by
+ *    a fresh Google re-authentication — previously the password check was
+ *    skipped entirely for them, so any non-empty string authorised deletion.
+ *
+ * A missing grant throws a 403 with the code "reauth_required" so the client can
+ * start the Google re-auth redirect.
+ */
+export async function deleteAccount(userId: string, password?: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } })
   if (!user) throw new AppError(404, "Account not found")
 
   if (user.passwordHash) {
-    const valid = await verifyPassword(password, user.passwordHash)
+    const valid = password ? await verifyPassword(password, user.passwordHash) : false
     if (!valid) throw new AppError(403, "Incorrect password")
+  } else {
+    // OAuth-only: consume the single-use delete grant.
+    const consumed = await redis.del(deleteGrantKey(userId))
+    if (consumed === 0) {
+      throw new AppError(403, "reauth_required")
+    }
   }
 
   await prisma.user.delete({ where: { id: userId } })

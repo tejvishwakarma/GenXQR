@@ -411,12 +411,27 @@ export function resetPassword(token: string, password: string) {
   })
 }
 
-export function deleteAccount(password: string) {
+export function deleteAccount(password?: string) {
   const token = localStorage.getItem("access_token") ?? ""
   return apiFetch<{ success: boolean; message: string }>("/api/auth/me", {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ password }),
+    // OAuth-only accounts send no password; the server requires a fresh-reauth
+    // grant instead (finding #4) and answers 403 "reauth_required" without one.
+    body: JSON.stringify(password ? { password } : {}),
+  })
+}
+
+/**
+ * Starts a fresh Google re-authentication for account deletion (OAuth-only
+ * accounts). Returns the consent URL to navigate to; on return the callback has
+ * minted a short-lived delete grant and redirects to /app/settings?reauth=delete.
+ */
+export function startDeleteReauth() {
+  const token = localStorage.getItem("access_token") ?? ""
+  return apiFetch<{ success: boolean; data: { url: string } }>("/api/auth/reauth/google", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
   })
 }
 

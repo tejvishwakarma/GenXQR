@@ -7,6 +7,7 @@ import { requireAuth } from "../middleware/auth.middleware.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
+import { redis } from "../redis/client.js"
 import { type FileType } from "@prisma/client"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
@@ -176,6 +177,15 @@ function uploadHandler(type: keyof typeof CONFIGS) {
           fs.unlink(req.file.path, () => undefined)
           throw new AppError(413, "This upload would exceed your plan's storage limit.")
         }
+
+        // Bind this file to its uploader (finding #1, provenance). QR
+        // create/update accepts a client-supplied tempUrl; without a record of
+        // who uploaded a path, a tenant could attach — and then delete — a path
+        // aliasing another tenant's file. 24h is comfortably longer than the
+        // create-a-QR flow. Redis-only; a miss just means the stricter re-attach
+        // fallback (an existing QRFile the user already owns) must apply.
+        void redis.setex(`upload:owner:${relativePath}`, 24 * 60 * 60, userId)
+          .catch((err) => logger.warn("Upload ownership record failed", { userId, error: String(err) }))
 
         res.status(201).json({
           success: true,

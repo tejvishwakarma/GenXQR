@@ -14,6 +14,7 @@ import { requireAuth } from "../middleware/auth.middleware.js"
 import * as AuthService from "../services/auth.service.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { redis } from "../redis/client.js"
+import { prisma } from "../db/prisma.js"
 import { logAudit } from "../services/audit.service.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 
@@ -281,8 +282,11 @@ router.get(
  * Permanently deletes the authenticated user's account and all their data.
  * Requires password confirmation in the request body.
  */
+// password is optional: OAuth-only accounts have none and instead prove
+// themselves with a fresh-reauth grant (finding #4). The service decides which
+// proof each account requires.
 const DeleteAccountSchema = z.object({
-  password: z.string().min(1, "Password is required for account deletion"),
+  password: z.string().optional(),
 })
 
 router.delete(
@@ -293,7 +297,7 @@ router.delete(
     try {
       const parsed = DeleteAccountSchema.safeParse(req.body)
       if (!parsed.success) {
-        res.status(400).json({ success: false, error: "Password is required to delete your account" })
+        res.status(400).json({ success: false, error: "Invalid request" })
         return
       }
       const deletedUserId = (req.user as unknown as AccessTokenPayload).sub
@@ -543,6 +547,55 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
 })
 
 /**
+ * POST /api/auth/reauth/google
+ *
+ * Starts a fresh Google re-authentication for a destructive action (account
+ * deletion by an OAuth-only user — finding #4). Returns the consent URL rather
+ * than redirecting, because it is called with the bearer token via fetch (a
+ * browser redirect could not carry it), so the server knows WHO is re-authing
+ * and binds the state to them. The frontend then navigates to the URL.
+ */
+router.post(
+  "/reauth/google",
+  requireAuth,
+  authLimiter,
+  (req: Request, res: Response): void => {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CALLBACK_URL) {
+      res.status(503).json({ success: false, error: "Google OAuth is not configured" })
+      return
+    }
+    const userId = (req.user as unknown as AccessTokenPayload).sub
+    const state = randomBytes(32).toString("hex")
+    // Namespaced apart from login state so the callback can tell the two flows
+    // apart; stores the user this reauth must match.
+    void redis.setex(`oauth:reauth:${state}`, 600, userId)
+
+    res.cookie("oauth_state", state, {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 10 * 60 * 1000,
+      path: "/api/auth",
+    })
+
+    const url =
+      "https://accounts.google.com/o/oauth2/v2/auth?" +
+      new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        redirect_uri: env.GOOGLE_CALLBACK_URL,
+        response_type: "code",
+        scope: "profile email",
+        state,
+        // Force the account chooser so this is a real, deliberate re-auth rather
+        // than a silent pass-through of the existing Google session.
+        prompt: "select_account",
+      }).toString()
+
+    res.json({ success: true, data: { url } })
+  },
+)
+
+/**
  * GET /api/auth/google/callback
  */
 router.get(
@@ -564,23 +617,54 @@ router.get(
       const cookieState = (req.cookies as Record<string, string | undefined>)["oauth_state"] ?? ""
       res.clearCookie("oauth_state", { path: "/api/auth" })
 
-      const storedNextPath = returnedState ? await redis.get(`oauth:state:${returnedState}`) : null
-      if (storedNextPath !== null) await redis.del(`oauth:state:${returnedState}`) // consume once
+      // Browser binding (finding #5) applies to BOTH the login and reauth flows.
+      const browserBound = Boolean(returnedState) && returnedState === cookieState
 
-      if (!returnedState || returnedState !== cookieState || storedNextPath === null) {
-        logger.warn("Google OAuth callback rejected: state mismatch", { hasState: Boolean(returnedState) })
-        res.redirect(`${env.FRONTEND_URL}/login?error=oauth_state`)
-        return
-      }
-
-      // Passport sets req.user to the GoogleProfile object in this callback chain,
-      // not the JWT AccessTokenPayload — cast through unknown to reflect this.
+      // Passport sets req.user to the Google profile in this callback chain, not
+      // the JWT payload — cast through unknown to reflect this.
       const profile = req.user as unknown as {
         id: string
         email: string
         name: string
         avatarUrl?: string
       }
+
+      // ── Reauth-for-deletion branch (finding #4) ──────────────────────────────
+      // A reauth flow's state lives under oauth:reauth. If this is one, we do NOT
+      // log anyone in — we confirm the Google account that just authenticated is
+      // the same account the current user signs in with, then mint a short-lived
+      // single-use delete grant and send them back to settings.
+      const reauthUserId = browserBound ? await redis.get(`oauth:reauth:${returnedState}`) : null
+      if (reauthUserId !== null && browserBound) {
+        await redis.del(`oauth:reauth:${returnedState}`) // single-use
+        const u = await prisma.user.findUnique({
+          where: { id: reauthUserId },
+          select: { googleId: true, email: true },
+        })
+        const identityMatches =
+          !!u &&
+          (u.googleId === profile.id || u.email.toLowerCase() === profile.email.toLowerCase())
+        if (identityMatches) {
+          await AuthService.grantDeleteReauth(reauthUserId)
+          res.redirect(`${env.FRONTEND_URL}/app/settings?reauth=delete`)
+        } else {
+          logger.warn("Delete reauth rejected: Google identity mismatch", { userId: reauthUserId })
+          res.redirect(`${env.FRONTEND_URL}/app/settings?reauth=failed`)
+        }
+        return
+      }
+
+      // ── Normal login branch ──────────────────────────────────────────────────
+      const storedNextPath =
+        browserBound && returnedState ? await redis.get(`oauth:state:${returnedState}`) : null
+      if (storedNextPath !== null) await redis.del(`oauth:state:${returnedState}`) // consume once
+
+      if (!browserBound || storedNextPath === null) {
+        logger.warn("Google OAuth callback rejected: state mismatch", { hasState: Boolean(returnedState) })
+        res.redirect(`${env.FRONTEND_URL}/login?error=oauth_state`)
+        return
+      }
+
       const { accessToken, refreshToken } = await AuthService.handleGoogleOAuth(
         profile,
         req.ip ?? "",

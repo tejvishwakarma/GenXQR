@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BrandingSettings } from "./BrandingSettings"
 import {
   deleteAccount,
+  startDeleteReauth,
   getDriveStatus,
   getDriveAuthUrl,
   disconnectDrive,
@@ -59,16 +60,50 @@ export default function SettingsPage() {
     }
   }, [searchParams, setSearchParams, qc])
 
-  async function handleDeleteAccount() {
+  // Completes account deletion after the Google re-auth round trip (finding #4).
+  // ?reauth=delete means the grant was minted; retry the delete with no password.
+  // ?reauth=failed means the Google account did not match this user.
+  useEffect(() => {
+    const reauth = searchParams.get("reauth")
+    if (reauth === "delete") {
+      setSearchParams({}, { replace: true })
+      void handleDeleteAccount(true)
+    } else if (reauth === "failed") {
+      setSearchParams({}, { replace: true })
+      setShowDeleteModal(true)
+      setDeleteError("That Google account did not match this one. Account not deleted.")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function finishDeletion() {
+    localStorage.removeItem("access_token")
+    localStorage.removeItem("user")
+    navigate("/", { replace: true })
+  }
+
+  async function handleDeleteAccount(viaReauthGrant = false) {
     setDeleteError(null)
     setDeleteLoading(true)
     try {
-      await deleteAccount(deletePassword)
-      localStorage.removeItem("access_token")
-      localStorage.removeItem("user")
-      navigate("/", { replace: true })
+      // viaReauthGrant: we have just returned from Google re-auth, so send no
+      // password and let the server consume the delete grant it minted.
+      await deleteAccount(viaReauthGrant ? undefined : (deletePassword || undefined))
+      finishDeletion()
     } catch (err) {
-      setDeleteError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
+      // OAuth-only account with no fresh grant: bounce through Google re-auth,
+      // then this page auto-retries on return (see the effect below).
+      if (err instanceof ApiError && err.status === 403 && /reauth_required/i.test(err.message)) {
+        try {
+          const { data } = await startDeleteReauth()
+          window.location.href = data.url
+          return
+        } catch {
+          setDeleteError("Couldn't start Google re-authentication. Please try again.")
+        }
+      } else {
+        setDeleteError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
+      }
     } finally {
       setDeleteLoading(false)
     }
@@ -637,8 +672,11 @@ export default function SettingsPage() {
               <Button
                 variant="destructive"
                 className="flex-1"
-                disabled={deleteLoading || !deletePassword}
-                onClick={handleDeleteAccount}
+                // Not disabled on an empty password: OAuth-only accounts have no
+                // password and delete via Google re-auth instead (finding #4).
+                // A password account submitting empty just gets "Incorrect password".
+                disabled={deleteLoading}
+                onClick={() => handleDeleteAccount()}
               >
                 {deleteLoading ? "Deleting..." : "Yes, delete my account"}
               </Button>

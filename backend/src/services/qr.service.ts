@@ -15,6 +15,7 @@ import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // a deleted or deactivated QR kept resolving. DEL is idempotent, so the existing
 // explicit calls in qr.routes.ts remain harmless.
 import { invalidateQRCache } from "./scan.service.js"
+import { redis } from "../redis/client.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -285,8 +286,41 @@ async function validateExpiryDate(userId: string, activeUntil: string | null | u
 /**
  * Create a new QR code with optional content, design, and files.
  */
+/**
+ * Verifies the caller actually owns every uploaded file it is attaching
+ * (finding #1). tempUrl is client-supplied, so without this a tenant could
+ * attach a path aliasing another tenant's file. A path is accepted only if the
+ * uploader-ownership record (set at upload time) names this user, OR an existing
+ * QRFile with that path already belongs to them (legitimate re-attach on update,
+ * after the upload record's TTL). Anything else is refused.
+ */
+async function assertUploadsOwned(
+  userId: string,
+  files: { tempUrl: string }[],
+): Promise<void> {
+  for (const f of files) {
+    let owner: string | null = null
+    try {
+      owner = await redis.get(`upload:owner:${f.tempUrl}`)
+    } catch {
+      owner = null // Redis miss/outage falls through to the DB ownership check
+    }
+    if (owner === userId) continue
+
+    const alreadyOwned = await prisma.qRFile.findFirst({
+      where: { fileUrl: f.tempUrl, qrCode: { userId } },
+      select: { id: true },
+    })
+    if (alreadyOwned) continue
+
+    throw new AppError(403, "One or more uploaded files could not be attached to your account.")
+  }
+}
+
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>) {
   const { design, settings, content, uploadedFiles, ...qrData } = input
+
+  if (uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles)
 
   await validateExpiryDate(userId, settings.activeUntil ?? null)
 
@@ -395,6 +429,8 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
   if (!existing) throw new AppError(404, "QR code not found")
 
   const { design, settings, content, uploadedFiles, ...qrData } = input
+
+  if (uploadedFiles && uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles)
 
   // Validate expiry only when the caller explicitly provides a new activeUntil value
   if (settings?.activeUntil !== undefined) {
