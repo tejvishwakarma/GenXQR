@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="wedding-floral" data-frame-label="Eucalyptus &amp; Blush" data-frame-category="Wedding"
+     data-qr="180 170 640 640" data-text="60 840 880 100 42 #7a6a55 center">
+  <defs>
+    <g id="wf-leafy" fill="#8a9a7b">
+      <path d="M0 0h150" stroke="#6f7f63" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <ellipse cx="24" cy="-16" rx="17" ry="12" transform="rotate(-24 24 -16)"/>
+      <ellipse cx="24" cy="16" rx="17" ry="12" transform="rotate(24 24 16)"/>
+      <ellipse cx="60" cy="-19" rx="19" ry="13" transform="rotate(-20 60 -19)"/>
+      <ellipse cx="60" cy="19" rx="19" ry="13" transform="rotate(20 60 19)"/>
+      <ellipse cx="98" cy="-17" rx="17" ry="12" transform="rotate(-16 98 -17)"/>
+      <ellipse cx="98" cy="17" rx="17" ry="12" transform="rotate(16 98 17)"/>
+      <ellipse cx="134" cy="0" rx="15" ry="11"/>
+    </g>
+    <g id="wf-rose">
+      <circle r="26" fill="#e8b4b8"/>
+      <circle r="17" fill="#dda0a5"/>
+      <circle r="8" fill="#cf8b92"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#fdfbf7"/>
+  <rect x="18" y="18" width="964" height="964" rx="30" fill="none" stroke="#cfc4b2" stroke-width="3"/>
+  <use href="#wf-leafy" transform="translate(24 104) rotate(18)"/>
+  <use href="#wf-leafy" transform="translate(30 158) rotate(-6) scale(.85)"/>
+  <use href="#wf-leafy" transform="translate(976 104) rotate(162)"/>
+  <use href="#wf-leafy" transform="translate(970 158) rotate(186) scale(.85)"/>
+  <use href="#wf-rose" transform="translate(150 120)"/>
+  <use href="#wf-rose" transform="translate(850 120) scale(.9)"/>
+  <use href="#wf-rose" transform="translate(96 186) scale(.62)"/>
+  <use href="#wf-leafy" transform="translate(24 900) rotate(-14) scale(.9)"/>
+  <use href="#wf-leafy" transform="translate(976 900) rotate(194) scale(.9)"/>
+  <use href="#wf-rose" transform="translate(142 918) scale(.7)"/>
+  <use href="#wf-rose" transform="translate(858 918) scale(.7)"/>
+</svg>

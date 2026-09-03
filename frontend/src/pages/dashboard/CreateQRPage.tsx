@@ -21,6 +21,8 @@ import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } fr
 import LandingPreview from "./LandingPreview"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
+import { frameSpecHasText, frameSupportsColor, FramePreview } from "@/lib/qr-frames"
+import { FramePicker } from "@/components/dashboard/FramePicker"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -60,24 +62,8 @@ const CORNER_STYLES: { value: CornerSquareType; label: string }[] = [
 
 const LOGO_MAX_BYTES = 1 * 1024 * 1024 // 1 MB — logos are small; no need for full image upload limit
 
-const FRAME_STYLES: { id: string; label: string }[] = [
-  { id: "none",         label: "None"         },
-  { id: "simple",       label: "Scan Me"      },
-  { id: "top-label",    label: "Top Label"    },
-  { id: "both-labels",  label: "Both Labels"  },
-  { id: "scan-now",     label: "Scan Now"     },
-  { id: "box",          label: "Box Border"   },
-  { id: "thick-border", label: "Bold Border"  },
-  { id: "dashed",       label: "Dashed"       },
-  { id: "double",       label: "Double"       },
-  { id: "corners",      label: "Brackets"     },
-  { id: "card",         label: "White Card"   },
-  { id: "banner",       label: "Banner CTA"   },
-  { id: "speech-bubble",label: "Bubble"       },
-  { id: "neon-violet",  label: "Neon Violet"  },
-  { id: "neon-blue",    label: "Neon Blue"    },
-  { id: "neon-pink",    label: "Neon Pink"    },
-]
+// Frame catalog lives in @/lib/qr-frames (single source of truth for the picker,
+// the live preview, and every export renderer). FRAME_OPTIONS is the flat list.
 
 // ─── 30+ Social Networks ──────────────────────────────────────────────────────
 
@@ -2119,54 +2105,49 @@ export default function CreateQRPage() {
                     <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3 flex items-center gap-2">
                       <Settings2 size={14} className="text-violet-400" /> Frame Style
                     </h3>
-                    <div className="grid grid-cols-3 gap-2">
-                      {FRAME_STYLES.map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setFrameStyle(f.id)}
-                          className={cn(
-                            "py-2 px-2 rounded-lg text-xs font-medium transition-all border",
-                            frameStyle === f.id
-                              ? "border-violet-500 bg-violet-500/15 text-violet-400"
-                              : "border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-zinc-600"
-                          )}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
+                    <FramePicker
+                      value={frameStyle}
+                      onChange={setFrameStyle}
+                      color={frameBgColor}
+                      text={frameText}
+                    />
 
-                    {/* Frame text + background — only relevant for label-bearing frame styles */}
-                    {["simple", "top-label", "both-labels", "scan-now", "banner"].includes(frameStyle) && (
+                    {/* Text and colour are independent: an illustrated frame may
+                        carry a CTA slot but fixed artwork colours, or be tintable
+                        with no text at all. Show only what the frame actually uses. */}
+                    {(frameSpecHasText(frameStyle) || frameSupportsColor(frameStyle)) && (
                       <div className="mt-4 space-y-3">
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Text</label>
-                          <Input
-                            value={frameText}
-                            onChange={(e) => setFrameText(e.target.value.toUpperCase())}
-                            placeholder="SCAN ME"
-                            className="font-mono text-xs tracking-widest"
-                            maxLength={24}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Background Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="w-10 h-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent cursor-pointer"
-                            />
+                        {frameSpecHasText(frameStyle) && (
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1.5">Frame Text</label>
                             <Input
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="font-mono text-xs"
-                              maxLength={7}
+                              value={frameText}
+                              onChange={(e) => setFrameText(e.target.value.toUpperCase())}
+                              placeholder="SCAN ME"
+                              className="font-mono text-xs tracking-widest"
+                              maxLength={24}
                             />
                           </div>
-                        </div>
+                        )}
+                        {frameSupportsColor(frameStyle) && (
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1.5">Frame Color</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={frameBgColor}
+                                onChange={(e) => setFrameBgColor(e.target.value)}
+                                className="w-10 h-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent cursor-pointer"
+                              />
+                              <Input
+                                value={frameBgColor}
+                                onChange={(e) => setFrameBgColor(e.target.value)}
+                                className="font-mono text-xs"
+                                maxLength={7}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2265,77 +2246,17 @@ export default function CreateQRPage() {
             {/* ── QR Code tab — always mounted so qrRef is available at init ── */}
             <div className={previewTab === "qr" ? "" : "hidden"}>
               <div className="flex flex-col items-center mb-4">
-                {/* Top label — lives OUTSIDE the frame wrapper so qrRef never shifts position */}
-                {(frameStyle === "top-label" || frameStyle === "both-labels") && (
-                  <div
-                    className="w-[200px] text-white text-[10px] font-bold text-center py-2 tracking-widest rounded-t-lg"
-                    style={{ backgroundColor: frameBgColor }}
-                  >
-                    {frameText || "SCAN ME"}
-                  </div>
-                )}
-
-                {/* Frame wrapper — key prevents React from confusing it with the top label div */}
-                <div
-                  key="qr-frame"
-                  style={(frameStyle === "top-label" || frameStyle === "both-labels") ? { borderColor: frameBgColor } : undefined}
-                  className={cn(
-                    "relative flex flex-col items-center transition-all",
-                    frameStyle === "box"          && "border-2 border-white/50 p-2 rounded-xl",
-                    frameStyle === "thick-border" && "border-[5px] border-white p-1 rounded-2xl",
-                    frameStyle === "dashed"       && "border-2 border-dashed border-white/65 p-2 rounded-xl",
-                    frameStyle === "double"       && "border-2 border-white/80 p-1.5 rounded-xl outline outline-2 outline-white/25 outline-offset-[3px]",
-                    frameStyle === "corners"      && "p-5",
-                    frameStyle === "speech-bubble"&& "border-2 border-violet-500 p-2 rounded-xl shadow-[0_0_0_5px_rgba(124,58,237,0.2)]",
-                    frameStyle === "neon-violet"  && "border-2 border-violet-400 p-2 rounded-xl shadow-[0_0_25px_8px_rgba(139,92,246,0.55)]",
-                    frameStyle === "neon-blue"    && "border-2 border-blue-400 p-2 rounded-xl shadow-[0_0_25px_8px_rgba(59,130,246,0.55)]",
-                    frameStyle === "neon-pink"    && "border-2 border-pink-400 p-2 rounded-xl shadow-[0_0_25px_8px_rgba(236,72,153,0.55)]",
-                    frameStyle === "card"         && "bg-white p-3 rounded-2xl shadow-2xl shadow-black/50",
-                    frameStyle === "banner"       && "bg-white p-3 pb-0 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden",
-                    (frameStyle === "top-label" || frameStyle === "both-labels") && "border-x-2 border-b-2 rounded-b-lg",
-                  )}
+                {/* Live frame + QR — renders the SAME scene the downloads produce
+                    (see @/lib/qr-frames), so the preview matches every export. */}
+                <FramePreview
+                  frameStyle={frameStyle}
+                  color={frameBgColor}
+                  text={frameText}
+                  qrPx={200}
                 >
-                  {/* Corner bracket decorations (absolutely positioned — never affect qrRef position) */}
-                  {frameStyle === "corners" && (
-                    <>
-                      <div className="absolute top-0 left-0 w-6 h-6 border-t-[3px] border-l-[3px] border-white" />
-                      <div className="absolute top-0 right-0 w-6 h-6 border-t-[3px] border-r-[3px] border-white" />
-                      <div className="absolute bottom-0 left-0 w-6 h-6 border-b-[3px] border-l-[3px] border-white" />
-                      <div className="absolute bottom-0 right-0 w-6 h-6 border-b-[3px] border-r-[3px] border-white" />
-                    </>
-                  )}
-
-                  {/* QR code — first non-absolute child, stable position */}
+                  {/* QR code — stable single element; FramePreview positions it in the scene */}
                   <div ref={qrRef} className="w-[200px] h-[200px] rounded-xl overflow-hidden" />
-
-                  {/* Bottom label */}
-                  {(frameStyle === "simple" || frameStyle === "both-labels") && (
-                    <div
-                      className="w-[200px] text-white text-[10px] font-bold text-center py-2 tracking-widest rounded-b-lg"
-                      style={{ backgroundColor: frameBgColor }}
-                    >
-                      {frameText || "SCAN ME"}
-                    </div>
-                  )}
-
-                  {/* Banner CTA strip */}
-                  {frameStyle === "banner" && (
-                    <div
-                      className="-mx-3 mt-3 py-2 text-white text-[11px] font-bold text-center tracking-widest"
-                      style={{ background: frameBgColor, width: "calc(200px + 24px)" }}
-                    >{frameText || "SCAN ME"} →</div>
-                  )}
-                </div>
-
-                {/* Scan Now label */}
-                {frameStyle === "scan-now" && (
-                  <div
-                    className="mt-2.5 text-[10px] font-bold tracking-widest opacity-90 px-3 py-1.5 rounded-full"
-                    style={{ color: "#ffffff", backgroundColor: frameBgColor }}
-                  >
-                    ↓&nbsp;{frameText || "SCAN NOW"}&nbsp;↓
-                  </div>
-                )}
+                </FramePreview>
               </div>
 
               <div className="space-y-2 text-xs text-zinc-500">

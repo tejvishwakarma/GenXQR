@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="valentines-hearts" data-frame-label="Hearts" data-frame-category="Valentine's Day"
+     data-qr="180 170 640 640" data-text="60 840 880 100 44 #be123c center">
+  <defs>
+    <path id="vh-heart" d="M0 26C-30 4-46-10-46-28c0-14 11-24 24-24 9 0 16 4 22 12 6-8 13-12 22-12 13 0 24 10 24 24 0 18-16 32-46 54z"/>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#fff1f4"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#f9a8c0" stroke-width="4"/>
+  <g fill="#e11d48">
+    <use href="#vh-heart" transform="translate(96 96) scale(1.15)"/>
+    <use href="#vh-heart" transform="translate(904 100) scale(.95) rotate(12)"/>
+    <use href="#vh-heart" transform="translate(500 78) scale(.7)"/>
+    <use href="#vh-heart" transform="translate(90 902) scale(.85) rotate(-10)"/>
+    <use href="#vh-heart" transform="translate(910 900) scale(1.05) rotate(8)"/>
+  </g>
+  <g fill="#fb7185" opacity=".75">
+    <use href="#vh-heart" transform="translate(214 122) scale(.5) rotate(-14)"/>
+    <use href="#vh-heart" transform="translate(786 132) scale(.45) rotate(16)"/>
+    <use href="#vh-heart" transform="translate(96 500) scale(.5)"/>
+    <use href="#vh-heart" transform="translate(904 500) scale(.5)"/>
+    <use href="#vh-heart" transform="translate(96 320) scale(.36)"/>
+    <use href="#vh-heart" transform="translate(904 686) scale(.36)"/>
+  </g>
+</svg>

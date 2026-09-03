@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="standard-cta-bar" data-frame-label="Bold CTA" data-frame-category="Standard"
+     data-qr="150 130 700 700" data-text="0 866 1000 134 52 #ffffff center" data-tintable="true">
+  <rect width="1000" height="1000" rx="48" fill="#ffffff"/>
+  <path d="M0 866h1000v86a48 48 0 0 1-48 48H48a48 48 0 0 1-48-48z" fill="currentColor"/>
+  <rect x="6" y="6" width="988" height="988" rx="44" fill="none" stroke="currentColor" stroke-width="12"/>
+</svg>

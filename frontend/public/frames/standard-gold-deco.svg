@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="standard-gold-deco" data-frame-label="Gold Deco" data-frame-category="Standard"
+     data-qr="180 170 640 640" data-text="60 848 880 100 42 #b08d3f center">
+  <rect width="1000" height="1000" rx="10" fill="#fffdf8"/>
+  <rect x="22" y="22" width="956" height="956" fill="none" stroke="#c9a552" stroke-width="3"/>
+  <rect x="40" y="40" width="920" height="920" fill="none" stroke="#c9a552" stroke-width="1.5" opacity=".8"/>
+  <g fill="#c9a552">
+    <path d="M22 120V22h98v10H32v88zM978 120V22h-98v10h88v88z"/>
+    <path d="M22 880v98h98v-10H32v-88zM978 880v98h-98v-10h88v-88z"/>
+  </g>
+  <g fill="none" stroke="#c9a552" stroke-width="2.5">
+    <path d="M420 96h160M470 74h60M440 118h120"/>
+    <path d="M420 926h160M470 948h60"/>
+  </g>
+  <g fill="#c9a552"><circle cx="500" cy="96" r="4"/><circle cx="500" cy="926" r="4"/></g>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="thanksgiving-harvest" data-frame-label="Autumn Leaves" data-frame-category="Thanksgiving"
+     data-qr="180 170 640 640" data-text="60 840 880 100 44 #92400e center">
+  <defs>
+    <g id="th-leaf">
+      <path d="M0 40C-26 16-34-4-26-22-18-40 0-46 0-46s18 6 26 24c8 18 0 38-26 62z" fill="currentColor"/>
+      <path d="M0 40V-40" stroke="#78350f" stroke-width="4" opacity=".5"/>
+      <path d="M0 6-18-12M0 6 18-12M0-14-13-28M0-14 13-28" stroke="#78350f" stroke-width="3" opacity=".4"/>
+    </g>
+    <g id="th-wheat" stroke="#d97706" stroke-width="5" fill="none" stroke-linecap="round">
+      <path d="M0 0V-90"/>
+      <path d="M0-30-16-46M0-30 16-46M0-50-16-66M0-50 16-66M0-70-14-84M0-70 14-84"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#fefaf2"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#e7c9a0" stroke-width="5"/>
+  <g color="#ea580c"><use href="#th-leaf" transform="translate(104 100) rotate(-24)"/></g>
+  <g color="#d97706"><use href="#th-leaf" transform="translate(202 130) rotate(18) scale(.76)"/></g>
+  <g color="#b45309"><use href="#th-leaf" transform="translate(896 104) rotate(26)"/></g>
+  <g color="#f59e0b"><use href="#th-leaf" transform="translate(798 134) rotate(-16) scale(.72)"/></g>
+  <use href="#th-wheat" transform="translate(60 986) rotate(12)"/>
+  <use href="#th-wheat" transform="translate(120 986) rotate(-6) scale(.85)"/>
+  <use href="#th-wheat" transform="translate(940 986) rotate(-12)"/>
+  <use href="#th-wheat" transform="translate(880 986) rotate(6) scale(.85)"/>
+  <g color="#ea580c"><use href="#th-leaf" transform="translate(500 84) rotate(6) scale(.6)"/></g>
+</svg>

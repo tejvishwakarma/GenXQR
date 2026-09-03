@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1180" viewBox="0 0 1000 1180"
+     data-frame-id="standard-phone" data-frame-label="Phone Mockup" data-frame-category="Standard"
+     data-qr="200 250 600 600" data-text="100 940 800 110 46 #ffffff center" data-tintable="true">
+  <rect width="1000" height="1180" rx="60" fill="#f4f4f6"/>
+  <rect x="110" y="70" width="780" height="1040" rx="88" fill="#1c1c22"/>
+  <rect x="140" y="100" width="720" height="980" rx="66" fill="#ffffff"/>
+  <rect x="420" y="128" width="160" height="18" rx="9" fill="#1c1c22"/>
+  <rect x="170" y="190" width="660" height="14" rx="7" fill="#e6e6ec"/>
+  <rect x="170" y="920" width="660" height="140" rx="26" fill="currentColor"/>
+  <rect x="440" y="1042" width="120" height="10" rx="5" fill="#1c1c22" opacity=".25"/>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="halloween-pumpkins" data-frame-label="Pumpkins &amp; Bats" data-frame-category="Halloween"
+     data-qr="180 170 640 640" data-text="60 840 880 100 44 #fb923c center">
+  <defs>
+    <g id="hp-pumpkin">
+      <path d="M-4-46c0-14 12-18 22-14-8 4-12 8-12 14z" fill="#4d7c2a"/>
+      <ellipse rx="52" ry="44" fill="#ea7317"/>
+      <ellipse rx="34" ry="43" fill="#f4913a" opacity=".85"/>
+      <ellipse rx="13" ry="42" fill="#f9a862" opacity=".7"/>
+    </g>
+    <g id="hp-bat" fill="#1b1230">
+      <path d="M0-7c6-10 14-12 22-16-4 8-2 12 4 14-8 6-18 8-26 6z"/>
+      <path d="M0-7c-6-10-14-12-22-16 4 8 2 12-4 14 8 6 18 8 26 6z"/>
+      <ellipse ry="9" rx="5"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#211538"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#fb923c" stroke-width="4" opacity=".45"/>
+  <path d="M14 46A200 200 0 0 1 214 46" fill="none" stroke="#6d5b96" stroke-width="3" opacity=".7"/>
+  <path d="M14 46 118 150M64 20 118 150M170 22 118 150M14 110 118 150" stroke="#6d5b96" stroke-width="3" opacity=".55"/>
+  <use href="#hp-bat" transform="translate(760 92) scale(1.5)"/>
+  <use href="#hp-bat" transform="translate(872 168) scale(1.05)"/>
+  <use href="#hp-bat" transform="translate(662 168) scale(.8)"/>
+  <use href="#hp-pumpkin" transform="translate(112 902)"/>
+  <use href="#hp-pumpkin" transform="translate(214 926) scale(.66)"/>
+  <use href="#hp-pumpkin" transform="translate(888 902) scale(.9)"/>
+  <g fill="#fbbf24" opacity=".85"><circle cx="500" cy="86" r="5"/><circle cx="420" cy="120" r="4"/><circle cx="580" cy="126" r="4"/></g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="standard-corner-accent" data-frame-label="Corner Accent" data-frame-category="Standard"
+     data-qr="170 160 660 660" data-text="60 856 880 100 46 #ffffff center" data-tintable="true">
+  <rect width="1000" height="1000" rx="40" fill="#15161c"/>
+  <g fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round">
+    <path d="M60 190V90a30 30 0 0 1 30-30h100"/>
+    <path d="M810 60h100a30 30 0 0 1 30 30v100"/>
+    <path d="M940 810v100a30 30 0 0 1-30 30H810"/>
+    <path d="M190 940H90a30 30 0 0 1-30-30V810"/>
+  </g>
+  <rect x="60" y="856" width="880" height="0" fill="none"/>
+  <rect x="290" y="862" width="420" height="88" rx="44" fill="currentColor"/>
+</svg>

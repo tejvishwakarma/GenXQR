@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="easter-eggs" data-frame-label="Easter Eggs" data-frame-category="Easter"
+     data-qr="180 170 640 640" data-text="60 840 880 100 44 #7c6aa8 center">
+  <defs>
+    <g id="ee-egg">
+      <path d="M0-52c22 0 36 26 36 48a36 36 0 0 1-72 0c0-22 14-48 36-48z" fill="currentColor"/>
+      <path d="M-34-8h68M-30 14h60" stroke="#fff" stroke-width="6" opacity=".65"/>
+      <circle cy="-26" r="5" fill="#fff" opacity=".6"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#fbf8ff"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#d8cdf0" stroke-width="5"/>
+  <g color="#f9a8d4"><use href="#ee-egg" transform="translate(108 108)"/></g>
+  <g color="#93c5fd"><use href="#ee-egg" transform="translate(206 132) scale(.78)"/></g>
+  <g color="#fcd34d"><use href="#ee-egg" transform="translate(892 110) scale(.92)"/></g>
+  <g color="#86efac"><use href="#ee-egg" transform="translate(792 134) scale(.72)"/></g>
+  <g color="#c4b5fd"><use href="#ee-egg" transform="translate(104 898) scale(.85)"/></g>
+  <g color="#fda4af"><use href="#ee-egg" transform="translate(896 898) scale(.85)"/></g>
+  <g fill="none" stroke="#a78bfa" stroke-width="4" opacity=".7">
+    <path d="M470 96c-10-18-4-34 8-42 4 14 2 26-8 42zM530 96c10-18 4-34-8-42-4 14-2 26 8 42z"/>
+  </g>
+  <g fill="#d8cdf0"><circle cx="330" cy="900" r="8"/><circle cx="500" cy="912" r="9"/><circle cx="670" cy="900" r="8"/></g>
+</svg>

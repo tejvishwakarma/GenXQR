@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="christmas-pine" data-frame-label="Pine &amp; Baubles" data-frame-category="Christmas"
+     data-qr="180 170 640 640" data-text="60 840 880 100 44 #14532d center">
+  <defs>
+    <g id="cp-sprig" fill="none" stroke="#22683f" stroke-width="8" stroke-linecap="round">
+      <path d="M0 0H172"/>
+      <path d="M20 0 4-24M20 0 4 24M50 0 32-28M50 0 32 28M82 0 62-30M82 0 62 30M114 0 94-30M114 0 94 30M144 0 126-26M144 0 126 26"/>
+    </g>
+    <g id="cp-bauble">
+      <path d="M-9-30h18v10h-18z" fill="#b8892f"/>
+      <circle r="30" fill="#c8362f"/>
+      <path d="M-13-14a18 18 0 0 1 13-8" stroke="#fff" stroke-width="6" fill="none" opacity=".55" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#fbf7ef"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#22683f" stroke-width="4" opacity=".35"/>
+  <g><use href="#cp-sprig" transform="translate(30 96) rotate(14)"/><use href="#cp-sprig" transform="translate(46 150) rotate(-8)"/></g>
+  <g><use href="#cp-sprig" transform="translate(970 96) rotate(166)"/><use href="#cp-sprig" transform="translate(954 150) rotate(188)"/></g>
+  <use href="#cp-bauble" transform="translate(150 112)"/>
+  <use href="#cp-bauble" transform="translate(858 126) scale(.85)"/>
+  <use href="#cp-bauble" transform="translate(96 196) scale(.7)"/>
+  <g><use href="#cp-sprig" transform="translate(40 906) rotate(-16)"/></g>
+  <g><use href="#cp-sprig" transform="translate(960 906) rotate(196)"/></g>
+  <g fill="#c8362f" opacity=".9"><circle cx="196" cy="874" r="11"/><circle cx="806" cy="874" r="11"/></g>
+</svg>

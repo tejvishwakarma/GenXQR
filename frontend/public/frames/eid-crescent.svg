@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000"
+     data-frame-id="eid-crescent" data-frame-label="Crescent &amp; Lanterns" data-frame-category="Eid"
+     data-qr="180 170 640 640" data-text="60 840 880 100 42 #fcd34d center">
+  <defs>
+    <g id="ec-lantern">
+      <path d="M-4-46h8v10h-8z" fill="#d4af37"/>
+      <path d="M-22-36h44l-6 12h-32z" fill="#d4af37"/>
+      <path d="M-16-24h32l6 44a22 22 0 0 1-44 0z" fill="#e5c158"/>
+      <path d="M-8-18h16l3 36a11 11 0 0 1-22 0z" fill="#fef3c7" opacity=".7"/>
+      <ellipse cy="24" rx="14" ry="5" fill="#d4af37"/>
+    </g>
+  </defs>
+  <rect width="1000" height="1000" rx="44" fill="#0f3b32"/>
+  <rect x="14" y="14" width="972" height="972" rx="32" fill="none" stroke="#d4af37" stroke-width="4" opacity=".8"/>
+  <path d="M112 60a58 58 0 1 0 0 112 46 46 0 1 1 0-112z" fill="#fcd34d"/>
+  <path d="M206 96 214 118 236 126 214 134 206 156 198 134 176 126 198 118z" fill="#fcd34d" opacity=".9"/>
+  <path d="M268 138 273 150 285 155 273 160 268 172 263 160 251 155 263 150z" fill="#fcd34d" opacity=".7"/>
+  <path d="M760 30v34M846 30v46M916 30v28" stroke="#d4af37" stroke-width="3"/>
+  <use href="#ec-lantern" transform="translate(760 106) scale(1.05)"/>
+  <use href="#ec-lantern" transform="translate(846 120) scale(.85)"/>
+  <use href="#ec-lantern" transform="translate(916 96) scale(.7)"/>
+  <g fill="none" stroke="#d4af37" stroke-width="3" opacity=".6">
+    <path d="M60 902h120M820 902h120"/>
+    <path d="M120 872 148 902 120 932 92 902z"/>
+    <path d="M880 872 908 902 880 932 852 902z"/>
+  </g>
+</svg>
