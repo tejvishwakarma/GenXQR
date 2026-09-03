@@ -148,3 +148,33 @@ if (failures.length) {
 }
 
 console.log(`prerender — ${written} routes written to dist/ (\"/\" left as the SPA shell by design)`)
+
+// ── Strict-CSP guard ────────────────────────────────────────────────────────
+// The production CSP has script-src WITHOUT 'unsafe-inline' (deploy/*.conf), so
+// any inline <script> would be silently blocked in the browser — the app would
+// half-load with no console error at build time, only at runtime for every
+// visitor. Fail the build instead if an inline executable script slips into any
+// served HTML. JSON-LD (type="application/ld+json") is exempt: browsers never
+// execute it, so CSP does not apply to it.
+const inlineOffenders = []
+;(function scan(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name)
+    if (e.isDirectory()) { scan(full); continue }
+    if (!e.name.endsWith(".html")) continue
+    const html = fs.readFileSync(full, "utf8")
+    for (const tag of html.match(/<script\b[^>]*>/gi) ?? []) {
+      const hasSrc = /\bsrc=/.test(tag)
+      const isJsonLd = /type\s*=\s*["']application\/ld\+json["']/i.test(tag)
+      if (!hasSrc && !isJsonLd) inlineOffenders.push(`${full.replace(DIST, "")}: ${tag}`)
+    }
+  }
+})(DIST)
+
+if (inlineOffenders.length) {
+  console.error("\nprerender: inline <script> found — the strict script-src CSP will block these in the browser.")
+  console.error("Move the script to an external file served from 'self' (see public/theme-init.js).\n")
+  inlineOffenders.forEach((o) => console.error(`  ${o}`))
+  fail(`${inlineOffenders.length} inline script(s) would be blocked by CSP.`)
+}
+console.log("prerender — no inline scripts; safe for strict script-src")

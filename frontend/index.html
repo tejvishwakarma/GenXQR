@@ -91,24 +91,11 @@
     <meta name="twitter:image:alt" content="GenXQR — QR Code Generator with Analytics" />
     <!-- SEO-FALLBACK-END -->
 
-    <!-- Inline theme init: prevents flash of wrong theme before React mounts -->
-    <script>
-      (function () {
-        // Theme — light is the default; only go dark if the user explicitly chose it.
-        var stored = localStorage.getItem('theme');
-        var dark = stored === 'dark';
-        document.documentElement.classList.toggle('dark', dark);
-        // RTL language direction
-        var lang = localStorage.getItem('GenXQR_lang') || '';
-        var rtlCodes = ['ar','he','fa','ur','ps','sd','ug','yi'];
-        if (lang && rtlCodes.indexOf(lang) !== -1) {
-          document.documentElement.dir = 'rtl';
-          document.documentElement.lang = lang;
-        } else if (lang) {
-          document.documentElement.lang = lang;
-        }
-      })();
-    </script>
+    <!-- Theme init: prevents a flash of the wrong theme before React mounts.
+         EXTERNAL (not inline) so script-src can drop 'unsafe-inline' — see
+         public/theme-init.js. Blocking + early in <head>, so it still runs
+         before first paint. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>
