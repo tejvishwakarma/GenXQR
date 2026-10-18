@@ -40,7 +40,7 @@ const OUT_PATH = path.resolve(__dirname, "../dist/sitemap.xml")
 // to Google — with nothing to make the mismatch visible.
 const today = new Date().toISOString().slice(0, 10)
 
-const body = PUBLIC_ROUTES.map(
+const body = PUBLIC_ROUTES.filter((r) => r.sitemap !== false).map(
   (route) => `  <url>
     <loc>${SITE_URL}${route.path}</loc>
     <lastmod>${today}</lastmod>

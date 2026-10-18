@@ -52,7 +52,10 @@ export const PUBLIC_ROUTES = [
   { path: "/scanner", changefreq: "monthly", priority: "0.8" },
 
   // Content
-  { path: "/blog", changefreq: "weekly", priority: "0.7" },
+  // Prerendered always (nginx 404s anything without a file), but left out of
+  // the sitemap while there are no published posts: the page is noindex then
+  // (BlogPage.tsx), and submitting a noindex URL is a conflicting signal.
+  { path: "/blog", changefreq: "weekly", priority: "0.7", sitemap: BLOG_ROUTES.length > 0 },
   ...BLOG_ROUTES,
   { path: "/faq", changefreq: "monthly", priority: "0.7" },
   { path: "/api-docs", changefreq: "monthly", priority: "0.8" },

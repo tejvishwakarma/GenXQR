@@ -85,6 +85,10 @@ export default function CareersPage() {
         title="Careers"
         description="Join GenXQR and help build the next generation of dynamic QR infrastructure."
         url="/careers"
+        // An empty careers page is thin content: noindex once the job list has
+        // loaded and is empty (decided 18 Oct 2026). The prerendered HTML has no
+        // data, so it stays indexable there; Google honours the rendered tag.
+        noIndex={!isLoading && data !== undefined && allRoles.length === 0}
       />
 
       {/* ── Hero ── */}

@@ -31,6 +31,19 @@ const tree = (
   </StrictMode>
 )
 
+/**
+ * Head tags written into the HTML by the prerender (or the index.html
+ * fallback) carry data-seo-static. They exist for crawlers that do not run
+ * JavaScript. Once React renders, <SEOMeta> emits the page's tags again — and
+ * react-helmet-async on React 19 renders them as elements that React hoists,
+ * rather than adopting what is already in <head> — so leaving the static ones
+ * produced two titles, two descriptions and two canonicals on every page (seen
+ * in Search Console's rendered HTML). Removing them first leaves one set.
+ * JSON-LD is marked too: Helmet re-renders it on the client as well (measured:
+ * two ld+json blocks per page before this).
+ */
+document.head.querySelectorAll('[data-seo-static]').forEach((el) => el.remove())
+
 const container = document.getElementById('root')!
 
 /**

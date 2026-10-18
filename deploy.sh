@@ -154,5 +154,11 @@ else
   pm2 save
 fi
 
+# Ask IndexNow engines (Bing and others; not Google) to re-crawl the public
+# pages whose content changed. nginx serves frontend/dist directly, so they are
+# already live. Never fails the deploy — see the script's header.
+echo "==> IndexNow"
+node frontend/scripts/indexnow.mjs --submit || echo "!!  IndexNow step errored; deploy itself is complete"
+
 echo "==> done"
 pm2 status

@@ -267,7 +267,6 @@ const faqCategories: FAQCategory[] = [
 
 export default function FAQPage() {
   const [activeCategory, setActiveCategory] = useState<string>("getting-started")
-  const activeCategoryData = faqCategories.find((cat) => cat.id === activeCategory)
 
   return (
     <>
@@ -346,30 +345,18 @@ export default function FAQPage() {
           {/* ── FAQ list ─────────────────────────────────────────────────────── */}
           {/* Deliverable 4: All answers rewritten — benefit-led, India-first, jargon removed */}
           {/* False claims corrected: bcrypt (not Argon2id), retention = while subscribed + 3 months after lapse */}
-          {activeCategoryData && (
-            <div className="mb-8">
+          {/* Every category is in the HTML; the tabs only show/hide them. This
+              replaces a separate screen-reader-only copy of all answers, which
+              screen readers read twice and crawlers saw as duplicate text. */}
+          {faqCategories.map((cat) => (
+            <div key={cat.id} hidden={cat.id !== activeCategory} className="mb-8">
               <h2 className="flex items-center gap-2 font-display font-semibold text-lg text-ink mb-4">
                 <span className="w-1.5 h-5 rounded-full bg-accent" />
-                {activeCategoryData.label}
+                {cat.label}
               </h2>
-              <FaqAccordion items={activeCategoryData.items} />
+              <FaqAccordion items={cat.items} />
             </div>
-          )}
-
-          {/* All categories expanded view for SEO crawling (screen-reader + crawler accessible) */}
-          <div className="sr-only" aria-hidden="false">
-            {faqCategories.map((cat) => (
-              <div key={cat.id}>
-                <h2>{cat.label}</h2>
-                {cat.items.map((item) => (
-                  <div key={item.q}>
-                    <h3>{item.q}</h3>
-                    <p>{item.a}</p>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          ))}
 
           {/* ── Browse all categories strip ──────────────────────────────────── */}
           <div className="flex flex-wrap gap-2 justify-center">

@@ -3,6 +3,7 @@ import {
   UtensilsCrossed, Ticket, Share2, MessageCircle, Wifi, Palette, BarChart3, RefreshCw,
   Instagram, Facebook,
 } from "lucide-react"
+import { Link } from "react-router-dom"
 import { MktContainer, SectionHead, FinderGlyph } from "./ui"
 import { usePlatformStats } from "@/hooks/usePlatformStats"
 import { useCountUp } from "@/hooks/useCountUp"
@@ -37,6 +38,11 @@ function CountUp({ value }: { value: number }) {
   return <div ref={ref}>{formatStat(count)}+</div>
 }
 
+/**
+ * Live platform stats. NOT rendered (removed from HomePage 18 Oct 2026): the
+ * real numbers are still small, and small numbers hurt credibility more than
+ * no numbers. Re-add <TrustStrip /> to HomePage once they help.
+ */
 export function TrustStrip() {
   const { stats, failed } = usePlatformStats()
   return (
@@ -64,9 +70,9 @@ const GROUPS = [
   {
     group: "Link & web",
     items: [
-      { icon: Link2, label: "Website / URL" },
+      { icon: Link2, label: "Website / URL", href: "/generate/url" },
       { icon: List, label: "Multi-link page" },
-      { icon: Wifi, label: "WiFi access" },
+      { icon: Wifi, label: "WiFi access", href: "/generate/wifi" },
       { icon: UtensilsCrossed, label: "Menu" },
     ],
   },
@@ -92,8 +98,8 @@ const GROUPS = [
     group: "Social",
     items: [
       { icon: Share2, label: "Social profiles" },
-      { icon: MessageCircle, label: "WhatsApp" },
-      { icon: Instagram, label: "Instagram" },
+      { icon: MessageCircle, label: "WhatsApp", href: "/generate/whatsapp" },
+      { icon: Instagram, label: "Instagram", href: "/generate/instagram" },
       { icon: Facebook, label: "Facebook" },
     ],
   },
@@ -114,17 +120,28 @@ export function QrTypes() {
             <div key={g.group} className="rounded-[20px] border border-line bg-paper-pure p-6 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10">
               <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">{g.group}</div>
               <ul className="mt-4 space-y-1">
-                {g.items.map((it) => (
-                  <li
-                    key={it.label}
-                    className="group flex items-center gap-3 rounded-xl px-2.5 py-2 -mx-2.5 hover:bg-accent-soft transition-colors cursor-default"
-                  >
-                    <span className="grid place-items-center w-8 h-8 rounded-lg bg-ink/[0.04] text-ink group-hover:bg-white group-hover:text-accent transition-colors">
-                      <it.icon size={16} />
-                    </span>
-                    <span className="text-[15px] text-ink">{it.label}</span>
-                  </li>
-                ))}
+                {g.items.map((it) => {
+                  const inner = (
+                    <>
+                      <span className="grid place-items-center w-8 h-8 rounded-lg bg-ink/[0.04] text-ink group-hover:bg-white group-hover:text-accent transition-colors">
+                        <it.icon size={16} />
+                      </span>
+                      <span className="text-[15px] text-ink">{it.label}</span>
+                    </>
+                  )
+                  const rowClass = "group flex items-center gap-3 rounded-xl px-2.5 py-2 -mx-2.5 hover:bg-accent-soft transition-colors"
+                  // Types with their own free generator page link to it (internal
+                  // links help those pages rank); the rest are dashboard-only.
+                  return (
+                    <li key={it.label}>
+                      {"href" in it && it.href ? (
+                        <Link to={it.href} className={rowClass}>{inner}</Link>
+                      ) : (
+                        <div className={`${rowClass} cursor-default`}>{inner}</div>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}

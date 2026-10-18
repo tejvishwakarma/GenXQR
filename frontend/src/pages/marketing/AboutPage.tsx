@@ -26,7 +26,7 @@ const ABOUT_JSON_LD = [
       "addressCountry": "IN",
     },
     "areaServed": "IN",
-    "priceRange": "₹0 – ₹9,999/month",
+    "priceRange": "₹0 – ₹2,499/month",
   },
   {
     "@context": "https://schema.org",

@@ -36,7 +36,7 @@ function uid(req: Request): string {
  * Shown as the payee on invoices. The registered legal entity must appear on a
  * receipt for a payment-gateway-processed transaction.
  */
-const LEGAL_NAME = "Digital chitrakar"
+const LEGAL_NAME = "Digital Chitrakar"
 const SUPPORT_EMAIL = "support@genxqr.com"
 
 // ─── GET /api/billing/plans ────────────────────────────────────────────────────

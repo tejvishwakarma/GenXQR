@@ -35,7 +35,11 @@ export function organisationSchema() {
     sameAs: SOCIAL_PROFILES.map((p) => p.url),
     logo: {
       "@type": "ImageObject",
-      url: absoluteUrl("/og-image.png"),
+      // Square, as Google requires for an Organization logo (min 112×112).
+      // og-image.png is the 1200×630 social card, not a logo.
+      url: absoluteUrl("/apple-touch-icon.png"),
+      width: 180,
+      height: 180,
     },
     description: SITE_DESCRIPTION,
     address: {
@@ -70,7 +74,7 @@ export function websiteSchema() {
     url: absoluteUrl("/"),
     description: SITE_DESCRIPTION,
     publisher: { "@id": ORG_ID },
-    inLanguage: "en",
+    inLanguage: "en-IN",
   }
 }
 
@@ -167,7 +171,7 @@ export function webPageSchema(options: { name: string; path: string; description
     ...(options.description ? { description: options.description } : {}),
     isPartOf: { "@id": WEBSITE_ID },
     publisher: { "@id": ORG_ID },
-    inLanguage: "en",
+    inLanguage: "en-IN",
   }
 }
 
@@ -199,7 +203,7 @@ export function blogPostingSchema(options: {
     author: { "@id": ORG_ID },
     publisher: { "@id": ORG_ID },
     isPartOf: { "@id": WEBSITE_ID },
-    inLanguage: "en",
+    inLanguage: "en-IN",
   }
 }
 

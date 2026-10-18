@@ -48,7 +48,7 @@ export const ORGANISATION = {
    * structured data. Must match the PAN / registration certificate exactly —
    * payment-gateway reviewers compare the two.
    */
-  legalName: "Digital chitrakar",
+  legalName: "Digital Chitrakar",
   /**
    * NO PHONE NUMBER IS PUBLISHED — a deliberate choice, and a known gap.
    *

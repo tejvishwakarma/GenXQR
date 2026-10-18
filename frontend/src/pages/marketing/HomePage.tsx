@@ -2,7 +2,7 @@ import { SEOMeta } from "@/components/SEOMeta"
 import { ORG_ID, WEBSITE_ID, organisationSchema } from "@/lib/schema"
 import { absoluteUrl } from "@/lib/site"
 import { MarketingHero } from "@/components/marketing/Hero"
-import { TrustStrip, QrTypes, ValueTrio } from "@/components/marketing/Story"
+import { QrTypes, ValueTrio } from "@/components/marketing/Story"
 import { MarketingAnalytics, PowerFeatures, MarketingUseCases, MarketingSecurity } from "@/components/marketing/Platform"
 import { MarketingPricing, MarketingFinalCta } from "@/components/marketing/Convert"
 import { MarketingFaq } from "@/components/marketing/Faq"
@@ -20,15 +20,8 @@ const HOME_JSON_LD = [
     "name": "GenXQR",
     "url": absoluteUrl("/"),
     "publisher": { "@id": ORG_ID },
-    "inLanguage": "en",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": {
-        "@type": "EntryPoint",
-        "urlTemplate": absoluteUrl("/generate?q={search_term_string}"),
-      },
-      "query-input": "required name=search_term_string",
-    },
+    "inLanguage": "en-IN",
+    // No SearchAction: Google retired the sitelinks search box it powered.
   },
   {
     "@context": "https://schema.org",
@@ -44,9 +37,11 @@ const HOME_JSON_LD = [
     "offers": {
       "@type": "AggregateOffer",
       "lowPrice": "0",
-      "highPrice": "9999",
+      // Self-serve plans only (Free, Starter, Pro, Business); Enterprise is
+      // "Custom pricing" on /pricing, so its internal price is not advertised.
+      "highPrice": "2499",
       "priceCurrency": "INR",
-      "offerCount": "5",
+      "offerCount": "4",
       "description": "14-day Pro trial, no credit card required. Paid plans from ₹299/month.",
     },
     "featureList": [
@@ -149,7 +144,6 @@ export default function HomePage() {
       />
 
       <MarketingHero />
-      <TrustStrip />
       <QrTypes />
       <ValueTrio />
       <MarketingAnalytics />

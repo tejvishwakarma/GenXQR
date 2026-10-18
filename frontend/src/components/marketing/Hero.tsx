@@ -47,7 +47,7 @@ export function MarketingHero() {
         <div className="absolute inset-0 text-ink/[0.04] mkt-qr-grid mkt-mask-fade-b" />
       </div>
 
-      <MktContainer className="grid lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-8 items-center pt-12 pb-20 md:pt-16 md:pb-28">
+      <MktContainer className="grid lg:grid-cols-[1.05fr_0.95fr] gap-28 lg:gap-8 items-center pt-12 pb-28 md:pt-16 md:pb-32">
         {/* Copy — centered on mobile/tablet, left-aligned once the two-column layout kicks in at lg */}
         <div className="animate-rise text-center lg:text-left">
           <Eyebrow>The QR platform for business</Eyebrow>
@@ -82,7 +82,9 @@ export function MarketingHero() {
           </ul>
         </div>
 
-        {/* Signature visual — tilts toward the cursor */}
+        {/* Signature visual — tilts toward the cursor. The QR code is real and
+            scannable (see QrArt), so the chips sit above and below it, never on
+            it: one chip over a finder eye and phones cannot read the code. */}
         <div className="relative mx-auto w-full max-w-[300px] sm:max-w-[340px]">
           <div className="animate-rise" style={{ animationDelay: "0.12s", perspective: "900px" }}>
             <div
@@ -103,7 +105,7 @@ export function MarketingHero() {
                 )}
               />
 
-              <Chip className="-left-4 top-10 sm:-left-8" delay="0.2s">
+              <Chip className="-top-[4.5rem] -left-2 sm:-left-10" delay="0.2s">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full rounded-full bg-live/60 animate-ping" />
@@ -116,12 +118,12 @@ export function MarketingHero() {
                 </div>
               </Chip>
 
-              <Chip className="-right-3 top-1/3 sm:-right-6" delay="1.1s">
+              <Chip className="-top-[4.5rem] -right-2 sm:-right-10" delay="1.1s">
                 <div className="font-mono text-2xl font-semibold text-ink leading-none">1,248</div>
                 <div className="text-[11px] text-ink-faint mt-1">scans this week</div>
               </Chip>
 
-              <Chip className="right-6 -bottom-4" delay="2s">
+              <Chip className="-bottom-[4.5rem] right-4 sm:-right-4" delay="2s">
                 <div className="flex items-center gap-2 text-sm text-ink">
                   <Check size={15} className="text-live" />
                   <span className="font-medium">Destination updated</span>

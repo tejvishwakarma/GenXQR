@@ -37,6 +37,10 @@ export default function BlogPage() {
         title="Blog"
         description="Guides from GenXQR on dynamic QR codes, scan analytics, smart routing and printing QR codes that scan."
         url="/blog"
+        // noindex until the first article is published (decided 18 Oct 2026).
+        // Published posts are files, so this is decided at build time and is in
+        // the prerendered HTML itself.
+        noIndex={getPublishedPosts().length === 0}
       />
 
       <PageHero
