@@ -53,7 +53,6 @@ export default function VideoLandingPage({ name, content, files }: Props) {
           </a>
         )}
 
-        <p className="mt-6 text-center text-xs text-gray-600">Powered by GenXQR</p>
       </div>
     </div>
   )

@@ -22,6 +22,7 @@ import {
   deleteQR,
   toggleQR,
   createQRSchema,
+  updateQRSchema,
 } from "../services/qr.service.js"
 import { getQRAnalytics } from "../services/analytics.service.js"
 import {
@@ -113,7 +114,9 @@ router.get("/qr/:id", async (req, res, next) => {
  */
 router.patch("/qr/:id", async (req, res, next) => {
   try {
-    const qr = await updateQR(req.params.id!, uid(req), req.body)
+    // Same validation as the dashboard route (qr.routes.ts). This used to pass
+    // req.body straight through, skipping every rule in updateQRSchema.
+    const qr = await updateQR(req.params.id!, uid(req), updateQRSchema.parse(req.body))
     void deliverWebhookEvent(uid(req), "qr.updated", { qr })
     res.json({ success: true, data: qr })
   } catch (err) {

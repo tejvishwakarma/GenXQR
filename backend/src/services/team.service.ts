@@ -177,7 +177,7 @@ async function sendTeamInviteEmail(ownerName: string, inviteEmail: string, role:
     html: `
       <div style="font-family:sans-serif;max-width:620px;margin:0 auto;padding:24px;line-height:1.5">
         <h2 style="margin:0 0 8px;color:#7c3aed">You're invited to GenXQR</h2>
-        <p style="margin:0 0 12px;color:#333">${ownerName} invited you as <strong>${roleLabel}</strong> to collaborate on QR projects.</p>
+        <p style="margin:0 0 12px;color:#333">${ownerName} invited you to join their GenXQR team as <strong>${roleLabel}</strong>.</p>
         <p style="margin:0 0 12px;color:#555">Use the secure invite link below. After you sign up or sign in with <strong>${inviteEmail}</strong>, you'll be able to join the team.</p>
         <a href="${inviteUrl}"
            style="display:inline-block;padding:10px 18px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">

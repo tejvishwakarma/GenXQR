@@ -11,9 +11,18 @@ import { useWorkspace } from "@/hooks/useWorkspace"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A stored UTC instant → the "YYYY-MM-DDTHH:mm" a datetime-local input expects,
+ * in the BROWSER's time zone — the inverse of fromLocalDateTimeInput below.
+ * It used to slice the UTC ISO string, so an IST user who saved 18:00 saw 12:30
+ * on reload, and every re-save moved the stored time 5h30m earlier.
+ */
 function toLocalDateTimeInput(iso: string | null): string {
   if (!iso) return ""
-  return iso.slice(0, 16) // "YYYY-MM-DDTHH:mm"
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function fromLocalDateTimeInput(val: string): string | null {

@@ -125,7 +125,6 @@ export default function CouponLandingPage({ name, content }: Props) {
           </div>
         </div>
 
-        <p className="mt-6 text-center text-xs text-gray-400">Powered by GenXQR</p>
       </div>
     </div>
   )

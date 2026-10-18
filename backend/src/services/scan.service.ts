@@ -216,6 +216,10 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
       },
       abVariants: {
         select: { id: true, targetUrl: true, splitPct: true },
+        // Same order the dashboard lists them in (qr.routes.ts), so the split %
+        // applies to the variant the owner sees as "Variant A". Without an
+        // orderBy Postgres returns rows in no guaranteed order.
+        orderBy: { createdAt: "asc" },
       },
     },
   })

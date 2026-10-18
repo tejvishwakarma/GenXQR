@@ -77,7 +77,6 @@ export default function URLLandingPage({ name, content, design }: Props) {
           <p className="text-sm text-red-400">No URL configured for this QR code.</p>
         )}
 
-        <p className="text-xs text-gray-300 mt-2">Powered by GenXQR</p>
       </div>
     </div>
   )

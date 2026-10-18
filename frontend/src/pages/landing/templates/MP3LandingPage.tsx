@@ -117,7 +117,6 @@ export default function MP3LandingPage({ name, content, files }: Props) {
         )}
       </div>
 
-      <p className="mt-8 text-xs text-purple-800">Powered by GenXQR</p>
     </div>
   )
 }
