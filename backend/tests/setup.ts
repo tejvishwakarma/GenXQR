@@ -60,9 +60,36 @@ async function getTruncatableTables(): Promise<string> {
   return cachedTableList
 }
 
+/**
+ * TRUNCATE needs an ACCESS EXCLUSIVE lock on every table, and while it waits,
+ * Postgres queues every NEW query on those tables behind it. Routes do
+ * fire-and-forget writes after responding (audit log, webhook delivery rows,
+ * limit alerts), so the previous test's stragglers can still be mid-flight:
+ * their next statement queues behind the waiting TRUNCATE, the TRUNCATE waits on
+ * them — a deadlock Postgres reports (40P01), or a stall long enough to time
+ * the hook out. Observed on the unmodified suite too (1–2 random timeouts per
+ * full run), so this is a harness problem, not a product one.
+ *
+ * A short lock_timeout keeps the TRUNCATE from holding the queue: it gives up,
+ * the stragglers finish, and the retry succeeds.
+ */
 export async function truncateAll(): Promise<void> {
   const tables = await getTruncatableTables()
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(`SET LOCAL lock_timeout = '1s'`),
+        prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} RESTART IDENTITY CASCADE`),
+      ])
+      return
+    } catch (err) {
+      // 55P03 lock_not_available (lock_timeout), 40P01 deadlock_detected
+      const msg = String((err as Error)?.message ?? err)
+      const retryable = /55P03|40P01|lock timeout|deadlock/i.test(msg)
+      if (!retryable || attempt >= 10) throw err
+      await new Promise((r) => setTimeout(r, 200 * attempt))
+    }
+  }
 }
 
 beforeEach(async () => {
