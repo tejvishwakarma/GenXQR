@@ -299,7 +299,7 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 
 #### `/api/public` → `public.routes.ts`
 - `GET  /qr/:slug` — minimal QR content for the `/l/:slug` landing page (post-scan; 404s if inactive/password-protected)
-- `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans`, `uptimeSla`)
+- `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans` — no uptime figure: there is no SLA)
 - `GET  /site-content` — changelog + careers section content (from `PlatformSetting`, with static fallbacks)
 
 Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated despite the `/billing` prefix), not under `/api/public` — a previous version of this doc had that wrong. Job listings have their own router too: `/api/careers` → `careers.routes.ts` (`GET /jobs` public; the rest CV/application-management, admin-only). `/api/support` and `/api/notifications` also exist and aren't detailed here yet.
@@ -410,6 +410,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 | `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer gxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
 | `rateLimit.middleware.ts` | `apiLimiter` (global 60 req/min via Redis store) |
+| `workspace.middleware.ts` | `withWorkspace` resolves `X-Workspace-Id` → `req.workspace = { ownerId, actorId, role }`; `requireWorkspacePermission(action)`; scope data with `wsOwner(req)`. See §13. |
 | `error.middleware.ts` | Global error handler; maps Zod errors → **422**, JWT errors → 401, Prisma unique → 409, etc. Hand-thrown validation failures should use 422 too, so one class of error has one status. |
 
 ### 5.5 Services Layer
@@ -445,6 +446,8 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 |---|---|---|---|
 | `scan.worker.ts` | `scan-processing` | Every QR scan | Records `QRScan`, upserts `QRScanDaily`, increments `QRCode.scanCount`, fires webhooks, checks scan limits, fires limit notifications |
 | `renewal-reminder.worker.ts` | Cron-based | Daily at midnight | Queries subscriptions expiring in 7/3/1 days → sends reminder emails; deduped by `RenewalReminder` table |
+| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses dynamic codes; sends notice/expired emails; resumes codes for accounts entitled again. See §8 "Expiry". |
+| `weekly-digest.worker.ts` | `weekly-digest` | Mondays 09:00 IST (BullMQ scheduler, tz Asia/Kolkata) | Sends last week's analytics digest to opted-in owners with scans (`engagement-email.service.ts`) |
 | `webhook-retry.worker.ts` | `setInterval` (60s) | Failed deliveries | Scans `WebhookDelivery` rows where `success=false` and `nextRetryAt <= now`; retries with exponential backoff (30s → 2m → 8m → 32m), max 5 attempts |
 
 ### 5.7 Redis Client
@@ -586,6 +589,38 @@ is why the order is re-fetched regardless. `Invoice.cashfreeOrderId` is UNIQUE a
 is the idempotency key: if the webhook and the browser-return verification race,
 the loser hits P2002 and its whole transaction rolls back, so one payment can never
 grant two billing periods.
+
+**Expiry** (`services/subscription-expiry.service.ts`, decided 17 Oct 2026). There is
+no auto-debit, so renewing means paying again. Until this existed, nothing acted on
+`currentPeriodEnd` — one payment bought a plan forever. Now:
+- **No grace period.** When a paid period or trial ends, the account drops to FREE
+  and its active DYNAMIC codes are paused (`isActive=false`, `pausedForBilling=true`).
+  Scanners get the "deactivated" page or the code's `fallbackUrl`.
+- Paying again (or an admin granting a plan) resumes exactly the `pausedForBilling`
+  codes. A code the owner turned off stays off. `toggleQR` refuses (403) to switch a
+  `pausedForBilling` code on, so the pause can't be bypassed from the dashboard or `/v1`.
+- Two triggers, one function (`expireSubscription`, idempotent via a conditional
+  update): `getUserPlanLimits` on any authenticated request, and the 10-minute worker.
+- `Subscription.codesPauseAt` is a one-time notice deadline: accounts already lapsed
+  when this shipped (incl. old trials still holding active codes) got 7 days' notice,
+  set by migration `20261017130000`. While it is in the future, the account is not lapsed.
+- The "expired" email is sent by the expiry service, not the renewal-reminder job,
+  so it can say what actually happened.
+- Admin plan changes set a 1-month period, so admin-granted plans now expire too.
+
+**Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
+`PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
+`reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.
+The window is a month anchored on `currentPeriodStart` (yearly plans get the monthly
+allowance month by month). Counted in Redis per account per window (seeded from Postgres),
+every scan incl. repeats. FREE (limit 0) is not enforced — expiry handles those accounts.
+Fails open on Redis/DB errors. The billing usage figure and the 80%/100% emails use the
+same window. Invalidate with `invalidateScanQuota(userId)` on any plan/period change.
+
+**Scan history retention** (decided 18 Oct 2026): kept while a plan/trial is live and for
+3 months after the account drops to FREE (`Subscription.lapsedAt`), then the expiry
+worker purges scans, daily rollups and per-code counters (codes stay, paused).
+`analyticsRetentionDays` no longer exists — there are no per-plan history limits.
 
 ---
 
@@ -841,6 +876,20 @@ Access: `/admin/*` — requires JWT with `ADMIN` or `SUPER_ADMIN` role.
 
 **Limit:** `Plan.teamSeatsLimit` (0 = team features disabled on FREE plan)
 
+**Shared workspaces (built 18 Oct 2026)** — `services/workspace.service.ts`,
+`middleware/workspace.middleware.ts`, frontend `hooks/useWorkspace.ts` + `lib/workspace.ts`.
+Members work inside the OWNER's workspace: the dashboard sends `X-Workspace-Id: <ownerId>`
+on every request (apiFetch + authHeader); routes using `withWorkspace` scope data by
+`wsOwner(req)` and check the role:
+- OWNER/ADMIN — view, create, edit, delete codes; manage team (ADMIN: no billing)
+- EDITOR — view, create, edit/toggle; no delete, no team management
+- VIEWER — view codes + analytics only
+Workspace-aware: `/api/qr/*`, `/api/analytics/*`, `/api/upload/*`, `/api/bulk/*`, `/api/team`
+(+ member routes). Plan gates (`requireQRSlot`, `requirePlanFeature`) use the OWNER's plan.
+Personal-only (ignore the header): billing, API keys, webhooks, branding, settings, `/v1`.
+Access needs the owner's plan to have `teamSeatsLimit > 1`. Audit logs record the actor.
+Uploads record the uploader; attaching accepts files uploaded by the owner or the actor.
+
 ---
 
 ## 14. Analytics
@@ -966,6 +1015,13 @@ pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking
   Client plus a PowerShell runner against a live server. Broader surface area,
   but manual.
 
+**Test harness:** `tests/setup.ts` truncates with `lock_timeout = 1s` and retries — a plain
+TRUNCATE deadlocked/stalled against fire-and-forget writes from the previous test (1–2
+random timeouts per full run, also on the pre-change code). Full run ≈ 2 min.
+
+**macOS dev:** `pnpm db:up` is WSL-only. On a Mac use Colima + standalone compose:
+`colima start` then `docker-compose --env-file .env up -d --wait` from the repo root.
+
 When adding a security test, verify it can fail: break the guard it covers,
 confirm the suite goes red naming that test, then restore. A test that has only
 ever been seen passing is not yet known to test anything.
@@ -1040,3 +1096,10 @@ pnpm preview               # vite preview (serves dist/)
     gate, so guessing "allowed" costs at worst the 403 that would have happened anyway,
     while guessing "locked" tells a paying customer their feature is gone because one
     request timed out. Never move authorisation into this hook.
+
+15. **Notification preferences are read with `readPrefs()`** (`utils/notification-prefs.util.ts`).
+    Until 18 Oct 2026 they were saved as `JSON.stringify(prefs)` — a string inside the Json
+    column — so every read returned the defaults and no toggle was ever honoured. Writes
+    now store the object; `readPrefs` accepts both shapes. Honoured by: milestone alerts and
+    the weekly digest (`engagement-email.service.ts`), the 7/3/1-day renewal reminders (pause
+    and expiry notices are always sent), and admin broadcasts (product updates).
