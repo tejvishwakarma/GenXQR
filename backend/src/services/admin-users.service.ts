@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
+import { deleteUserAndData } from "./account-erasure.service.js"
 import { invalidateScanQuota } from "./scan-quota.service.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { signAccessToken } from "../utils/jwt.js"
@@ -239,7 +240,7 @@ export async function deleteUser(adminId: string, adminRole: AdminRole, targetId
     throw new AppError(403, "Only SUPER_ADMINs can delete admin users")
   }
 
-  await prisma.user.delete({ where: { id: targetId } })
+  await deleteUserAndData(targetId)
 
   // Block the deleted email. Increment blockCount on each deletion.
   // After 3 blocks the entry becomes permanently banned and cannot be removed.

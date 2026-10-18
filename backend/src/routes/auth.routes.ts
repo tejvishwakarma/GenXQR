@@ -303,7 +303,9 @@ router.delete(
       }
       const deletedUserId = (req.user as unknown as AccessTokenPayload).sub
       await AuthService.deleteAccount(deletedUserId, parsed.data.password)
-      logAudit({ userId: deletedUserId, action: "auth.account.delete", category: "auth", entityId: deletedUserId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
+      // userId is null: the row it would point at is gone, and the FK made this
+      // insert fail silently, so deletions were never logged. entityId keeps the id.
+      logAudit({ userId: null, action: "auth.account.delete", category: "auth", entityId: deletedUserId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
       // Clear the refresh token cookie
       res.clearCookie("refresh_token", { path: "/api/auth" })
       res.json({ success: true, message: "Your account has been permanently deleted." })

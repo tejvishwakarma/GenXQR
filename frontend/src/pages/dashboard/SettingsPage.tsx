@@ -631,7 +631,7 @@ export default function SettingsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="text-zinc-900 dark:text-white text-sm font-medium">Delete account</div>
-              <div className="text-zinc-500 text-xs mt-0.5">Permanently delete your account and all QR codes. Cannot be undone.</div>
+              <div className="text-zinc-500 text-xs mt-0.5">Permanently delete your account, QR codes, uploaded files and scan data. Cannot be undone.</div>
             </div>
             <Button variant="destructive" size="sm" onClick={() => { setShowDeleteModal(true); setDeletePassword(""); setDeleteError(null) }}>
               Delete account

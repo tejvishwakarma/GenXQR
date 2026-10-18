@@ -8,6 +8,7 @@ import { generateSecureToken, hashToken } from "../utils/crypto.js"
 import { isDisposableEmail } from "../utils/disposable-email.util.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
 import { parseAttribution, type UserAttributionData } from "../utils/attribution.util.js"
+import { deleteUserAndData } from "./account-erasure.service.js"
 // Reused so a number saved in settings is stored in exactly the form checkout
 // expects — two normalisers would eventually disagree.
 import { normalisePhone } from "./billing.service.js"
@@ -662,7 +663,7 @@ export async function deleteAccount(userId: string, password?: string): Promise<
     }
   }
 
-  await prisma.user.delete({ where: { id: userId } })
+  await deleteUserAndData(userId)
 }
 
 export async function findUserById(userId: string) {
