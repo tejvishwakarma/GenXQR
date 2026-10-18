@@ -2,6 +2,7 @@
  * Thin API client. All requests go through here so auth headers,
  * base URL, and error handling are centralised.
  */
+import { getAttribution } from "@/lib/attribution"
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
 
@@ -364,7 +365,7 @@ export interface RegisterResponse {
 export function register(name: string, email: string, password: string) {
   return apiFetch<RegisterResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, attribution: getAttribution() ?? undefined }),
   })
 }
 
@@ -598,6 +599,10 @@ export interface AdminUserDetail extends AdminUser {
   } | null
   invoices: { id: string; amount: number; currency: string; status: string; planName: string; createdAt: string }[]
   _count: { qrCodes: number; apiKeys: number }
+  /** First-touch attribution; all null when not recorded. */
+  signupSource: string | null; signupMedium: string | null; signupCampaign: string | null
+  signupContent: string | null; signupTerm: string | null; signupReferrer: string | null
+  signupLandingPath: string | null; firstTouchAt: string | null
 }
 export type AdminMeta = { total: number; page: number; limit: number; pages: number }
 export type AdminPlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE"
@@ -662,6 +667,12 @@ export interface PlanBreakdownEntry { planName: string; displayName: string; cou
 
 export const fetchAdminSignups = (days = 30) =>
   adminFetch<{ success: boolean; data: TrendPoint[] }>(`/admin-api/analytics/signups?days=${days}`)
+export interface SignupSourceRow { key: string; signups: number; paidUsers: number; revenue: number }
+export interface SignupSources { days: number; groupBy: "source" | "campaign"; rows: SignupSourceRow[] }
+export const fetchAdminSignupSources = (days = 30, groupBy: "source" | "campaign" = "source") =>
+  adminFetch<{ success: boolean; data: SignupSources }>(
+    `/admin-api/analytics/signup-sources?days=${days}&groupBy=${groupBy}`,
+  )
 export const fetchAdminScans = (days = 30) =>
   adminFetch<{ success: boolean; data: TrendPoint[] }>(`/admin-api/analytics/scans?days=${days}`)
 export const fetchAdminStaticQRStats = (days = 30) =>

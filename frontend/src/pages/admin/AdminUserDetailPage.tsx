@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft, Loader2, Shield, Trash2, UserCheck,
-  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle,
+  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle, Globe,
 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -198,6 +198,20 @@ export default function AdminUserDetailPage() {
                 <Clock size={14} /> Last login {new Date(u.lastLoginAt).toLocaleDateString()}
               </div>
             )}
+            <div className="flex items-start gap-2 text-zinc-400">
+              <Globe size={14} className="mt-0.5 shrink-0" />
+              {u.signupSource ? (
+                <span>
+                  Came from <span className="text-zinc-200">{u.signupSource}</span>
+                  {u.signupMedium && <> / {u.signupMedium}</>}
+                  {u.signupCampaign && <> · campaign <span className="text-zinc-200">{u.signupCampaign}</span></>}
+                  {u.signupLandingPath && <> · landed on {u.signupLandingPath}</>}
+                  {u.firstTouchAt && <> · first visit {new Date(u.firstTouchAt).toLocaleDateString()}</>}
+                </span>
+              ) : (
+                <span>Source not recorded</span>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-1 text-sm">

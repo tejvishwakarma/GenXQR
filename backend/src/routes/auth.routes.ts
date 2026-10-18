@@ -17,6 +17,7 @@ import { redis } from "../redis/client.js"
 import { prisma } from "../db/prisma.js"
 import { logAudit } from "../services/audit.service.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
+import { parseAttributionParam } from "../utils/attribution.util.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -527,6 +528,15 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
   const nextPath = safeFrontendPath(req.query["next"], "/app/dashboard")
   const state = randomBytes(32).toString("hex")
   void redis.setex(`oauth:state:${state}`, 600, nextPath) // 10 min to finish the flow
+  // First-touch attribution for a Google SIGN-UP rides alongside the state under
+  // its own key (not inside the state value, so in-flight logins survive a
+  // deploy). Only used if the callback creates a new account.
+  // The raw param is stored (after checking it parses) and parsed again at the
+  // callback, so there is one input format, not two.
+  const rawAttribution = req.query["attribution"]
+  if (typeof rawAttribution === "string" && parseAttributionParam(rawAttribution)) {
+    void redis.setex(`oauth:attr:${state}`, 600, rawAttribution)
+  }
 
   res.cookie("oauth_state", state, {
     httpOnly: true,
@@ -665,9 +675,13 @@ router.get(
         return
       }
 
+      const storedAttribution = await redis.get(`oauth:attr:${returnedState}`)
+      if (storedAttribution !== null) await redis.del(`oauth:attr:${returnedState}`)
+
       const { accessToken, refreshToken } = await AuthService.handleGoogleOAuth(
         profile,
         req.ip ?? "",
+        storedAttribution !== null ? parseAttributionParam(storedAttribution) : null,
       )
       const nextPath = safeFrontendPath(storedNextPath, "/app/dashboard")
 

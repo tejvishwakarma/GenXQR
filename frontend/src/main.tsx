@@ -4,6 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App.tsx'
+import { captureAttribution } from './lib/attribution'
+
+// Before the first render, not in an effect: the sign-up page builds its Google
+// link during render, so a visitor landing straight on /signup?utm_source=…
+// would otherwise get a link without the campaign. Only the landing URL matters
+// — in-app navigation never carries a new campaign — so once per load is right.
+captureAttribution()
 
 const queryClient = new QueryClient({
   defaultOptions: {

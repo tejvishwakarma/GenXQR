@@ -59,6 +59,8 @@ export async function getUserDetail(userId: string) {
       id: true, name: true, email: true, role: true,
       emailVerified: true, createdAt: true, updatedAt: true, lastLoginAt: true,
       avatarUrl: true, googleId: true,
+      signupSource: true, signupMedium: true, signupCampaign: true, signupContent: true,
+      signupTerm: true, signupReferrer: true, signupLandingPath: true, firstTouchAt: true,
       subscription: {
         select: {
           status: true, trialEndsAt: true, currentPeriodStart: true,

@@ -42,6 +42,24 @@ model User {
   driveRefreshToken       String?
   driveTokenExpiresAt     DateTime?
   notificationPrefs       Json?
+  /// First-touch marketing attribution, written once at account creation and
+  /// never updated. All null for accounts created before attribution existed,
+  /// or when the browser could not store the visit (private mode, storage
+  /// blocked) — "not recorded", which is NOT the same as "direct".
+  /// signupSource is derived server-side: utm_source, else the external
+  /// referrer's host, else "direct". The raw parts are kept beside it.
+  signupSource            String?
+  signupMedium            String?
+  signupCampaign          String?
+  signupContent           String?
+  signupTerm              String?
+  /// Hostname only (e.g. "www.google.com") — never the full referring URL,
+  /// which can carry other sites' query strings.
+  signupReferrer          String?
+  /// Path only, no query string.
+  signupLandingPath       String?
+  /// When the attributed first visit happened (client clock, clamped to the past).
+  firstTouchAt            DateTime?
   apiKeys                 ApiKey[]
   auditLogs               AuditLog[]
   emailVerificationTokens EmailVerificationToken[]
@@ -60,6 +78,7 @@ model User {
   webhooks                Webhook[]
 
   @@index([normalizedEmail])
+  @@index([createdAt, signupSource])
   // No explicit @@index([email]) — the @unique on the email field above
   // already creates a backing index; a second one just duplicates write cost.
   @@map("users")

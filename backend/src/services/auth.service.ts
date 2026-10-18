@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "../utils/password.js"
 import { generateSecureToken, hashToken } from "../utils/crypto.js"
 import { isDisposableEmail } from "../utils/disposable-email.util.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
+import { parseAttribution, type UserAttributionData } from "../utils/attribution.util.js"
 // Reused so a number saved in settings is stored in exactly the form checkout
 // expects — two normalisers would eventually disagree.
 import { normalisePhone } from "./billing.service.js"
@@ -40,6 +41,8 @@ export const registerSchema = z.object({
     .regex(/[A-Z]/, "Must contain at least one uppercase letter")
     .regex(/[a-z]/, "Must contain at least one lowercase letter")
     .regex(/[0-9]/, "Must contain at least one number"),
+  /** First-touch marketing data; validated leniently by parseAttribution(). */
+  attribution: z.unknown().optional(),
 })
 
 export const loginSchema = z.object({
@@ -159,6 +162,7 @@ export async function registerUser(input: z.infer<typeof registerSchema>) {
       normalizedEmail: normalizeEmail(input.email),
       passwordHash,
       emailVerified: autoVerify,
+      ...parseAttribution(input.attribution),
     },
     select: { id: true, email: true, name: true }
   })
@@ -464,6 +468,8 @@ export async function resendVerificationEmail(email: string): Promise<void> {
 export async function handleGoogleOAuth(
   profile: { id: string; email: string; name: string; avatarUrl?: string },
   ip: string,
+  /** Applied only if this call CREATES the account; existing users keep theirs. */
+  attribution: UserAttributionData | null = null,
 ): Promise<{ accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "USER" | "ADMIN" | "SUPER_ADMIN"; avatarUrl: string | null } }> {
   const emailBlockEntry = await prisma.blocklist.findFirst({
     where: { type: "email", value: profile.email },
@@ -498,6 +504,7 @@ export async function handleGoogleOAuth(
         name: profile.name,
         avatarUrl: profile.avatarUrl,
         emailVerified: true,
+        ...attribution,
       }
     })
   } else if (!user.googleId) {

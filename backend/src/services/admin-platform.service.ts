@@ -236,6 +236,58 @@ export async function getSignupTrend(rawDays: unknown) {
   return Object.entries(buckets).map(([date, count]) => ({ date, count }))
 }
 
+/**
+ * Sign-ups in the window grouped by first-touch source (or campaign), with how
+ * many of THOSE users have ever paid and what they have paid in total.
+ *
+ * "Paid" means at least one invoice with status "paid" — money actually
+ * received — not an ACTIVE subscription, which also covers admin-granted plans.
+ * Accounts without attribution (created before it existed, or storage blocked
+ * in the browser) are reported as "not recorded", never folded into "direct".
+ */
+export async function getSignupSources(rawDays: unknown, rawGroupBy: unknown) {
+  const { days, since } = sinceDaysAgo(rawDays, 30)
+  const groupBy = rawGroupBy === "campaign" ? "campaign" : "source"
+
+  const users = await prisma.user.findMany({
+    where: { createdAt: { gte: since } },
+    select: { id: true, signupSource: true, signupCampaign: true },
+  })
+
+  const paid = users.length
+    ? await prisma.invoice.groupBy({
+        by: ["userId"],
+        where: { status: "paid", userId: { in: users.map((u) => u.id) } },
+        _sum: { amount: true },
+      })
+    : []
+  const paidByUser = new Map(paid.map((p) => [p.userId, p._sum.amount ?? 0]))
+
+  const rows = new Map<string, { key: string; signups: number; paidUsers: number; revenuePaise: number }>()
+  for (const u of users) {
+    const key =
+      groupBy === "campaign"
+        ? u.signupSource === null ? "(not recorded)" : u.signupCampaign ?? "(no campaign)"
+        : u.signupSource ?? "(not recorded)"
+    const row = rows.get(key) ?? { key, signups: 0, paidUsers: 0, revenuePaise: 0 }
+    row.signups++
+    const paise = paidByUser.get(u.id)
+    if (paise !== undefined) {
+      row.paidUsers++
+      row.revenuePaise += paise
+    }
+    rows.set(key, row)
+  }
+
+  return {
+    days,
+    groupBy,
+    rows: [...rows.values()]
+      .sort((a, b) => b.signups - a.signups)
+      .map((r) => ({ key: r.key, signups: r.signups, paidUsers: r.paidUsers, revenue: Math.round(r.revenuePaise / 100) })),
+  }
+}
+
 export async function getScanTrend(rawDays: unknown) {
   const { since } = sinceDaysAgo(rawDays, 30)
 
