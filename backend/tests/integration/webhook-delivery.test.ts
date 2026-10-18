@@ -34,7 +34,7 @@ interface Received {
 
 /** A throwaway receiver. `status` is mutable so one test can force a failure. */
 class Receiver {
-  server: http.Server
+  server!: http.Server
   received: Received[] = []
   status = 200
 

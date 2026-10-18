@@ -83,7 +83,7 @@ describe("plan features that gate behaviour", () => {
         where: { id: owner.id },
         data: { brandName: "Acme Corp", brandLogoUrl: "/uploads/qr-files/acme.png" },
       })
-      const { branding } = await publicQR() as { branding: { mode: string; name: string; logoUrl: string } }
+      const { branding } = (await publicQR()) as unknown as { branding: { mode: string; name: string; logoUrl: string } }
       expect(branding.mode).toBe("custom")
       expect(branding.name).toBe("Acme Corp")
       expect(branding.logoUrl).toBe("/uploads/qr-files/acme.png")
