@@ -47,12 +47,12 @@ const sections = [
   {
     title: "7. Duration of access",
     content:
-      "Access continues for as long as your subscription is active and renews automatically each billing period until cancelled. See the Refund & Cancellation Policy for what happens to your QR codes when a plan ends.",
+      "Access continues until the end of the billing period you paid for. Plans do not renew automatically — to continue, you pay again before the period ends. See the Refund & Cancellation Policy for what happens to your QR codes when a plan ends.",
   },
   {
     title: "8. Service availability",
     content:
-      "We target 99.9% uptime for QR code redirects, which is the part customers depend on most — a scanned code resolving correctly. Planned maintenance is scheduled outside peak hours and announced in advance where it could be disruptive.",
+      "We work to keep QR code redirects — the part customers depend on most, a scanned code resolving correctly — available at all times. We do not offer a contractual uptime guarantee.",
   },
 ]
 

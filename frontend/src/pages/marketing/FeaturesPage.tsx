@@ -37,7 +37,7 @@ const FEATURES_JSON_LD = [
         "name": "Free Plan",
         "price": "0",
         "priceCurrency": "INR",
-        "description": "Static QR codes — URL, WiFi, WhatsApp, Instagram. No account needed.",
+        "description": "Static QR codes — URL, WiFi, WhatsApp, Instagram, SMS, phone. No account needed.",
       },
       {
         "@type": "Offer",
@@ -67,12 +67,12 @@ const FEATURES_JSON_LD = [
       "Smart routing — route by country, device, time of day",
       "16 QR code content types",
       "Password protection and scan limits",
-      "Team workspace with role-based access",
+      "Team workspaces with admin, editor and viewer roles",
       "REST API with API key authentication",
       "A/B testing with split traffic control",
       "Webhook events for scan triggers",
       "CSV export of scan data",
-      "Custom QR slugs",
+      "Bulk QR generation from CSV",
       "Fallback URLs on expiry",
     ],
   },
@@ -85,7 +85,7 @@ const FEATURES_JSON_LD = [
         "name": "What features does GenXQR include?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR includes dynamic QR codes you can edit after printing, real-time scan analytics (city, device, OS, browser), smart routing by country or device, A/B testing, password protection, scan limits, team workspaces, a REST API, and webhook events. It supports 16 QR content types: URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and custom landing pages.",
+          "text": "GenXQR includes dynamic QR codes you can edit after printing, real-time scan analytics (city, device, OS, browser), smart routing by country or device, A/B testing, password protection, scan limits, team workspaces, a REST API, and webhook events. It supports 16 QR content types: URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and multi-link pages.",
         },
       },
       {
@@ -101,7 +101,7 @@ const FEATURES_JSON_LD = [
         "name": "How do I track who scanned my QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR tracks every scan automatically. Your analytics dashboard shows the exact timestamp, city, country, device type (mobile/tablet/desktop), operating system, and browser for every scan — updated in real time. You can filter by date range and export the full dataset to CSV. No app is required for the person scanning.",
+          "text": "GenXQR tracks every scan automatically. Your analytics dashboard shows the exact timestamp, city, country, device type (mobile/tablet/desktop), operating system, and browser for every scan — updated in real time. You can filter by date range and export up to 10,000 scans per QR code to CSV. No app is required for the person scanning.",
         },
       },
       {
@@ -109,7 +109,7 @@ const FEATURES_JSON_LD = [
         "name": "What is smart routing in a QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Smart routing lets you send different people to different URLs from the same QR code, based on rules you define. For example: iOS users go to the App Store, Android users go to Google Play, visitors from Germany see the German landing page, and everyone else sees the English version. Rules can also be based on time of day or day of the week. Smart routing is available on GenXQR Pro plans and above.",
+          "text": "Smart routing lets you send different people to different URLs from the same QR code, based on rules you define. For example: mobile scanners go to your app page, desktop scanners go to your website, visitors from Germany see the German landing page, and everyone else sees the English version. Rules can also be based on the hour of day (UTC). Smart routing is available on GenXQR Pro plans and above.",
         },
       },
       {
@@ -148,7 +148,7 @@ const features: Feature[] = [
       "Scan timeline with trend view",
       "Device & OS breakdown",
       "Top cities & countries",
-      "Export full data to CSV",
+      "Export scans to CSV",
     ],
     link: { to: "/dynamic-qr", label: "See analytics in action →" },
   },
@@ -160,8 +160,8 @@ const features: Feature[] = [
     desc: "Update the URL, swap the PDF, or redirect to a new offer — all from your dashboard. The printed QR code stays the same. The change goes live in under one second.",
     items: [
       "Edit destination any time",
-      "Custom branded short slugs",
-      "Sub-second live redirect",
+      "Swap files, menus & vCards too",
+      "Edits apply from the next scan",
       "Eliminates reprint costs",
     ],
     link: { to: "/dynamic-qr", label: "How dynamic QR works →" },
@@ -173,9 +173,9 @@ const features: Feature[] = [
     title: "One QR code, different pages for different people",
     desc: "Route each scan to a different URL based on where the person is, what device they're using, or what time they scanned. One printed QR code handles it all.",
     items: [
-      "Country & city targeting",
-      "iOS vs Android split routing",
-      "Time-of-day & day-of-week rules",
+      "Country targeting",
+      "Mobile, tablet & desktop routing",
+      "Hour-of-day rules (UTC)",
       "Priority rule ordering",
     ],
     link: { to: "/dynamic-qr", label: "Explore smart routing →" },
@@ -211,13 +211,13 @@ const features: Feature[] = [
     category: "Team",
     icon: Users,
     tint: "purple",
-    title: "Your whole team, one shared dashboard",
-    desc: "Invite colleagues, assign Owner / Admin / Editor / Viewer roles, and manage every QR code from a shared workspace. No more emailing QR files back and forth.",
+    title: "Bring your team onto your plan",
+    desc: "Invite colleagues by email to work on your QR codes. Codes they create belong to you and count against your plan. Seats include yours — 5 on Pro, 20 on Business. Billing, API keys and webhooks stay yours.",
     items: [
-      "Team workspace seats",
-      "Four role permission levels",
-      "Shared QR code library",
-      "Full audit log visibility",
+      "Admins: manage codes & members",
+      "Editors: create & edit, no delete",
+      "Viewers: codes & analytics only",
+      "Resend, cancel or remove any time",
     ],
     link: { to: "/pricing", label: "See team plan pricing →" },
   },
@@ -240,11 +240,11 @@ const features: Feature[] = [
     icon: Zap,
     tint: "violet",
     title: "Split test your campaign — automatically",
-    desc: "Send a configurable percentage of scans to Variant B and compare results. The analytics tell you which destination drives more conversions — no guesswork.",
+    desc: "Send a configurable percentage of scans to Variant B and compare results. GenXQR reports the scans and share each destination received.",
     items: [
       "Configurable split ratio",
       "Side-by-side scan analytics",
-      "Identify the winning variant",
+      "Scan count & share per variant",
       "No code required",
     ],
     link: { to: "/dynamic-qr", label: "Learn about A/B testing →" },
@@ -283,7 +283,7 @@ const howItWorks = [
 const faqs = [
   {
     q: "What features does GenXQR include?",
-    a: "GenXQR includes dynamic QR codes (editable after printing), real-time scan analytics by city, device, OS and browser, smart routing rules, A/B testing, password protection, scan limits, team workspaces with four role levels, a REST API, and webhook events. It supports 16 QR content types — URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and custom landing pages.",
+    a: "GenXQR includes dynamic QR codes (editable after printing), real-time scan analytics by city, device, OS and browser, smart routing rules, A/B testing, password protection, scan limits, team seats, a REST API, and webhook events. It supports 16 QR content types — URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and multi-link pages.",
   },
   {
     q: "Can I edit a QR code after it is printed?",
@@ -291,11 +291,11 @@ const faqs = [
   },
   {
     q: "How do I track who scanned my QR code?",
-    a: "GenXQR tracks every scan automatically — no additional setup. Your analytics dashboard shows the scan timestamp, city, country, device type, operating system, and browser, updated in real time. You can filter by date range and export the full dataset to CSV. The person scanning does not need to install any app.",
+    a: "GenXQR tracks every scan automatically — no additional setup. Your analytics dashboard shows the scan timestamp, city, country, device type, operating system, and browser, updated in real time. You can filter by date range and export up to 10,000 scans per QR code to CSV. The person scanning does not need to install any app.",
   },
   {
     q: "What is smart routing in a QR code?",
-    a: "Smart routing lets one QR code send different people to different URLs based on rules. For example: iOS users go to the App Store, Android users go to Google Play, visitors scanning from Delhi see a Hindi page, and all others see the English version. Rules can also fire by time of day or day of the week. Smart routing is available on GenXQR Pro and Business plans.",
+    a: "Smart routing lets one QR code send different people to different URLs based on rules. For example: mobile scanners go to your app page, desktop scanners go to your website, visitors scanning from India see a Hindi page, and all others see the English version. Rules can also fire by hour of day (UTC). Smart routing is available on GenXQR Pro and Business plans.",
   },
   {
     q: "Does GenXQR have a free plan?",

@@ -58,7 +58,7 @@ const GENERATE_JSON_LD = [
         "name": "How do I create a QR code for free?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, create a free account and use the dynamic QR creator.",
+          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, start a 14-day free trial (no credit card) and use the dynamic QR creator.",
         },
       },
       {
@@ -74,7 +74,7 @@ const GENERATE_JSON_LD = [
         "name": "Can I customise the colour of my QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR's free generator lets you pick any foreground (dot) colour and background colour using the colour picker. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) and three eye frame and eye centre shapes. The preview updates live as you change options. For logo upload and brand-level customisation, use the full QR creator after creating a free account.",
+          "text": "Yes. GenXQR's free generator lets you pick any foreground (dot) colour and background colour using the colour picker. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) three eye frame shapes, and two eye centre shapes. The preview updates live as you change options. For logo upload and brand-level customisation, use the full QR creator during a 14-day free trial or on a paid plan.",
         },
       },
       {
@@ -174,7 +174,7 @@ function buildQRData(
 const faqs = [
   {
     q: "How do I create a QR code for free?",
-    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, create a free GenXQR account and use the dynamic QR creator.",
+    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, start a 14-day GenXQR free trial (no credit card) and use the dynamic QR creator.",
   },
   {
     q: "What is the difference between a static and dynamic QR code?",
@@ -182,7 +182,7 @@ const faqs = [
   },
   {
     q: "Can I customise the colour of my QR code?",
-    a: "Yes — pick any foreground dot colour and background colour using the colour picker in Step 3. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) and three eye frame shapes. The preview updates live. For logo upload and full brand customisation, create a free GenXQR account and use the full QR editor.",
+    a: "Yes — pick any foreground dot colour and background colour using the colour picker in Step 3. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) three eye frame shapes, and two eye centre shapes. The preview updates live. For logo upload and full brand customisation, use the full QR editor during a 14-day free trial or on a paid plan.",
   },
   {
     q: "How do I create a QR code for WhatsApp?",
@@ -669,7 +669,7 @@ export default function StaticGeneratePage() {
                 </p>
                 <p className="text-ink-faint text-xs mb-3">
                   Dynamic QR codes let you change the destination any time — and track
-                  every scan by city, device, and time. Free plan available.
+                  every scan by city, device, and time. 14-day free trial, no card needed.
                 </p>
                 <Link to="/dynamic-qr">
                   <Button variant="ghost" size="sm" className="text-accent hover:text-accent-ink w-full justify-start px-0">
@@ -721,7 +721,7 @@ export default function StaticGeneratePage() {
                 icon: <Zap size={20} className="text-amber-400" />,
                 bg: "bg-amber-500/10 border-amber-500/20",
                 title: "A/B test campaigns",
-                desc: "Split traffic between two destinations and see which version drives more conversions.",
+                desc: "Split traffic between two destinations and see how many scans each version gets.",
               },
             ].map((card) => (
               <div key={card.title} className={`glass-card rounded-xl p-5 border ${card.bg}`}>

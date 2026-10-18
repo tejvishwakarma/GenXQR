@@ -13,7 +13,7 @@ const sections = [
   },
   {
     title: "3. Types of cookies we use",
-    content: "Essential cookies support login and account security. Preference cookies remember UI settings. Analytics cookies help us measure feature adoption and reliability trends.",
+    content: "Essential cookies support login and account security. UI preferences, such as your theme, are kept in your browser's local storage rather than in cookies. Analytics cookies help us measure feature adoption and reliability trends.",
   },
   {
     title: "4. Managing your cookie settings",

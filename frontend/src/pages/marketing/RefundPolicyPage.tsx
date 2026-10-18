@@ -23,12 +23,12 @@ const sections = [
   {
     title: "2. After the first 7 days",
     content:
-      "Beyond the 7-day window, payments are non-refundable, including for partially used billing periods. You can cancel at any time to stop all future charges — see section 4. Cancelling does not generate a pro-rata refund for the remainder of the period you have already paid for.",
+      "Beyond the 7-day window, payments are non-refundable, including for partially used billing periods. Nothing is ever charged automatically, so there are no future charges unless you choose to pay again — see section 3. Cancelling does not generate a pro-rata refund for the remainder of the period you have already paid for.",
   },
   {
     title: "3. Renewals",
     content:
-      "Subscriptions renew automatically at the end of each billing period. Renewal payments are not covered by the money-back guarantee. If a renewal has charged you unexpectedly, contact us — where a renewal was clearly unintended and the new period is largely unused, we will review it case by case.",
+      "Subscriptions do not renew automatically and nothing is auto-debited: to continue after a billing period ends, you pay again from Billing in your dashboard. Renewal payments are not covered by the money-back guarantee. If you renewed by mistake, contact us — where a renewal was clearly unintended and the new period is largely unused, we will review it case by case.",
   },
   {
     title: "4. How to cancel",
@@ -38,7 +38,7 @@ const sections = [
   {
     title: "5. What happens to your QR codes",
     content:
-      "When a paid plan ends, dynamic QR codes stop redirecting and their analytics become unavailable, because those are paid features. Your data is retained for 30 days after the period ends, so resubscribing within that window restores everything. Static QR codes are unaffected — they encode their destination directly and keep working permanently.",
+      "When a paid plan or trial ends, the account moves to the Free plan and its dynamic QR codes are paused: people who scan them see a deactivated page, or the code's fallback URL if one is set. The codes are not deleted — pay again and the paused codes are switched back on. Scan history is kept for 3 months after the plan ends and is then deleted. Static QR codes are unaffected — they encode their destination directly and keep working permanently.",
   },
   {
     title: "6. Requesting a refund",

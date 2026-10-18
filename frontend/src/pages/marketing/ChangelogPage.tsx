@@ -171,7 +171,7 @@ export default function ChangelogPage() {
         {/* Subscribe CTA */}
         <div className="mt-4 rounded-2xl border border-line bg-paper-pure p-8 text-center shadow-card">
           <p className="text-ink font-bold text-lg mb-1 font-display tracking-tightest">Stay in the loop</p>
-          <p className="text-ink-soft text-sm mb-5">Follow our release notes directly from the admin dashboard or check back here.</p>
+          <p className="text-ink-soft text-sm mb-5">Release notes are published on this page — check back here for the latest.</p>
           <div className="flex items-center justify-center gap-2 text-ink-faint text-sm">
             <CalendarClock size={14} />
             Updated regularly with every meaningful release

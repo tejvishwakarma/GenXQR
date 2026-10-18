@@ -323,7 +323,7 @@ export default function QRAnalyticsPage() {
             <StatCard
               label="Total Scans"
               value={analytics.totalScans}
-              sub={`${analytics.uniqueScans.toLocaleString()} unique ${analytics.uniqueScans === 1 ? "device" : "devices"}`}
+              sub={`${analytics.uniqueScans.toLocaleString()} unique (repeats from the same IP + browser within 4h excluded)`}
               icon={<Scan size={18} className="text-violet-400" />}
               trend={trendPct}
               highlight

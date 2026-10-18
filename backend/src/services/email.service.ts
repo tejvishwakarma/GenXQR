@@ -260,7 +260,7 @@ function buildEmailShell(subject: string, innerHtml: string): string {
                 <tr>
                   <td>
                     <p class="footer-txt" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#71717a;line-height:1.65">
-                      You received this because you have a GenXQR account.<br>
+                      You received this because you have a GenXQR account or contacted GenXQR.<br>
                       &copy; ${year} GenXQR &middot; All rights reserved.
                     </p>
                   </td>
@@ -722,27 +722,27 @@ export function buildSupportTicketConfirmationEmail(opts: {
       We've received your request
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${safe.userName}, thanks for reaching out! Your support ticket has been submitted and our team will get back to you as soon as possible.
+      Hi ${safe.userName}, thanks for reaching out! We've received your message and our team will get back to you as soon as possible.
     </p>
 
     <!-- Ticket summary -->
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;overflow:hidden">
       <tr>
         <td style="padding:20px 24px">
-          <p style="margin:0 0 8px;font-size:12px;color:#818cf8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Ticket Summary</p>
+          <p style="margin:0 0 8px;font-size:12px;color:#818cf8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Summary</p>
           <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${safe.subject}</p>
           <p style="margin:0;font-size:13px;color:#6366f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            Category: ${safe.category} &nbsp;·&nbsp; Ticket ID: <strong>${safe.ticketId.slice(0, 8).toUpperCase()}</strong>
+            Category: ${safe.category} &nbsp;·&nbsp; Reference: <strong>${safe.ticketId.slice(0, 8).toUpperCase()}</strong>
           </p>
         </td>
       </tr>
     </table>
 
     <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      We typically respond within 1–2 business days. You can track your ticket status from your dashboard → Help &amp; Support.
+      We typically respond within 1–2 business days. If you sent this as a support ticket from your GenXQR dashboard, you can follow it under Help &amp; Support.
     </p>`
 
-  return buildEmailShell(`Support ticket received — GenXQR`, inner)
+  return buildEmailShell(`We've received your message — GenXQR`, inner)
 }
 
 // ─── Job Application email ────────────────────────────────────────────────────

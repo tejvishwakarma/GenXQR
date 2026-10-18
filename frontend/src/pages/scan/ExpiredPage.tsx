@@ -12,14 +12,14 @@ const CONTENT: Record<Reason, { icon: React.ReactNode; badge: string; heading: s
     badge: "Deactivated",
     heading: "This QR code has been deactivated",
     description:
-      "The owner has turned off this QR code. It is no longer active. If you believe this is a mistake, please contact the creator.",
+      "This QR code is switched off, so it is not sending visitors anywhere right now. If you believe this is a mistake, please contact the creator.",
   },
   expired: {
     icon: <Clock size={40} className="text-amber-500/70" />,
-    badge: "Expired",
-    heading: "This QR code has expired",
+    badge: "Not active",
+    heading: "This QR code is not active right now",
     description:
-      "This QR code has passed its expiry date and is no longer valid. If you believe this is a mistake, please contact the creator.",
+      "This QR code is outside its scheduled active dates, or no longer exists. If you believe this is a mistake, please contact the creator.",
   },
   limit: {
     icon: <AlertTriangle size={40} className="text-orange-500/70" />,
@@ -36,7 +36,7 @@ const CONTENT: Record<Reason, { icon: React.ReactNode; badge: string; heading: s
     badge: "Blocked",
     heading: "This QR code has been blocked",
     description:
-      "We blocked this QR code because its destination was reported as unsafe or breached our acceptable use policy. You have not been taken there. Nothing further is needed from you.",
+      "We blocked this QR code under our acceptable use policy, because of its destination or the account that owns it. You have not been taken there. Nothing further is needed from you.",
   },
 }
 

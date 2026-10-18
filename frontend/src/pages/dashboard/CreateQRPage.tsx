@@ -38,11 +38,11 @@ const qrTypes = [
   { id: "app",      label: "App Download",    icon: <Smartphone size={22} />,   desc: "App Store & Play Store links",         category: "page"  },
   { id: "mp3",      label: "Audio / MP3",     icon: <Music size={22} />,        desc: "Share music or podcast",               category: "file"  },
   { id: "menu",     label: "Restaurant Menu", icon: <QrCode size={22} />,       desc: "Digital menu with sections",           category: "page"  },
-  { id: "wifi",     label: "WiFi",            icon: <Wifi size={22} />,         desc: "Auto-connect to your network",         category: "basic" },
+  { id: "wifi",     label: "WiFi",            icon: <Wifi size={22} />,         desc: "Share network name and password",      category: "basic" },
   { id: "whatsapp", label: "WhatsApp",        icon: <MessageCircle size={22} />, desc: "Direct WhatsApp chat",               category: "basic" },
   { id: "instagram",label: "Instagram",       icon: <Instagram size={22} />,    desc: "Link to Instagram profile",            category: "basic" },
   { id: "facebook", label: "Facebook",        icon: <Facebook size={22} />,     desc: "Facebook page or profile",             category: "page"  },
-  { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupons with barcode",         category: "page"  },
+  { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupon with code and expiry",  category: "page"  },
 ]
 
 const DOT_STYLES: { value: DotType; label: string }[] = [
@@ -988,7 +988,7 @@ export default function CreateQRPage() {
             You're on the <span className="text-zinc-300 font-medium">Free plan</span> which allows up to <span className="text-zinc-300 font-medium">{qrLimit} QR codes</span>.
           </p>
           <p className="text-zinc-500 text-sm mb-8">
-            Upgrade to a paid plan to create unlimited QR codes, unlock analytics, custom branding, and more.
+            Upgrade to a paid plan to create QR codes again: 50 on Starter, 250 on Pro, 2,000 on Business.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/app/billing">

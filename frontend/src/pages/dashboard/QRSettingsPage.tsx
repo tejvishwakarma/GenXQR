@@ -212,7 +212,7 @@ export default function QRSettingsPage() {
             <Input type="number" min={1} placeholder="e.g. 1000" value={scanLimit} onChange={e => setScanLimit(e.target.value)} className="h-9 text-sm w-40" />
           </div>
           <div>
-            <label className="text-xs text-zinc-500 mb-1 block">Fallback URL (redirect when expired)</label>
+            <label className="text-xs text-zinc-500 mb-1 block">Fallback URL (redirect when paused, expired, not yet active, or over the scan limit)</label>
             <Input placeholder="https://example.com/fallback" value={fallbackUrl} onChange={e => setFallbackUrl(e.target.value)} className="h-9 text-sm" />
           </div>
         </CardContent>
@@ -314,7 +314,7 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm flex items-center gap-2"><BarChart3 size={15} className="text-blue-400" />Retargeting Pixels</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-zinc-500 text-xs">Fired via a trampoline page on each scan before redirecting.</p>
+          <p className="text-zinc-500 text-xs">Fired via a short intermediate page on scans that redirect (smart routing, A/B variants, WhatsApp and Instagram codes). Not fired on scans that open a GenXQR landing page.</p>
           <div>
             <label className="text-xs text-zinc-500 mb-1 block">Facebook Pixel ID</label>
             <Input placeholder="e.g. 1234567890" value={fbPixelId} onChange={e => setFbPixelId(e.target.value)} className="h-9 text-sm" />

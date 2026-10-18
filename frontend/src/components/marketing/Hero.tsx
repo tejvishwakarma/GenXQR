@@ -74,7 +74,7 @@ export function MarketingHero() {
           </div>
 
           <ul className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-x-5 gap-y-2 text-sm text-ink-soft">
-            {["Free forever plan", "No credit card", "Priced in ₹ and $"].map((t) => (
+            {["14-day Pro trial", "No credit card", "Billed in ₹"].map((t) => (
               <li key={t} className="inline-flex items-center gap-1.5">
                 <Check size={15} className="text-live" /> {t}
               </li>

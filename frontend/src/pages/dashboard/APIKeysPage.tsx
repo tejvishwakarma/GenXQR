@@ -158,7 +158,7 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                 {
                   method: "GET", path: "/qr", desc: "List all your QR codes",
                   example: 'curl -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr?page=1&limit=20',
-                  response: '{ "success": true, "data": [...], "meta": { "total": 42, "page": 1 } }',
+                  response: '{ "success": true, "data": [...], "pagination": { "total": 42, "page": 1, "limit": 20, "totalPages": 3, "hasNext": true, "hasPrev": false } }',
                 },
                 {
                   method: "POST", path: "/qr", desc: "Create a new QR code",
@@ -182,12 +182,12 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                 {
                   method: "DELETE", path: "/qr/:id", desc: "Permanently delete a QR code",
                   example: 'curl -X DELETE -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr/clxxx',
-                  response: '{ "success": true, "message": "QR code deleted" }',
+                  response: 'HTTP 204 No Content (empty body)',
                 },
                 {
                   method: "GET", path: "/qr/:id/analytics", desc: "Get scan analytics for a QR code",
                   example: 'curl -H "Authorization: Bearer KEY" https://genxqr.com/v1/qr/clxxx/analytics',
-                  response: '{ "success": true, "data": { "totalScans": 120, "today": 8, ... } }',
+                  response: '{ "success": true, "data": { "totalScans": 120, "scansToday": 8, ... } }',
                 },
               ].map((ep) => {
                 const color = ep.method === "GET" ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
@@ -262,8 +262,8 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
                 <p className="text-zinc-900 dark:text-white font-semibold text-xs mb-2">Rate limits</p>
                 <div className="space-y-1.5">
                   {[
-                    ["Global API limit", "200 requests / minute per key"],
-                    ["Burst limit", "50 requests / 5 seconds"],
+                    ["Global API limit", "300 requests / minute per account"],
+                    ["Monthly quota", "Set by your plan (Pro 10,000 · Business 100,000)"],
                     ["Response on limit exceeded", "HTTP 429 with Retry-After header"],
                   ].map(([label, val]) => (
                     <div key={label} className="flex justify-between text-xs">
@@ -563,6 +563,7 @@ export default function APIKeysPage() {
               <p className="text-zinc-500 mb-1"># Create a new QR</p>
               <p className="text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                 curl -X POST -H <span className="text-violet-300">"Authorization: Bearer YOUR_API_KEY"</span>{" "}
+                -H <span className="text-violet-300">"Content-Type: application/json"</span>{" "}
                 -d <span className="text-amber-300">&#39;&#123;&quot;name&quot;:&quot;My QR&quot;,&quot;type&quot;:&quot;URL&quot;,&quot;content&quot;:&#123;&quot;data&quot;:&#123;&quot;url&quot;:&quot;https://example.com&quot;&#125;&#125;&#125;&#39;</span>{" "}
                 <span className="text-emerald-400">https://genxqr.com/v1/qr</span>
               </p>

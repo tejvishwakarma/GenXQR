@@ -108,7 +108,7 @@ export default function ABTestPage() {
         <FeatureLocked
           feature="abTesting"
           title="A/B testing is a Pro feature"
-          description="Send a share of your scans to one destination and the rest to another, then compare which converts better."
+          description="Send a share of your scans to one destination and the rest to another, then compare how many scans each one received."
         />
       )}
 
@@ -121,7 +121,7 @@ export default function ABTestPage() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">A/B Test Status</div>
-              <p className="text-zinc-500 text-xs">When enabled, traffic is split between the variants below.</p>
+              <p className="text-zinc-500 text-xs">When enabled, each scan is randomly sent to Variant A or B using the split % here. A matching smart routing rule takes priority.</p>
             </div>
             {!canEdit ? (
               <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ export default function ABTestPage() {
                 <Input placeholder="https://example.com/variant-b" value={form.targetUrl} onChange={e => setForm(f => ({ ...f, targetUrl: e.target.value }))} className="h-9 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-zinc-500 mb-1 block">Traffic Split % (percent sent to this variant)</label>
+                <label className="text-xs text-zinc-500 mb-1 block">Variant Split % (saved for reference; scans are split by the Variant A split % above)</label>
                 <Input type="number" min={1} max={99} value={form.splitPct} onChange={e => setForm(f => ({ ...f, splitPct: e.target.value }))} className="h-9 text-sm w-28" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}

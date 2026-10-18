@@ -95,33 +95,19 @@ export default function LoginPage() {
             <span className="gradient-text">live and tracking.</span>
           </h1>
           <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-sm animate-fade-in animate-delay-200">
-            Sign in to see who scanned your codes today, update destinations without reprinting, and manage every campaign in one place.
+            Sign in to see how your codes were scanned today, update destinations without reprinting, and manage every campaign in one place.
           </p>
-
-          {/* Mini stats row */}
-          <div className="flex items-center gap-8 mb-8 animate-fade-in animate-delay-300">
-            {[
-              { value: "50K+",  label: "Businesses" },
-              { value: "2M+",   label: "Scans tracked" },
-              { value: "99.9%", label: "Uptime" },
-            ].map((s) => (
-              <div key={s.label}>
-                <div className="text-white font-bold text-xl">{s.value}</div>
-                <div className="text-zinc-500 text-xs">{s.label}</div>
-              </div>
-            ))}
-          </div>
 
           {/* Live scan activity chart */}
           <div className="glass-card p-4 rounded-xl animate-fade-in animate-delay-400">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <TrendingUp size={13} className="text-violet-400" />
-                <span className="text-zinc-400 text-xs font-medium">Today's scan activity</span>
+                <span className="text-zinc-400 text-xs font-medium">Example scan activity</span>
               </div>
               <span className="flex items-center gap-1.5 text-xs text-green-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                Live
+                Sample
               </span>
             </div>
             <div className="flex items-end gap-[3px] h-14">
@@ -139,18 +125,6 @@ export default function LoginPage() {
             <div className="flex justify-between mt-1.5">
               <span className="text-zinc-700 text-[10px]">12 am</span>
               <span className="text-zinc-700 text-[10px]">Now</span>
-            </div>
-          </div>
-
-          {/* Testimonial */}
-          <div className="mt-5 glass-card p-4 rounded-xl animate-fade-in animate-delay-400">
-            <p className="text-zinc-300 text-sm italic leading-relaxed">"We updated our event QR destination 3 times on the day itself. Couldn't have done it without GenXQR."</p>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="w-7 h-7 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-semibold">P</div>
-              <div>
-                <div className="text-white text-xs font-medium">Priya S.</div>
-                <div className="text-zinc-500 text-xs">Events Manager, Bangalore</div>
-              </div>
             </div>
           </div>
         </div>

@@ -131,7 +131,6 @@ function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardPro
     { label: "Smart routing", enabled: limits?.smartRouting ?? false },
     { label: "Bulk generation", enabled: limits?.bulkGeneration ?? false },
     { label: "API access", enabled: limits?.apiAccess ?? false },
-    { label: "Custom domains", enabled: limits?.customDomains ?? false },
     { label: `${plan.teamSeatsLimit} team seat${plan.teamSeatsLimit !== 1 ? "s" : ""}`, enabled: plan.teamSeatsLimit > 1 },
     { label: "White-label", enabled: limits?.whiteLabel ?? false },
     { label: "Priority support", enabled: limits?.prioritySupport ?? false },

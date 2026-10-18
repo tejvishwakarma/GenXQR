@@ -1,6 +1,6 @@
 import {
   Users, Globe2, Sparkles, Server, ArrowRight,
-  ShieldCheck, RefreshCw, BarChart3, IndianRupee,
+  ShieldCheck, RefreshCw, IndianRupee,
   Zap, MapPin, Clock, Linkedin, User,
 } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
@@ -61,7 +61,7 @@ const ABOUT_JSON_LD = [
         "name": "Where is GenXQR based?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR is built and operated in India. It is designed specifically for Indian businesses — with INR pricing, UPI payment support, and use cases built around the Indian market: restaurant menus, D2C packaging, event badges, real estate signboards, and more. Our infrastructure is optimised for low-latency scans across Indian cities.",
+          "text": "GenXQR is built and operated in India. It is designed specifically for Indian businesses — with INR pricing, UPI payment support, and use cases built around the Indian market: restaurant menus, D2C packaging, event badges, real estate signboards, and more.",
         },
       },
       {
@@ -85,7 +85,7 @@ const ABOUT_JSON_LD = [
         "name": "Is GenXQR safe to use?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR uses HTTPS across all connections, bcrypt password hashing, short-lived JWT authentication tokens with HttpOnly refresh cookies, and rate limiting on all endpoints. QR codes can be password-protected and set to expire automatically after a date or scan count. No personal data from the person scanning is collected — only aggregate scan metadata (city, device type, OS, browser).",
+          "text": "Yes. GenXQR uses HTTPS across all connections, bcrypt password hashing, short-lived JWT authentication tokens with HttpOnly refresh cookies, and rate limiting on sign-in and API endpoints. QR codes can be password-protected and set to expire automatically after a date or scan count. For each scan we record the scanner's IP address, approximate location looked up from it (city, region, country), device type, OS, browser, and referrer — never names, email addresses, or GPS location.",
         },
       },
       {
@@ -93,7 +93,7 @@ const ABOUT_JSON_LD = [
         "name": "Does GenXQR work in India?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes — GenXQR is built for India. Pricing is in Indian Rupees (INR) starting at ₹299/month. Payments accept UPI, Razorpay, debit cards, and credit cards. Scan analytics track Indian cities across all states. The platform is used by restaurants, retailers, event organisers, clinics, schools, and real estate agents across India. Customer support is available in English.",
+          "text": "Yes — GenXQR is built for India. Pricing is in Indian Rupees (INR) starting at ₹299/month. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics track Indian cities across all states. The platform is used by restaurants, retailers, event organisers, clinics, schools, and real estate agents across India. Customer support is available in English.",
         },
       },
     ],
@@ -202,7 +202,7 @@ const founders: Founder[] = [
 const faqs = [
   {
     q: "Where is GenXQR based?",
-    a: "GenXQR is built and operated in India — designed specifically for Indian businesses with INR pricing, UPI payment support, and use cases built around the Indian market: restaurant menus, D2C packaging, event badges, real estate signboards, and more. Our infrastructure is optimised for low-latency QR scans across Indian cities.",
+    a: "GenXQR is built and operated in India — designed specifically for Indian businesses with INR pricing, UPI payment support, and use cases built around the Indian market: restaurant menus, D2C packaging, event badges, real estate signboards, and more.",
   },
   {
     q: "Is GenXQR free?",
@@ -214,7 +214,7 @@ const faqs = [
   },
   {
     q: "Is GenXQR safe to use?",
-    a: "Yes. GenXQR uses HTTPS on all connections, bcrypt password hashing, short-lived JWT authentication with HttpOnly refresh cookies, and rate limiting on every endpoint. QR codes can be password-protected and set to expire after a date or scan count. No personal data from the person scanning is collected — only aggregate metadata (city, device type, OS, browser).",
+    a: "Yes. GenXQR uses HTTPS on all connections, bcrypt password hashing, short-lived JWT authentication with HttpOnly refresh cookies, and rate limiting on sign-in and API endpoints. QR codes can be password-protected and set to expire after a date or scan count. For each scan we record the scanner's IP address, approximate location looked up from it (city, region, country), device type, OS, browser, and referrer — never names, email addresses, or GPS location.",
   },
   {
     q: "Does GenXQR work in India?",
@@ -226,7 +226,6 @@ const faqs = [
 
 const metrics = [
   { icon: RefreshCw, tint: "blue" as IconTint, value: "< 1s", label: "destination update time" },
-  { icon: BarChart3, tint: "violet" as IconTint, value: "50+", label: "countries in scan analytics" },
   { icon: IndianRupee, tint: "emerald" as IconTint, value: "₹299", label: "per month to start" },
   { icon: Zap, tint: "amber" as IconTint, value: "16", label: "QR content types" },
 ]
@@ -325,7 +324,7 @@ export default function AboutPage() {
               <h2 className="text-2xl md:text-3xl font-bold font-display tracking-tightest text-ink mb-5">
                 What we're measured by
               </h2>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {metrics.map((metric) => (
                   <div key={metric.label} className="rounded-xl border border-line bg-paper px-4 py-4">
                     <IconTile icon={metric.icon} tint={metric.tint} size="sm" className="mb-3" />
@@ -583,7 +582,7 @@ export default function AboutPage() {
               </h2>
               <p className="text-band-fg/70 max-w-xl mx-auto mb-3">
                 Whether you run one location or fifty markets, GenXQR gives you editable
-                QR codes and real scan data — from the first day, on the free plan.
+                QR codes and real scan data — from the first day, with a 14-day Pro trial.
               </p>
               <p className="text-band-fg/50 text-xs mb-8">
                 No credit card · UPI accepted · Cancel any time · Plans from ₹299/month

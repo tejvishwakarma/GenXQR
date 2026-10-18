@@ -49,7 +49,7 @@ export default function BulkGeneratePage() {
     <div className="space-y-6 animate-fade-in max-w-5xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">Bulk Generate</h1>
-        <p className="text-zinc-500 text-sm mt-1">Upload a CSV to generate hundreds of QR codes at once.</p>
+        <p className="text-zinc-500 text-sm mt-1">Upload a CSV to generate QR codes in one batch: up to 100 rows on Pro, 5,000 on Business.</p>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">
@@ -249,7 +249,7 @@ export default function BulkGeneratePage() {
             <h4 className="text-zinc-900 dark:text-white text-sm font-semibold mb-3">Tips</h4>
             <ul className="space-y-2 text-xs text-zinc-500">
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>First row must be a header row</li>
-              <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>URLs must include https://</li>
+              <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>URLs must start with http:// or https://</li>
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span><code>name</code> and <code>url</code> columns are required</li>
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span><code>tag</code> and <code>description</code> are optional</li>
             </ul>

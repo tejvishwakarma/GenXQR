@@ -1,6 +1,7 @@
 import {
   Link2, List, Contact, Building2, Smartphone, FileText, Video, Music, Images,
   UtensilsCrossed, Ticket, Share2, MessageCircle, Wifi, Palette, BarChart3, RefreshCw,
+  Instagram, Facebook,
 } from "lucide-react"
 import { MktContainer, SectionHead, FinderGlyph } from "./ui"
 import { usePlatformStats } from "@/hooks/usePlatformStats"
@@ -14,35 +15,45 @@ function formatStat(value: number): string {
 }
 
 // ── Trust stats band — real platform data, animated count-up ─────────────────
-function TrustStat({ value, suffix, label, borderLeft }: { value: number; suffix: string; label: string; borderLeft: boolean }) {
-  const [count, ref] = useCountUp(value)
-  // useCountUp rounds to a whole number internally (built for large integer
-  // counters), which would round 99.9% up to "100.0%". Percent stats skip the
-  // animated count and just show the real decimal value; the ref is still
-  // attached so the reveal trigger stays consistent with the other stats.
-  const display = suffix === "%" ? value.toFixed(1) : formatStat(count)
+// `value` is null until /api/public/stats answers (and always in the prerendered
+// HTML, where effects never run). A null value renders a neutral dash, never a
+// made-up number.
+function TrustStat({ value, label, borderLeft }: { value: number | null; label: string; borderLeft: boolean }) {
   return (
-    <div ref={ref} className={borderLeft ? "md:border-l md:border-line md:pl-8" : ""}>
-      <div className="font-mono text-3xl md:text-4xl font-semibold text-ink tracking-tight">{display}{suffix}</div>
+    <div className={borderLeft ? "md:border-l md:border-line md:pl-8" : ""}>
+      <div className="font-mono text-3xl md:text-4xl font-semibold text-ink tracking-tight">
+        {/* CountUp is only mounted once the real value exists: useCountUp
+            animates once per mount, so mounting it with a placeholder 0 and
+            swapping the target later would leave it stuck at 0. */}
+        {value === null ? "—" : <CountUp value={value} />}
+      </div>
       <div className="mt-1 text-sm text-ink-soft">{label}</div>
     </div>
   )
 }
 
+function CountUp({ value }: { value: number }) {
+  const [count, ref] = useCountUp(value)
+  return <div ref={ref}>{formatStat(count)}+</div>
+}
+
 export function TrustStrip() {
-  const { stats } = usePlatformStats()
+  const { stats, failed } = usePlatformStats()
   return (
     <section className="border-y border-line bg-paper-pure">
       <MktContainer className="py-8">
         <p className="text-center text-sm text-ink-faint">
           Made in India, used worldwide — by teams in retail, hospitality, events, and marketing.
         </p>
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-y-6">
-          <TrustStat value={stats.qrCodesGenerated} suffix="+" label="QR codes created" borderLeft={false} />
-          <TrustStat value={stats.totalScans} suffix="+" label="scans tracked" borderLeft />
-          <TrustStat value={stats.activeBusinesses} suffix="+" label="businesses across India" borderLeft />
-          <TrustStat value={stats.uptimeSla} suffix="%" label="uptime guaranteed" borderLeft />
-        </div>
+        {/* If the stats request fails, show no numbers at all rather than
+            placeholders that never resolve. */}
+        {!failed && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-y-6">
+            <TrustStat value={stats?.qrCodesGenerated ?? null} label="QR codes created" borderLeft={false} />
+            <TrustStat value={stats?.totalScans ?? null} label="scans tracked" borderLeft />
+            <TrustStat value={stats?.activeBusinesses ?? null} label="accounts created" borderLeft />
+          </div>
+        )}
       </MktContainer>
     </section>
   )
@@ -56,6 +67,7 @@ const GROUPS = [
       { icon: Link2, label: "Website / URL" },
       { icon: List, label: "Multi-link page" },
       { icon: Wifi, label: "WiFi access" },
+      { icon: UtensilsCrossed, label: "Menu" },
     ],
   },
   {
@@ -64,6 +76,7 @@ const GROUPS = [
       { icon: Contact, label: "vCard" },
       { icon: Building2, label: "Business info" },
       { icon: Smartphone, label: "App download" },
+      { icon: Ticket, label: "Coupon" },
     ],
   },
   {
@@ -76,12 +89,12 @@ const GROUPS = [
     ],
   },
   {
-    group: "Marketing",
+    group: "Social",
     items: [
-      { icon: UtensilsCrossed, label: "Menu" },
-      { icon: Ticket, label: "Coupon" },
       { icon: Share2, label: "Social profiles" },
       { icon: MessageCircle, label: "WhatsApp" },
+      { icon: Instagram, label: "Instagram" },
+      { icon: Facebook, label: "Facebook" },
     ],
   },
 ]
@@ -93,7 +106,7 @@ export function QrTypes() {
         <SectionHead
           eyebrow="One code for everything"
           title={<>Every kind of QR code your business needs</>}
-          intro="Fourteen content types, grouped by what you're trying to do — not a wall of icons to decode."
+          intro="Sixteen content types, grouped by what you're trying to do — not a wall of icons to decode."
           align="center"
         />
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
