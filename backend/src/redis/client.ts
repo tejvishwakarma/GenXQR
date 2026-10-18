@@ -26,7 +26,12 @@ redis.on("reconnecting", () => logger.info("Redis reconnecting..."))
 export async function connectRedis(): Promise<void> {
   // ioredis may have already auto-connected when the rate-limiter issued its first command
   if (redis.status === "ready") return
-  if (redis.status === "connecting") {
+  // Only a client that has never connected ("wait") or was closed ("end")
+  // needs connect(). Every other status — "connecting", "connect" (socket open,
+  // ready check pending) or "reconnecting" — means a connection is already under
+  // way, and calling connect() then throws "Redis is already
+  // connecting/connected", crashing startup depending on timing.
+  if (redis.status !== "wait" && redis.status !== "end") {
     // Wait for the already-in-progress connection to complete
     await new Promise<void>((resolve, reject) => {
       redis.once("ready", resolve)

@@ -1019,8 +1019,11 @@ pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking
 TRUNCATE deadlocked/stalled against fire-and-forget writes from the previous test (1–2
 random timeouts per full run, also on the pre-change code). Full run ≈ 2 min.
 
-**macOS dev:** `pnpm db:up` is WSL-only. On a Mac use Colima + standalone compose:
-`colima start` then `docker-compose --env-file .env up -d --wait` from the repo root.
+**macOS dev:** `pnpm db:up/down/logs` go through `scripts/compose.mjs`, which uses WSL on
+Windows and plain `docker compose` elsewhere. On a Mac, Docker runs in Colima: `colima start`
+first (and register the compose plugin: `ln -sfn $(brew --prefix)/opt/docker-compose/bin/docker-compose ~/.docker/cli-plugins/docker-compose`).
+The dev backend listens on **4000** (`PORT` in backend/.env) because the Vite proxy targets 4000;
+production runs on 3001.
 
 When adding a security test, verify it can fail: break the guard it covers,
 confirm the suite goes red naming that test, then restore. A test that has only
