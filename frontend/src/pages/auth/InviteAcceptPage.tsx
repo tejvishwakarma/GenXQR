@@ -1,9 +1,10 @@
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useMemo, useState } from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Mail, QrCode, Shield, Users, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ApiError, acceptTeamInvite, apiFetch, clearClientSession, getTeamInvitePreview } from "@/lib/api"
+import { setWorkspaceOwnerId } from "@/lib/workspace"
 
 function roleLabel(role: "admin" | "editor" | "viewer") {
   if (role === "admin") return "Admin"
@@ -32,11 +33,16 @@ export default function InviteAcceptPage() {
     retry: false,
   })
 
+  const qc = useQueryClient()
   const acceptMut = useMutation({
     mutationFn: () => acceptTeamInvite(token ?? ""),
     onSuccess: (res) => {
       setFlash(res.message)
-      window.setTimeout(() => navigate("/app/team", { replace: true }), 1200)
+      // Open the team just joined, so the member starts in the role-limited
+      // workspace rather than their own personal one.
+      setWorkspaceOwnerId(res.data.owner.id)
+      void qc.invalidateQueries({ queryKey: ["workspaces"] })
+      window.setTimeout(() => navigate("/app/dashboard", { replace: true }), 1200)
     },
     onError: (err) => {
       setFlash(err instanceof Error ? err.message : "Failed to accept invite")

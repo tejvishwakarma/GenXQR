@@ -140,6 +140,35 @@ describe("team workspaces", () => {
       expect((await request(app).get("/api/qr").set(as(member.token, owner.id))).status).toBe(403)
     })
 
+    it("should show a member their OWN team in their personal workspace, and the owner's when switched", async () => {
+      // The member has never opened their own Team page, so owns no Team row —
+      // the case that used to fall back to showing the owner's team as "theirs".
+      const { owner, member } = await teamWith("EDITOR")
+
+      const personal = await request(app).get("/api/team").set(as(member.token))
+      expect(personal.status).toBe(200)
+      expect(personal.body.data.ownerId).toBe(member.id)
+      expect(personal.body.data.myRole).toBe("owner")
+      expect(personal.body.data.members.map((m: { id: string }) => m.id)).toEqual([member.id])
+
+      // In the owner's workspace an Editor learns the team and their role, but
+      // the roster and invites are withheld (only Owner/Admin may see them).
+      const shared = await request(app).get("/api/team").set(as(member.token, owner.id))
+      expect(shared.body.data.ownerId).toBe(owner.id)
+      expect(shared.body.data.myRole).toBe("editor")
+      expect(shared.body.data.restricted).toBe(true)
+      expect(shared.body.data.members).toEqual([])
+      expect(shared.body.data.pendingInvites).toEqual([])
+      expect(JSON.stringify(shared.body)).not.toContain(owner.email)
+    })
+
+    it("should show the roster to an admin of the team", async () => {
+      const { owner, member } = await teamWith("ADMIN")
+      const res = await request(app).get("/api/team").set(as(member.token, owner.id))
+      expect(res.body.data.restricted).toBe(false)
+      expect(res.body.data.members.map((m: { id: string }) => m.id)).toEqual([owner.id, member.id])
+    })
+
     it("should list the workspaces a user can switch to", async () => {
       const { owner, member } = await teamWith("EDITOR")
       const res = await request(app).get("/api/team/workspaces").set(as(member.token))

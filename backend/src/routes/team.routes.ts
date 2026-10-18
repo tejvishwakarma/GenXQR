@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import * as TeamService from "../services/team.service.js"
-import { listWorkspaces } from "../services/workspace.service.js"
+import { can, listWorkspaces } from "../services/workspace.service.js"
 import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 
 const router: IRouter = Router()
@@ -34,10 +34,20 @@ router.get("/workspaces", requireAuth, async (req: Request, res: Response, next:
 
 router.get("/", requireAuth, withWorkspace, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const overview = await TeamService.getTeamOverview(wsOwner(req))
+    const ws = req.workspace!
+    const identity = await TeamService.getTeamIdentity(ws.ownerId)
+    const base = { ...identity, ownerId: ws.ownerId, myRole: ws.role.toLowerCase() }
+    // Only the owner and admins see who is on the team (decided 18 Oct 2026):
+    // Editors and Viewers get the team's identity and their own role, and the
+    // member list and invites are never sent to them.
+    if (!can(ws, "team:manage")) {
+      res.json({ success: true, data: { ...base, restricted: true, members: [], pendingInvites: [], seats: null } })
+      return
+    }
+    const overview = await TeamService.getTeamOverview(ws.ownerId)
     res.json({
       success: true,
-      data: { ...overview, ownerId: wsOwner(req), myRole: req.workspace!.role.toLowerCase() },
+      data: { ...overview, ...base, restricted: false },
     })
   } catch (err) {
     next(err)

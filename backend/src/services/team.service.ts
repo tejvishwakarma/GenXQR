@@ -149,20 +149,6 @@ async function migrateLegacyTeamStateIfNeeded(ownerId: string, teamId: string): 
   ])
 }
 
-async function getTeamForUserOverview(userId: string): Promise<{ teamId: string; ownerId: string }> {
-  const owned = await prisma.team.findFirst({ where: { ownerId: userId }, select: { id: true, ownerId: true } })
-  if (owned) return { teamId: owned.id, ownerId: owned.ownerId }
-
-  const membership = await prisma.teamMember.findFirst({
-    where: { userId },
-    select: { teamId: true, team: { select: { ownerId: true } } },
-  })
-  if (membership) return { teamId: membership.teamId, ownerId: membership.team.ownerId }
-
-  const created = await getOrCreateOwnedTeam(userId)
-  return { teamId: created.id, ownerId: created.ownerId }
-}
-
 // ─── Invite email + lookup ─────────────────────────────────────────────────────
 
 function buildInviteUrl(token: string): string {
@@ -216,8 +202,25 @@ async function findInviteByToken(rawToken: string) {
 
 // ─── Public service functions (called from team.routes.ts) ───────────────────
 
-export async function getTeamOverview(userId: string) {
-  const { teamId, ownerId } = await getTeamForUserOverview(userId)
+/**
+ * The team OWNED by `ownerId` — the selected workspace's owner (team.routes.ts
+ * passes wsOwner). Never falls back to a team the user merely belongs to: that
+ * pre-workspace behaviour showed a member someone else's team as if it were
+ * their own whenever they had not yet opened their own Team page. Other teams
+ * are reached by switching workspace.
+ */
+/** Team name and owner — all an Editor or Viewer is shown (no member list). */
+export async function getTeamIdentity(ownerUserId: string) {
+  const { id: teamId } = await getOrCreateOwnedTeam(ownerUserId)
+  const team = await prisma.team.findUniqueOrThrow({
+    where: { id: teamId },
+    select: { name: true, owner: { select: { name: true } } },
+  })
+  return { teamName: team.name, ownerName: team.owner.name }
+}
+
+export async function getTeamOverview(ownerUserId: string) {
+  const { id: teamId, ownerId } = await getOrCreateOwnedTeam(ownerUserId)
 
   const [owner, planInfo, memberRows, inviteRows] = await Promise.all([
     prisma.user.findUnique({
@@ -537,7 +540,7 @@ export async function acceptInvite(currentUserId: string, rawToken: string) {
 
   return {
     message: `Joined ${match.team.owner.name}'s team successfully`,
-    owner: { name: match.team.owner.name, email: match.team.owner.email },
+    owner: { id: match.team.ownerId, name: match.team.owner.name, email: match.team.owner.email },
     role: apiRoleFromDb(match.role),
   }
 }

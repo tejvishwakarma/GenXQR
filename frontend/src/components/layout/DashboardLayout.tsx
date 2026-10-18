@@ -334,19 +334,28 @@ export function DashboardLayout() {
           <label htmlFor="workspace-switcher" className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
             Workspace
           </label>
-          <select
-            id="workspace-switcher"
-            value={ws.current?.ownerId ?? ws.workspaces[0]?.ownerId}
-            onChange={(e) => switchWorkspace(e.target.value)}
-            className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200"
-          >
-            {ws.workspaces.map((w, i) => (
-              <option key={w.ownerId} value={w.ownerId} disabled={!w.available}>
-                {i === 0 ? "Personal" : `${w.name} · ${w.role.charAt(0) + w.role.slice(1).toLowerCase()}`}
-                {!w.available ? " (unavailable)" : ""}
-              </option>
-            ))}
-          </select>
+          {/* appearance-none + our own chevron: the browser's native arrow
+              (Safari especially) sits flush against the edge and ignores padding. */}
+          <div className="relative">
+            <select
+              id="workspace-switcher"
+              value={ws.current?.ownerId ?? ws.workspaces[0]?.ownerId}
+              onChange={(e) => switchWorkspace(e.target.value)}
+              className="w-full appearance-none rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 py-1.5 pl-2.5 pr-8 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+            >
+              {ws.workspaces.map((w, i) => (
+                <option key={w.ownerId} value={w.ownerId} disabled={!w.available}>
+                  {i === 0 ? "Personal" : `${w.name} · ${w.role.charAt(0) + w.role.slice(1).toLowerCase()}`}
+                  {!w.available ? " (unavailable)" : ""}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              size={14}
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500"
+            />
+          </div>
         </div>
       )}
 

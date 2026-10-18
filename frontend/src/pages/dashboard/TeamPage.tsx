@@ -135,6 +135,7 @@ export default function TeamPage() {
   const members = overview?.members ?? []
   const pendingInvites = overview?.pendingInvites ?? []
   const seats = overview?.seats ?? { used: members.length, limit: 1 }
+  // Owner/Admin get the roster; Editors/Viewers get a summary (server-enforced).
   const seatProgress = seats.limit > 0 ? Math.min(100, Math.round((seats.used / seats.limit) * 100)) : 0
   const myRole = overview?.myRole ?? "owner"
   // members[0] is always the workspace owner (backend team.service getTeamOverview).
@@ -264,6 +265,9 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
+      {/* Members and invites: Owner and Admins only. The server withholds both
+          from Editors and Viewers (team.routes.ts), so this is not just hidden. */}
+      {canManage ? (<>
       {/* Members Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -401,6 +405,20 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+      </>) : (
+        <Card>
+          <CardContent className="py-6 space-y-2">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              <span className="font-medium">{overview?.teamName}</span>
+              {overview?.ownerName ? <> · owned by {overview.ownerName}</> : null}
+            </p>
+            <p className="text-sm text-zinc-500">
+              Your role: <span className="font-medium text-zinc-700 dark:text-zinc-300">{roleConfig[myRole].label}</span>.
+              Only the owner and admins can see who else is in this team.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

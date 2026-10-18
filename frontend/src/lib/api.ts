@@ -1951,10 +1951,15 @@ export interface TeamPendingInvite {
 export interface TeamOverview {
   members: TeamMember[]
   pendingInvites: TeamPendingInvite[]
+  /** null for Editors/Viewers, who are not shown the roster. */
   seats: {
     used: number
     limit: number
-  }
+  } | null
+  /** True for Editors/Viewers: members and invites are withheld by the server. */
+  restricted: boolean
+  teamName: string
+  ownerName: string
   /** Owner of the team shown (the selected workspace's owner). */
   ownerId: string
   /** The caller's role in it; "owner" in your own workspace. */
@@ -2018,7 +2023,7 @@ export function getTeamInvitePreview(token: string) {
 }
 
 export function acceptTeamInvite(token: string) {
-  return apiFetch<{ success: boolean; message: string; data: { owner: { name: string; email: string }; role: TeamRole } }>(
+  return apiFetch<{ success: boolean; message: string; data: { owner: { id: string; name: string; email: string }; role: TeamRole } }>(
     `/api/team/invites/token/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",
