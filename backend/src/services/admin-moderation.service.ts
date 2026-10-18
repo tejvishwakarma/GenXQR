@@ -1,4 +1,5 @@
 import { prisma } from "../db/prisma.js"
+import { readPrefs } from "../utils/notification-prefs.util.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { sendEmail, buildBroadcastEmail } from "./email.service.js"
 import { invalidateBlocklistCache } from "./blocklist.service.js"
@@ -182,18 +183,23 @@ export async function sendBroadcast(callerRole: AdminRole, input: BroadcastInput
     return { sent: status === "sent" ? 1 : 0, preview: true as const }
   }
 
-  // Collect recipients based on segment
+  // Collect recipients based on segment. FREE accounts have an ACTIVE
+  // subscription on the FREE plan, so "free" and "paid" are told apart by plan,
+  // not by status (the old filters reached almost no free users and counted
+  // free users as paid).
   const subWhere =
     segment === "all" ? undefined :
-      segment === "free" ? { is: null } :
-        segment === "trialing" ? { is: { status: "TRIALING" } } :
-          segment === "past_due" ? { is: { status: "PAST_DUE" } } :
-    /* paid */               { is: { status: "ACTIVE" } }
+      segment === "free" ? { OR: [{ subscription: { is: null } }, { subscription: { is: { plan: { name: "FREE" } } } }] } :
+        segment === "trialing" ? { subscription: { is: { status: "TRIALING" } } } :
+          segment === "past_due" ? { subscription: { is: { status: "PAST_DUE" } } } :
+    /* paid */               { subscription: { is: { status: "ACTIVE", plan: { name: { not: "FREE" } } } } }
 
-  const users = await prisma.user.findMany({
-    where: { subscription: subWhere as never },
-    select: { email: true },
+  const candidates = await prisma.user.findMany({
+    where: subWhere as never,
+    select: { email: true, notificationPrefs: true },
   })
+  // Broadcasts are product news: honour the "Product updates" opt-out.
+  const users = candidates.filter((u) => readPrefs(u.notificationPrefs).productUpdates)
 
   // Send emails and track results
   const results = await Promise.allSettled(

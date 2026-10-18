@@ -1,6 +1,7 @@
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
+import { readPrefs } from "../utils/notification-prefs.util.js"
 import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail } from "./email.service.js"
 
 type ReminderType = "7_days" | "3_days" | "1_day" | "expired" | "manual"
@@ -136,11 +137,18 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         id: true,
         currentPeriodEnd: true,
         plan: { select: { name: true, displayName: true } },
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, notificationPrefs: true } },
       },
     })
 
     for (const sub of subs) {
+      // "Billing reminders" off stops these advance reminders only. Pause and
+      // expiry notices (subscription-expiry.service) are always sent: they tell
+      // the customer their printed codes have stopped working.
+      if (!readPrefs(sub.user.notificationPrefs).billingReminders) {
+        totalSkipped++
+        continue
+      }
       const result = await attemptSend({
         subscriptionId: sub.id,
         userId: sub.user.id,

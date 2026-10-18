@@ -8,6 +8,7 @@ import { deliverWebhookEvent } from "../services/webhook.service.js"
 import type { DeviceType } from "@prisma/client"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getScanQuota, getScanUsage } from "../services/scan-quota.service.js"
+import { maybeSendScanMilestone } from "../services/engagement-email.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 
 // ─── User-Agent Parser ─────────────────────────────────────────────────────────
@@ -106,8 +107,13 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
       ...(isUnique && { uniqueScanCount: { increment: 1 } }),
       lastScannedAt: scannedAtDate,
     },
-    select: { userId: true, name: true, slug: true },
+    select: { userId: true, name: true, slug: true, scanCount: true },
   })
+
+  // 100 / 1,000 / 10,000-scan milestone email (fire-and-forget, deduped).
+  void maybeSendScanMilestone(qrId, updated.scanCount).catch((err) =>
+    logger.warn("Milestone check failed", { qrId, error: String(err) }),
+  )
 
   // Fire qr.scanned webhook event (fire-and-forget)
   if (!updated.userId) return

@@ -694,7 +694,9 @@ export async function updateUserAvatar(userId: string, avatarUrl: string | null)
 export async function updateNotificationPrefs(userId: string, prefs: NotificationPrefs): Promise<void> {
   await prisma.user.update({
     where: { id: userId },
-    data: { notificationPrefs: JSON.stringify(prefs) }
+    // The object itself — JSON.stringify here stored a string that the reader
+    // could not parse, so no preference was ever honoured (notification-prefs.util).
+    data: { notificationPrefs: { ...prefs } }
   })
 }
 

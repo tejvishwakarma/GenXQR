@@ -878,3 +878,84 @@ export function buildJobApplicationEmail(opts: {
 
   return buildEmailShell(`[Application] ${opts.candidateName} → ${opts.jobTitle}`, inner)
 }
+
+// ─── Engagement emails (engagement-email.service.ts) ───────────────────────────
+
+const P = `margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const H1 = `margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const SMALL = `margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const escHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+
+function ctaButton(href: string, label: string): string {
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px"><tr>
+    <td style="border-radius:10px;background:#6366f1"><a href="${href}" target="_blank"
+      style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${label}</a></td>
+  </tr></table>`
+}
+
+/** "Your QR code reached 1,000 scans" — per code, at 100 / 1,000 / 10,000. */
+export function buildScanMilestoneEmail(opts: {
+  name: string
+  qrName: string
+  milestone: number
+  analyticsUrl: string
+  settingsUrl: string
+}): { subject: string; html: string } {
+  const n = opts.milestone.toLocaleString("en-IN")
+  const subject = `"${opts.qrName}" reached ${n} scans — GenXQR`
+  const inner = `
+    <h1 style="${H1}">${escHtml(opts.qrName)} reached ${n} scans</h1>
+    <p style="${P}">Hi ${escHtml(opts.name)}, your QR code <strong style="color:#18181b">${escHtml(opts.qrName)}</strong> has now been scanned ${n} times in total, repeat scans included.</p>
+    ${ctaButton(opts.analyticsUrl, "See its analytics →")}
+    <p style="${SMALL}">You get these at 100, 1,000 and 10,000 scans per code. Turn them off under <a href="${opts.settingsUrl}" style="color:#6366f1">Settings → Notifications</a>.</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+export interface WeeklyDigestData {
+  name: string
+  weekLabel: string
+  totalScans: number
+  previousWeekScans: number
+  uniqueScans: number
+  topCodes: { name: string; scans: number }[]
+  topCountries: { country: string; scans: number }[]
+  devices: { device: string; scans: number }[]
+  dashboardUrl: string
+  settingsUrl: string
+}
+
+/** The Monday-morning summary of last week's scans. */
+export function buildWeeklyDigestEmail(d: WeeklyDigestData): { subject: string; html: string } {
+  const fmt = (v: number) => v.toLocaleString("en-IN")
+  const change =
+    d.previousWeekScans === 0
+      ? ""
+      : (() => {
+          const pct = Math.round(((d.totalScans - d.previousWeekScans) / d.previousWeekScans) * 100)
+          return ` (${pct >= 0 ? "+" : ""}${pct}% vs the week before)`
+        })()
+  const list = (rows: { label: string; value: number }[]) =>
+    rows.length === 0
+      ? `<p style="${P}">—</p>`
+      : `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 20px">${rows
+          .map(
+            (r) => `<tr><td style="padding:6px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#3f3f46;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${escHtml(r.label)}</td>
+              <td align="right" style="padding:6px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${fmt(r.value)}</td></tr>`,
+          )
+          .join("")}</table>`
+  const h2 = `margin:0 0 8px;font-size:13px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+  const subject = `Your QR codes last week: ${fmt(d.totalScans)} scans — GenXQR`
+  const inner = `
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Weekly summary · ${escHtml(d.weekLabel)}</p>
+    <h1 style="${H1}">${fmt(d.totalScans)} scans last week</h1>
+    <p style="${P}">Hi ${escHtml(d.name)}, your QR codes were scanned ${fmt(d.totalScans)} times${change}, ${fmt(d.uniqueScans)} of them unique (repeats from the same IP and browser within 4 hours not counted).</p>
+    <p style="${h2}">Top QR codes</p>
+    ${list(d.topCodes.map((c) => ({ label: c.name, value: c.scans })))}
+    <p style="${h2}">Top countries</p>
+    ${list(d.topCountries.map((c) => ({ label: c.country, value: c.scans })))}
+    <p style="${h2}">Devices</p>
+    ${list(d.devices.map((c) => ({ label: c.device, value: c.scans })))}
+    ${ctaButton(d.dashboardUrl, "Open analytics →")}
+    <p style="${SMALL}">Sent every Monday at 9:00 am IST for weeks with scans. Turn it off under <a href="${d.settingsUrl}" style="color:#6366f1">Settings → Notifications</a>.</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
+}

@@ -18,6 +18,7 @@ import { prisma } from "../db/prisma.js"
 import { logAudit } from "../services/audit.service.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 import { parseAttributionParam } from "../utils/attribution.util.js"
+import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.util.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -59,20 +60,6 @@ const REFRESH_COOKIE_OPTIONS = {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router()
-
-const NotificationPrefsSchema = z.object({
-  scanMilestoneAlerts: z.boolean(),
-  weeklyAnalyticsDigest: z.boolean(),
-  billingReminders: z.boolean(),
-  productUpdates: z.boolean(),
-})
-
-const DEFAULT_NOTIFICATION_PREFS = {
-  scanMilestoneAlerts: true,
-  weeklyAnalyticsDigest: true,
-  billingReminders: true,
-  productUpdates: true,
-} satisfies z.infer<typeof NotificationPrefsSchema>
 
 function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
   if (typeof input !== "string" || !input.startsWith("/") || input.startsWith("//")) {
@@ -381,13 +368,9 @@ router.get(
     try {
       const userId = (req.user as unknown as AccessTokenPayload).sub
       const user = await AuthService.findUserById(userId)
-      const parsed = NotificationPrefsSchema.safeParse(user?.notificationPrefs)
-
       res.json({
         success: true,
-        data: {
-          notifications: parsed.success ? parsed.data : DEFAULT_NOTIFICATION_PREFS,
-        },
+        data: { notifications: readPrefs(user?.notificationPrefs) },
       })
     } catch (err) {
       next(err)

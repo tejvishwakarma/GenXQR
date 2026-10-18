@@ -7,6 +7,7 @@ import { startScanWorker, stopScanWorker } from "./workers/scan.worker.js"
 import { startRenewalReminderWorker, stopRenewalReminderWorker } from "./workers/renewal-reminder.worker.js"
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from "./workers/webhook-retry.worker.js"
 import { startSubscriptionExpiryWorker, stopSubscriptionExpiryWorker } from "./workers/subscription-expiry.worker.js"
+import { startWeeklyDigestWorker, stopWeeklyDigestWorker } from "./workers/weekly-digest.worker.js"
 
 async function main(): Promise<void> {
   // 1. Connect PostgreSQL
@@ -21,6 +22,7 @@ async function main(): Promise<void> {
   await startRenewalReminderWorker()
   startWebhookRetryWorker()
   await startSubscriptionExpiryWorker()
+  await startWeeklyDigestWorker()
 
   // 4. Start HTTP server
   const server = app.listen(env.PORT, () => {
@@ -34,6 +36,7 @@ async function main(): Promise<void> {
     await stopRenewalReminderWorker()
     await stopWebhookRetryWorker()
     await stopSubscriptionExpiryWorker()
+    await stopWeeklyDigestWorker()
     server.close(async () => {
       await prisma.$disconnect()
       logger.info("PostgreSQL disconnected. Goodbye.")
