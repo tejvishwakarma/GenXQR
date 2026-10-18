@@ -2082,6 +2082,12 @@ export function listWebhooks() {
   })
 }
 
+export function getWebhookSecret(id: string) {
+  return apiFetch<{ success: boolean; data: { secret: string } }>(`/api/webhooks/${id}/secret`, {
+    headers: authHeader(),
+  })
+}
+
 export function getWebhookEvents() {
   return apiFetch<{ success: boolean; data: string[] }>("/api/webhooks/events", {
     headers: authHeader(),
@@ -2089,7 +2095,7 @@ export function getWebhookEvents() {
 }
 
 export function createWebhook(name: string, url: string, events: string[]) {
-  return apiFetch<{ success: boolean; data: WebhookRecord }>("/api/webhooks", {
+  return apiFetch<{ success: boolean; data: WebhookRecord & { secret: string } }>("/api/webhooks", {
     method: "POST",
     headers: authHeader(),
     body: JSON.stringify({ name, url, events }),

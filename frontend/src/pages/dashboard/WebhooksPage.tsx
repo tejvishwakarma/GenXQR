@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Webhook, Plus, Trash2, Play, ChevronDown, ChevronUp,
   AlertTriangle, Loader2, Check, X, Globe, BookOpen, ShieldCheck,
-  Zap, Radio, Code2,
+  Zap, Radio, Code2, Copy, KeyRound,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import {
   listWebhooks, getWebhookEvents, createWebhook, deleteWebhook, testWebhook,
-  getWebhookDeliveries, ApiError,
+  getWebhookDeliveries, getWebhookSecret, ApiError,
   type WebhookRecord, type WebhookDelivery,
 } from "@/lib/api"
 
@@ -93,7 +93,7 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                 <p className="text-zinc-900 dark:text-white font-semibold mb-3">Setup in 4 steps</p>
                 {[
                   { n: "1", text: 'Click "Add Webhook". Give it a name, paste your HTTPS endpoint URL, and choose which events to subscribe to.' },
-                  { n: "2", text: "After creation, copy the webhook secret (shown once). You'll use it server-side to verify incoming requests." },
+                  { n: "2", text: "Copy the signing secret shown after you create the webhook (or reveal it later from the webhook's details), and keep it server-side to verify incoming requests." },
                   { n: "3", text: 'Use the "Test" button (▶) to send a sample payload to your endpoint and verify it receives the request.' },
                   { n: "4", text: "Expand a webhook row to see the delivery history — status codes, timestamps, and success/failure per event." },
                 ].map((s) => (
@@ -123,16 +123,16 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
               {[
                 {
                   event: "qr.scanned",
-                  desc: "Fired every time a QR code is scanned (after deduplication — one per device per 4 hours).",
+                  desc: "Fired for every recorded scan of a QR code, repeat scans from the same device included.",
                   payload: `{
   "event": "qr.scanned",
-  "qrId": "clxxx",
-  "slug": "abc123",
-  "scannedAt": "2025-04-14T10:30:00.000Z",
-  "country": "IN",
-  "city": "Mumbai",
-  "device": "mobile",
-  "browser": "Chrome"
+  "timestamp": "2025-04-14T10:30:01.000Z",
+  "data": {
+    "qrId": "clxxx",
+    "name": "My QR Code",
+    "slug": "abc123",
+    "scannedAt": "2025-04-14T10:30:00.000Z"
+  }
 }`,
                 },
                 {
@@ -140,11 +140,10 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                   desc: "Fired when a QR code is created — via the dashboard or the REST API.",
                   payload: `{
   "event": "qr.created",
-  "qrId": "clxxx",
-  "name": "My QR Code",
-  "type": "URL",
-  "slug": "abc123",
-  "createdAt": "2025-04-14T10:00:00.000Z"
+  "timestamp": "2025-04-14T10:00:00.000Z",
+  "data": {
+    "qr": { "id": "clxxx", "name": "My QR Code", "type": "URL", "slug": "abc123", ... }
+  }
 }`,
                 },
                 {
@@ -152,8 +151,10 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                   desc: "Fired when a QR code's content or settings are changed.",
                   payload: `{
   "event": "qr.updated",
-  "qrId": "clxxx",
-  "updatedAt": "2025-04-14T11:00:00.000Z"
+  "timestamp": "2025-04-14T11:00:00.000Z",
+  "data": {
+    "qr": { "id": "clxxx", "name": "My QR Code", ... }
+  }
 }`,
                 },
                 {
@@ -161,8 +162,34 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                   desc: "Fired when a QR code is permanently deleted.",
                   payload: `{
   "event": "qr.deleted",
-  "qrId": "clxxx",
-  "deletedAt": "2025-04-14T12:00:00.000Z"
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "qrId": "clxxx",
+    "name": "My QR Code"
+  }
+}`,
+                },
+                {
+                  event: "subscription.activated",
+                  desc: "Fired when a payment is confirmed and a paid plan is activated.",
+                  payload: `{
+  "event": "subscription.activated",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "planName": "PRO",
+    "billingCycle": "monthly"
+  }
+}`,
+                },
+                {
+                  event: "subscription.cancelled",
+                  desc: "Fired when you cancel: the plan stays active until the end of the paid period and is not renewed.",
+                  payload: `{
+  "event": "subscription.cancelled",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "cancelAtPeriodEnd": true
+  }
 }`,
                 },
               ].map((ev) => (
@@ -191,7 +218,7 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                 <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre text-zinc-300">{`const crypto = require('crypto')
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig  = req.headers['x-GenXQR-signature']
+  const sig  = req.headers['x-genxqr-signature']  // Node lower-cases header names
   const body = req.body  // raw Buffer — do NOT parse before verifying
 
   const expected = 'sha256=' + crypto
@@ -211,7 +238,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 
               <div>
                 <p className="text-zinc-500 text-xs font-medium mb-2 flex items-center gap-2"><Code2 size={12} /> Python — FastAPI</p>
-                <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre text-zinc-300">{`import hmac, hashlib, os
+                <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre text-zinc-300">{`import hmac, hashlib, json, os
 from fastapi import Request, HTTPException
 
 @app.post("/webhook")
@@ -306,6 +333,31 @@ async def handle_webhook(request: Request):
 
 // ─── Create / Edit Modal ────────────────────────────────────────────────────────
 
+/** A webhook signing secret with a copy button. */
+function SecretField({ secret }: { secret: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="flex items-center gap-2">
+      <code className="flex-1 min-w-0 truncate rounded-lg bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-2 font-mono text-xs text-zinc-800 dark:text-zinc-200">
+        {secret}
+      </code>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard.writeText(secret).then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          })
+        }}
+        title="Copy secret"
+        className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+      >
+        {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+      </button>
+    </div>
+  )
+}
+
 function CreateWebhookModal({
   onClose,
   onCreated,
@@ -319,15 +371,40 @@ function CreateWebhookModal({
   const [url, setUrl] = useState("")
   const [selectedEvents, setSelectedEvents] = useState<string[]>([])
 
+  // Set once the webhook exists: the modal switches to showing its secret,
+  // which is what the receiving server needs to verify X-GenXQR-Signature.
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null)
+
   const createMut = useMutation({
     mutationFn: () => createWebhook(name.trim(), url.trim(), selectedEvents),
-    onSuccess: () => { onCreated(); onClose() },
+    onSuccess: (res) => { onCreated(); setCreatedSecret(res.data.secret) },
   })
 
   const toggleEvent = (ev: string) =>
     setSelectedEvents((prev) => prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev])
 
   const valid = name.trim() && url.startsWith("https://") && selectedEvents.length > 0
+
+  if (createdSecret) {
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <KeyRound size={18} className="text-violet-400" />
+            <h2 className="text-zinc-900 dark:text-white font-semibold">Webhook created — copy its signing secret</h2>
+          </div>
+          <p className="text-zinc-600 dark:text-zinc-400 text-sm">
+            Your server uses this secret to verify the <code className="text-violet-400">X-GenXQR-Signature</code> header on
+            every request. Store it server-side. You can reveal it again later from this webhook's details.
+          </p>
+          <SecretField secret={createdSecret} />
+          <div className="flex justify-end">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -429,6 +506,9 @@ function WebhookRow({ hook }: { hook: WebhookRecord }) {
 
   const deliveries: WebhookDelivery[] = deliveriesData?.data ?? []
 
+  // Fetched only on request, so secrets are not loaded with every list view.
+  const secretMut = useMutation({ mutationFn: () => getWebhookSecret(hook.id) })
+
   return (
     <div className="border-b border-zinc-200 dark:border-zinc-800 last:border-0">
       <div className="px-6 py-4">
@@ -485,7 +565,29 @@ function WebhookRow({ hook }: { hook: WebhookRecord }) {
       </div>
 
       {expanded && (
-        <div className="px-6 pb-4">
+        <div className="px-6 pb-4 space-y-3">
+          <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-zinc-600 dark:text-zinc-400 text-xs font-medium">Signing secret</span>
+              {!secretMut.data && (
+                <button
+                  onClick={() => secretMut.mutate()}
+                  disabled={secretMut.isPending}
+                  className="text-xs text-violet-400 hover:text-violet-300 inline-flex items-center gap-1"
+                >
+                  {secretMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <KeyRound size={12} />}
+                  Reveal secret
+                </button>
+              )}
+            </div>
+            {secretMut.data ? (
+              <SecretField secret={secretMut.data.data.secret} />
+            ) : secretMut.isError ? (
+              <p className="text-red-400 text-xs">Could not load the secret. Try again.</p>
+            ) : (
+              <p className="text-zinc-500 text-xs">Used to verify the X-GenXQR-Signature header on each request.</p>
+            )}
+          </div>
           <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-zinc-600 dark:text-zinc-400 text-xs font-medium">Recent Deliveries</span>
