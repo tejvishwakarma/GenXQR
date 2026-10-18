@@ -586,7 +586,7 @@ export default function QRDetailPage() {
         type: (d?.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType,
       },
       cornersDotOptions: { color: d?.primaryColor ?? "#7c3aed" },
-      backgroundOptions: { color: d?.backgroundColor ?? "#000000" },
+      backgroundOptions: { color: d?.backgroundColor ?? "#ffffff" },
       image: d?.logoUrl ?? undefined,
       imageOptions: { hideBackgroundDots: true, imageSize: 0.35, margin: 8, crossOrigin: "anonymous" },
       qrOptions: { errorCorrectionLevel: "H" },
@@ -611,7 +611,7 @@ export default function QRDetailPage() {
         dotsOptions: { color: primaryColor, type: (d?.dotStyle ?? "rounded") as import("qr-code-styling").DotType },
         cornersSquareOptions: { color: primaryColor, type: (d?.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType },
         cornersDotOptions: { color: primaryColor },
-        backgroundOptions: { color: d?.backgroundColor ?? "#000000" },
+        backgroundOptions: { color: d?.backgroundColor ?? "#ffffff" },
         image: d?.logoUrl ?? undefined,
         imageOptions: { hideBackgroundDots: true, imageSize: (((d as any)?.logoSize as number) ?? 35) / 100, margin: 8, crossOrigin: "anonymous" },
         qrOptions: { errorCorrectionLevel: "H" as const },
@@ -952,9 +952,9 @@ export default function QRDetailPage() {
                     <div className="flex items-center gap-1.5">
                       <span
                         className="w-4 h-4 rounded-full border border-zinc-300 dark:border-zinc-700 inline-block"
-                        style={{ background: qr.design.backgroundColor ?? "#000000" }}
+                        style={{ background: qr.design.backgroundColor ?? "#ffffff" }}
                       />
-                      <span className="text-zinc-700 dark:text-zinc-300 font-mono">{qr.design.backgroundColor ?? "#000000"}</span>
+                      <span className="text-zinc-700 dark:text-zinc-300 font-mono">{qr.design.backgroundColor ?? "#ffffff"}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">

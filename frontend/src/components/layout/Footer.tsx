@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom"
 import { BrandLogo } from "@/components/BrandLogo"
+import { SocialIcon } from "@/components/ui/social-icon"
+import { SOCIAL_PROFILES } from "@/lib/site"
 
 const footerLinks = {
   Product: [
@@ -47,6 +49,21 @@ export function Footer() {
             <p className="mt-4 text-sm leading-relaxed text-ink-soft">
               The QR platform for business — branded, dynamic, and fully tracked. Made in India, used worldwide.
             </p>
+            <ul className="mt-5 flex items-center gap-2.5" aria-label="GenXQR on social media">
+              {SOCIAL_PROFILES.map((p) => (
+                <li key={p.platform}>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`GenXQR on ${p.label}`}
+                    className="block rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                  >
+                    <SocialIcon platform={p.platform} size={32} />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           {Object.entries(footerLinks).map(([section, links]) => (

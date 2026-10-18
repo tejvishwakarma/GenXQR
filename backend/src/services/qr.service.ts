@@ -29,7 +29,7 @@ export const createQRSchema = z.object({
     .object({
       primaryColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).default("#7c3aed"),
       secondaryColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).default("#ffffff"),
-      backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).default("#000000"),
+      backgroundColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).default("#ffffff"),
       foregroundColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).default("#000000"),
       dotStyle: z.string().max(30).default("rounded"),
       cornerSquareStyle: z.string().max(30).default("square"),
@@ -214,7 +214,7 @@ function serializeQR<T extends { files?: Array<{ sizeBytes: bigint | number }> }
 const DESIGN_FIELD_DEFAULTS = {
   primaryColor: "#7c3aed",
   secondaryColor: "#ffffff",
-  backgroundColor: "#000000",
+  backgroundColor: "#ffffff",
   foregroundColor: "#000000",
   dotStyle: "rounded",
   cornerSquareStyle: "square",

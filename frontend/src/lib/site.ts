@@ -29,6 +29,18 @@ export const SOCIAL = {
   twitter: "@GenXQR",
 } as const
 
+/**
+ * GenXQR's own social profiles. Rendered in the footer and emitted as the
+ * Organization's `sameAs` in structured data, which is how search engines tie
+ * these accounts to the site. `platform` is a key of SocialIcon's PLATFORM_MAP.
+ * Only list accounts that exist — a dead profile link is worse than none.
+ */
+export const SOCIAL_PROFILES = [
+  { label: "Instagram", platform: "instagram", url: "https://www.instagram.com/genxqr01" },
+  { label: "LinkedIn", platform: "linkedin", url: "https://www.linkedin.com/company/genxqr/" },
+  { label: "Facebook", platform: "facebook", url: "https://www.facebook.com/people/Genxqr/61593094546234/" },
+] as const
+
 export const ORGANISATION = {
   name: SITE_NAME,
   /**

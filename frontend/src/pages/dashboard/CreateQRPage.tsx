@@ -242,7 +242,7 @@ function populateFormFromQR(
 
   if (qr.design) {
     setPrimaryColor(qr.design.primaryColor ?? "#7c3aed")
-    setBgColor(qr.design.backgroundColor ?? "#000000")
+    setBgColor(qr.design.backgroundColor ?? "#ffffff")
     setPageAccentColor((qr.design as unknown as Record<string, unknown>).secondaryColor as string ?? "#7c3aed")
     setDotStyle((qr.design.dotStyle ?? "rounded") as import("qr-code-styling").DotType)
     setCornerStyle((qr.design.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType)
@@ -581,7 +581,9 @@ export default function CreateQRPage() {
   const [selectedType, setSelectedType] = useState("url")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [primaryColor, setPrimaryColor] = useState("#7c3aed")
-  const [bgColor, setBgColor] = useState("#000000")
+  // Dark dots on a light background: light-on-dark ("inverted") codes are outside
+  // the QR norm and some scanner apps cannot read them. Same default as /generate.
+  const [bgColor, setBgColor] = useState("#ffffff")
   const [pageAccentColor, setPageAccentColor] = useState("#7c3aed")
   const [dotStyle, setDotStyle] = useState<DotType>("rounded")
   const [cornerStyle, setCornerStyle] = useState<CornerSquareType>("square")

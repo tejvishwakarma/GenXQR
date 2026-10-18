@@ -481,7 +481,7 @@ router.get(
         margin: 2,
         color: {
           dark: design?.primaryColor ?? "#7c3aed",
-          light: design?.backgroundColor ?? "#000000",
+          light: design?.backgroundColor ?? "#ffffff",
         },
       })
 

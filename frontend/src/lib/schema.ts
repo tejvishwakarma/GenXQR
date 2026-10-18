@@ -8,7 +8,7 @@
  *
  * Reference: https://developers.google.com/search/docs/appearance/structured-data
  */
-import { ORGANISATION, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "./site"
+import { ORGANISATION, SITE_DESCRIPTION, SITE_NAME, SOCIAL_PROFILES, absoluteUrl } from "./site"
 
 /** Stable @id for the organisation so other nodes can reference it rather than duplicating it. */
 export const ORG_ID = absoluteUrl("/#organization")
@@ -32,6 +32,7 @@ export function organisationSchema() {
       ? { telephone: ORGANISATION.phone }
       : {}),
     url: absoluteUrl("/"),
+    sameAs: SOCIAL_PROFILES.map((p) => p.url),
     logo: {
       "@type": "ImageObject",
       url: absoluteUrl("/og-image.png"),
