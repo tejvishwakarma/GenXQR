@@ -59,6 +59,12 @@ try {
     BreadcrumbList: S.breadcrumbSchema([{ name: "Pricing", path: "/pricing" }]),
     FAQPage: S.faqSchema([{ question: "Is it free?", answer: "Yes." }]),
     WebPage: S.webPageSchema({ name: "About", path: "/about" }),
+    BlogPosting: S.blogPostingSchema({
+      headline: "Post",
+      description: "Desc",
+      path: "/blog/post",
+      datePublished: "2026-10-17",
+    }),
     HowTo: S.howToSchema({
       name: "Create a QR code",
       description: "Steps",

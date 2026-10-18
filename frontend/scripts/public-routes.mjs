@@ -14,6 +14,27 @@
  * changefreq is a hint, not a directive. Both are advisory; `loc` is what
  * actually matters.
  */
+import fs from "node:fs"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+/**
+ * One route per file in src/content/blog/published — the same folder
+ * src/lib/blog.ts loads, so a live post is always prerendered and in the
+ * sitemap, and a draft (src/content/blog/drafts) never is.
+ */
+const BLOG_PUBLISHED_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../src/content/blog/published",
+)
+const BLOG_ROUTES = fs.existsSync(BLOG_PUBLISHED_DIR)
+  ? fs
+      .readdirSync(BLOG_PUBLISHED_DIR)
+      .filter((f) => f.endsWith(".md"))
+      .sort()
+      .map((f) => ({ path: `/blog/${f.replace(/\.md$/, "")}`, changefreq: "monthly", priority: "0.6" }))
+  : []
+
 export const PUBLIC_ROUTES = [
   // Core
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -32,6 +53,7 @@ export const PUBLIC_ROUTES = [
 
   // Content
   { path: "/blog", changefreq: "weekly", priority: "0.7" },
+  ...BLOG_ROUTES,
   { path: "/faq", changefreq: "monthly", priority: "0.7" },
   { path: "/api-docs", changefreq: "monthly", priority: "0.8" },
   { path: "/about", changefreq: "monthly", priority: "0.6" },

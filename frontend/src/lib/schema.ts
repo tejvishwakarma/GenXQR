@@ -170,6 +170,38 @@ export function webPageSchema(options: { name: string; path: string; description
   }
 }
 
+/**
+ * A blog article — eligible for article rich results.
+ *
+ * The author is the organisation (by @id), which Google accepts. Switch to a
+ * Person once named founders are published on the About page; a person who
+ * cannot be found anywhere on the site is a weaker signal than the company.
+ */
+export function blogPostingSchema(options: {
+  headline: string
+  description: string
+  path: string
+  datePublished: string
+  dateModified?: string
+  image?: string
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: options.headline,
+    description: options.description,
+    url: absoluteUrl(options.path),
+    mainEntityOfPage: absoluteUrl(options.path),
+    datePublished: options.datePublished,
+    dateModified: options.dateModified ?? options.datePublished,
+    ...(options.image ? { image: absoluteUrl(options.image) } : {}),
+    author: { "@id": ORG_ID },
+    publisher: { "@id": ORG_ID },
+    isPartOf: { "@id": WEBSITE_ID },
+    inLanguage: "en",
+  }
+}
+
 /** Step-by-step guide — eligible for the HowTo rich result. */
 export function howToSchema(options: {
   name: string

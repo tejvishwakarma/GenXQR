@@ -32,6 +32,7 @@ import UseCasesPage from "@/pages/marketing/UseCasesPage"
 import APIDocsPage from "@/pages/marketing/APIDocsPage"
 import AboutPage from "@/pages/marketing/AboutPage"
 import BlogPage from "@/pages/marketing/BlogPage"
+import BlogPostPage from "@/pages/marketing/BlogPostPage"
 import ContactPage from "@/pages/marketing/ContactPage"
 import PrivacyPage from "@/pages/marketing/PrivacyPage"
 import TermsPage from "@/pages/marketing/TermsPage"
@@ -171,6 +172,7 @@ export function AppRoutes() {
           <Route path="/api-docs" element={<APIDocsPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
