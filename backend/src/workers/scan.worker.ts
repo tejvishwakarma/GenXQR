@@ -7,6 +7,7 @@ import { lookupGeo } from "../services/geo.service.js"
 import { deliverWebhookEvent } from "../services/webhook.service.js"
 import type { DeviceType } from "@prisma/client"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
+import { getScanQuota, getScanUsage } from "../services/scan-quota.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 
 // ─── User-Agent Parser ─────────────────────────────────────────────────────────
@@ -123,16 +124,14 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
       try {
         const { limits, planName } = await getUserPlanLimits(updated.userId!)
         if (limits.scanLimitPerMonth > 0) {
-          const monthStart = new Date()
-          monthStart.setUTCDate(1)
-          monthStart.setUTCHours(0, 0, 0, 0)
-          const monthlyScans = await prisma.qRScan.count({
-            // Must match the quota rule in billing.routes.ts — every scan, repeats
-            // included — or the "near your limit" email reports a different number
-            // than the billing page.
-            where: { qrCode: { userId: updated.userId }, scannedAt: { gte: monthStart } },
+          // The enforced window and count (scan-quota.service.ts) — the email
+          // must report the same number the scans are refused at.
+          const quota = await getScanQuota(updated.userId!)
+          const monthlyScans = await getScanUsage(updated.userId!, quota)
+          await checkAndNotifyLimit(updated.userId!, "scans", monthlyScans, limits.scanLimitPerMonth, planName, {
+            periodKey: `scans-${quota.windowStart.toISOString().slice(0, 10)}`,
+            resetsAt: quota.windowEnd,
           })
-          await checkAndNotifyLimit(updated.userId!, "scans", monthlyScans, limits.scanLimitPerMonth, planName)
         }
       } catch (err) {
         logger.warn("Scan limit check failed", { userId: updated.userId, error: String(err) })

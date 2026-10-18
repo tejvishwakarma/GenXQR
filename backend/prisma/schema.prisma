@@ -112,6 +112,16 @@ model Subscription {
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
   cancelAtPeriodEnd  Boolean            @default(false)
+  /// A notice deadline: while this is in the future the subscription is NOT
+  /// treated as lapsed, even past currentPeriodEnd. Set once, by the
+  /// 20261017130000 migration, for accounts that had already lapsed when expiry
+  /// enforcement shipped — they get 7 days' warning instead of an instant pause.
+  /// Cleared on expiry and on payment. See subscription-expiry.service.ts.
+  codesPauseAt       DateTime?
+  /// When the account last dropped to FREE (plan or trial ended). Scan history
+  /// is kept for 3 months after this, then purged (subscription-expiry.service).
+  /// Null while a plan is live; cleared on payment and on an admin plan grant.
+  lapsedAt           DateTime?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   invoices           Invoice[]
@@ -130,6 +140,11 @@ model QRCode {
   slug                String             @unique
   tags                String[]
   isActive            Boolean            @default(true)
+  /// True when the SYSTEM switched this code off because the owner's plan
+  /// lapsed. Payment switches back on exactly these and no others, so a code
+  /// the owner turned off themselves stays off. Also blocks the owner from
+  /// toggling it on while unpaid.
+  pausedForBilling    Boolean            @default(false)
   /// Every scan, repeats included. This is the number the per-QR scanLimit is
   /// measured against.
   scanCount           Int                @default(0)

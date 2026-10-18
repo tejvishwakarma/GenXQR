@@ -1622,7 +1622,6 @@ export interface PlanLimits {
   fileStorageGB: number
   teamSeatsLimit: number
   apiCallsLimit: number
-  analyticsRetentionDays: number
   bulkGeneration: boolean
   apiAccess: boolean
   customDomains: boolean
@@ -1656,6 +1655,10 @@ export interface SubscriptionInfo {
   isTrialing: boolean
   trialEndsAt: string | null
   subscriptionStatus: SubscriptionStatus
+  /** Dynamic codes switched off because the plan lapsed; payment resumes them. */
+  pausedCodes: number
+  /** One-time notice deadline for accounts already lapsed at launch; null otherwise. */
+  codesPauseAt: string | null
   subscription: {
     id: string
     status: SubscriptionStatus
@@ -1686,7 +1689,8 @@ export interface Invoice {
 export interface BillingUsage {
   planName: PlanName
   qrCodes: { used: number; limit: number }
-  scans: { used: number; limit: number }
+  /** resetsAt: when the enforced monthly scan count resets (plan-anchored). */
+  scans: { used: number; limit: number; resetsAt?: string }
   storageGB: { used: number; limit: number }
   apiCalls: { used: number; limit: number }
 }

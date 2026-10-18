@@ -6,6 +6,7 @@ import { connectRedis } from "./redis/client.js"
 import { startScanWorker, stopScanWorker } from "./workers/scan.worker.js"
 import { startRenewalReminderWorker, stopRenewalReminderWorker } from "./workers/renewal-reminder.worker.js"
 import { startWebhookRetryWorker, stopWebhookRetryWorker } from "./workers/webhook-retry.worker.js"
+import { startSubscriptionExpiryWorker, stopSubscriptionExpiryWorker } from "./workers/subscription-expiry.worker.js"
 
 async function main(): Promise<void> {
   // 1. Connect PostgreSQL
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   startScanWorker()
   await startRenewalReminderWorker()
   startWebhookRetryWorker()
+  await startSubscriptionExpiryWorker()
 
   // 4. Start HTTP server
   const server = app.listen(env.PORT, () => {
@@ -31,6 +33,7 @@ async function main(): Promise<void> {
     await stopScanWorker()
     await stopRenewalReminderWorker()
     await stopWebhookRetryWorker()
+    await stopSubscriptionExpiryWorker()
     server.close(async () => {
       await prisma.$disconnect()
       logger.info("PostgreSQL disconnected. Goodbye.")

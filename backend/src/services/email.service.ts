@@ -439,7 +439,7 @@ export function buildRenewalReminderEmail(
       Your plan expires ${urgency}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. After this date, your account will be downgraded to the Free plan and some features may become unavailable.
+      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. If it is not renewed by then, your account moves to the Free plan and your dynamic QR codes are paused: people who scan them will see a "deactivated" page (or your fallback URL, if you set one) until you renew.
     </p>
 
     <!-- Usage warning box -->
@@ -486,14 +486,25 @@ export function buildExpiredNoticeEmail(
   name: string,
   planName: string,
   paymentUrl: string,
+  opts: { wasTrial?: boolean; pausedCodes?: number; historyKeptUntil?: string } = {},
 ): string {
+  const ended = opts.wasTrial ? `trial has ended` : `plan has expired`
+  const paused = opts.pausedCodes ?? 0
+  // Only state what happened to codes when the caller knows (the expiry path
+  // does; an admin's manual reminder does not).
+  const pausedSentence =
+    opts.pausedCodes === undefined
+      ? ""
+      : paused > 0
+      ? `Your ${paused} dynamic QR code${paused === 1 ? " has" : "s have"} been paused: people who scan ${paused === 1 ? "it" : "them"} now see a "deactivated" page, or your fallback URL if you set one.`
+      : `You had no active dynamic QR codes, so nothing has been paused.`
   const inner = `
-    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Subscription Expired</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${opts.wasTrial ? "Trial Ended" : "Subscription Expired"}</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Your ${planName} plan has expired
+      Your ${planName} ${ended}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> subscription on GenXQR has expired. Your account has been moved to the Free plan. Dynamic QR codes may have been deactivated, and premium features are no longer available.
+      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> ${ended}, and your account has moved to the Free plan. ${pausedSentence}
     </p>
 
     <!-- Expired box -->
@@ -501,17 +512,17 @@ export function buildExpiredNoticeEmail(
       <tr>
         <td style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:10px;padding:16px 20px">
           <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#ef4444;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            ❌ Subscription Expired
+            ❌ ${opts.wasTrial ? "Trial Ended" : "Subscription Expired"}
           </p>
           <p style="margin:0;font-size:14px;color:#52525b;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            Your <strong style="color:#18181b">${planName}</strong> plan has ended. Reactivate to restore all features and QR codes.
+            Renew any plan and the codes we paused switch back on straight away, with the same links and designs. Codes you had turned off yourself stay off.
           </p>
         </td>
       </tr>
     </table>
 
     <p style="margin:0 0 12px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Reactivate your subscription now to restore access to your premium QR codes, analytics, team features, and more:
+      Your QR codes and designs are kept.${opts.historyKeptUntil ? ` Your scan history is kept until <strong style="color:#18181b">${opts.historyKeptUntil}</strong>, then deleted unless you renew before then.` : ""} Renew to switch your codes back on:
     </p>
 
     <!-- CTA button -->
@@ -530,7 +541,48 @@ export function buildExpiredNoticeEmail(
       Questions? Reply to this email or contact our support team. We're here to help.
     </p>`
 
-  return buildEmailShell(`Your ${planName} plan has expired — GenXQR`, inner)
+  return buildEmailShell(`Your ${planName} ${ended} — GenXQR`, inner)
+}
+
+/**
+ * One-time notice for accounts that had already lapsed when expiry enforcement
+ * shipped: their codes kept working with no plan, and will now pause on a date.
+ */
+export function buildCodesPauseNoticeEmail(
+  name: string,
+  pauseDate: string,
+  activeCodes: number,
+  paymentUrl: string,
+  /** When scan history is deleted if they do not renew (3 months after lapse). */
+  historyKeptUntil: string,
+): string {
+  const codes = `${activeCodes} dynamic QR code${activeCodes === 1 ? "" : "s"}`
+  const inner = `
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Action needed</p>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Your QR codes will pause on ${pauseDate}
+    </h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Hi ${name}, your GenXQR plan or trial has ended, but your ${codes} kept working. From <strong style="color:#18181b">${pauseDate}</strong>, dynamic QR codes need an active plan. If you have not renewed by then, people who scan your codes will see a "deactivated" page, or your fallback URL if you set one.
+    </p>
+    <p style="margin:0 0 12px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Renew any plan before that date and nothing changes for the people scanning your codes. If they do pause, renewing switches them back on with the same links and designs. Your scan history is kept until <strong style="color:#18181b">${historyKeptUntil}</strong>, then deleted unless you renew.
+    </p>
+    <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
+      <tr>
+        <td style="border-radius:10px;background:#6366f1">
+          <a href="${paymentUrl}" target="_blank"
+            style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
+            Choose a plan →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Questions? Reply to this email and we'll help.
+    </p>`
+
+  return buildEmailShell(`Your GenXQR QR codes will pause on ${pauseDate}`, inner)
 }
 
 // ─── Broadcast email ──────────────────────────────────────────────────────────

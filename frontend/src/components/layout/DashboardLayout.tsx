@@ -179,6 +179,12 @@ export function DashboardLayout() {
     : 0
 
   const isTrialing = subscriptionData?.data.isTrialing ?? false
+  const pausedCodes = subscriptionData?.data.pausedCodes ?? 0
+  // Only meaningful while the notice date is still ahead.
+  const codesPauseAt =
+    subscriptionData?.data.codesPauseAt && new Date(subscriptionData.data.codesPauseAt) > new Date()
+      ? subscriptionData.data.codesPauseAt
+      : null
   const sidebarPlanName = subscriptionData?.data.planName ?? null
   const trialEndsAt = subscriptionData?.data.subscription?.trialEndsAt
   const trialDaysRemaining = useMemo(() => {
@@ -700,6 +706,33 @@ export function DashboardLayout() {
               </button>
             </div>
           )}
+          {pausedCodes > 0 ? (
+            <div className="mb-5 bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-red-700 dark:text-red-300">
+                Your plan has ended, so {pausedCodes} dynamic QR code{pausedCodes === 1 ? " is" : "s are"} paused.
+                People who scan {pausedCodes === 1 ? "it" : "them"} see a "deactivated" page. Renew to switch {pausedCodes === 1 ? "it" : "them"} back on.
+              </p>
+              <Link
+                to="/app/billing"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition"
+              >
+                Renew plan
+              </Link>
+            </div>
+          ) : codesPauseAt ? (
+            <div className="mb-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                Your plan has ended. Your dynamic QR codes will pause on{" "}
+                {new Date(codesPauseAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })} unless you renew.
+              </p>
+              <Link
+                to="/app/billing"
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 transition"
+              >
+                Choose a plan
+              </Link>
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

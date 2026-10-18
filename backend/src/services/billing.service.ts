@@ -27,6 +27,8 @@ import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
 import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js"
+import { expireSubscription, isLapsed, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
+import { invalidateScanQuota } from "./scan-quota.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
 import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE } from "./coupon.service.js"
 
@@ -38,7 +40,6 @@ export interface PlanLimits {
   fileStorageGB: number
   teamSeatsLimit: number
   apiCallsLimit: number
-  analyticsRetentionDays: number
   bulkGeneration: boolean
   apiAccess: boolean
   customDomains: boolean
@@ -56,7 +57,6 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     fileStorageGB: 0,
     teamSeatsLimit: 1,
     apiCallsLimit: 0,
-    analyticsRetentionDays: 30,
     bulkGeneration: false,
     apiAccess: false,
     customDomains: false,
@@ -72,7 +72,6 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     fileStorageGB: 1,
     teamSeatsLimit: 1,
     apiCallsLimit: 0,
-    analyticsRetentionDays: 90,
     bulkGeneration: false,
     apiAccess: false,
     customDomains: false,
@@ -88,7 +87,6 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     fileStorageGB: 5,
     teamSeatsLimit: 5,
     apiCallsLimit: 10000,
-    analyticsRetentionDays: 365,
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
@@ -104,7 +102,6 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     fileStorageGB: 50,
     teamSeatsLimit: 20,
     apiCallsLimit: 100000,
-    analyticsRetentionDays: 730,
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
@@ -120,7 +117,6 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     fileStorageGB: 1000,
     teamSeatsLimit: 999,
     apiCallsLimit: 999999999,
-    analyticsRetentionDays: 999999,
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
@@ -204,8 +200,8 @@ export async function getOrCreateSubscription(userId: string) {
 }
 
 /**
- * Returns the effective plan limits for a user, accounting for active trials.
- * If a TRIALING subscription is expired, we fall back to FREE limits.
+ * Returns the effective plan limits for a user. A lapsed trial or paid period
+ * is expired on the spot (see subscription-expiry.service.ts) and gets FREE.
  */
 export async function getUserPlanLimits(userId: string): Promise<{
   planName: PlanName
@@ -217,14 +213,11 @@ export async function getUserPlanLimits(userId: string): Promise<{
   const sub = await getOrCreateSubscription(userId)
   const planName = sub.plan.name as PlanName
 
-  // If TRIALING and trial has expired, treat as FREE
-  if (sub.status === "TRIALING" && sub.trialEndsAt && sub.trialEndsAt < new Date()) {
-    // Lazily downgrade to FREE
-    const freePlan = await prisma.plan.findUniqueOrThrow({ where: { name: "FREE" } })
-    await prisma.subscription.update({
-      where: { id: sub.id },
-      data: { planId: freePlan.id, status: "ACTIVE" },
-    })
+  // A trial or paid period that has run out: expire it now (drop to FREE, pause
+  // dynamic codes, email the owner) rather than waiting for the 10-minute sweep,
+  // so the owner never sees paid limits they no longer have.
+  if (isLapsed(sub)) {
+    await expireSubscription(userId)
     return {
       planName: "FREE",
       limits: PLAN_LIMITS["FREE"],
@@ -263,16 +256,17 @@ export async function getUserPlanLimits(userId: string): Promise<{
 export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits> {
   const sub = await prisma.subscription.findUnique({
     where: { userId },
-    select: { status: true, trialEndsAt: true, plan: { select: { name: true } } },
+    select: {
+      status: true, trialEndsAt: true, currentPeriodEnd: true, codesPauseAt: true,
+      plan: { select: { name: true } },
+    },
   })
 
   // No subscription row yet — the same thing getOrCreateSubscription would have
   // decided before writing one.
   if (!sub) return PLAN_LIMITS["FREE"]
 
-  if (sub.status === "TRIALING" && sub.trialEndsAt && sub.trialEndsAt < new Date()) {
-    return PLAN_LIMITS["FREE"]
-  }
+  if (isLapsed(sub)) return PLAN_LIMITS["FREE"]
 
   return PLAN_LIMITS[sub.plan.name as PlanName] ?? PLAN_LIMITS["FREE"]
 }
@@ -743,6 +737,8 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
               currentPeriodStart: isRenewalOfSamePlan ? existingSub.currentPeriodStart : now,
               currentPeriodEnd: periodEnd,
               cancelAtPeriodEnd: false,
+              codesPauseAt: null,
+              lapsedAt: null,
             },
           })
         : await tx.subscription.create({
@@ -797,6 +793,14 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
   logger.info("Subscription activated via Cashfree", { userId, planName, billingCycle, orderId, couponCode, discountPaise: listPaise - expectedPaise })
   void deliverWebhookEvent(userId, "subscription.activated", { planName, billingCycle })
 
+  // Switch back on the codes that lapsing paused. Best-effort: the payment is
+  // already recorded, and if this fails the expiry sweep resumes them within
+  // 10 minutes (it resumes codes for every account entitled again).
+  await invalidateScanQuota(userId)
+  await resumeCodesPausedForBilling(userId).catch((err) =>
+    logger.error("Failed to resume paused codes after payment", { userId, orderId, error: String(err) }),
+  )
+
   return { status: "activated", planName, billingCycle }
 }
 
@@ -835,29 +839,6 @@ export async function cancelSubscription(userId: string): Promise<void> {
     data: { cancelAtPeriodEnd: true },
   })
   void deliverWebhookEvent(userId, "subscription.cancelled", { cancelAtPeriodEnd: true })
-}
-
-/** Immediately downgrade to FREE (admin use / after period end). */
-export async function downgradeToFree(userId: string): Promise<void> {
-  const freePlan = await prisma.plan.findUniqueOrThrow({ where: { name: "FREE" } })
-  const now = new Date()
-  await prisma.subscription.update({
-    where: { userId },
-    data: {
-      planId: freePlan.id,
-      status: "ACTIVE",
-      trialEndsAt: null,
-      cancelAtPeriodEnd: false,
-      currentPeriodStart: now,
-      currentPeriodEnd: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
-    },
-  })
-  // Deactivate all dynamic QR codes — FREE plan still works but QRs go dark
-  await prisma.qRCode.updateMany({
-    where: { userId, category: "DYNAMIC" },
-    data: { isActive: false },
-  })
-  logger.info("Downgraded to FREE — all dynamic QRs deactivated", { userId })
 }
 
 /** Cashfree event types this app acts on. Everything else is acknowledged and ignored. */

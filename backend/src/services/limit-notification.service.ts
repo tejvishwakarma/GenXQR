@@ -72,8 +72,13 @@ function buildLimitEmail(opts: {
   used: number
   limit: number
   planName: string
+  /** For scans: when the monthly window resets. */
+  resetsAt?: Date
 }): { subject: string; html: string } {
-  const { name, limitType, threshold, used, limit, planName } = opts
+  const { name, limitType, threshold, used, limit, planName, resetsAt } = opts
+  const resetText = resetsAt
+    ? resetsAt.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })
+    : null
   const meta = LIMIT_META[limitType]
   const upgradeUrl = `${env.FRONTEND_URL}/app/billing`
   const isExhausted = threshold === 100
@@ -98,7 +103,12 @@ function buildLimitEmail(opts: {
     ? `Your ${meta.label} limit is exhausted`
     : `You've used ${pct}% of your ${meta.label}`
 
-  const bodyText = isExhausted
+  const bodyText = isExhausted && limitType === "scans"
+    ? `You've used all <strong>${limitDisplay} scans</strong> for this month on your <strong>${planName}</strong> plan.
+       Your QR codes have stopped redirecting: people who scan them now see a "scan limit reached" page, or your
+       fallback URL if you set one${resetText ? `, until your scan count resets on <strong>${resetText}</strong>` : ""}.
+       Upgrade to switch them back on straight away.`
+    : isExhausted
     ? `You've used all <strong>${limitDisplay} ${meta.unit}</strong> on your <strong>${planName}</strong> plan.
        New ${meta.unit === "QR codes" ? "dynamic QR codes cannot be created" : meta.unit === "scans" ? "scans will be blocked" : meta.unit === "API calls" ? "API calls will be rejected" : "file uploads will be blocked"} until you upgrade or the period resets.`
     : `You've used <strong>${usedDisplay}</strong> of your <strong>${limitDisplay} ${meta.unit}</strong> allowance
@@ -278,6 +288,8 @@ export async function checkAndNotifyLimit(
   currentUsed: number,
   limit: number,
   planName: string,
+  /** periodKey overrides the calendar-month dedupe key (scans use the plan-anchored window). */
+  opts: { periodKey?: string; resetsAt?: Date } = {},
 ): Promise<void> {
   // Unlimited plans never trigger notifications
   if (limit <= 0) return
@@ -294,7 +306,7 @@ export async function checkAndNotifyLimit(
 
   if (threshold === null) return
 
-  const periodKey = buildPeriodKey(limitType, planName)
+  const periodKey = opts.periodKey ?? buildPeriodKey(limitType, planName)
 
   // Attempt atomic insert — if row already exists the unique constraint fires
   // and we skip sending without any extra SELECT round-trip.
@@ -322,6 +334,7 @@ export async function checkAndNotifyLimit(
     used:      currentUsed,
     limit,
     planName,
+    resetsAt:  opts.resetsAt,
   })
 
   try {

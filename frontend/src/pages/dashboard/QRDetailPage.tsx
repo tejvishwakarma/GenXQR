@@ -549,6 +549,7 @@ export default function QRDetailPage() {
 
   const { mutate: toggle, isPending: isToggling } = useMutation({
     mutationFn: () => toggleQR(id!),
+    onError: (err: unknown) => window.alert(err instanceof Error ? err.message : "Could not change this QR code's status."),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["qr", id] })
       queryClient.invalidateQueries({ queryKey: ["qr-codes"] })

@@ -521,9 +521,15 @@ export async function deleteQR(id: string, userId: string) {
 export async function toggleQR(id: string, userId: string) {
   const qr = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, isActive: true, slug: true },
+    select: { id: true, isActive: true, slug: true, pausedForBilling: true },
   })
   if (!qr) throw new AppError(404, "QR code not found")
+  // Paused because the plan lapsed: only payment switches it back on
+  // (subscription-expiry.service.ts). Otherwise the pause is one click away
+  // from meaningless, for the dashboard and the /v1 API alike.
+  if (qr.pausedForBilling) {
+    throw new AppError(403, "This QR code was paused because your plan ended. Renew your plan to switch it back on.")
+  }
   const updated = await prisma.qRCode.update({
     where: { id },
     data: { isActive: !qr.isActive },

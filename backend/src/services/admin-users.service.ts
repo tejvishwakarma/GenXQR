@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
+import { invalidateScanQuota } from "./scan-quota.service.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { signAccessToken } from "../utils/jwt.js"
 import { hashPassword } from "../utils/password.js"
@@ -188,6 +189,10 @@ export async function changePlan(
       status: "ACTIVE",
       trialEndsAt: null,
       cancelAtPeriodEnd: false,
+      // An admin decision replaces any first-run notice deadline.
+      codesPauseAt: null,
+      // Moving to FREE starts the 3-month scan-history clock; a paid plan stops it.
+      lapsedAt: planName === "FREE" ? now : null,
       currentPeriodStart: now,
       currentPeriodEnd: periodEnd,
     },
@@ -199,6 +204,7 @@ export async function changePlan(
       currentPeriodEnd: periodEnd,
     },
   })
+  await invalidateScanQuota(targetUser.id)
 
   await prisma.auditLog.create({
     data: {

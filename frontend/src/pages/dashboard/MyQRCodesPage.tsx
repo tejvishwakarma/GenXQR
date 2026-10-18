@@ -70,7 +70,7 @@ export default function MyQRCodesPage() {
   )
 
   const { mutate: remove, isPending: isDeleting } = useMutation({ mutationFn: deleteQR, onSuccess: invalidate })
-  const { mutate: toggle, isPending: isToggling } = useMutation({ mutationFn: toggleQR, onSuccess: invalidate })
+  const { mutate: toggle, isPending: isToggling } = useMutation({ mutationFn: toggleQR, onSuccess: invalidate, onError: (err: unknown) => window.alert(err instanceof Error ? err.message : "Could not change this QR code's status.") })
   const { mutate: duplicate, isPending: isDuplicating } = useMutation({ mutationFn: duplicateQR, onSuccess: invalidate })
 
   // Client-side type/status filter — narrows the current page.
