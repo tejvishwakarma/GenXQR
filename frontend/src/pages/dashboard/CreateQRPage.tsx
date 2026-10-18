@@ -21,6 +21,8 @@ import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } fr
 import LandingPreview from "./LandingPreview"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
+import { useWorkspace } from "@/hooks/useWorkspace"
+import { RoleBlockedNotice } from "@/components/dashboard/RoleBlockedNotice"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -573,6 +575,7 @@ export default function CreateQRPage() {
   const queryClient = useQueryClient()
   const { id } = useParams<{ id?: string }>()
   const isEdit = !!id
+  const { can } = useWorkspace()
 
   const [step, setStep] = useState(0)
   const [selectedType, setSelectedType] = useState("url")
@@ -950,6 +953,11 @@ export default function CreateQRPage() {
   const filteredTypes = selectedCategory === "all"
     ? qrTypes
     : qrTypes.filter((t) => t.category === selectedCategory)
+
+  // ── Role wall: team-workspace roles that can't create / edit ──────────────
+  if (!can(isEdit ? "qr:edit" : "qr:create")) {
+    return <RoleBlockedNotice action={isEdit ? "edit" : "create"} />
+  }
 
   // ── Upgrade wall: shown when trial expired + at FREE QR limit ─────────────
   if (trialExpiredAtLimit) {

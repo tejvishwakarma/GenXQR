@@ -19,6 +19,7 @@ import type { AuthUser } from "@/lib/api"
 import { useTheme } from "@/hooks/useTheme"
 import { SupportModal } from "@/components/SupportModal"
 import { BrandLogo } from "@/components/BrandLogo"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 const navItems: { label: string; href: string; icon: ReactElement; badge?: string }[] = [
   { label: "Dashboard", href: "/app/dashboard", icon: <LayoutDashboard size={18} /> },
@@ -32,6 +33,12 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "Report / Abuse", href: "/app/report", icon: <Flag size={18} /> },
   { label: "Help & Support", href: "/app/support", icon: <LifeBuoy size={18} /> },
 ]
+
+// Personal-only pages: these never act on a team workspace (backend
+// workspace.service.ts), so they are hidden while one is selected.
+const PERSONAL_ONLY_NAV = new Set(["/app/api-keys", "/app/webhooks"])
+// Pages whose purpose is creating codes.
+const CREATE_NAV = new Set(["/app/create", "/app/bulk-generate"])
 
 const bottomItems = [
   { label: "Billing", href: "/app/billing", icon: <CreditCard size={18} /> },
@@ -135,6 +142,16 @@ export function DashboardLayout() {
   }, [])
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"
+  const ws = useWorkspace()
+  const visibleNavItems = navItems.filter((item) => {
+    if (!ws.isPersonal && PERSONAL_ONLY_NAV.has(item.href)) return false
+    if (CREATE_NAV.has(item.href) && !ws.can("qr:create")) return false
+    return true
+  })
+  const switchWorkspace = (ownerId: string | null) => {
+    ws.switchTo(ownerId)
+    navigate("/app/dashboard")
+  }
   const displayName = user?.name ?? "User"
   const displayEmail = user?.email ?? ""
 
@@ -311,8 +328,39 @@ export function DashboardLayout() {
         </Link>
       </div>
 
-      {/* Plan Badge — hidden for admins (they have unrestricted access) */}
-      {!isAdmin && (
+      {/* Workspace switcher — only for people who belong to a team */}
+      {ws.workspaces.length > 1 && (
+        <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
+          <label htmlFor="workspace-switcher" className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
+            Workspace
+          </label>
+          <select
+            id="workspace-switcher"
+            value={ws.current?.ownerId ?? ws.workspaces[0]?.ownerId}
+            onChange={(e) => switchWorkspace(e.target.value)}
+            className="w-full rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-800 dark:text-zinc-200"
+          >
+            {ws.workspaces.map((w, i) => (
+              <option key={w.ownerId} value={w.ownerId} disabled={!w.available}>
+                {i === 0 ? "Personal" : `${w.name} · ${w.role.charAt(0) + w.role.slice(1).toLowerCase()}`}
+                {!w.available ? " (unavailable)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* In a team workspace the owner's plan applies, not yours */}
+      {!ws.isPersonal && ws.current && (
+        <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
+          Working in <span className="font-medium text-zinc-800 dark:text-zinc-200">{ws.current.ownerName}</span>&apos;s
+          workspace as <span className="font-medium text-zinc-800 dark:text-zinc-200">{ws.current.role.toLowerCase()}</span>.
+          Codes you create here belong to them and use their plan.
+        </div>
+      )}
+
+      {/* Plan Badge — hidden for admins (they have unrestricted access) and in team workspaces */}
+      {!isAdmin && ws.isPersonal && (
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -383,7 +431,7 @@ export function DashboardLayout() {
 
       {/* Nav */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <Link
             key={`${item.href}-${item.label}`}
             to={item.href}
@@ -706,7 +754,7 @@ export function DashboardLayout() {
               </button>
             </div>
           )}
-          {pausedCodes > 0 ? (
+          {!ws.isPersonal ? null : pausedCodes > 0 ? (
             <div className="mb-5 bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-red-700 dark:text-red-300">
                 Your plan has ended, so {pausedCodes} dynamic QR code{pausedCodes === 1 ? " is" : "s are"} paused.

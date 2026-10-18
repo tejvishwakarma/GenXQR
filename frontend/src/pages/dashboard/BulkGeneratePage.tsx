@@ -9,8 +9,11 @@ import {
   getBulkTemplate, uploadBulkCSV, downloadBulkZip,
   type BulkResult, type BulkUploadResponse,
 } from "@/lib/api"
+import { useWorkspace } from "@/hooks/useWorkspace"
+import { RoleBlockedNotice } from "@/components/dashboard/RoleBlockedNotice"
 
 export default function BulkGeneratePage() {
+  const { can } = useWorkspace()
   const [file, setFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [results, setResults] = useState<BulkUploadResponse | null>(null)
@@ -39,6 +42,8 @@ export default function BulkGeneratePage() {
   }
 
   const createdRows = results?.results.filter((r) => r.status === "created") ?? []
+
+  if (!can("qr:create")) return <RoleBlockedNotice action="create" />
 
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl">

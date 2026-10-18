@@ -4,6 +4,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import multer, { type FileFilterCallback } from "multer"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
@@ -118,7 +119,9 @@ function makeUploader(config: UploadConfig) {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router()
-router.use(requireAuth)
+// Uploads land in the selected workspace: storage counts against the owner's
+// plan, and only roles that may edit codes may upload or delete files.
+router.use(requireAuth, withWorkspace, requireWorkspacePermission("qr:edit"))
 
 /** Generic upload handler factory. Upload is always a single file named "file". */
 function uploadHandler(type: keyof typeof CONFIGS) {
@@ -159,7 +162,7 @@ function uploadHandler(type: keyof typeof CONFIGS) {
         // zero-quota uploads are unlinked and refused. This is not perfectly
         // atomic against simultaneous uploads, but it turns "unbounded" into
         // "bounded by the plan plus a small concurrency margin".
-        const userId = uid(req)
+        const userId = wsOwner(req)
         const { limits, planName } = await getUserPlanLimits(userId)
         const limitBytes = limits.fileStorageGB * 1024 ** 3
 
@@ -184,7 +187,9 @@ function uploadHandler(type: keyof typeof CONFIGS) {
         // aliasing another tenant's file. 24h is comfortably longer than the
         // create-a-QR flow. Redis-only; a miss just means the stricter re-attach
         // fallback (an existing QRFile the user already owns) must apply.
-        void redis.setex(`upload:owner:${relativePath}`, 24 * 60 * 60, userId)
+        // The uploader (the person, not the workspace owner): QR create/update
+        // accepts a file uploaded by either.
+        void redis.setex(`upload:owner:${relativePath}`, 24 * 60 * 60, uid(req))
           .catch((err) => logger.warn("Upload ownership record failed", { userId, error: String(err) }))
 
         res.status(201).json({
@@ -239,7 +244,7 @@ router.delete(
         where: { id: file.qrId },
         select: { userId: true },
       })
-      if (!qr || qr.userId !== uid(req)) throw new AppError(403, "Forbidden")
+      if (!qr || qr.userId !== wsOwner(req)) throw new AppError(403, "Forbidden")
 
       // Delete disk file (best-effort — don't fail if already missing)
       // Resolve and verify the path stays within UPLOAD_BASE to prevent path traversal

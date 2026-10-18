@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { getQR, deleteQR, toggleQR, duplicateQR, getQrBaseUrl, type QRCode as QRCodeType } from "@/lib/api"
 import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -530,6 +531,7 @@ export default function QRDetailPage() {
   const [isDownloading, setIsDownloading] = useState(false)
   const abTesting = usePlanFeature("abTesting")
   const smartRouting = usePlanFeature("smartRouting")
+  const { can } = useWorkspace()
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["qr", id],
@@ -689,23 +691,25 @@ export default function QRDetailPage() {
             <p className="text-zinc-500 text-sm mt-0.5">{TYPE_LABEL[qr.type] ?? qr.type} · Created {formatDate(qr.createdAt)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Link to={`/app/qr/${id}/edit`}>
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Edit size={14} /> Edit
+        {can("qr:edit") && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Link to={`/app/qr/${id}/edit`}>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Edit size={14} /> Edit
+              </Button>
+            </Link>
+            <Button
+              onClick={() => toggle()}
+              disabled={isToggling}
+              variant={qr.isActive ? "secondary" : "default"}
+              size="sm"
+              className="gap-1.5"
+            >
+              {isToggling ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
+              {qr.isActive ? "Deactivate" : "Activate"}
             </Button>
-          </Link>
-          <Button
-            onClick={() => toggle()}
-            disabled={isToggling}
-            variant={qr.isActive ? "secondary" : "default"}
-            size="sm"
-            className="gap-1.5"
-          >
-            {isToggling ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-            {qr.isActive ? "Deactivate" : "Activate"}
-          </Button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-[auto_1fr] gap-6">
@@ -976,7 +980,9 @@ export default function QRDetailPage() {
               buttons in the action row, so the capability is discoverable at the
               point someone is actually looking at a QR code. Works for static
               codes too: every dashboard QR encodes /r/<slug>, so all scans pass
-              through the redirect engine regardless of category. */}
+              through the redirect engine regardless of category. Hidden for
+              roles that cannot edit the code (team workspaces). */}
+          {can("qr:edit") && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Advanced</CardTitle>
@@ -1006,6 +1012,7 @@ export default function QRDetailPage() {
               })}
             </CardContent>
           </Card>
+          )}
 
           {/* Quick actions */}
           <div className="flex flex-wrap gap-2 pt-1">
@@ -1014,31 +1021,37 @@ export default function QRDetailPage() {
                 <BarChart3 size={14} /> Analytics
               </Button>
             </Link>
-            <Link to={`/app/qr/${id}/settings`}>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Settings size={14} /> Settings
+            {can("qr:edit") && (
+              <Link to={`/app/qr/${id}/settings`}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Settings size={14} /> Settings
+                </Button>
+              </Link>
+            )}
+            {can("qr:create") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => duplicate()}
+                disabled={isDuplicating}
+              >
+                {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                Duplicate
               </Button>
-            </Link>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => duplicate()}
-              disabled={isDuplicating}
-            >
-              {isDuplicating ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-              Duplicate
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
-              onClick={handleDelete}
-              disabled={isDeleting}
-            >
-              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-              Delete
-            </Button>
+            )}
+            {can("qr:delete") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                Delete
+              </Button>
+            )}
           </div>
         </div>
       </div>

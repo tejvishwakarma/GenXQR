@@ -3,6 +3,7 @@ import { z } from "zod"
 import QRCode from "qrcode"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import { apiLimiter } from "../middleware/rateLimit.middleware.js"
 import * as QRService from "../services/qr.service.js"
 import { prisma } from "../db/prisma.js"
@@ -18,8 +19,15 @@ const router: IRouter = Router()
 /** Extract authenticated user ID from the request */
 const uid = (req: Request): string => (req.user as unknown as AccessTokenPayload).sub
 
-// All QR routes require authentication
-router.use(requireAuth)
+// All QR routes require authentication, and act in the selected workspace
+// (X-Workspace-Id): a team member works on the owner's codes under the owner's
+// plan. See middleware/workspace.middleware.ts.
+router.use(requireAuth, withWorkspace)
+
+const canView = requireWorkspacePermission("qr:view")
+const canCreate = requireWorkspacePermission("qr:create")
+const canEdit = requireWorkspacePermission("qr:edit")
+const canDelete = requireWorkspacePermission("qr:delete")
 
 /**
  * POST /api/qr
@@ -27,13 +35,14 @@ router.use(requireAuth)
  */
 router.post(
   "/",
+  canCreate,
   apiLimiter,
   requireQRSlot,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = QRService.createQRSchema.parse(req.body)
-      const qr = await QRService.createQR(uid(req), input)
-      void deliverWebhookEvent(uid(req), "qr.created", { qr })
+      const qr = await QRService.createQR(wsOwner(req), input, uid(req))
+      void deliverWebhookEvent(wsOwner(req), "qr.created", { qr })
       logAudit({ userId: uid(req), action: "qr.create", category: "qr", entityId: qr.id, entityType: "QRCode", metadata: { name: qr.name, type: qr.type }, ip: req.ip, userAgent: req.headers["user-agent"] })
       res.status(201).json({ success: true, data: qr })
     } catch (err) {
@@ -48,10 +57,11 @@ router.post(
  */
 router.get(
   "/",
+  canView,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const query = QRService.listQRSchema.parse(req.query)
-      const result = await QRService.listQRs(uid(req), query)
+      const result = await QRService.listQRs(wsOwner(req), query)
       res.json({ success: true, ...result })
     } catch (err) {
       next(err)
@@ -65,9 +75,10 @@ router.get(
  */
 router.get(
   "/:id",
+  canView,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const qr = await QRService.getQR(req.params["id"] as string, uid(req))
+      const qr = await QRService.getQR(req.params["id"] as string, wsOwner(req))
       res.json({ success: true, data: qr })
     } catch (err) {
       next(err)
@@ -81,12 +92,13 @@ router.get(
  */
 router.put(
   "/:id",
+  canEdit,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = QRService.updateQRSchema.parse(req.body)
-      const qr = await QRService.updateQR(req.params["id"] as string, uid(req), input)
+      const qr = await QRService.updateQR(req.params["id"] as string, wsOwner(req), input, uid(req))
       await invalidateQRCache(qr.slug)
-      void deliverWebhookEvent(uid(req), "qr.updated", { qr })
+      void deliverWebhookEvent(wsOwner(req), "qr.updated", { qr })
       logAudit({ userId: uid(req), action: "qr.update", category: "qr", entityId: qr.id, entityType: "QRCode", metadata: { name: qr.name, type: qr.type }, ip: req.ip, userAgent: req.headers["user-agent"] })
       res.json({ success: true, data: qr })
     } catch (err) {
@@ -101,13 +113,14 @@ router.put(
  */
 router.delete(
   "/:id",
+  canDelete,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params["id"] as string
-      const existing = await QRService.getQR(id, uid(req))
-      await QRService.deleteQR(id, uid(req))
+      const existing = await QRService.getQR(id, wsOwner(req))
+      await QRService.deleteQR(id, wsOwner(req))
       if (existing?.slug) await invalidateQRCache(existing.slug)
-      void deliverWebhookEvent(uid(req), "qr.deleted", { qrId: id, name: existing?.name ?? "" })
+      void deliverWebhookEvent(wsOwner(req), "qr.deleted", { qrId: id, name: existing?.name ?? "" })
       logAudit({ userId: uid(req), action: "qr.delete", category: "qr", entityId: id, entityType: "QRCode", metadata: { name: existing?.name ?? "" }, ip: req.ip, userAgent: req.headers["user-agent"] })
       res.json({ success: true, message: "QR code deleted successfully" })
     } catch (err) {
@@ -122,9 +135,10 @@ router.delete(
  */
 router.patch(
   "/:id/toggle",
+  canEdit,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await QRService.toggleQR(req.params["id"] as string, uid(req))
+      const result = await QRService.toggleQR(req.params["id"] as string, wsOwner(req))
       await invalidateQRCache(result.slug)
       logAudit({ userId: uid(req), action: result.isActive ? "qr.activate" : "qr.deactivate", category: "qr", entityId: result.id, entityType: "QRCode", metadata: { isActive: result.isActive }, ip: req.ip, userAgent: req.headers["user-agent"] })
       res.json({ success: true, data: result })
@@ -141,10 +155,11 @@ router.patch(
  */
 router.post(
   "/:id/duplicate",
+  canCreate,
   requireQRSlot,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const qr = await QRService.duplicateQR(req.params["id"] as string, uid(req))
+      const qr = await QRService.duplicateQR(req.params["id"] as string, wsOwner(req))
       res.status(201).json({ success: true, data: qr })
     } catch (err) {
       next(err)
@@ -184,9 +199,10 @@ async function requireQROwnerId(qrId: string, userId: string): Promise<string> {
 /** GET /api/qr/:id/smart-routes */
 router.get(
   "/:id/smart-routes",
+  canView,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await requireQROwnerId(req.params["id"] as string, uid(req))
+      await requireQROwnerId(req.params["id"] as string, wsOwner(req))
       const rules = await prisma.smartRoutingRule.findMany({
         where: { qrId: req.params["id"] as string },
         orderBy: { priority: "asc" },
@@ -201,11 +217,12 @@ router.get(
 /** POST /api/qr/:id/smart-routes */
 router.post(
   "/:id/smart-routes",
+  canEdit,
   smartRoutingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = SmartRouteBodySchema.parse(req.body)
       // Validate conditionValue shape matches conditionType
       SmartRouteConditionSchema.parse({ type: body.conditionType, ...body.conditionValue })
@@ -230,12 +247,13 @@ router.post(
 /** PUT /api/qr/:id/smart-routes/:ruleId */
 router.put(
   "/:id/smart-routes/:ruleId",
+  canEdit,
   smartRoutingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
       const ruleId = req.params["ruleId"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = SmartRouteBodySchema.parse(req.body)
       SmartRouteConditionSchema.parse({ type: body.conditionType, ...body.conditionValue })
       // Verify rule belongs to this QR
@@ -265,12 +283,13 @@ router.put(
 /** DELETE /api/qr/:id/smart-routes/:ruleId */
 router.delete(
   "/:id/smart-routes/:ruleId",
+  canEdit,
   smartRoutingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
       const ruleId = req.params["ruleId"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const existing = await prisma.smartRoutingRule.findFirst({ where: { id: ruleId, qrId } })
       if (!existing) {
         res.status(404).json({ success: false, error: "Rule not found" })
@@ -301,11 +320,12 @@ const ABVariantSchema = z.object({
 /** PATCH /api/qr/:id/ab-test — Enable/disable A/B test and set split % */
 router.patch(
   "/:id/ab-test",
+  canEdit,
   abTestingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const { abTestEnabled, abTestSplitPct } = ABSettingsSchema.parse(req.body)
       const updated = await prisma.qRCode.update({
         where: { id: qrId },
@@ -323,9 +343,10 @@ router.patch(
 /** GET /api/qr/:id/ab-variants */
 router.get(
   "/:id/ab-variants",
+  canView,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      await requireQROwnerId(req.params["id"] as string, uid(req))
+      await requireQROwnerId(req.params["id"] as string, wsOwner(req))
       const variants = await prisma.aBTestVariant.findMany({
         where: { qrId: req.params["id"] as string },
         orderBy: { createdAt: "asc" },
@@ -340,11 +361,12 @@ router.get(
 /** POST /api/qr/:id/ab-variants */
 router.post(
   "/:id/ab-variants",
+  canEdit,
   abTestingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = ABVariantSchema.parse(req.body)
       // Max 2 variants per QR
       const count = await prisma.aBTestVariant.count({ where: { qrId } })
@@ -366,12 +388,13 @@ router.post(
 /** PUT /api/qr/:id/ab-variants/:variantId */
 router.put(
   "/:id/ab-variants/:variantId",
+  canEdit,
   abTestingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
       const variantId = req.params["variantId"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = ABVariantSchema.parse(req.body)
       const existing = await prisma.aBTestVariant.findFirst({ where: { id: variantId, qrId } })
       if (!existing) {
@@ -393,12 +416,13 @@ router.put(
 /** DELETE /api/qr/:id/ab-variants/:variantId */
 router.delete(
   "/:id/ab-variants/:variantId",
+  canEdit,
   abTestingGuard,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
       const variantId = req.params["variantId"] as string
-      const slug = await requireQROwnerId(qrId, uid(req))
+      const slug = await requireQROwnerId(qrId, wsOwner(req))
       const existing = await prisma.aBTestVariant.findFirst({ where: { id: variantId, qrId } })
       if (!existing) {
         res.status(404).json({ success: false, error: "Variant not found" })
@@ -427,9 +451,10 @@ const DownloadFormatSchema = z.enum(["svg", "json"]).default("svg")
  */
 router.get(
   "/:id/download",
+  canView,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const qr = await QRService.getQR(req.params["id"] as string, uid(req))
+      const qr = await QRService.getQR(req.params["id"] as string, wsOwner(req))
       const format = DownloadFormatSchema.parse(req.query["format"] ?? "svg")
 
       // The QR always encodes the redirect URL: https://<host>/r/<slug>

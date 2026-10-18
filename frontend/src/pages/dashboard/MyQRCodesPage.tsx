@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DownloadMenu } from "@/components/QRDownloadMenu"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
 import { listQRs, deleteQR, toggleQR, duplicateQR, getQrBaseUrl, type QRCode } from "@/lib/api"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 const TYPE_LABEL: Record<string, string> = {
   URL: "URL", PDF: "PDF", VIDEO: "Video", LINKS: "Multi-Link", SOCIAL_MEDIA: "Social",
@@ -27,6 +28,7 @@ function formatDate(iso: string): string {
 
 export default function MyQRCodesPage() {
   const queryClient = useQueryClient()
+  const { can } = useWorkspace()
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Search is seeded from ?q= (set by the global header search box) and kept in the URL.
@@ -178,9 +180,11 @@ export default function MyQRCodesPage() {
               {pagination ? `${pagination.total} QR code${pagination.total === 1 ? "" : "s"} total` : "All your generated QR codes"}
             </p>
           </div>
-          <Link to="/app/create" className="shrink-0">
-            <Button className="w-full sm:w-auto"><Plus size={16} /> Create QR Code</Button>
-          </Link>
+          {can("qr:create") && (
+            <Link to="/app/create" className="shrink-0">
+              <Button className="w-full sm:w-auto"><Plus size={16} /> Create QR Code</Button>
+            </Link>
+          )}
         </div>
 
         {/* Toolbar: search + filters */}
@@ -244,7 +248,9 @@ export default function MyQRCodesPage() {
                     ? "No QR codes match your filters."
                     : "No QR codes yet."}
                 </p>
-                <Link to="/app/create"><Button size="sm"><Plus size={14} /> Create your first</Button></Link>
+                {can("qr:create") && (
+                  <Link to="/app/create"><Button size="sm"><Plus size={14} /> Create your first</Button></Link>
+                )}
               </div>
             )}
 
@@ -298,17 +304,25 @@ export default function MyQRCodesPage() {
                             <Link to={`/app/qr/${qr.id}/analytics`} className="hidden sm:block">
                               <button className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Analytics"><BarChart3 size={14} /></button>
                             </Link>
-                            <Link to={`/app/qr/${qr.id}/edit`}>
-                              <button className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Edit"><Edit size={14} /></button>
-                            </Link>
+                            {can("qr:edit") && (
+                              <Link to={`/app/qr/${qr.id}/edit`}>
+                                <button className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Edit"><Edit size={14} /></button>
+                              </Link>
+                            )}
                             <div className="hidden sm:block"><DownloadMenu qr={qr} /></div>
-                            <button onClick={() => duplicate(qr.id)} disabled={isDuplicating}
-                              className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40" title="Duplicate"><Copy size={14} /></button>
-                            <button onClick={() => toggle(qr.id)} disabled={isToggling}
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${qr.isActive ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10" : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"}`}
-                              title={qr.isActive ? "Deactivate" : "Activate"}><Power size={14} /></button>
-                            <button onClick={() => handleDelete(qr)} disabled={isDeleting}
-                              className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40" title="Delete"><Trash2 size={14} /></button>
+                            {can("qr:create") && (
+                              <button onClick={() => duplicate(qr.id)} disabled={isDuplicating}
+                                className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40" title="Duplicate"><Copy size={14} /></button>
+                            )}
+                            {can("qr:edit") && (
+                              <button onClick={() => toggle(qr.id)} disabled={isToggling}
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${qr.isActive ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10" : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"}`}
+                                title={qr.isActive ? "Deactivate" : "Activate"}><Power size={14} /></button>
+                            )}
+                            {can("qr:delete") && (
+                              <button onClick={() => handleDelete(qr)} disabled={isDeleting}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40" title="Delete"><Trash2 size={14} /></button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -344,16 +358,20 @@ export default function MyQRCodesPage() {
             <button onClick={() => void handleBulkDownload()} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 shrink-0" title="Download selected as PNG">
               {bulkOp === "download" ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}<span className="hidden sm:inline">Download</span>
             </button>
+            {can("qr:edit") && <>
             <button onClick={() => void handleBulkToggle(true)} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 shrink-0" title="Activate selected">
               {bulkOp === "activate" ? <Loader2 size={13} className="animate-spin" /> : <Power size={13} />}<span className="hidden sm:inline">Activate</span>
             </button>
             <button onClick={() => void handleBulkToggle(false)} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-50 shrink-0" title="Deactivate selected">
               {bulkOp === "deactivate" ? <Loader2 size={13} className="animate-spin" /> : <PowerOff size={13} />}<span className="hidden sm:inline">Deactivate</span>
             </button>
+            </>}
+            {can("qr:delete") && <>
             <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-0.5 sm:mx-1 shrink-0" />
             <button onClick={() => void handleBulkDelete()} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-red-400 hover:text-white hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0" title="Delete selected">
               {bulkOp === "delete" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}<span className="hidden sm:inline">Delete</span>
             </button>
+            </>}
             <button onClick={() => setSelectedIds(new Set())} className="ml-0.5 sm:ml-1 w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors text-xs shrink-0" title="Clear selection">✕</button>
           </div>
         </div>,

@@ -14,6 +14,7 @@ import {
   type SmartRoutingRule, type SmartRoutePayload,
 } from "@/lib/api"
 import { usePlanFeature, FeatureLocked } from "@/components/PlanFeatureGate"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -104,6 +105,8 @@ function conditionLabel(rule: SmartRoutingRule) {
 export default function SmartRoutingPage() {
   const { id } = useParams<{ id: string }>()
   const qc = useQueryClient()
+  // Read-only for team roles that can't edit codes (the server refuses anyway).
+  const canEdit = useWorkspace().can("qr:edit")
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -196,6 +199,7 @@ export default function SmartRoutingPage() {
         <CardContent className="pt-4 pb-4 text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
           <p>Rules are evaluated in <strong className="text-zinc-800 dark:text-zinc-200">priority order</strong> (lowest number first). The first matching rule wins.</p>
           <p>Geo routing uses IP-based lookup. Device detection uses the User-Agent header.</p>
+          {!canEdit && <p>Your role in this workspace can view these rules but not change them.</p>}
         </CardContent>
       </Card>
 
@@ -203,7 +207,7 @@ export default function SmartRoutingPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Routing Rules ({rules.length})</CardTitle>
-          {!showForm && (
+          {canEdit && !showForm && (
             <Button size="sm" onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyForm()) }}>
               <Plus size={14} className="mr-1" />Add Rule
             </Button>
@@ -214,7 +218,7 @@ export default function SmartRoutingPage() {
             <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-zinc-500" /></div>
           )}
           {!isLoading && rules.length === 0 && !showForm && (
-            <p className="text-zinc-500 text-sm text-center py-10">No rules yet. Add a rule to get started.</p>
+            <p className="text-zinc-500 text-sm text-center py-10">{canEdit ? "No rules yet. Add a rule to get started." : "No rules yet."}</p>
           )}
 
           {rules.map((rule, i) => (
@@ -234,6 +238,7 @@ export default function SmartRoutingPage() {
               <Badge variant={rule.isActive ? "success" : "secondary"} className="text-[10px] shrink-0">
                 {rule.isActive ? "on" : "off"}
               </Badge>
+              {canEdit && (
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => startEdit(rule)} className="w-7 h-7 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
                   <Edit2 size={13} />
@@ -246,11 +251,12 @@ export default function SmartRoutingPage() {
                   <Trash2 size={13} />
                 </button>
               </div>
+              )}
             </div>
           ))}
 
           {/* Add / Edit form */}
-          {showForm && (
+          {canEdit && showForm && (
             <form onSubmit={handleSubmit} className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">{editingId ? "Edit Rule" : "New Rule"}</div>
 

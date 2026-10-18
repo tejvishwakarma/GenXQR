@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getQR, updateQR, getSubscription } from "@/lib/api"
 import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export default function QRSettingsPage() {
   // Reads the same cached ["subscription"] query as subInfo above — no extra fetch.
   const smartRouting = usePlanFeature("smartRouting")
   const abTesting = usePlanFeature("abTesting")
+  // Read-only for team roles that can't edit codes (the server refuses anyway).
+  const canEdit = useWorkspace().can("qr:edit")
 
   // ── Form state ──
   const [activeFrom, setActiveFrom] = useState("")
@@ -142,15 +145,22 @@ export default function QRSettingsPage() {
             <p className="text-zinc-500 text-sm">{qr?.name ?? "..."}</p>
           </div>
         </div>
-        <Button onClick={handleSave} disabled={saveMut.isPending} size="sm">
-          {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Save size={14} className="mr-1.5" />}
-          Save Settings
-        </Button>
+        {canEdit && (
+          <Button onClick={handleSave} disabled={saveMut.isPending} size="sm">
+            {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Save size={14} className="mr-1.5" />}
+            Save Settings
+          </Button>
+        )}
       </div>
 
       {successMsg && <p className="text-emerald-400 text-sm">{successMsg}</p>}
       {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
+      {!canEdit && (
+        <p className="text-zinc-500 text-sm">Your role in this workspace can view these settings but not change them.</p>
+      )}
 
+      {/* Read-only roles see the saved values in disabled fields. */}
+      <fieldset disabled={!canEdit} className="space-y-6 min-w-0 border-0 p-0 m-0">
       {/* Scheduling */}
       <Card>
         <CardHeader>
@@ -221,6 +231,7 @@ export default function QRSettingsPage() {
                     : "Enter a password below and save to protect this code."}
               </p>
             </div>
+            {canEdit && (
             <button
               type="button"
               role="switch"
@@ -246,9 +257,10 @@ export default function QRSettingsPage() {
                 }`}
               />
             </button>
+            )}
           </div>
 
-          {pwEnabled && (
+          {canEdit && pwEnabled && (
             <Input
               type="password"
               // Dots only ever go in the placeholder, never the value — a real
@@ -263,7 +275,7 @@ export default function QRSettingsPage() {
             />
           )}
 
-          {confirmRemovePw && (
+          {canEdit && confirmRemovePw && (
             <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center gap-2">
               <span className="text-xs text-zinc-600 dark:text-zinc-300">
                 Remove protection? Anyone scanning this QR will reach it without a password.
@@ -308,6 +320,7 @@ export default function QRSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </fieldset>
 
       {/* Quick links */}
       <Card>
@@ -315,6 +328,7 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm">Advanced Features</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {canEdit && <>
           <Link to={smartRouting.allowed ? `/app/qr/${id}/smart-routing` : "/app/billing"}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
               {smartRouting.allowed
@@ -343,6 +357,7 @@ export default function QRSettingsPage() {
               </div>
             </div>
           </Link>
+          </>}
           <Link to={`/app/qr/${id}/analytics`}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
               <BarChart3 size={18} className="text-blue-400 shrink-0" />

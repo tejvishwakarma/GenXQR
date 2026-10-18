@@ -3,6 +3,7 @@
  * base URL, and error handling are centralised.
  */
 import { getAttribution } from "@/lib/attribution"
+import { setWorkspaceOwnerId, workspaceHeader } from "@/lib/workspace"
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
 
@@ -48,6 +49,7 @@ export function clearClientSession(): void {
   localStorage.removeItem("access_token")
   localStorage.removeItem("user")
   localStorage.removeItem(IMPERSONATION_STORAGE_KEY)
+  setWorkspaceOwnerId(null)
 }
 
 export function startImpersonationSession(params: {
@@ -154,7 +156,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const res = await fetch(`${BASE_URL}${path}`, {
     credentials: "include",
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    // X-Workspace-Id: the selected team workspace (lib/workspace.ts). Routes
+    // that are personal-only (billing, API keys, …) ignore it.
+    headers: { "Content-Type": "application/json", ...workspaceHeader(), ...init?.headers },
   })
 
   // 401 on a protected route: attempt silent token refresh, then retry once.
@@ -178,6 +182,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         ...init,
         headers: {
           "Content-Type": "application/json",
+          ...workspaceHeader(),
           ...(init?.headers as Record<string, string> | undefined),
           Authorization: `Bearer ${newToken}`,
         },
@@ -1145,7 +1150,9 @@ export interface CreateQRPayload {
 
 function authHeader(): Record<string, string> {
   const token = localStorage.getItem("access_token") ?? ""
-  return { Authorization: `Bearer ${token}` }
+  // Also used for raw fetch() calls (uploads, downloads), so it carries the
+  // workspace header too.
+  return { Authorization: `Bearer ${token}`, ...workspaceHeader() }
 }
 
 export function createQR(payload: CreateQRPayload) {
@@ -1948,6 +1955,22 @@ export interface TeamOverview {
     used: number
     limit: number
   }
+  /** Owner of the team shown (the selected workspace's owner). */
+  ownerId: string
+  /** The caller's role in it; "owner" in your own workspace. */
+  myRole: "owner" | TeamRole
+}
+
+/** Server-side role in a workspace (backend workspace.service.ts). */
+export type WorkspaceRole = "OWNER" | "ADMIN" | "EDITOR" | "VIEWER"
+
+export interface WorkspaceSummary {
+  ownerId: string
+  name: string
+  ownerName: string
+  role: WorkspaceRole
+  /** False when the owner's plan no longer includes team seats. */
+  available: boolean
 }
 
 export interface TeamInvitePreview {
@@ -2002,6 +2025,29 @@ export function acceptTeamInvite(token: string) {
       headers: authHeader(),
     },
   )
+}
+
+/** Workspaces the user can switch to — personal first. (This route ignores the workspace header.) */
+export function listWorkspaces() {
+  return apiFetch<{ success: boolean; data: WorkspaceSummary[] }>("/api/team/workspaces", {
+    headers: authHeader(),
+  })
+}
+
+export function changeTeamMemberRole(userId: string, role: TeamRole) {
+  return apiFetch<{ success: boolean; data: { userId: string; role: TeamRole } }>(`/api/team/members/${userId}/role`, {
+    method: "PATCH",
+    headers: authHeader(),
+    body: JSON.stringify({ role }),
+  })
+}
+
+/** Leave another owner's team. */
+export function leaveTeam(ownerId: string) {
+  return apiFetch<{ success: boolean; message: string }>(`/api/team/memberships/${ownerId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  })
 }
 
 export function removeTeamMember(userId: string) {

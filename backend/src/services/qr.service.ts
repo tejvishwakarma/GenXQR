@@ -297,6 +297,12 @@ async function validateExpiryDate(userId: string, activeUntil: string | null | u
 async function assertUploadsOwned(
   userId: string,
   files: { tempUrl: string }[],
+  /**
+   * Who is attaching the files. In a team workspace a member uploads (so the
+   * upload is recorded as theirs) into a code owned by the workspace owner, so
+   * an upload by either is accepted. Defaults to the owner.
+   */
+  actorId: string = userId,
 ): Promise<void> {
   for (const f of files) {
     let owner: string | null = null
@@ -305,7 +311,7 @@ async function assertUploadsOwned(
     } catch {
       owner = null // Redis miss/outage falls through to the DB ownership check
     }
-    if (owner === userId) continue
+    if (owner === userId || owner === actorId) continue
 
     const alreadyOwned = await prisma.qRFile.findFirst({
       where: { fileUrl: f.tempUrl, qrCode: { userId } },
@@ -317,10 +323,10 @@ async function assertUploadsOwned(
   }
 }
 
-export async function createQR(userId: string, input: z.infer<typeof createQRSchema>) {
+export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
   const { design, settings, content, uploadedFiles, ...qrData } = input
 
-  if (uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles)
+  if (uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
 
   await validateExpiryDate(userId, settings.activeUntil ?? null)
 
@@ -424,13 +430,13 @@ export async function getQR(id: string, userId: string) {
 /**
  * Update QR code fields selectively. All fields are optional.
  */
-export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>) {
+export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
   const existing = await prisma.qRCode.findFirst({ where: { id, userId }, select: { id: true } })
   if (!existing) throw new AppError(404, "QR code not found")
 
   const { design, settings, content, uploadedFiles, ...qrData } = input
 
-  if (uploadedFiles && uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles)
+  if (uploadedFiles && uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
 
   // Validate expiry only when the caller explicitly provides a new activeUntil value
   if (settings?.activeUntil !== undefined) {

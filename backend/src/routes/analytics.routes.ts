@@ -1,13 +1,12 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { getQRAnalytics, getGlobalAnalytics } from "../services/analytics.service.js"
-import type { AccessTokenPayload } from "../utils/jwt.js"
 
 const router: IRouter = Router()
 
-const uid = (req: Request): string => (req.user as unknown as AccessTokenPayload).sub
 
 // ─── GET /api/analytics/global — Aggregate analytics across all user QRs ─────
 
@@ -24,10 +23,12 @@ const QuerySchema = z.object({
 router.get(
   "/global",
   requireAuth,
+  withWorkspace,
+  requireWorkspacePermission("qr:view"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { days } = QuerySchema.parse(req.query)
-      const analytics = await getGlobalAnalytics(uid(req), days)
+      const analytics = await getGlobalAnalytics(wsOwner(req), days)
       res.json({ success: true, data: analytics })
     } catch (err) {
       next(err)
@@ -40,12 +41,14 @@ router.get(
 router.get(
   "/:qrId/csv",
   requireAuth,
+  withWorkspace,
+  requireWorkspacePermission("qr:view"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrIdStr = String(req.params["qrId"] ?? "")
 
       const qr = await prisma.qRCode.findFirst({
-        where: { id: qrIdStr, userId: uid(req) },
+        where: { id: qrIdStr, userId: wsOwner(req) },
         select: { id: true, name: true },
       })
       if (!qr) {
@@ -101,6 +104,8 @@ router.get(
 router.get(
   "/:qrId",
   requireAuth,
+  withWorkspace,
+  requireWorkspacePermission("qr:view"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { qrId } = req.params
@@ -109,7 +114,7 @@ router.get(
 
       // Verify ownership
       const qr = await prisma.qRCode.findFirst({
-        where: { id: qrIdStr, userId: uid(req) },
+        where: { id: qrIdStr, userId: wsOwner(req) },
         select: { id: true },
       })
 

@@ -12,8 +12,13 @@ import { AppError } from "./error.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 
+/**
+ * Whose plan applies: the workspace owner's when a team workspace is selected
+ * (codes created there belong to, and count against, the owner), otherwise the
+ * caller's own. Routes without withWorkspace always get the caller.
+ */
 function uid(req: Request): string {
-  return (req.user as AccessTokenPayload).sub
+  return req.workspace?.ownerId ?? (req.user as AccessTokenPayload).sub
 }
 
 /**

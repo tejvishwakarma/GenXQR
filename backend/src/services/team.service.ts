@@ -541,3 +541,66 @@ export async function acceptInvite(currentUserId: string, rawToken: string) {
     role: apiRoleFromDb(match.role),
   }
 }
+
+// ─── Member management (shared workspaces, 18 Oct 2026) ───────────────────────
+// Called with the WORKSPACE OWNER's id; the route has already checked that the
+// caller may manage this team (owner or admin — workspace.service.ts).
+
+async function findMembership(ownerId: string, memberUserId: string) {
+  const membership = await prisma.teamMember.findFirst({
+    where: { userId: memberUserId, team: { ownerId } },
+    select: { id: true, role: true, teamId: true, user: { select: { email: true } } },
+  })
+  if (!membership) throw new AppError(404, "Member not found")
+  return membership
+}
+
+export async function changeMemberRole(ownerId: string, actorId: string, memberUserId: string, role: TeamRole) {
+  if (memberUserId === actorId) throw new AppError(400, "You cannot change your own role")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.update({ where: { id: membership.id }, data: { role: dbRoleFromApi(role) } })
+  await prisma.auditLog.create({
+    data: {
+      userId: actorId,
+      action: "team.member.role",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId, memberEmail: membership.user.email, from: membership.role, to: dbRoleFromApi(role) },
+    },
+  })
+  return { userId: memberUserId, role }
+}
+
+export async function removeMember(ownerId: string, actorId: string, memberUserId: string): Promise<void> {
+  if (memberUserId === actorId) throw new AppError(400, "Use 'Leave team' to remove yourself")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.delete({ where: { id: membership.id } })
+  await prisma.auditLog.create({
+    data: {
+      userId: actorId,
+      action: "team.member.remove",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId, memberEmail: membership.user.email },
+    },
+  })
+}
+
+/** A member leaves an owner's team. The owner cannot leave their own team. */
+export async function leaveTeam(memberUserId: string, ownerId: string): Promise<void> {
+  if (memberUserId === ownerId) throw new AppError(400, "The owner cannot leave their own team")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.delete({ where: { id: membership.id } })
+  await prisma.auditLog.create({
+    data: {
+      userId: memberUserId,
+      action: "team.member.leave",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId },
+    },
+  })
+}
