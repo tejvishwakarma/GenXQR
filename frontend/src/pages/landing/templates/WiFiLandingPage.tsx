@@ -12,6 +12,9 @@ export default function WiFiLandingPage({ content }: Props) {
   const ssid = content.ssid as string | undefined
   const password = content.password as string | undefined
   const security = (content.security as string) || "WPA"
+  // The dashboard saves an open network as "none" (and "wpa2"/"wep" otherwise);
+  // the API docs use the WIFI: standard's "nopass". Both mean open.
+  const isOpen = ["nopass", "none"].includes(security.toLowerCase())
   const [copied, setCopied] = useState<"ssid" | "password" | null>(null)
 
   const copy = (text: string, field: "ssid" | "password") => {
@@ -63,7 +66,7 @@ export default function WiFiLandingPage({ content }: Props) {
           </div>
 
           {/* Password */}
-          {security !== "nopass" && (
+          {!isOpen && (
             <div className="p-5 border-b border-gray-100">
               <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Password</p>
               <div className="flex items-center justify-between">
@@ -92,7 +95,7 @@ export default function WiFiLandingPage({ content }: Props) {
           {/* Security type */}
           <div className="p-5">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Security</p>
-            <p className="text-sm font-medium text-gray-700">{security === "nopass" ? "Open (No Password)" : security}</p>
+            <p className="text-sm font-medium text-gray-700">{isOpen ? "Open (No Password)" : security.toUpperCase()}</p>
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
-import { verifyApiKey, isApiKeyFormat } from "../services/apikeys.service.js"
+import { verifyApiKey, isApiKeyFormat, meterApiCall } from "../services/apikeys.service.js"
 import { AppError } from "./error.middleware.js"
 
 /**
@@ -15,7 +15,7 @@ import { AppError } from "./error.middleware.js"
  */
 export async function requireApiKey(
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction,
 ): Promise<void> {
   try {
@@ -25,11 +25,28 @@ export async function requireApiKey(
       throw new AppError(401, "Valid API key required (Authorization: Bearer gxqr_live_...)")
     }
 
-    const { userId, keyId } = await verifyApiKey(rawKey)
+    const { userId, keyId, apiCallsLimit } = await verifyApiKey(rawKey)
 
     const payload: AccessTokenPayload = { sub: userId, email: "", role: "USER" }
     req.user = payload as unknown as Express.User
     req.apiKeyId = keyId
+    res.locals.apiCallsLimit = apiCallsLimit
+    next()
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * Monthly API quota. Mount AFTER the per-minute limiter (which needs req.user
+ * from requireApiKey), so a rate-limited call is never counted — see
+ * meterApiCall.
+ */
+export async function requireApiQuota(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = (req.user as unknown as AccessTokenPayload | undefined)?.sub
+    if (!userId || !req.apiKeyId) throw new AppError(401, "Valid API key required (Authorization: Bearer gxqr_live_...)")
+    await meterApiCall(userId, req.apiKeyId, Number(res.locals.apiCallsLimit ?? 0))
     next()
   } catch (err) {
     next(err)

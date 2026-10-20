@@ -141,6 +141,12 @@ router.patch(
       const result = await QRService.toggleQR(req.params["id"] as string, wsOwner(req))
       await invalidateQRCache(result.slug)
       logAudit({ userId: uid(req), action: result.isActive ? "qr.activate" : "qr.deactivate", category: "qr", entityId: result.id, entityType: "QRCode", metadata: { isActive: result.isActive }, ip: req.ip, userAgent: req.headers["user-agent"] })
+      // Switching a code on/off is an update; integrations watching qr.updated
+      // never heard about it before. Same full-object payload as an edit.
+      const owner = wsOwner(req)
+      void QRService.getQR(result.id, owner)
+        .then((qr) => deliverWebhookEvent(owner, "qr.updated", { qr }))
+        .catch(() => undefined)
       res.json({ success: true, data: result })
     } catch (err) {
       next(err)
@@ -160,6 +166,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qr = await QRService.duplicateQR(req.params["id"] as string, wsOwner(req))
+      // A duplicate is a new code like any other.
+      void deliverWebhookEvent(wsOwner(req), "qr.created", { qr })
       res.status(201).json({ success: true, data: qr })
     } catch (err) {
       next(err)

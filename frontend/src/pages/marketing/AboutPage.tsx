@@ -169,6 +169,14 @@ const milestones: Milestone[] = [
 ]
 
 // ─── Founders data ────────────────────────────────────────────────────────────
+
+/**
+ * The "people behind GenXQR" section is hidden (decided 20 Oct 2026): the
+ * cards below are still placeholders ("Founder Name"), which is worse on a
+ * trust page than no section. Set to true once real names, roles, bios and
+ * photos are filled in.
+ */
+const SHOW_FOUNDERS = false
 // Replace placeholder values with real names, roles, bios, and image paths.
 
 type Founder = {
@@ -488,8 +496,10 @@ export default function AboutPage() {
       </section>
 
       {/* ── Founders ───────────────────────────────────────────────────────── */}
+      {/* Hidden until real details exist — see SHOW_FOUNDERS above.          */}
       {/* Replace image={null} with imported image paths when photos are ready. */}
       {/* Replace name, role, bio, and linkedin with real values.             */}
+      {SHOW_FOUNDERS && (
       <section className="py-16 md:py-24 bg-paper-pure border-y border-line">
         <MktContainer className="max-w-3xl">
           <SectionHead
@@ -552,6 +562,7 @@ export default function AboutPage() {
           </div>
         </MktContainer>
       </section>
+      )}
 
       {/* ── FAQ ────────────────────────────────────────────────────────────── */}
       {/* Deliverable 7: 5 questions targeting trust + Cluster D featured snippets */}

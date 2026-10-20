@@ -268,6 +268,14 @@ export async function deliverWebhookEvent(
     where: { userId, isActive: true, events: { has: event } },
     select: { id: true, url: true, secret: true },
   })
+  if (hooks.length === 0) return
+
+  // Webhooks are part of API access (Pro and above). Creating and managing them
+  // was already gated, but delivery was not, so an account that dropped below
+  // Pro kept receiving events indefinitely. Its webhooks stay saved and resume
+  // when the plan does. Dynamic import: billing.service imports this module.
+  const { getPlanLimitsReadOnly } = await import("./billing.service.js")
+  if (!(await getPlanLimitsReadOnly(userId)).apiAccess) return
 
   await Promise.allSettled(
     hooks.map((hook) => attemptDelivery({
@@ -278,6 +286,12 @@ export async function deliverWebhookEvent(
       payload,
     })),
   )
+}
+
+/** Whether any active webhook of this account listens for `event` (to skip building costly payloads). */
+export async function hasWebhookSubscribers(userId: string, event: WebhookEvent): Promise<boolean> {
+  const n = await prisma.webhook.count({ where: { userId, isActive: true, events: { has: event } } })
+  return n > 0
 }
 
 export const MAX_DELIVERY_ATTEMPTS = 5

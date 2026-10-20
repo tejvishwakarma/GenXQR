@@ -363,6 +363,53 @@
   }
 }
 
+/* ── Homepage hero QR (QrArt in components/marketing/ui.tsx) ──────────────────
+   One 4 s cycle: the beam sweeps down (0–78%), the brackets "lock on" as it
+   finishes, then a short rest. The lit-module mask shares .mkt-qr-scan so it
+   moves exactly with the beam. Every animation ends invisible/at rest, so the
+   global reduced-motion rule below leaves a still, clean code. */
+.mkt-qr-scan {
+  animation: mkt-qr-scan 4s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+}
+@keyframes mkt-qr-scan {
+  0% { transform: translateY(-10px); opacity: 0; }
+  6% { opacity: 1; }
+  74% { opacity: 1; }
+  78%, 100% { transform: translateY(240px); opacity: 0; }
+}
+.mkt-qr-sheen {
+  animation: mkt-qr-sheen 7s ease-in-out infinite;
+}
+@keyframes mkt-qr-sheen {
+  0%, 55% { transform: skewX(-18deg) translateX(0); opacity: 0; }
+  60% { opacity: 1; }
+  80% { opacity: 1; }
+  85%, 100% { transform: skewX(-18deg) translateX(380px); opacity: 0; }
+}
+.mkt-qr-breathe {
+  animation: mkt-qr-breathe 4s ease-in-out infinite;
+}
+@keyframes mkt-qr-breathe {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+.mkt-qr-bracket {
+  animation: mkt-qr-bracket 4s ease-in-out infinite;
+}
+@keyframes mkt-qr-bracket {
+  0%, 70%, 100% { transform: translate(0, 0); opacity: 0.55; }
+  80% { transform: translate(var(--mx, 0), var(--my, 0)); opacity: 1; }
+}
+/* The global rule below shortens animations rather than removing them, and a
+   finished animation falls back to the element's own position — which would
+   park the beam along the card's top edge. Hide the moving parts outright. */
+@media (prefers-reduced-motion: reduce) {
+  .mkt-qr-scan,
+  .mkt-qr-sheen {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

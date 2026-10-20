@@ -949,8 +949,13 @@ Uploads record the uploader; attaching accepts files uploaded by the owner or th
 
 ## 15. Webhooks
 
-- User creates webhook with URL + event subscriptions
-- Supported events: `qr.scanned`, `qr.created`, `qr.updated`, `qr.deleted`
+- User creates webhook with URL + event subscriptions (dashboard, or `/v1/webhooks` for Zapier/Make/n8n)
+- Events (`WEBHOOK_EVENTS` in `webhook.service.ts`): `qr.created`, `qr.updated`, `qr.deleted`,
+  `qr.scanned`, `subscription.activated`, `subscription.cancelled`, `test`
+- Every path that changes codes must raise its event — dashboard, `/v1`, toggles (`qr.updated`),
+  duplicates and each bulk-upload code (`qr.created`; bulk sends sequentially in the background).
+  Covered in `tests/integration/webhook-delivery.test.ts`; a new mutation path needs a test there.
+- Delivery requires the owner's plan to have `apiAccess` (Pro+), checked at delivery time
 - Delivery: HMAC-SHA256 signature in `X-GenXQR-Signature` header
 - Each delivery logged to `WebhookDelivery` (status code, response body, success flag)
 - Test endpoint: `POST /api/webhooks/:id/test` sends sample payload
@@ -1163,7 +1168,12 @@ pnpm preview               # vite preview (serves dist/)
     for `https://genxqr.com/generate?utm_source=hero_qr`. The floating chips in `Hero.tsx` sit
     above/below the code because one over a finder eye stopped it decoding (checked with
     jsQR on headless-Chrome screenshots). After changing either file, screenshot the
-    homepage and decode it again.
+    homepage and decode it again — across the animation, not one frame. The "scanning"
+    decoration (beam, lit modules, sheen, logo glow, viewfinder brackets; keyframes
+    `.mkt-qr-*` in index.css) was tuned by decoding 48 frames with jsQR and ZXing:
+    a white gloss on the finder eyes failed every frame, and the beam's glow crossing
+    an eye failed 1 in 32, so the beam/sheen are masked off the eyes (`mktNoEyes`)
+    and the eyes carry no overlay. Keep anything new off the three eyes.
 
 19. **`/generate/<type>` pages are distinct pages**, each with its own title, H1, intro and
     self-canonical (`TYPE_PAGES` in `StaticGeneratePage.tsx`). They used to share

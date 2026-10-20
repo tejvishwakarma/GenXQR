@@ -252,7 +252,7 @@ export function QrArt({ className = "" }: { className?: string }) {
     }
   }
 
-  const eye = (cx: number, cy: number, key: string) => (
+  const eye = (cx: number, cy: number, key: string, paint: string) => (
     <g key={key}>
       <rect
         x={pad + cx * cell + cell * 0.5}
@@ -261,7 +261,7 @@ export function QrArt({ className = "" }: { className?: string }) {
         height={cell * 6}
         rx={cell * 1.6}
         fill="none"
-        stroke="url(#mktEyeGrad)"
+        stroke={paint}
         strokeWidth={cell}
       />
       <rect
@@ -270,50 +270,135 @@ export function QrArt({ className = "" }: { className?: string }) {
         width={cell * 3}
         height={cell * 3}
         rx={cell * 0.75}
-        fill="url(#mktEyeGrad)"
+        fill={paint}
       />
     </g>
   )
+  const eyes = (paint: string) => [eye(0, 0, "tl", paint), eye(N - 7, 0, "tr", paint), eye(0, N - 7, "bl", paint)]
 
   const logoX = pad + logoStart * cell
+  const logoMid = logoX + (cell * LOGO_MODULES) / 2
+
+  /*
+   * Decoration, all of it scan-safe (checked by decoding screenshots taken
+   * across the animation): the beam and its trail are translucent; the lit
+   * modules under the beam stay dark violet on white; the sheen is a faint
+   * white glint; the viewfinder brackets sit OUTSIDE the code. Everything
+   * animated stops for prefers-reduced-motion (global rule in index.css, and
+   * each animation ends invisible). Keyframes: .mkt-qr-* in index.css.
+   */
   return (
-    <svg
-      viewBox={`0 0 ${dim} ${dim}`}
-      className={className}
-      role="img"
-      aria-label="QR code that opens the free GenXQR generator"
-    >
-      <defs>
-        <linearGradient id="mktEyeGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6C5CFF" />
-          <stop offset="100%" stopColor="#2E2596" />
-        </linearGradient>
-        <clipPath id="mktBoard">
-          <rect x="0" y="0" width={dim} height={dim} rx="22" />
-        </clipPath>
-      </defs>
+    <div className="relative">
+      <svg viewBox={`0 0 ${dim} ${dim}`} className={className} role="img" aria-label="QR code that opens the free GenXQR generator">
+        <defs>
+          <linearGradient id="mktEyeGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#6C5CFF" />
+            <stop offset="100%" stopColor="#2E2596" />
+          </linearGradient>
+          <linearGradient id="mktLit" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#4433E0" />
+            <stop offset="50%" stopColor="#5B4BFF" />
+            <stop offset="100%" stopColor="#4433E0" />
+          </linearGradient>
+          <linearGradient id="mktBeamTrail" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#5B4BFF" stopOpacity="0" />
+            <stop offset="100%" stopColor="#5B4BFF" stopOpacity="0.09" />
+          </linearGradient>
+          <linearGradient id="mktBeamLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#7C6CFF" stopOpacity="0" />
+            <stop offset="15%" stopColor="#7C6CFF" stopOpacity="1" />
+            <stop offset="85%" stopColor="#7C6CFF" stopOpacity="1" />
+            <stop offset="100%" stopColor="#7C6CFF" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="mktMaskBand" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#000" />
+            <stop offset="50%" stopColor="#FFF" />
+            <stop offset="100%" stopColor="#000" />
+          </linearGradient>
+          <linearGradient id="mktSheen" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#FFFFFF" stopOpacity="0" />
+            <stop offset="50%" stopColor="#FFFFFF" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
+          </linearGradient>
+          <radialGradient id="mktLogoGlow">
+            <stop offset="0%" stopColor="#5B4BFF" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#5B4BFF" stopOpacity="0" />
+          </radialGradient>
+          <filter id="mktBlur" x="-10%" y="-200%" width="120%" height="500%">
+            <feGaussianBlur stdDeviation="1.6" />
+          </filter>
+          {/* The band of modules "lit" by the beam: moves with it. */}
+          <mask id="mktBeamMask" maskUnits="userSpaceOnUse" x="0" y="0" width={dim} height={dim}>
+            <rect className="mkt-qr-scan" x="0" y="-8" width={dim} height="14" fill="url(#mktMaskBand)" />
+          </mask>
+          {/* Beam and sheen skip the finder eyes: the beam's glow over an eye's
+              white ring broke its 1:1:3:1:1 ratio, the one frame in 32 that
+              stopped decoding (tested 20 Oct 2026). */}
+          <mask id="mktNoEyes" maskUnits="userSpaceOnUse" x="0" y="0" width={dim} height={dim}>
+            <rect x="0" y="0" width={dim} height={dim} fill="#FFF" />
+            {([[0, 0], [N - 7, 0], [0, N - 7]] as const).map(([ex, ey]) => (
+              <rect key={`${ex}-${ey}`} x={pad + (ex - 1) * cell} y={pad + (ey - 1) * cell} width={cell * 9} height={cell * 9} rx={cell * 2} fill="#000" />
+            ))}
+          </mask>
+          <clipPath id="mktBoard">
+            <rect x="0" y="0" width={dim} height={dim} rx="22" />
+          </clipPath>
+        </defs>
 
-      <g clipPath="url(#mktBoard)">
-        <rect x="0" y="0" width={dim} height={dim} fill="#FFFFFF" />
-        <path d={d} fill="#14131A" />
-        {eye(0, 0, "tl")}
-        {eye(N - 7, 0, "tr")}
-        {eye(0, N - 7, "bl")}
+        <g clipPath="url(#mktBoard)">
+          <rect x="0" y="0" width={dim} height={dim} fill="#FFFFFF" />
+          <path d={d} fill="#14131A" />
+          <path d={d} fill="url(#mktLit)" mask="url(#mktBeamMask)" />
+          {/* No gloss on the eyes: a white highlight over them (tried 20 Oct 2026)
+              lightened the finder patterns enough that jsQR failed every frame. */}
+          {eyes("url(#mktEyeGrad)")}
 
-        <rect
-          x={logoX + cell * 0.5}
-          y={logoX + cell * 0.5}
-          width={cell * (LOGO_MODULES - 1)}
-          height={cell * (LOGO_MODULES - 1)}
-          rx={cell * 1.6}
-          fill="#14131A"
-        />
-        <g transform={`translate(${logoX + cell * 2.5}, ${logoX + cell * 2.5})`}>
-          <FinderGlyph size={cell * 4} className="text-accent" />
+          {/* Centre mark, with a slow glow behind its glyph */}
+          <rect
+            x={logoX + cell * 0.5}
+            y={logoX + cell * 0.5}
+            width={cell * (LOGO_MODULES - 1)}
+            height={cell * (LOGO_MODULES - 1)}
+            rx={cell * 1.6}
+            fill="#14131A"
+          />
+          <circle className="mkt-qr-breathe" cx={logoMid} cy={logoMid} r={cell * 3.2} fill="url(#mktLogoGlow)" />
+          <g transform={`translate(${logoX + cell * 2.5}, ${logoX + cell * 2.5})`}>
+            <FinderGlyph size={cell * 4} className="text-accent" />
+          </g>
+
+          {/* Scan beam: translucent trail above a glowing line */}
+          <g mask="url(#mktNoEyes)">
+          <g className="mkt-qr-scan">
+            <rect x="0" y="-26" width={dim} height="26" fill="url(#mktBeamTrail)" />
+            <rect x="0" y="-2.5" width={dim} height="5" fill="url(#mktBeamLine)" opacity="0.35" filter="url(#mktBlur)" />
+            <rect x="0" y="-0.5" width={dim} height="1" fill="url(#mktBeamLine)" opacity="0.85" />
+          </g>
+
+          {/* Occasional glint across the card */}
+          <rect className="mkt-qr-sheen" x="-70" y="-20" width="46" height={dim + 40} fill="url(#mktSheen)" transform={`skewX(-18)`} />
+          </g>
+
+          {/* Hairline rim, so the white card reads as a surface */}
+          <rect x="0.5" y="0.5" width={dim - 1} height={dim - 1} rx="21.5" fill="none" stroke="#14131A" strokeOpacity="0.06" />
         </g>
+      </svg>
 
-        <rect x={pad} y={-6} width={N * cell} height="3" fill="#5B4BFF" opacity="0.4" className="animate-scanline" />
-      </g>
-    </svg>
+      {/* Viewfinder brackets — outside the code, so they never touch the quiet zone. */}
+      {/* --mx/--my: which way each bracket closes in on the "lock-on" beat. */}
+      {([
+        ["-left-3 -top-3 border-l-2 border-t-2 rounded-tl-xl", "4px", "4px"],
+        ["-right-3 -top-3 border-r-2 border-t-2 rounded-tr-xl", "-4px", "4px"],
+        ["-left-3 -bottom-3 border-l-2 border-b-2 rounded-bl-xl", "4px", "-4px"],
+        ["-right-3 -bottom-3 border-r-2 border-b-2 rounded-br-xl", "-4px", "-4px"],
+      ] as const).map(([pos, mx, my]) => (
+        <span
+          key={pos}
+          aria-hidden="true"
+          className={cn("mkt-qr-bracket pointer-events-none absolute h-9 w-9 border-accent/60", pos)}
+          style={{ "--mx": mx, "--my": my } as React.CSSProperties}
+        />
+      ))}
+    </div>
   )
 }

@@ -11,7 +11,7 @@ import { QRType } from "@prisma/client"
 import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { prisma } from "../db/prisma.js"
-import { requireApiKey } from "../middleware/apikey.middleware.js"
+import { requireApiKey, requireApiQuota } from "../middleware/apikey.middleware.js"
 import { v1Limiter } from "../middleware/rateLimit.middleware.js"
 import { requireQRSlot } from "../middleware/plan-gate.middleware.js"
 import {
@@ -38,10 +38,13 @@ import {
 const router: IRouter = Router()
 const uid = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
 
-// All v1 routes authenticated via API key, then rate-limited per user (req.user.sub).
-// Order matters: the limiter reads req.user.sub which is populated by requireApiKey.
+// All v1 routes: authenticate the API key, rate-limit per user (req.user.sub),
+// then count the call against the monthly quota. Order matters both ways: the
+// limiter reads req.user.sub set by requireApiKey, and the quota comes after
+// the limiter so a rate-limited call is never counted.
 router.use(requireApiKey)
 router.use(v1Limiter)
+router.use(requireApiQuota)
 
 // ─── QR Codes ─────────────────────────────────────────────────────────────────
 
@@ -131,6 +134,10 @@ router.patch("/qr/:id", async (req, res, next) => {
 router.patch("/qr/:id/toggle", async (req, res, next) => {
   try {
     const result = await toggleQR(req.params.id!, uid(req))
+    // Same as the dashboard toggle: on/off is an update for qr.updated subscribers.
+    void getQR(result.id, uid(req))
+      .then((qr) => deliverWebhookEvent(uid(req), "qr.updated", { qr }))
+      .catch(() => undefined)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)
@@ -160,13 +167,20 @@ router.delete("/qr/:id", async (req, res, next) => {
  */
 router.get("/qr/:id/analytics", async (req, res, next) => {
   try {
-    const days = Math.min(parseInt(req.query["days"] as string || "30", 10), 90)
+    // Validated: a non-numeric `days` used to become NaN, an invalid date, and a
+    // 500. Values above 90 are capped rather than refused, as documented.
+    const { days: requested } = analyticsQuerySchema.parse(req.query)
+    const days = Math.min(requested, 90)
     await getQR(req.params.id!, uid(req)) // ownership check (throws 404 if not owned)
     const data = await getQRAnalytics(req.params.id!, days)
     res.json({ success: true, data })
   } catch (err) {
     next(err)
   }
+})
+
+const analyticsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).default(30),
 })
 
 // ─── Scans (polling fallback for Zapier/Make triggers) ───────────────────────
@@ -290,8 +304,8 @@ router.delete("/webhooks/:id", async (req, res, next) => {
 
 /**
  * GET /v1/events
- * Public list of supported webhook event names. No-op for integrations building
- * dynamic event dropdowns.
+ * List of supported webhook event names, for integrations building dynamic
+ * event dropdowns. Needs an API key like every /v1 route (router.use above).
  */
 router.get("/events", (_req, res) => {
   res.json({ success: true, data: WEBHOOK_EVENTS })

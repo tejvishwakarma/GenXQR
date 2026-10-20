@@ -83,6 +83,11 @@ const NAV = [
       { id: "webhooks-overview", label: "Overview" },
       { id: "webhooks-events",   label: "Events & Payloads" },
       { id: "webhooks-verify",   label: "Signature Verification" },
+      { id: "ep-wh-list",        label: "List Webhooks" },
+      { id: "ep-wh-create",      label: "Subscribe" },
+      { id: "ep-wh-get",         label: "Get Webhook" },
+      { id: "ep-wh-delete",      label: "Unsubscribe" },
+      { id: "ep-events",         label: "List Events" },
     ],
   },
 ]
@@ -346,8 +351,9 @@ data = res.json()['data']`,
       { code: "200", desc: "QR code updated successfully" },
       { code: "400", desc: "Expiry date is beyond your current subscription period" },
       { code: "401", desc: "Invalid or missing API key" },
-      { code: "403", desc: "Your plan lacks API access or expiry dates" },
+      { code: "403", desc: "Your plan lacks API access, expiry dates or QR frames" },
       { code: "404", desc: "QR code not found" },
+      { code: "422", desc: "Validation error — check request body" },
     ],
     examples: {
       curl: `curl -X PATCH https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx \\
@@ -403,7 +409,7 @@ const { data } = await res.json()`,
     method: "PATCH",
     path: "/v1/qr/:id/toggle",
     summary: "Toggle QR Code",
-    description: "Switches a QR code between active and inactive. When an inactive code is scanned, the visitor sees the deactivated page — or the code's fallback URL, if it has one. A code paused because your plan ended can only be switched back on by renewing.",
+    description: "Switches a QR code between active and inactive, and sends a qr.updated webhook event. When an inactive code is scanned, the visitor sees the deactivated page — or the code's fallback URL, if it has one. A code paused because your plan ended can only be switched back on by renewing.",
     responseFields: [
       { name: "id",       type: "string",  desc: "QR code ID" },
       { name: "isActive", type: "boolean", desc: "The new active state" },
@@ -480,7 +486,7 @@ print('Active:', res.json()['data']['isActive'])`,
     summary: "QR Analytics",
     description: "Returns scan analytics for a specific QR code: all-time totals, a daily timeline for the requested number of days, and breakdowns by device, OS, browser, country and city.",
     queryParams: [
-      { name: "days", type: "integer", desc: "Days covered by the timeline and breakdowns. Default: 30. Max: 90" },
+      { name: "days", type: "integer", desc: "Days covered by the timeline and breakdowns. Default: 30. Values above 90 are treated as 90" },
     ],
     responseFields: [
       { name: "totalScans",     type: "integer", desc: "All-time scan count, repeat scans included" },
@@ -500,6 +506,7 @@ print('Active:', res.json()['data']['isActive'])`,
       { code: "200", desc: "Analytics returned" },
       { code: "401", desc: "Invalid or missing API key" },
       { code: "404", desc: "QR code not found" },
+      { code: "422", desc: "days is not a whole number of 1 or more" },
     ],
     examples: {
       curl: `curl "https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/analytics?days=30" \\
@@ -606,6 +613,218 @@ scans = res.json()['data']`,
       "browser": "Chrome",
       "referrer": null
     }
+  ]
+}`,
+  },
+]
+
+const WEBHOOK_ENDPOINTS: Endpoint[] = [
+  {
+    id: "ep-wh-list",
+    method: "GET",
+    path: "/v1/webhooks",
+    summary: "List Webhooks",
+    description: "Returns every webhook on your account, newest first — including ones created in the dashboard. Secrets are not included; use Get Webhook for that.",
+    responseFields: [
+      { name: "data[].id",            type: "string",   desc: "Webhook ID" },
+      { name: "data[].name",          type: "string",   desc: "Display name" },
+      { name: "data[].url",           type: "string",   desc: "Endpoint that receives deliveries" },
+      { name: "data[].events",        type: "string[]", desc: "Subscribed events" },
+      { name: "data[].isActive",      type: "boolean",  desc: "Whether deliveries are sent" },
+      { name: "data[].createdAt",     type: "string",   desc: "ISO 8601 creation time" },
+      { name: "data[].deliveryCount", type: "integer",  desc: "Delivery attempts recorded" },
+    ],
+    codes: [
+      { code: "200", desc: "Webhooks returned" },
+      { code: "401", desc: "Invalid or missing API key" },
+    ],
+    examples: {
+      curl: `curl https://genxqr.com/v1/webhooks \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch('https://genxqr.com/v1/webhooks', {
+  headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` }
+})
+const { data } = await res.json()`,
+      python: `res = requests.get(
+    'https://genxqr.com/v1/webhooks',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)
+hooks = res.json()['data']`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": [
+    {
+      "id": "clwwwwwwwwwwwwwwww",
+      "name": "zapier — qr.scanned",
+      "url": "https://hooks.example.com/genxqr",
+      "events": ["qr.scanned"],
+      "isActive": true,
+      "createdAt": "2025-04-14T10:00:00.000Z",
+      "deliveryCount": 12
+    }
+  ]
+}`,
+  },
+  {
+    id: "ep-wh-create",
+    method: "POST",
+    path: "/v1/webhooks",
+    summary: "Subscribe",
+    description: "Creates a webhook for one event. This is the REST-hook subscribe call used by Zapier, Make and n8n: call it once per event you need. The response includes the signing secret for verifying deliveries; Get Webhook returns it again later.",
+    bodyParams: [
+      { name: "url",    type: "string", required: true, desc: "HTTPS endpoint to deliver to. Private, loopback and link-local addresses are refused" },
+      { name: "event",  type: "string", required: true, desc: "One event name from List Events (e.g. qr.scanned)" },
+      { name: "name",   type: "string",                 desc: "Display name, max 64 characters. Default: \"<source> — <event>\"" },
+      { name: "source", type: "string",                 desc: "Optional label: zapier, make or n8n" },
+    ],
+    responseFields: [
+      { name: "id",     type: "string", desc: "Webhook ID — keep it to unsubscribe" },
+      { name: "secret", type: "string", desc: "HMAC signing secret for X-GenXQR-Signature" },
+      { name: "…",      type: "",       desc: "Plus every field from List Webhooks" },
+    ],
+    codes: [
+      { code: "201", desc: "Webhook created" },
+      { code: "400", desc: "URL not allowed (not HTTPS, or a private address), or the 20-webhook limit is reached" },
+      { code: "401", desc: "Invalid or missing API key" },
+      { code: "422", desc: "Missing url, not a URL, or an unknown event" },
+    ],
+    examples: {
+      curl: `curl -X POST https://genxqr.com/v1/webhooks \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "url": "https://hooks.example.com/genxqr", "event": "qr.scanned" }'`,
+      node: `const res = await fetch('https://genxqr.com/v1/webhooks', {
+  method: 'POST',
+  headers: {
+    'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ url: 'https://hooks.example.com/genxqr', event: 'qr.scanned' })
+})
+const { data } = await res.json()   // data.secret — store it`,
+      python: `res = requests.post(
+    'https://genxqr.com/v1/webhooks',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"},
+    json={'url': 'https://hooks.example.com/genxqr', 'event': 'qr.scanned'}
+)
+hook = res.json()['data']   # hook['secret'] — store it`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": {
+    "id": "clwwwwwwwwwwwwwwww",
+    "name": "integration — qr.scanned",
+    "url": "https://hooks.example.com/genxqr",
+    "events": ["qr.scanned"],
+    "isActive": true,
+    "createdAt": "2025-04-14T10:00:00.000Z",
+    "deliveryCount": 0,
+    "secret": "3f9c…"
+  }
+}`,
+  },
+  {
+    id: "ep-wh-get",
+    method: "GET",
+    path: "/v1/webhooks/:id",
+    summary: "Get Webhook",
+    description: "Returns one webhook including its signing secret and source. Anyone holding your API key can read secrets this way, which is one more reason to keep keys server-side.",
+    responseFields: [
+      { name: "secret", type: "string",      desc: "HMAC signing secret" },
+      { name: "source", type: "string|null", desc: "zapier, make, n8n, or null for dashboard webhooks" },
+      { name: "…",      type: "",            desc: "Plus every field from List Webhooks" },
+    ],
+    codes: [
+      { code: "200", desc: "Webhook returned" },
+      { code: "401", desc: "Invalid or missing API key" },
+      { code: "404", desc: "Webhook not found or belongs to another account" },
+    ],
+    examples: {
+      curl: `curl https://genxqr.com/v1/webhooks/clwwwwwwwwwwwwwwww \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch(\`https://genxqr.com/v1/webhooks/\${hookId}\`, {
+  headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` }
+})
+const { data } = await res.json()`,
+      python: `res = requests.get(
+    f'https://genxqr.com/v1/webhooks/{hook_id}',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": {
+    "id": "clwwwwwwwwwwwwwwww",
+    "name": "n8n — qr.created",
+    "url": "https://n8n.example.com/webhook/abc",
+    "events": ["qr.created"],
+    "isActive": true,
+    "createdAt": "2025-04-14T10:00:00.000Z",
+    "deliveryCount": 3,
+    "secret": "3f9c…",
+    "source": "n8n"
+  }
+}`,
+  },
+  {
+    id: "ep-wh-delete",
+    method: "DELETE",
+    path: "/v1/webhooks/:id",
+    summary: "Unsubscribe",
+    description: "Deletes a webhook and its delivery history. Integrations call this when a Zap, scenario or workflow is turned off.",
+    responseFields: [
+      { name: "(none)", type: "", desc: "Success returns 204 No Content with an empty body" },
+    ],
+    codes: [
+      { code: "204", desc: "Webhook deleted" },
+      { code: "401", desc: "Invalid or missing API key" },
+      { code: "404", desc: "Webhook not found or belongs to another account" },
+    ],
+    examples: {
+      curl: `curl -X DELETE https://genxqr.com/v1/webhooks/clwwwwwwwwwwwwwwww \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `await fetch(\`https://genxqr.com/v1/webhooks/\${hookId}\`, {
+  method: 'DELETE',
+  headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` }
+})   // 204 — no body`,
+      python: `requests.delete(
+    f'https://genxqr.com/v1/webhooks/{hook_id}',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)   # 204 — no body`,
+    },
+    responseExample: `HTTP/1.1 204 No Content`,
+  },
+  {
+    id: "ep-events",
+    method: "GET",
+    path: "/v1/events",
+    summary: "List Events",
+    description: "Returns the event names a webhook can subscribe to, for building an event picker. Requires an API key like every /v1 endpoint.",
+    responseFields: [
+      { name: "data", type: "string[]", desc: "Event names" },
+    ],
+    codes: [
+      { code: "200", desc: "Events returned" },
+      { code: "401", desc: "Invalid or missing API key" },
+    ],
+    examples: {
+      curl: `curl https://genxqr.com/v1/events \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch('https://genxqr.com/v1/events', {
+  headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` }
+})
+const { data } = await res.json()`,
+      python: `events = requests.get(
+    'https://genxqr.com/v1/events',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+).json()['data']`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": [
+    "qr.created", "qr.updated", "qr.deleted", "qr.scanned",
+    "subscription.activated", "subscription.cancelled", "test"
   ]
 }`,
   },
@@ -783,7 +1002,7 @@ const ERROR_CODES = [
 const WEBHOOK_EVENTS = [
   {
     event: "qr.scanned",
-    desc: "Fired on every scan, including repeat scans from the same device. Location and device details are not included — fetch them from List Scans.",
+    desc: "Fired for every recorded scan, including repeat scans from the same device. Scans that are turned away (code switched off, expired, or over a scan limit) are not recorded and fire nothing. Location and device details are not included — fetch them from List Scans.",
     payload: `{
   "event": "qr.scanned",
   "timestamp": "2025-04-14T10:30:01.000Z",
@@ -797,7 +1016,7 @@ const WEBHOOK_EVENTS = [
   },
   {
     event: "qr.created",
-    desc: "Fired when a new QR code is created, whether via the dashboard or the API. data.qr is the full QR code object.",
+    desc: "Fired when a new QR code is created — in the dashboard (including duplicates and each code from a bulk upload) or via the API. data.qr is the full QR code object.",
     payload: `{
   "event": "qr.created",
   "timestamp": "2025-04-14T10:00:00.000Z",
@@ -815,7 +1034,7 @@ const WEBHOOK_EVENTS = [
   },
   {
     event: "qr.updated",
-    desc: "Fired when a QR code is edited. data.qr is the full updated QR code object.",
+    desc: "Fired when a QR code's content, design or settings are edited, or when it is switched on or off. data.qr is the full updated QR code object.",
     payload: `{
   "event": "qr.updated",
   "timestamp": "2025-04-14T11:00:00.000Z",
@@ -860,7 +1079,7 @@ const WEBHOOK_EVENTS = [
   },
   {
     event: "test",
-    desc: "Sent when you press Test on a webhook in the dashboard. Delivered once, never retried.",
+    desc: "Sent when you press Test on a webhook in the dashboard, whatever events it subscribes to. Delivered once, never retried.",
     payload: `{
   "event": "test",
   "timestamp": "2025-04-14T12:00:00.000Z",
@@ -956,7 +1175,7 @@ function RateLimitsSection() {
           <tbody>
             {[
               ["Per-minute rate", "300 req / min",   "Per account, across all /v1 endpoints"],
-              ["Monthly quota",   "10,000 (Pro) · 100,000 (Business)", "Calls per calendar month (UTC); over-quota calls get 429 without Retry-After"],
+              ["Monthly quota",   "10,000 (Pro) · 100,000 (Business) · no practical cap (Enterprise)", "Calls per calendar month (UTC); over-quota calls get 429 without Retry-After. Calls refused by the per-minute limit don't count"],
               ["Retry-After",     "Seconds to wait", "Included in per-minute 429 responses"],
             ].map(([label, val, note], i) => (
               <tr key={label} className={cn("border-b border-line/60 last:border-0", i % 2 === 1 ? "bg-ink/[0.02]" : "")}>
@@ -1063,7 +1282,7 @@ function WebhooksSection() {
           page in your dashboard. Each webhook has its own HMAC secret used to verify requests.
         </p>
         <p className="text-ink-soft text-sm leading-relaxed mb-4">
-          Webhooks require the Pro plan or higher, and each account can have up to 20. URLs must use HTTPS. A delivery counts as successful on any 2xx response within 10 seconds; redirects are not followed. Failed deliveries are retried up to 5 attempts in total — after 30 seconds, 2 minutes, 8 minutes and 32 minutes. Integrations can also subscribe with <code className="text-accent bg-accent-soft px-1 rounded">POST /v1/webhooks</code> and a <code className="text-accent bg-accent-soft px-1 rounded">{"{ url, event }"}</code> body.
+          Webhooks require the Pro plan or higher, and each account can have up to 20. If the account moves below Pro, deliveries stop; the webhooks stay saved and resume when the plan does. URLs must use HTTPS and a public address. A delivery counts as successful on any 2xx response within 10 seconds; redirects are not followed and count as failures. Failed deliveries are retried up to 5 attempts in total, roughly 30 seconds, 2 minutes, 8 minutes and 32 minutes apart (retries are picked up once a minute). Each retry is signed afresh and carries a new timestamp. In a team workspace, changes made by members raise events on the workspace owner's webhooks. Integrations can manage webhooks over the API with the endpoints below.
         </p>
         <div className="border border-zinc-800 rounded-xl p-4 bg-zinc-950 font-mono text-xs space-y-1.5 mb-4">
           <p><span className="text-violet-300">POST</span> <span className="text-zinc-300">https://your-server.com/webhook</span></p>
@@ -1177,6 +1396,11 @@ function Sidebar({ activeSection, onNav }: { activeSection: string; onNav: (id: 
     "ep-delete":    <Trash2 size={12} />,
     "ep-analytics": <BarChart2 size={12} />,
     "ep-scans":     <ScanLine size={12} />,
+    "ep-wh-list":   <List size={12} />,
+    "ep-wh-create": <Plus size={12} />,
+    "ep-wh-get":    <Eye size={12} />,
+    "ep-wh-delete": <Trash2 size={12} />,
+    "ep-events":    <Radio size={12} />,
   }
 
   return (
@@ -1362,6 +1586,15 @@ export default function APIDocsPage() {
 
           <WebhooksSection />
 
+          <div className="mb-8">
+            <h2 className="text-ink font-display font-bold text-2xl mb-1">Webhook Subscriptions</h2>
+            <p className="text-ink-faint text-sm mb-8">Create and remove webhooks over the API — the REST-hook lifecycle used by Zapier, Make and n8n.</p>
+          </div>
+
+          {WEBHOOK_ENDPOINTS.map((ep) => (
+            <EndpointSection key={ep.id} ep={ep} lang={lang} />
+          ))}
+
           {/* Content types reference */}
           <section className="scroll-mt-32 mb-16">
             <h2 className="text-ink font-display font-bold text-2xl mb-4">Content Schemas</h2>
@@ -1371,7 +1604,7 @@ export default function APIDocsPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               {[
                 { type: "URL", schema: `{ "data": { "url": "https://example.com" } }` },
-                { type: "WIFI", schema: `{ "data": { "ssid": "My Network", "password": "secret", "security": "WPA" } }` },
+                { type: "WIFI", schema: `{ "data": { "ssid": "My Network", "password": "secret", "security": "WPA" } }\n// security: WPA, WEP, or nopass for an open network` },
                 { type: "WHATSAPP", schema: `{ "data": { "phone": "+919876543210", "message": "Hello!" } }` },
                 { type: "INSTAGRAM", schema: `{ "data": { "username": "yourhandle" } }` },
                 { type: "VCARD", schema: `{ "data": { "fullName": "Raj Sharma", "organization": "Acme", "title": "Founder", "phone": "+91...", "email": "raj@..." } }` },

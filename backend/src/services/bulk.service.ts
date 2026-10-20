@@ -4,6 +4,9 @@ import type { Response } from "express"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { getUserPlanLimits } from "./billing.service.js"
+import { getQR } from "./qr.service.js"
+import { deliverWebhookEvent, hasWebhookSubscribers } from "./webhook.service.js"
+import { logger } from "../logger/index.js"
 
 // Max rows allowed per plan
 const BULK_LIMITS: Record<string, number> = {
@@ -186,6 +189,23 @@ export async function processBulkCsv(
       results.push({ row: rowNum, name: row.name, url: row.url, status: "error", error: "Database error creating QR code" })
       failed++
     }
+  }
+
+  // qr.created for every code made, like the single-create paths. A batch can be
+  // thousands of codes, so they go out one at a time in the background rather
+  // than as one burst, and only if something is listening.
+  const createdIds = results.flatMap((r) => (r.status === "created" && r.qrId ? [r.qrId] : []))
+  if (createdIds.length > 0) {
+    void (async () => {
+      if (!(await hasWebhookSubscribers(userId, "qr.created"))) return
+      for (const id of createdIds) {
+        try {
+          await deliverWebhookEvent(userId, "qr.created", { qr: await getQR(id, userId) })
+        } catch (err) {
+          logger.warn("Bulk qr.created webhook failed", { qrId: id, error: String(err) })
+        }
+      }
+    })()
   }
 
   return { results, created, failed }
