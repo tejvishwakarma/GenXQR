@@ -77,9 +77,9 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { icon: <Radio size={16} />, title: "Real-time", desc: "Your endpoint receives a POST request within milliseconds of the triggering event." },
+                  { icon: <Radio size={16} />, title: "Real-time", desc: "Your endpoint receives a POST request within seconds of the triggering event." },
                   { icon: <ShieldCheck size={16} />, title: "HMAC secured", desc: "Every request is signed with a secret. Verify it server-side to reject spoofed requests." },
-                  { icon: <Zap size={16} />, title: "Retries", desc: "Failed deliveries are retried automatically. Check delivery history per webhook." },
+                  { icon: <Zap size={16} />, title: "Retries", desc: "A delivery succeeds on any 2xx reply within 10 seconds. Failures are retried up to 5 attempts in total (after about 30 s, 2 min, 8 min and 32 min)." },
                 ].map((item) => (
                   <div key={item.title} className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
                     <div className="text-violet-400 mb-2">{item.icon}</div>
@@ -137,7 +137,7 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                 },
                 {
                   event: "qr.created",
-                  desc: "Fired when a QR code is created — via the dashboard or the REST API.",
+                  desc: "Fired when a QR code is created — in the dashboard (including duplicates and bulk uploads) or through the REST API.",
                   payload: `{
   "event": "qr.created",
   "timestamp": "2025-04-14T10:00:00.000Z",
@@ -148,7 +148,7 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                 },
                 {
                   event: "qr.updated",
-                  desc: "Fired when a QR code's content or settings are changed.",
+                  desc: "Fired when a QR code's content, design or settings are changed, or when it is switched on or off.",
                   payload: `{
   "event": "qr.updated",
   "timestamp": "2025-04-14T11:00:00.000Z",
@@ -192,6 +192,18 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
   }
 }`,
                 },
+                {
+                  event: "test",
+                  desc: "Sent when you press Test (▶) on a webhook, whatever events it subscribes to. Delivered once, never retried.",
+                  payload: `{
+  "event": "test",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "message": "This is a test event from GenXQR",
+    "webhookId": "clxxx"
+  }
+}`,
+                },
               ].map((ev) => (
                 <div key={ev.event} className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
                   <div className="flex items-center gap-3 px-4 py-3 bg-zinc-50 dark:bg-zinc-950">
@@ -218,7 +230,7 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
                 <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-mono text-xs overflow-x-auto whitespace-pre text-zinc-300">{`const crypto = require('crypto')
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig  = req.headers['x-genxqr-signature']  // Node lower-cases header names
+  const sig  = req.headers['x-genxqr-signature'] ?? ''  // Node lower-cases header names
   const body = req.body  // raw Buffer — do NOT parse before verifying
 
   const expected = 'sha256=' + crypto
@@ -226,7 +238,9 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     .update(body)
     .digest('hex')
 
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  // timingSafeEqual throws on unequal lengths, so check that first
+  if (sig.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     return res.status(401).send('Invalid signature')
   }
 
@@ -244,7 +258,7 @@ from fastapi import Request, HTTPException
 @app.post("/webhook")
 async def handle_webhook(request: Request):
     body = await request.body()
-    sig  = request.headers.get("x-GenXQR-signature", "")
+    sig  = request.headers.get("x-genxqr-signature", "")
 
     expected = "sha256=" + hmac.new(
         os.environ["GenXQR_WEBHOOK_SECRET"].encode(),
@@ -305,6 +319,7 @@ async def handle_webhook(request: Request):
                       ["HTTP 401", "Signature mismatch — check you're using the raw request body before JSON parsing."],
                       ["HTTP 404", "Endpoint URL not found — check the route exists on your server."],
                       ["Timeout / no response", "Your server took > 10 seconds to respond. Move heavy work to a background job and return 200 immediately."],
+                      ["HTTP 301 / 302", "Redirects are not followed and count as a failure. Use the endpoint's final URL (watch for http → https and trailing-slash redirects)."],
                       ["HTTP 200 but event not processed", "You're returning 200 before processing. Add logging inside the handler to confirm execution."],
                     ].map(([code, msg]) => (
                       <div key={code} className="flex gap-3 text-xs">
