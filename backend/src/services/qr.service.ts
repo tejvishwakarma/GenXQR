@@ -1,11 +1,11 @@
 import { randomBytes } from "crypto"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
-import { type Prisma, QRType, QRCategory, FileType, type PlanName } from "@prisma/client"
+import { Prisma, QRType, QRCategory, FileType, type PlanName } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
-import { getOrCreateSubscription, PLAN_LIMITS } from "./billing.service.js"
+import { getOrCreateSubscription, getUserPlanLimits, PLAN_LIMITS } from "./billing.service.js"
 import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // Invalidation lives here rather than only in the route because it is a
 // correctness requirement of the mutation, not a concern of one caller: the scan
@@ -16,6 +16,12 @@ import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // explicit calls in qr.routes.ts remain harmless.
 import { invalidateQRCache } from "./scan.service.js"
 import { redis } from "../redis/client.js"
+
+/** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
+const LIBRARY_FRAME_PREFIX = /^(shape|premium|occasion):/
+const LIBRARY_FRAME_ID = /^(shape|premium|occasion):[a-z0-9-]{1,40}$/
+/** The editable text fields a library frame can have. */
+const FRAME_FIELD_IDS = ["title", "cta", "brand", "url", "date", "year", "names", "seat", "monogram", "line1", "line2", "line3"] as const
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -49,8 +55,14 @@ export const createQRSchema = z.object({
       logoSize: z.coerce.number().int().min(10).max(200).default(40),
       logoMargin: z.coerce.number().int().min(0).max(50).default(5),
       hideBackgroundDots: z.boolean().default(true),
-      frameStyle: z.string().max(50).nullish(),
+      frameStyle: z
+        .string()
+        .max(50)
+        // Library frames are "<group>:<file>"; anything else is a classic frame id.
+        .refine((v) => !LIBRARY_FRAME_PREFIX.test(v) || LIBRARY_FRAME_ID.test(v), "Unknown frame")
+        .nullish(),
       frameText: z.string().max(100).nullish(),
+      frameFields: z.record(z.enum(FRAME_FIELD_IDS), z.string().max(60)).nullish(),
       frameColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).nullish(),
     })
     .default({}),
@@ -157,6 +169,7 @@ const qrSelect = {
       frameStyle: true,
       frameText: true,
       frameColor: true,
+      frameFields: true,
       // Not yet settable via createQRSchema/updateQRSchema (no dashboard UI
       // for these), but they're real QRDesign columns already read by the
       // public landing-page endpoint (public.routes.ts) and copied whole by
@@ -281,6 +294,58 @@ async function validateExpiryDate(userId: string, activeUntil: string | null | u
   }
 }
 
+// ─── Frame library gate ───────────────────────────────────────────────────────
+
+/**
+ * Whether a design change puts or alters a library frame on a code.
+ *
+ * Adding a frame, switching to another one, or changing its text or colour
+ * needs `premiumFrames`; keeping the frame a code already has does not — an
+ * account whose plan lapsed can still rename the code or edit its content
+ * without being forced to strip the frame it printed with.
+ */
+function changesLibraryFrame(
+  design: Partial<NonNullable<DesignInput>> | undefined,
+  existing: { frameStyle: string | null; frameColor: string | null; frameFields: Prisma.JsonValue | null } | null,
+) {
+  if (!design) return false
+  const style = design.frameStyle !== undefined ? design.frameStyle : existing?.frameStyle ?? null
+  if (!style || !LIBRARY_FRAME_PREFIX.test(style)) return false
+  if (style !== (existing?.frameStyle ?? null)) return true
+  if (design.frameColor !== undefined && design.frameColor !== existing?.frameColor) return true
+  if (design.frameFields !== undefined && !sameFields(design.frameFields, existing?.frameFields ?? null)) return true
+  return false
+}
+
+function sameFields(a: Record<string, string> | null | undefined, b: Prisma.JsonValue | null) {
+  const norm = (v: unknown) =>
+    JSON.stringify(
+      Object.entries(v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+        .filter(([, x]) => typeof x === "string" && x !== "")
+        .sort(([p], [q]) => p.localeCompare(q)),
+    )
+  return norm(a) === norm(b)
+}
+
+async function assertFrameAllowed(
+  userId: string,
+  design: Partial<NonNullable<DesignInput>> | undefined,
+  existing: Parameters<typeof changesLibraryFrame>[1],
+) {
+  if (!changesLibraryFrame(design, existing)) return
+  const { limits } = await getUserPlanLimits(userId)
+  if (!limits.premiumFrames) {
+    throw new AppError(403, "QR frames are included in every paid plan. Upgrade to use them.")
+  }
+}
+
+/** frameFields for Prisma: a Json column takes DbNull, not null, to clear. */
+function frameFieldsValue(v: Record<string, string> | null | undefined) {
+  if (v === undefined) return undefined
+  const kept = Object.fromEntries(Object.entries(v ?? {}).filter(([, x]) => x.trim() !== ""))
+  return Object.keys(kept).length > 0 ? (kept as Prisma.InputJsonValue) : Prisma.DbNull
+}
+
 // ─── Service Functions ─────────────────────────────────────────────────────────
 
 /**
@@ -329,6 +394,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
   if (uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
 
   await validateExpiryDate(userId, settings.activeUntil ?? null)
+  await assertFrameAllowed(userId, design, null)
 
   const slug = await uniqueSlug()
   const passwordHash = settings.password ? await bcrypt.hash(settings.password, 12) : undefined
@@ -348,7 +414,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
       gaId: settings.gaId ?? undefined,
       gtmId: settings.gtmId ?? undefined,
       content: { create: { data: content.data as Prisma.InputJsonValue } },
-      design: { create: buildDesignCreate(design) },
+      design: { create: { ...buildDesignCreate(design), frameFields: frameFieldsValue(design.frameFields) } },
       files:
         uploadedFiles.length > 0
           ? {
@@ -431,10 +497,15 @@ export async function getQR(id: string, userId: string) {
  * Update QR code fields selectively. All fields are optional.
  */
 export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
-  const existing = await prisma.qRCode.findFirst({ where: { id, userId }, select: { id: true } })
+  const existing = await prisma.qRCode.findFirst({
+    where: { id, userId },
+    select: { id: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
+  })
   if (!existing) throw new AppError(404, "QR code not found")
 
   const { design, settings, content, uploadedFiles, ...qrData } = input
+
+  await assertFrameAllowed(userId, design, existing.design)
 
   if (uploadedFiles && uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
 
@@ -483,8 +554,8 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
       ...(design !== undefined && {
         design: {
           upsert: {
-            create: buildDesignCreate(design),
-            update: buildDesignUpdate(design),
+            create: { ...buildDesignCreate(design), frameFields: frameFieldsValue(design.frameFields) },
+            update: { ...buildDesignUpdate(design), frameFields: frameFieldsValue(design.frameFields) },
           },
         },
       }),
@@ -586,6 +657,7 @@ export async function duplicateQR(id: string, userId: string) {
                   qr.design![field],
                 ]),
               ) as Prisma.QRDesignCreateWithoutQrCodeInput),
+              frameFields: qr.design.frameFields ?? Prisma.DbNull,
               paletteId: qr.design.paletteId,
               fontTitle: qr.design.fontTitle,
               fontBody: qr.design.fontBody,

@@ -212,6 +212,10 @@ model QRDesign {
   frameStyle         String?
   frameText          String?
   frameColor         String?
+  /// Text per editable field of a library frame (frameStyle "shape:…" /
+  /// "premium:…" / "occasion:…"), e.g. {"cta":"Scan to order"}. Absent fields
+  /// keep the frame's sample text.
+  frameFields        Json?
   paletteId          String?
   fontTitle          String   @default("Inter")
   fontBody           String   @default("Inter")

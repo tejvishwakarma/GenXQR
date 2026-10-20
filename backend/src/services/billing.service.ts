@@ -48,6 +48,8 @@ export interface PlanLimits {
   abTesting: boolean
   smartRouting: boolean
   qrExpiry: boolean
+  /** The QR frame library (shapes, premium, occasions) in the dashboard — any paid plan (decided 20 Oct 2026). */
+  premiumFrames: boolean
 }
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
@@ -65,6 +67,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     abTesting: false,
     smartRouting: false,
     qrExpiry: false,
+    premiumFrames: false,
   },
   STARTER: {
     dynamicQRLimit: 50,
@@ -80,6 +83,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     abTesting: false,
     smartRouting: false,
     qrExpiry: true,
+    premiumFrames: true,
   },
   PRO: {
     dynamicQRLimit: 250,
@@ -95,6 +99,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     abTesting: true,
     smartRouting: true,
     qrExpiry: true,
+    premiumFrames: true,
   },
   BUSINESS: {
     dynamicQRLimit: 2000,
@@ -110,6 +115,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     abTesting: true,
     smartRouting: true,
     qrExpiry: true,
+    premiumFrames: true,
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
@@ -125,6 +131,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     abTesting: true,
     smartRouting: true,
     qrExpiry: true,
+    premiumFrames: true,
   },
 }
 
