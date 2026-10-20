@@ -2158,6 +2158,10 @@ export default function CreateQRPage() {
                   <FramePicker
                     value={frameStyle}
                     onChange={(id) => {
+                      // Each frame starts from its own sample text (decided
+                      // 20 Oct 2026): text typed for one frame is not carried
+                      // into the next. The shape colour pick is kept.
+                      if (id !== frameStyle) setFrameFields({})
                       setFrameStyle(id)
                       setPreviewTab("qr")
                     }}

@@ -129,6 +129,7 @@ const plans = [
       "Scan analytics",
       "Logo upload",
       "Custom landing pages",
+      "QR frames",
     ],
   },
   {
@@ -149,6 +150,7 @@ const plans = [
       "Scan analytics — city, device & browser tracked",
       "All 16 QR types — URL, PDF, menu, vCard, WiFi & more",
       "PNG + SVG download — print or digital ready",
+      "86 print-ready QR frames — colourful shapes, premium & occasion designs",
       "5,000 scans/month",
       "Scheduled activation & auto-expiry",
       "No ads",
@@ -186,6 +188,7 @@ const plans = [
       "Webhooks — signed events to your own systems or automation tools",
       "5 team seats (incl. yours) — admin, editor & viewer roles",
       "All download formats — PNG, SVG, PDF",
+      "86 print-ready QR frames — colourful shapes, premium & occasion designs",
       "Email support",
     ],
     missing: [
@@ -232,6 +235,7 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
   { feature: "Scans per month",           free: false,    starter: "5,000",      pro: "50,000",       business: "500,000" },
   { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,           business: true },
   { feature: "Custom design & logo",      free: "Colours, no logo", starter: true,         pro: true,           business: true },
+  { feature: "QR frames (86 designs)",    free: false,    starter: true,         pro: true,           business: true },
   { feature: "A/B testing",               free: false,    starter: false,        pro: true,           business: true },
   { feature: "Smart routing",             free: false,    starter: false,        pro: true,           business: true },
   { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "5,000 QRs" },

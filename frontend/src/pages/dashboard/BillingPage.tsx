@@ -127,6 +127,7 @@ function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardPro
     { label: `${plan.fileStorageGB}GB file storage`, enabled: plan.fileStorageGB > 0 },
     // Scan history is kept while subscribed and 3 months after (subscription-expiry.service).
     { label: "Full scan history while subscribed", enabled: plan.dynamicQRLimit > 0 },
+    { label: "QR frames (86 designs)", enabled: limits?.premiumFrames ?? false },
     { label: "A/B testing", enabled: limits?.abTesting ?? false },
     { label: "Smart routing", enabled: limits?.smartRouting ?? false },
     { label: "Bulk generation", enabled: limits?.bulkGeneration ?? false },
