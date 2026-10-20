@@ -1,20 +1,20 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { Loader2, Download } from "lucide-react"
-import QRCodeStyling from "qr-code-styling"
-import { getQrBaseUrl, type QRCode } from "@/lib/api"
-
-type DownloadExt = "png" | "svg" | "jpeg" | "webp"
+import type { QRCode } from "@/lib/api"
+import { cn } from "@/lib/utils"
+import { downloadQR, type QRDownloadExt } from "@/lib/qrDownload"
 
 /**
- * Per-QR download button + format menu (PNG / SVG / JPEG / WebP).
- * Renders the styled QR client-side via qr-code-styling and triggers a download.
+ * Per-QR download button + format menu (PNG / SVG / JPEG / WebP / PDF).
+ * Renders through lib/qrDownload, the same path as the detail page, so the
+ * code's frame (library or classic) is part of the file.
  * Shared by the dashboard and the dedicated My QR Codes page.
  */
 /** w-48 in Tailwind. Kept in sync by hand because the value is needed before paint. */
 const MENU_W = 192
-/** Roughly the natural height of the four format rows plus the heading. */
-const MENU_MAX_H = 280
+/** Roughly the natural height of the five format rows plus the heading. */
+const MENU_MAX_H = 330
 /** Never shrink below this — below it, scroll inside the menu instead. */
 const MENU_MIN_H = 140
 const GAP = 6
@@ -31,61 +31,19 @@ type MenuPos = {
 export function DownloadMenu({ qr }: { qr: QRCode }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [menuPos, setMenuPos] = useState<MenuPos>({ left: 0, top: 0, maxHeight: MENU_MAX_H })
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  const handleDownload = useCallback(async (ext: DownloadExt) => {
+  const handleDownload = useCallback(async (ext: QRDownloadExt) => {
     setLoading(true)
     setOpen(false)
+    setFailed(false)
     try {
-      const redirectUrl = `${getQrBaseUrl()}/r/${qr.slug}`
-      const d = qr.design
-      const filename = qr.name.replace(/[^a-z0-9_-]/gi, "_")
-
-      const sharedOpts = {
-        data: redirectUrl,
-        dotsOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.dotStyle ?? "rounded") as import("qr-code-styling").DotType },
-        cornersSquareOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType },
-        cornersDotOptions: { color: d?.primaryColor ?? "#7c3aed" },
-        backgroundOptions: { color: d?.backgroundColor ?? "#ffffff" },
-        ...(d?.logoUrl ? {
-          image: d.logoUrl,
-          imageOptions: { hideBackgroundDots: true, imageSize: 0.35, margin: 8, crossOrigin: "anonymous" },
-        } : {}),
-        qrOptions: { errorCorrectionLevel: "H" as const },
-      }
-
-      if (ext === "svg") {
-        const instance = new QRCodeStyling({ ...sharedOpts, width: 512, height: 512, type: "svg", margin: 20 })
-        const blob = await instance.getRawData("svg")
-        if (blob) {
-          const raw = blob instanceof Blob ? await blob.text() : (blob as Buffer).toString("utf-8")
-          const cleaned = raw.replace(/^(<svg)([^>]*)(>)/, (_match: string, openTag: string, attrs: string, close: string) => {
-            const wm = attrs.match(/width="(\d+(?:\.\d+)?)"/)
-            const hm = attrs.match(/height="(\d+(?:\.\d+)?)"/)
-            const w = wm?.[1] ?? "512"
-            const h = hm?.[1] ?? "512"
-            const strippedAttrs = attrs
-              .replace(/\s+width="[^"]*"/, "")
-              .replace(/\s+height="[^"]*"/, "")
-            const hasViewBox = /viewBox/i.test(strippedAttrs)
-            const viewBoxAttr = hasViewBox ? "" : ` viewBox="0 0 ${w} ${h}"`
-            return `${openTag}${strippedAttrs}${viewBoxAttr}${close}`
-          })
-          const svgBlob = new Blob([cleaned], { type: "image/svg+xml;charset=utf-8" })
-          const url = URL.createObjectURL(svgBlob)
-          const a = document.createElement("a")
-          a.href = url
-          a.download = `${filename}.svg`
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-          setTimeout(() => URL.revokeObjectURL(url), 1000)
-        }
-      } else {
-        const instance = new QRCodeStyling({ ...sharedOpts, width: 1024, height: 1024, type: "canvas", margin: 40 })
-        await instance.download({ name: filename, extension: ext })
-      }
+      // Same renderer as the detail page, so the code's frame is included.
+      await downloadQR(qr, ext)
+    } catch {
+      setFailed(true)
     } finally {
       setLoading(false)
     }
@@ -132,11 +90,12 @@ export function DownloadMenu({ qr }: { qr: QRCode }) {
     }
   }, [open])
 
-  const formats: { ext: DownloadExt; label: string; hint: string }[] = [
+  const formats: { ext: QRDownloadExt; label: string; hint: string }[] = [
     { ext: "png",  label: "PNG",  hint: "Best for web & print" },
     { ext: "svg",  label: "SVG",  hint: "Vector, infinitely scalable" },
     { ext: "jpeg", label: "JPEG", hint: "Smaller file size" },
     { ext: "webp", label: "WebP", hint: "Modern web format" },
+    { ext: "pdf",  label: "PDF",  hint: "Ready to print" },
   ]
 
   return (
@@ -145,8 +104,11 @@ export function DownloadMenu({ qr }: { qr: QRCode }) {
         ref={btnRef}
         onClick={openMenu}
         disabled={loading}
-        className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-colors disabled:opacity-40"
-        title="Download QR"
+        className={cn(
+          "w-8 h-8 rounded-lg flex items-center justify-center hover:text-violet-400 hover:bg-violet-500/10 transition-colors disabled:opacity-40",
+          failed ? "text-red-500" : "text-zinc-500",
+        )}
+        title={failed ? "Download failed — try again" : "Download QR"}
       >
         {loading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
       </button>

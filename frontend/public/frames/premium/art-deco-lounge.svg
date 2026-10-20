@@ -1,0 +1,389 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 840" width="600" height="840" role="img">
+<title>Art deco lounge</title>
+<defs><style>@font-face{font-family:'Cinzel';font-style:normal;font-weight:100 900;src:url(data:font/woff2;base64,d09GMgABAAAAABO4ABAAAAAAL7AAABNcAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGkYbjCgchCAGYD9TVEFUHAB8EQgKxSC5EwE2AiQDgVQLbAAEIAWBEAcgDAcbJSijkVEjSa0WEPyHAtuYG169EAhy0zOtKcSCYYlL9lzdd7DRtB3qiwtVkvOjOzn4oss90UMIg8WBS/WOkGSWIBprs/ePiIcKTUxDcU+RlsnUwFq0329mb5/JN3EikaQhaUjUQMmkTAlQADe8KtLIEg6kPE5zjKOAR5P/37VhiUe9iNVKJnQaiXSrJ4rJhsoEk6T7jYQPz2/zz3sP0HcJGwR1OCXEBKzEKNqYaIOJlctst/2sVBJrR70A/ifmFVr+lnZLDzaQaZDe3H+dJoVeKjkpp2lSInp7CAp8CJP/aq8tHwLay3zbHT/Xm523wIUUCIwAIFVf4XZn0p99eZtdLlP6i5gtIapWAfIxGHOVx0afMJGVZ3W1Oi3PNhPpmRpaSOdNJLv627JmZd82HV2XgUxAiBgrXPvfPQvQDKDwkCLn8/+rQIQSZVTXQm1tomOIpuZoZYMIGvVtybq+e6r1OPt81kqB/COI/er9WT0IEJRwCd+9kKWgqqlvao2Uw1MwR2EJVGWjpKNCc8XxZMYUqk/NojE5yDPk5g7y8vMBuf1CPwC5uwF1tKO+lFwF8vfRk4VUgPy8kpfXLwDyBxanyIGsQy237/6Oj5CvjzDk4fKqSVKkXt6Ee5IWN1JlV/p+SRfV1MdN43mnAHYqXJtBka1Ah8a4LrRKdWPTxbOw/hrogaYHUpKWeOjkP4UOrgEZOXdCvTXnmihy+6j6Ie2TOLr/qNeFdu4O0OEV3VJpLsweyLV9TGTBzvs+5N7pPBFwmltQ4i6ZzuywQLQEM/D3jHDF/Dol9dLjDxOMDhA9V5VudBfFdmUIMSNkYnPVWVHc7FN3DsTy1dD2oV3Qq4xchLRQzm9U2ubOsDf9PL9nd5W3tWqBpoKJHmlVV1kH9A7IUwdkrcau6Mn0ls2C3XTIa9HtzdISu6XGJepIFirZcgqnoMK41rhMCNEf8tRT0r5IDQnr7h/s7gFOIsmRwxvBuTL90AwrISF9vfGnpH/RINxvV704tQTUe9YI2pVHIbVLgI7gLCOswlYsFIoo9J2MAHXb6xe2eQOTZFbvk8lVNz++XtBM2EhBrQpV11I2MVe3tNW2tzdAtOewFAC0SVFNiS9UFwBdWIgcoyov5taJ11NFKO6vU4YHhpT5Ig1QUGk75soMmnTpImarlksWIolvLxXKAhoZymBO2sQwHMhFAhfBcdHkF9FHnTMs5kpgEAGuoa4oHNqCiqokGQ11OaoMVe4KIynZVXA7rZagbbtzXquzdxSqtl53J2J7B1p7oR8Z0eqQZjn1yBeWk6ws8OIUEtQKtoluKoShBFzqkhDDvWXNvfnx49effwFCVveJPRQGaO6xxKu3ReoamlompmbmllbWNraEMARio3qPKt+1c7k8gVAkVpQS2ca7VTitWAFxevY57dx7tjDH79o0JkGIZUZYb1LuGb1XelQRWjpTvlRRXfs8apdw9LGLD4jgq1ULwmO4YnkdoqFHTA2JFTKUp0XHTqEGyl1gR4zGhvUMcze1B/y/0E/rV9v39PL/ekjt41N2lPgJBUs1OtIduo/Mis6b28+gUSheAd2yrKS+/u5eKcPW9uDQqTNX7rx4913ol248w+dvRf/d68v9JN5cX0M3LxrYXwLCAXBPLND0Qeu15VgnX5EaAQpY/dkcwmJxWZQMlkpTHIIy0XPyQk7hXXbtT0tWcGFJFls1vSNcDk3IZDcFZi1mIao22YlaAoJ8HtmaQJSUlP0t7wRWYPFzyPHM1na7ya4TzFXWGLStk5bUAeNIKSMlmkxusPSus1HiDyIEp1yN382oDpJntM2Ve50rO3d2xqzNDu7euS6rVSOv52i1FYG9aoPmOdePNt2+ZYFigTX7LDMQCoTqI3eLN0JbVt3rxzOCIOEEH72xQAgSsjqIm8i8UB3DMBDOgYQzHupVQc/1AaHghH4gPC9QlMS+JdOnXu7PYzytcMdpg5NQEXkPXPj8IU3TUIDO6vdvsbezHFI+f0C+Ey+C75V+ESVkICVnIrPEB5oBCQNa7z7K64wFYiAzMigqKtS5AISqPKBFOMmGVoFDWxxR6Aw/aFPDX9C4+lxepT77vPsjksAvhSwzVhECYcwbJbOQuM0kV44i+cwmDSEkBo3noy3q9y/Inz+k+CoaRbwUipMap65j/slPOKPWgaJx//Pz3FXXoWWScDbYtZwqYhCtKyo5UI/4+qLLDDWemcu9ly8zL7KHDD5IfqtZ6YfzOTZ4CaqNjPOP1wg7HGlOlQ/rBqDiKN8idpwC+30AcITgbIjweFx+Ee5QgLTA5dlb9sQN8lJ5wN2NbKBgFCMDCUyxsNHlakPE1ufky04sctTj28LzS9aRI2nxTU2jZoxr1qTn2F1XkHzcLQsUCqx1uO/ZuCHsOJ5tfWUl1my8xxxq7a+tJQ7Vy6krzKer7MQdtmEc263KvXRqNP1DfbBdw/Vacc+FkU/jvuZhE5D1sLxicuclECUWBUtCR1/bOnPFfaVYlMb9Thvk/1YYL9KgmdO2RjaHA/AhfEYuchjICAa23sHoNUzB4wCqqaZ6BjVNSfbS+6NpyNPyi527FVRgZVt7Fs8HHus/uleCFK0U5HEHg4K5PLC50/PchMedCyCKX0Ust5D1LlZUYUWVbaM62eqEYFPCHCDvZpdow5BHlf5xSgNWGcjUvxYHBk7IniFd/xvy1wevfvONKld5El/mmNR+aWMbcvOEgVrMhT4M1bzF0xN9sFQt5gDGMKoLRkX9yoNfhi32emySPy++/Glx3Be3dTSzojcp1DmRIzPbxo09cQG/9WFlSm/8gYiP5ZXJFGu9CQ4pU1i12DhY5rcs4t0B03a0xRlHWJANNrHvxdTI1DoeyZFR5+YV94t58y/TO4/yhY7thSZ5rVOe/XunuYzCQzxjfY2OrLLaPy89gTvn0wacvfbqlWsDOzZO9XF9Etex/Tci3BLxGI9idzz9EQk9d67ONcZw5vzMvTn4PNoCXd/labxbUFEpdvjzd7HufRd3P0XrxtWrZ/+l16E2DSwjIuJsPP7Ed5iSIESjTZVSoY5zxyCs33/5e4B09yvL/VM+SDppQ0ctnH2oaTw8IgphEvlHN6aP4dz9mStjfXW39LzQCzTpqR/v3CnKJoGLFI0c70H3X0hjOzNDMePWALPPaf8JKu0TqU97JnWdE6IqVGBjCoSrbXQ48EmBgQTNnwphQNZjAyXtSWzCc0hIyBkDzRuLet5bpr52vte00vP/PW5eSqBfBAmQ0fyvvxCZ/981cBZStoAXva6zC15TxamKLm/+RZLAG0RO2ICX8efkvbn3lm7nham/KFR9qQq0qoPU9ind/cmUxDKFrvB/55pZhC/fI6crJmZV0h/vkZO0t7qISPXzIO1MDptDxNxdixaX2QiEkBWytIZhC2UQgtjwqeREnyNzgcrWh1OOhqOD/fXHzjiGUl0+FbKXvA6zfnnFFqcyvXLUlr213ZWxud9iRFRJ0FkhDscl+pL/iU8SXjaSt/CJfmpSjah6lXiJkeE2t4AKaB5KkHJp8liV7E0gYYmFoqzolIlYPfQwhtF3S9l3emzFk6NAc5Wq39HQX3crGe128YQllQT+lDRROsCvjfIHqSzpXdY/G/YXSwopxoLWckWtAWz/fPN9An9I9SxTMqn2otkIGU6DG8+MnHc0HhsYgD93Gxk91wXnxrti7LdmbWlrgx9zG4tPDN9NzrN2aBOrvSmFNS/ZFlxDVhMcuck5eDIrQQTDiiWnGvnLQkJyUXyqbbIqGUUo9p8AvptcEWcL+iCiWBerrC5LqzyNv+DqMLxcm7c5hFQm2YImbY6qA2sp1f+VdkLbXj7svLwvOFNEFxlKZoZvljNUwQsRJWCcgLCfgw9ixdLbd+beGWJUParuCPdmodrTYlqSuJetfUlkooqK9mifp0ct3OxO3rYqKGgOwdeTt0u07tr0rLz6FL2r8IncR2wF4wsNNa61eSXjtkeZLEb8nRi+IBwCX1Q96Kx9fc5nXgQDHQVPbftIHX+I20U5i4gt4MO/rrNvrLj/UeCSO7o49Jcb2IwF9p7yEgqfw7vWPfry5q3n7vt5kycIvBF090Mqmu54n1P87d/Mc3886rkPKhhF2LrVH94NhDeIN/H2u49Paxxjjm79517KlyXKV5TTMqVHmXQh5szJ32vywiffqhuwEDY06GO6vM9spOVBoWzqhSY+XzFPydToZD1smIG4IvstBEJIprnUOzRvSgIhiAWjl/EOvjnoYa9d3lM5pTXy1NL2/OT5jir9vCZDQeRvqULM72oVi9hvWGGcFxYbq1JHFSVt24z2dS6nfd2Ociy28FmjHeOO0yGKbEXX/7nFBHxKMi0eYcQiCfggxdIyHyRCSQHJlIRKHgqurxH8I3eY4U5LIAApQRYUNNhUAd4PwYjjK6Qg/QuYBwkhzRH3xouXgU8Rs3RXLgs+ZHG8ciTZUkqAzxktV7lctjeXx7uXXU7gC8n/4m6uIAh+IOXZnVHu8Z+6f0lkDaho+SGiyAq2e943HVnZRgI/iAVvfP+LT4tlbaZFMY12/XBpKfuzv+Km2t7AGk5nNBtaC9LmV1WnzQM3oJzUedVVqfN/LHivZjjW5HdSGKuUF//8x6rINxWuGeL06TgxyU8pC9BYuttnJ2l+WBTOUtqPW76r2aNWi6gG6Tzfhy9zodMTx7iDDu43eVT8OG75fhDT/Oc1uYNpXlgQCMWa0XpaPVFdwyjTlWkzm/gCem1eyMsNvF5iUeUWWfjxEU4wGPlc/kth8tZGCkiTfjj1ekA3i1dq5jbWdlurmtocKzIX9yydM7Fq3ezupXQSTe0OgA/Yn9jU0f+0/ybYMv2ZcrhRTISA09Qnh4JmedP6h56M2cVpfX+q+Osf/Z///arsqvz8BX8v8jiBNwLv/jRn9U9npzP4DtZckPwsuWVYD9aX7lFfoTzi365Cv3knF6nSVbPezJN3MHZlbom2XrfGJdd1ZjUZC+tnNLDfL+cuKu/fGjUwYX5DXhVtXWXy123D8PjFm9VThapp1RWr+qp6295VUF/4/TpYA3ZWkVNEDPCxvaU6Qkd56JlUl499n3qs/0ttnepc++KK0m3Okqgx46z2hKzc1sS1R8Q7g8eoU8Q3MfTEgn3uQ3RsTe5xZi6z2TNX9DbvSNpqQdHEUJ1xicwuYq1hmzA6PsuRMIoCK9a47OBTdzUxHu9riqkp8XldI1rT4VUUPT5eevqwBZSsgLgZ1aiqSVlmJRShZFUsSjmn5I7z9tCZGsFah3eRBs4oZWSFIZCmOiwXvCgqIILnTG4qW9/FCSaYK/GIlGpKeBsjB4OxyOfZjLfAVoy7/fbjz7tS+kQDvn1Kt7ZFt+0Ld+TPhCaT6r/ryNz1kp9Pd0VcStwqn+fV4Xcqulp0NtowmyHUtjMgVjZBqZ8yW93sD5vOyu+bNDlUQKxzJ2MrAwtiVEX6NF1tpXbmi6UmY/3fyXmDHUszrBQJs4oqmWpJtdZurP7sdELe9M5X/njoEcLYHsbTt2Kc4nQ6VH5U+XoUUueGbtP9cdCnYX1J+qZPNJP2DnslTD6jNIr3bjNf5H1mknGW0BWcSh4WvcdbNInaJEWokI9b8FrURjfTGGsrYizzqS9uF8dW+f+bfsbNNERb8wOyOimBId+UVBMwnfNWSSUJiHV5gMco4pPcGua82dvXRce0egAREf/L9xZpjz/OmRVrcSQXMiP9Ic6McodmuLAqe/Wga19SY8P+pCFXzqpKW/qy7pbSYEd/QkvQSMZg+cGlVdXVSyrKdrUbwkdyHQ0JjxiMmpg8kXEUf587P/cQXX3/bITSSjLBkAKZkNhsT//V51Ol01WGCoPLnrqWL4q8EhllWTaW9njBkx9Iy3zpWpfNwn7Ou3VySRKRfvQzt4WWtnWKanywpFTnNeb03px7c7yXkRaFCIiVD4jwDvwUYm1X5Pv2M1JKdD62y8sVfJOiwByVmh4HZ6MENOUo7v349O769OycxuRkV5GzSN1fau5QfkbaOEOblzfCvja2NK++aa2hfAzWJFiiRNRxUD6QvB+U8N4n43xRVZxaYExxhbxGHqvT5pZHW34SnZZ3YMX16jwVuAB4SNxo4fHARY9NfU8vWTgqsAC8wFKPARweQuRsAfexDDQAPB4MaAGqkOkV89P3PBhfVV85zfOr/kU/i9/oi5SLmQENgnp89Qs8HiX7GBQAGnh10dSBZp+sP7wZ5msAeK7pYDAAfPkPb54n0SPhfsXcBMADDQCggH/IRrkKyTX1yHpA4eZ+k6nfoaef81zaoWXSoGfM0FLD9zF61m7CWkQyTqTR4zp/HROuhS+jQTT9fveLWevZlHho6A+hpn+AhqqHhuFDxngjil6NeNoGAf0Q5PRKz8a/AO3Ab/Tj6gR/pijGDBknF1pOm4HWxSxwcyzsPOzpTV33YPaQqB5T/QA8icxRRHEVSKNPQEc/Aj19xJNjYhBNv+QZ8JstvxAoAMnYikDk4bl+fzRoABykgAHFYUFDBHRVRgGBEJWmEIuIUWkIYFHxD+YJx/RyGla4ircaMDxolNv4ZCY+kfmw0MlpZInwgoe31x00WPIa/lW5deoyigEAwBOBHjcj36Y8Ky5zNgA=) format('woff2');}@font-face{font-family:'Cormorant Garamond';font-style:italic;font-weight:100 900;src:url(data:font/woff2;base64,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) format('woff2');}</style>
+<clipPath id="card"><rect width="600" height="840" rx="10"/></clipPath>
+
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+ <stop offset="0" stop-color="#7d5d24"/><stop offset="0.22" stop-color="#e9cf86"/>
+ <stop offset="0.45" stop-color="#b48a3a"/><stop offset="0.7" stop-color="#f6e4a8"/>
+ <stop offset="1" stop-color="#8f6b2b"/></linearGradient>
+<linearGradient id="goldV" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#f6e4a8"/><stop offset="0.5" stop-color="#c39a48"/>
+ <stop offset="1" stop-color="#7d5d24"/></linearGradient>
+<linearGradient id="rosegold" x1="0" y1="0" x2="1" y2="1">
+ <stop offset="0" stop-color="#9c5c4f"/><stop offset="0.3" stop-color="#f2c4b3"/>
+ <stop offset="0.6" stop-color="#c98a78"/><stop offset="1" stop-color="#f7d9cc"/></linearGradient>
+<linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+ <stop offset="0" stop-color="#7c8591"/><stop offset="0.3" stop-color="#eef1f5"/>
+ <stop offset="0.6" stop-color="#a7b0bb"/><stop offset="1" stop-color="#f4f6f9"/></linearGradient>
+<linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#fff6c8"/><stop offset="0.45" stop-color="#ffcf4a"/>
+ <stop offset="1" stop-color="#ff7a1a"/></linearGradient>
+<radialGradient id="glow"><stop offset="0" stop-color="#ffd27a" stop-opacity="0.75"/>
+ <stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+<radialGradient id="vignette" cx="0.5" cy="0.45" r="0.75">
+ <stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.35"/></radialGradient>
+<radialGradient id="sheen" cx="0.35" cy="0.3" r="0.7">
+ <stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+
+<filter id="grain" x="0" y="0" width="100%" height="100%">
+ <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" result="n"/>
+ <feColorMatrix in="n" type="saturate" values="0"/>
+ <feComponentTransfer><feFuncA type="table" tableValues="0 0.09"/></feComponentTransfer></filter>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+ <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.28"/></filter>
+<filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="6"/></filter>
+<filter id="powder" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.5"/></filter>
+</defs>
+<g clip-path="url(#card)">
+<rect width="600" height="840" fill="#171717"/>
+<line x1="300" y1="200" x2="170.0" y2="200.0" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="174.4" y2="166.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="187.4" y2="135.0" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="208.1" y2="108.1" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="235.0" y2="87.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="266.4" y2="74.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="300.0" y2="70.0" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="333.6" y2="74.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="365.0" y2="87.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="391.9" y2="108.1" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="412.6" y2="135.0" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="425.6" y2="166.4" stroke="url(#gold)" stroke-width="1"/><line x1="300" y1="200" x2="430.0" y2="200.0" stroke="url(#gold)" stroke-width="1"/><path d="M230,200 A70,70 0 0 1 370,200" fill="none" stroke="url(#gold)" stroke-width="1.2"/><path d="M200,200 A100,100 0 0 1 400,200" fill="none" stroke="url(#gold)" stroke-width="1.2"/><path d="M170,200 A130,130 0 0 1 430,200" fill="none" stroke="url(#gold)" stroke-width="1.2"/><path d="M36,106 V36 H106" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M48,94 V48 H94" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M60,82 V60 H82" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M564,106 V36 H494" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M552,94 V48 H506" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M540,82 V60 H518" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M36,734 V804 H106" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M48,746 V792 H94" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M60,758 V780 H82" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M564,734 V804 H494" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M552,746 V792 H506" fill="none" stroke="url(#gold)" stroke-width="1.4"/><path d="M540,758 V780 H518" fill="none" stroke="url(#gold)" stroke-width="1.4"/><rect x="146" y="226" width="308" height="308" fill="none" stroke="url(#gold)" stroke-width="1"/><g id="qr-slot" data-x="158" data-y="238" data-size="284">
+<rect x="158" y="238" width="284" height="284" rx="2" fill="#f2ece0" stroke="url(#gold)" stroke-width="3" filter="url(#shadow)"/>
+<g fill="#191919">
+<path fill-rule="evenodd" d="M199.38,262.34 H222.10 A17.04,17.04 0 0 1 239.14,279.38 V302.10 A17.04,17.04 0 0 1 222.10,319.14 H199.38 A17.04,17.04 0 0 1 182.34,302.10 V279.38 A17.04,17.04 0 0 1 199.38,262.34 Z M202.63,270.46 H218.86 A12.17,12.17 0 0 1 231.03,282.63 V298.86 A12.17,12.17 0 0 1 218.86,311.03 H202.63 A12.17,12.17 0 0 1 190.46,298.86 V282.63 A12.17,12.17 0 0 1 202.63,270.46 Z"/>
+<rect x="198.57" y="278.57" width="24.34" height="24.34" rx="7.71"/>
+<path fill-rule="evenodd" d="M199.38,440.86 H222.10 A17.04,17.04 0 0 1 239.14,457.90 V480.62 A17.04,17.04 0 0 1 222.10,497.66 H199.38 A17.04,17.04 0 0 1 182.34,480.62 V457.90 A17.04,17.04 0 0 1 199.38,440.86 Z M202.63,448.97 H218.86 A12.17,12.17 0 0 1 231.03,461.14 V477.37 A12.17,12.17 0 0 1 218.86,489.54 H202.63 A12.17,12.17 0 0 1 190.46,477.37 V461.14 A12.17,12.17 0 0 1 202.63,448.97 Z"/>
+<rect x="198.57" y="457.09" width="24.34" height="24.34" rx="7.71"/>
+<path fill-rule="evenodd" d="M377.90,262.34 H400.62 A17.04,17.04 0 0 1 417.66,279.38 V302.10 A17.04,17.04 0 0 1 400.62,319.14 H377.90 A17.04,17.04 0 0 1 360.86,302.10 V279.38 A17.04,17.04 0 0 1 377.90,262.34 Z M381.14,270.46 H397.37 A12.17,12.17 0 0 1 409.54,282.63 V298.86 A12.17,12.17 0 0 1 397.37,311.03 H381.14 A12.17,12.17 0 0 1 368.97,298.86 V282.63 A12.17,12.17 0 0 1 381.14,270.46 Z"/>
+<rect x="377.09" y="278.57" width="24.34" height="24.34" rx="7.71"/>
+<circle cx="267.54" cy="266.40" r="3.49"/>
+<circle cx="275.66" cy="266.40" r="3.49"/>
+<circle cx="283.77" cy="266.40" r="3.49"/>
+<circle cx="291.89" cy="266.40" r="3.49"/>
+<circle cx="316.23" cy="266.40" r="3.49"/>
+<circle cx="259.43" cy="274.51" r="3.49"/>
+<circle cx="267.54" cy="274.51" r="3.49"/>
+<circle cx="275.66" cy="274.51" r="3.49"/>
+<circle cx="283.77" cy="274.51" r="3.49"/>
+<circle cx="291.89" cy="274.51" r="3.49"/>
+<circle cx="324.34" cy="274.51" r="3.49"/>
+<circle cx="259.43" cy="282.63" r="3.49"/>
+<circle cx="275.66" cy="282.63" r="3.49"/>
+<circle cx="291.89" cy="282.63" r="3.49"/>
+<circle cx="308.11" cy="282.63" r="3.49"/>
+<circle cx="332.46" cy="282.63" r="3.49"/>
+<circle cx="340.57" cy="282.63" r="3.49"/>
+<circle cx="267.54" cy="290.74" r="3.49"/>
+<circle cx="275.66" cy="290.74" r="3.49"/>
+<circle cx="291.89" cy="290.74" r="3.49"/>
+<circle cx="300.00" cy="290.74" r="3.49"/>
+<circle cx="308.11" cy="290.74" r="3.49"/>
+<circle cx="316.23" cy="290.74" r="3.49"/>
+<circle cx="324.34" cy="290.74" r="3.49"/>
+<circle cx="251.31" cy="298.86" r="3.49"/>
+<circle cx="259.43" cy="298.86" r="3.49"/>
+<circle cx="267.54" cy="298.86" r="3.49"/>
+<circle cx="283.77" cy="298.86" r="3.49"/>
+<circle cx="300.00" cy="298.86" r="3.49"/>
+<circle cx="308.11" cy="298.86" r="3.49"/>
+<circle cx="316.23" cy="298.86" r="3.49"/>
+<circle cx="340.57" cy="298.86" r="3.49"/>
+<circle cx="275.66" cy="306.97" r="3.49"/>
+<circle cx="283.77" cy="306.97" r="3.49"/>
+<circle cx="300.00" cy="306.97" r="3.49"/>
+<circle cx="316.23" cy="306.97" r="3.49"/>
+<circle cx="324.34" cy="306.97" r="3.49"/>
+<circle cx="332.46" cy="306.97" r="3.49"/>
+<circle cx="340.57" cy="306.97" r="3.49"/>
+<circle cx="251.31" cy="315.09" r="3.49"/>
+<circle cx="267.54" cy="315.09" r="3.49"/>
+<circle cx="283.77" cy="315.09" r="3.49"/>
+<circle cx="300.00" cy="315.09" r="3.49"/>
+<circle cx="316.23" cy="315.09" r="3.49"/>
+<circle cx="332.46" cy="315.09" r="3.49"/>
+<circle cx="348.69" cy="315.09" r="3.49"/>
+<circle cx="251.31" cy="323.20" r="3.49"/>
+<circle cx="275.66" cy="323.20" r="3.49"/>
+<circle cx="283.77" cy="323.20" r="3.49"/>
+<circle cx="291.89" cy="323.20" r="3.49"/>
+<circle cx="308.11" cy="323.20" r="3.49"/>
+<circle cx="316.23" cy="323.20" r="3.49"/>
+<circle cx="348.69" cy="323.20" r="3.49"/>
+<circle cx="202.63" cy="331.31" r="3.49"/>
+<circle cx="210.74" cy="331.31" r="3.49"/>
+<circle cx="235.09" cy="331.31" r="3.49"/>
+<circle cx="243.20" cy="331.31" r="3.49"/>
+<circle cx="251.31" cy="331.31" r="3.49"/>
+<circle cx="259.43" cy="331.31" r="3.49"/>
+<circle cx="267.54" cy="331.31" r="3.49"/>
+<circle cx="275.66" cy="331.31" r="3.49"/>
+<circle cx="291.89" cy="331.31" r="3.49"/>
+<circle cx="300.00" cy="331.31" r="3.49"/>
+<circle cx="308.11" cy="331.31" r="3.49"/>
+<circle cx="332.46" cy="331.31" r="3.49"/>
+<circle cx="356.80" cy="331.31" r="3.49"/>
+<circle cx="364.91" cy="331.31" r="3.49"/>
+<circle cx="381.14" cy="331.31" r="3.49"/>
+<circle cx="202.63" cy="339.43" r="3.49"/>
+<circle cx="218.86" cy="339.43" r="3.49"/>
+<circle cx="243.20" cy="339.43" r="3.49"/>
+<circle cx="259.43" cy="339.43" r="3.49"/>
+<circle cx="267.54" cy="339.43" r="3.49"/>
+<circle cx="324.34" cy="339.43" r="3.49"/>
+<circle cx="332.46" cy="339.43" r="3.49"/>
+<circle cx="348.69" cy="339.43" r="3.49"/>
+<circle cx="356.80" cy="339.43" r="3.49"/>
+<circle cx="364.91" cy="339.43" r="3.49"/>
+<circle cx="373.03" cy="339.43" r="3.49"/>
+<circle cx="381.14" cy="339.43" r="3.49"/>
+<circle cx="389.26" cy="339.43" r="3.49"/>
+<circle cx="397.37" cy="339.43" r="3.49"/>
+<circle cx="413.60" cy="339.43" r="3.49"/>
+<circle cx="194.51" cy="347.54" r="3.49"/>
+<circle cx="226.97" cy="347.54" r="3.49"/>
+<circle cx="235.09" cy="347.54" r="3.49"/>
+<circle cx="243.20" cy="347.54" r="3.49"/>
+<circle cx="275.66" cy="347.54" r="3.49"/>
+<circle cx="291.89" cy="347.54" r="3.49"/>
+<circle cx="332.46" cy="347.54" r="3.49"/>
+<circle cx="340.57" cy="347.54" r="3.49"/>
+<circle cx="348.69" cy="347.54" r="3.49"/>
+<circle cx="364.91" cy="347.54" r="3.49"/>
+<circle cx="381.14" cy="347.54" r="3.49"/>
+<circle cx="397.37" cy="347.54" r="3.49"/>
+<circle cx="405.49" cy="347.54" r="3.49"/>
+<circle cx="194.51" cy="355.66" r="3.49"/>
+<circle cx="202.63" cy="355.66" r="3.49"/>
+<circle cx="218.86" cy="355.66" r="3.49"/>
+<circle cx="267.54" cy="355.66" r="3.49"/>
+<circle cx="275.66" cy="355.66" r="3.49"/>
+<circle cx="283.77" cy="355.66" r="3.49"/>
+<circle cx="300.00" cy="355.66" r="3.49"/>
+<circle cx="308.11" cy="355.66" r="3.49"/>
+<circle cx="316.23" cy="355.66" r="3.49"/>
+<circle cx="324.34" cy="355.66" r="3.49"/>
+<circle cx="332.46" cy="355.66" r="3.49"/>
+<circle cx="348.69" cy="355.66" r="3.49"/>
+<circle cx="373.03" cy="355.66" r="3.49"/>
+<circle cx="381.14" cy="355.66" r="3.49"/>
+<circle cx="413.60" cy="355.66" r="3.49"/>
+<circle cx="194.51" cy="363.77" r="3.49"/>
+<circle cx="202.63" cy="363.77" r="3.49"/>
+<circle cx="226.97" cy="363.77" r="3.49"/>
+<circle cx="235.09" cy="363.77" r="3.49"/>
+<circle cx="243.20" cy="363.77" r="3.49"/>
+<circle cx="251.31" cy="363.77" r="3.49"/>
+<circle cx="259.43" cy="363.77" r="3.49"/>
+<circle cx="291.89" cy="363.77" r="3.49"/>
+<circle cx="300.00" cy="363.77" r="3.49"/>
+<circle cx="324.34" cy="363.77" r="3.49"/>
+<circle cx="332.46" cy="363.77" r="3.49"/>
+<circle cx="340.57" cy="363.77" r="3.49"/>
+<circle cx="348.69" cy="363.77" r="3.49"/>
+<circle cx="356.80" cy="363.77" r="3.49"/>
+<circle cx="373.03" cy="363.77" r="3.49"/>
+<circle cx="397.37" cy="363.77" r="3.49"/>
+<circle cx="405.49" cy="363.77" r="3.49"/>
+<circle cx="413.60" cy="363.77" r="3.49"/>
+<circle cx="186.40" cy="371.89" r="3.49"/>
+<circle cx="194.51" cy="371.89" r="3.49"/>
+<circle cx="202.63" cy="371.89" r="3.49"/>
+<circle cx="259.43" cy="371.89" r="3.49"/>
+<circle cx="267.54" cy="371.89" r="3.49"/>
+<circle cx="283.77" cy="371.89" r="3.49"/>
+<circle cx="316.23" cy="371.89" r="3.49"/>
+<circle cx="332.46" cy="371.89" r="3.49"/>
+<circle cx="340.57" cy="371.89" r="3.49"/>
+<circle cx="364.91" cy="371.89" r="3.49"/>
+<circle cx="373.03" cy="371.89" r="3.49"/>
+<circle cx="389.26" cy="371.89" r="3.49"/>
+<circle cx="397.37" cy="371.89" r="3.49"/>
+<circle cx="413.60" cy="371.89" r="3.49"/>
+<circle cx="186.40" cy="380.00" r="3.49"/>
+<circle cx="226.97" cy="380.00" r="3.49"/>
+<circle cx="235.09" cy="380.00" r="3.49"/>
+<circle cx="251.31" cy="380.00" r="3.49"/>
+<circle cx="267.54" cy="380.00" r="3.49"/>
+<circle cx="275.66" cy="380.00" r="3.49"/>
+<circle cx="283.77" cy="380.00" r="3.49"/>
+<circle cx="291.89" cy="380.00" r="3.49"/>
+<circle cx="308.11" cy="380.00" r="3.49"/>
+<circle cx="332.46" cy="380.00" r="3.49"/>
+<circle cx="340.57" cy="380.00" r="3.49"/>
+<circle cx="348.69" cy="380.00" r="3.49"/>
+<circle cx="356.80" cy="380.00" r="3.49"/>
+<circle cx="373.03" cy="380.00" r="3.49"/>
+<circle cx="381.14" cy="380.00" r="3.49"/>
+<circle cx="389.26" cy="380.00" r="3.49"/>
+<circle cx="405.49" cy="380.00" r="3.49"/>
+<circle cx="413.60" cy="380.00" r="3.49"/>
+<circle cx="194.51" cy="388.11" r="3.49"/>
+<circle cx="210.74" cy="388.11" r="3.49"/>
+<circle cx="218.86" cy="388.11" r="3.49"/>
+<circle cx="251.31" cy="388.11" r="3.49"/>
+<circle cx="259.43" cy="388.11" r="3.49"/>
+<circle cx="267.54" cy="388.11" r="3.49"/>
+<circle cx="300.00" cy="388.11" r="3.49"/>
+<circle cx="308.11" cy="388.11" r="3.49"/>
+<circle cx="348.69" cy="388.11" r="3.49"/>
+<circle cx="381.14" cy="388.11" r="3.49"/>
+<circle cx="389.26" cy="388.11" r="3.49"/>
+<circle cx="405.49" cy="388.11" r="3.49"/>
+<circle cx="186.40" cy="396.23" r="3.49"/>
+<circle cx="194.51" cy="396.23" r="3.49"/>
+<circle cx="202.63" cy="396.23" r="3.49"/>
+<circle cx="210.74" cy="396.23" r="3.49"/>
+<circle cx="218.86" cy="396.23" r="3.49"/>
+<circle cx="235.09" cy="396.23" r="3.49"/>
+<circle cx="275.66" cy="396.23" r="3.49"/>
+<circle cx="308.11" cy="396.23" r="3.49"/>
+<circle cx="316.23" cy="396.23" r="3.49"/>
+<circle cx="373.03" cy="396.23" r="3.49"/>
+<circle cx="381.14" cy="396.23" r="3.49"/>
+<circle cx="389.26" cy="396.23" r="3.49"/>
+<circle cx="226.97" cy="404.34" r="3.49"/>
+<circle cx="243.20" cy="404.34" r="3.49"/>
+<circle cx="251.31" cy="404.34" r="3.49"/>
+<circle cx="259.43" cy="404.34" r="3.49"/>
+<circle cx="267.54" cy="404.34" r="3.49"/>
+<circle cx="283.77" cy="404.34" r="3.49"/>
+<circle cx="291.89" cy="404.34" r="3.49"/>
+<circle cx="300.00" cy="404.34" r="3.49"/>
+<circle cx="308.11" cy="404.34" r="3.49"/>
+<circle cx="324.34" cy="404.34" r="3.49"/>
+<circle cx="340.57" cy="404.34" r="3.49"/>
+<circle cx="364.91" cy="404.34" r="3.49"/>
+<circle cx="373.03" cy="404.34" r="3.49"/>
+<circle cx="186.40" cy="412.46" r="3.49"/>
+<circle cx="226.97" cy="412.46" r="3.49"/>
+<circle cx="235.09" cy="412.46" r="3.49"/>
+<circle cx="243.20" cy="412.46" r="3.49"/>
+<circle cx="251.31" cy="412.46" r="3.49"/>
+<circle cx="267.54" cy="412.46" r="3.49"/>
+<circle cx="275.66" cy="412.46" r="3.49"/>
+<circle cx="324.34" cy="412.46" r="3.49"/>
+<circle cx="332.46" cy="412.46" r="3.49"/>
+<circle cx="348.69" cy="412.46" r="3.49"/>
+<circle cx="364.91" cy="412.46" r="3.49"/>
+<circle cx="373.03" cy="412.46" r="3.49"/>
+<circle cx="389.26" cy="412.46" r="3.49"/>
+<circle cx="210.74" cy="420.57" r="3.49"/>
+<circle cx="218.86" cy="420.57" r="3.49"/>
+<circle cx="226.97" cy="420.57" r="3.49"/>
+<circle cx="243.20" cy="420.57" r="3.49"/>
+<circle cx="251.31" cy="420.57" r="3.49"/>
+<circle cx="259.43" cy="420.57" r="3.49"/>
+<circle cx="267.54" cy="420.57" r="3.49"/>
+<circle cx="275.66" cy="420.57" r="3.49"/>
+<circle cx="291.89" cy="420.57" r="3.49"/>
+<circle cx="324.34" cy="420.57" r="3.49"/>
+<circle cx="348.69" cy="420.57" r="3.49"/>
+<circle cx="356.80" cy="420.57" r="3.49"/>
+<circle cx="364.91" cy="420.57" r="3.49"/>
+<circle cx="373.03" cy="420.57" r="3.49"/>
+<circle cx="397.37" cy="420.57" r="3.49"/>
+<circle cx="405.49" cy="420.57" r="3.49"/>
+<circle cx="413.60" cy="420.57" r="3.49"/>
+<circle cx="194.51" cy="428.69" r="3.49"/>
+<circle cx="202.63" cy="428.69" r="3.49"/>
+<circle cx="235.09" cy="428.69" r="3.49"/>
+<circle cx="243.20" cy="428.69" r="3.49"/>
+<circle cx="267.54" cy="428.69" r="3.49"/>
+<circle cx="308.11" cy="428.69" r="3.49"/>
+<circle cx="316.23" cy="428.69" r="3.49"/>
+<circle cx="332.46" cy="428.69" r="3.49"/>
+<circle cx="340.57" cy="428.69" r="3.49"/>
+<circle cx="348.69" cy="428.69" r="3.49"/>
+<circle cx="356.80" cy="428.69" r="3.49"/>
+<circle cx="364.91" cy="428.69" r="3.49"/>
+<circle cx="373.03" cy="428.69" r="3.49"/>
+<circle cx="381.14" cy="428.69" r="3.49"/>
+<circle cx="389.26" cy="428.69" r="3.49"/>
+<circle cx="397.37" cy="428.69" r="3.49"/>
+<circle cx="413.60" cy="428.69" r="3.49"/>
+<circle cx="251.31" cy="436.80" r="3.49"/>
+<circle cx="259.43" cy="436.80" r="3.49"/>
+<circle cx="291.89" cy="436.80" r="3.49"/>
+<circle cx="308.11" cy="436.80" r="3.49"/>
+<circle cx="316.23" cy="436.80" r="3.49"/>
+<circle cx="332.46" cy="436.80" r="3.49"/>
+<circle cx="348.69" cy="436.80" r="3.49"/>
+<circle cx="381.14" cy="436.80" r="3.49"/>
+<circle cx="389.26" cy="436.80" r="3.49"/>
+<circle cx="413.60" cy="436.80" r="3.49"/>
+<circle cx="251.31" cy="444.91" r="3.49"/>
+<circle cx="267.54" cy="444.91" r="3.49"/>
+<circle cx="275.66" cy="444.91" r="3.49"/>
+<circle cx="283.77" cy="444.91" r="3.49"/>
+<circle cx="291.89" cy="444.91" r="3.49"/>
+<circle cx="316.23" cy="444.91" r="3.49"/>
+<circle cx="332.46" cy="444.91" r="3.49"/>
+<circle cx="340.57" cy="444.91" r="3.49"/>
+<circle cx="348.69" cy="444.91" r="3.49"/>
+<circle cx="364.91" cy="444.91" r="3.49"/>
+<circle cx="381.14" cy="444.91" r="3.49"/>
+<circle cx="397.37" cy="444.91" r="3.49"/>
+<circle cx="405.49" cy="444.91" r="3.49"/>
+<circle cx="267.54" cy="453.03" r="3.49"/>
+<circle cx="291.89" cy="453.03" r="3.49"/>
+<circle cx="300.00" cy="453.03" r="3.49"/>
+<circle cx="324.34" cy="453.03" r="3.49"/>
+<circle cx="348.69" cy="453.03" r="3.49"/>
+<circle cx="381.14" cy="453.03" r="3.49"/>
+<circle cx="405.49" cy="453.03" r="3.49"/>
+<circle cx="413.60" cy="453.03" r="3.49"/>
+<circle cx="259.43" cy="461.14" r="3.49"/>
+<circle cx="275.66" cy="461.14" r="3.49"/>
+<circle cx="291.89" cy="461.14" r="3.49"/>
+<circle cx="300.00" cy="461.14" r="3.49"/>
+<circle cx="308.11" cy="461.14" r="3.49"/>
+<circle cx="316.23" cy="461.14" r="3.49"/>
+<circle cx="324.34" cy="461.14" r="3.49"/>
+<circle cx="348.69" cy="461.14" r="3.49"/>
+<circle cx="356.80" cy="461.14" r="3.49"/>
+<circle cx="364.91" cy="461.14" r="3.49"/>
+<circle cx="373.03" cy="461.14" r="3.49"/>
+<circle cx="381.14" cy="461.14" r="3.49"/>
+<circle cx="389.26" cy="461.14" r="3.49"/>
+<circle cx="397.37" cy="461.14" r="3.49"/>
+<circle cx="413.60" cy="461.14" r="3.49"/>
+<circle cx="251.31" cy="469.26" r="3.49"/>
+<circle cx="267.54" cy="469.26" r="3.49"/>
+<circle cx="275.66" cy="469.26" r="3.49"/>
+<circle cx="283.77" cy="469.26" r="3.49"/>
+<circle cx="291.89" cy="469.26" r="3.49"/>
+<circle cx="300.00" cy="469.26" r="3.49"/>
+<circle cx="308.11" cy="469.26" r="3.49"/>
+<circle cx="324.34" cy="469.26" r="3.49"/>
+<circle cx="332.46" cy="469.26" r="3.49"/>
+<circle cx="340.57" cy="469.26" r="3.49"/>
+<circle cx="381.14" cy="469.26" r="3.49"/>
+<circle cx="389.26" cy="469.26" r="3.49"/>
+<circle cx="405.49" cy="469.26" r="3.49"/>
+<circle cx="251.31" cy="477.37" r="3.49"/>
+<circle cx="259.43" cy="477.37" r="3.49"/>
+<circle cx="267.54" cy="477.37" r="3.49"/>
+<circle cx="291.89" cy="477.37" r="3.49"/>
+<circle cx="300.00" cy="477.37" r="3.49"/>
+<circle cx="316.23" cy="477.37" r="3.49"/>
+<circle cx="324.34" cy="477.37" r="3.49"/>
+<circle cx="332.46" cy="477.37" r="3.49"/>
+<circle cx="348.69" cy="477.37" r="3.49"/>
+<circle cx="373.03" cy="477.37" r="3.49"/>
+<circle cx="389.26" cy="477.37" r="3.49"/>
+<circle cx="397.37" cy="477.37" r="3.49"/>
+<circle cx="413.60" cy="477.37" r="3.49"/>
+<circle cx="259.43" cy="485.49" r="3.49"/>
+<circle cx="267.54" cy="485.49" r="3.49"/>
+<circle cx="275.66" cy="485.49" r="3.49"/>
+<circle cx="283.77" cy="485.49" r="3.49"/>
+<circle cx="308.11" cy="485.49" r="3.49"/>
+<circle cx="332.46" cy="485.49" r="3.49"/>
+<circle cx="364.91" cy="485.49" r="3.49"/>
+<circle cx="381.14" cy="485.49" r="3.49"/>
+<circle cx="389.26" cy="485.49" r="3.49"/>
+<circle cx="405.49" cy="485.49" r="3.49"/>
+<circle cx="267.54" cy="493.60" r="3.49"/>
+<circle cx="283.77" cy="493.60" r="3.49"/>
+<circle cx="300.00" cy="493.60" r="3.49"/>
+<circle cx="316.23" cy="493.60" r="3.49"/>
+<circle cx="324.34" cy="493.60" r="3.49"/>
+<circle cx="332.46" cy="493.60" r="3.49"/>
+<circle cx="340.57" cy="493.60" r="3.49"/>
+<circle cx="364.91" cy="493.60" r="3.49"/>
+<circle cx="373.03" cy="493.60" r="3.49"/>
+<circle cx="405.49" cy="493.60" r="3.49"/>
+</g></g><text id="brand" x="300" y="612" text-anchor="middle" style="font-family:'Cinzel', 'Trajan Pro', Georgia, serif;font-size:30px;font-weight:600;letter-spacing:4px;" fill="url(#gold)">The Private Lounge</text><text id="cta" x="300" y="656" text-anchor="middle" style="font-family:'Cormorant Garamond', 'Playfair Display', Georgia, serif;font-size:24px;font-weight:500;letter-spacing:0px;font-style:italic;" fill="#efe8da">Members, scan to check in</text><line x1="240" y1="700" x2="288" y2="700" stroke="url(#gold)" stroke-width="0.8"/><line x1="312" y1="700" x2="360" y2="700" stroke="url(#gold)" stroke-width="0.8"/><path d="M300,694 L306,700 L300,706 L294,700 Z" fill="url(#gold)"/>
+<rect width="600" height="840" fill="url(#vignette)"/><rect width="600" height="840" fill="#fff" fill-opacity="0" filter="url(#grain)"/>
+</g>
+</svg>

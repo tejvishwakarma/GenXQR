@@ -52,6 +52,9 @@ const pwaConfig = VitePWA({
       /^\/uploads\//,
     ],
     globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+    // The QR frame library (~2.6 MB of SVGs and fonts, public/frames) is
+    // fetched on demand in the dashboard — never precached for every visitor.
+    globIgnores: ['frames/**'],
     runtimeCaching: [
       {
         // Pentest finding #11: this used to be /^\/api\/(?!admin).+/, which

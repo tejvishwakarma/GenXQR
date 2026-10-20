@@ -1055,6 +1055,8 @@ export interface QRDesign {
   frameStyle: string | null
   frameText: string | null
   frameColor: string | null
+  /** Text per field of a library frame (see lib/frames); null when none edited. */
+  frameFields: Partial<Record<string, string>> | null
   foregroundColor: string
 }
 
@@ -1127,6 +1129,8 @@ export interface CreateQRPayload {
      * persisted and the reader fell back to a default.
      */
     frameColor?: string
+    /** Library frames only: edited text per field id ("cta", "brand"…). */
+    frameFields?: Partial<Record<string, string>> | null
     logoUrl?: string
     logoSize?: number
   }
@@ -1637,6 +1641,7 @@ export interface PlanLimits {
   abTesting: boolean
   smartRouting: boolean
   qrExpiry: boolean
+  premiumFrames: boolean
 }
 
 export interface Plan {

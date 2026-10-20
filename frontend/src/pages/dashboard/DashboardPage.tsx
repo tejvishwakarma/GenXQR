@@ -12,8 +12,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { listQRs, deleteQR, toggleQR, duplicateQR, getGlobalAnalytics, getQrBaseUrl, getBillingUsage, getSubscription, type QRCode } from "@/lib/api"
+import { listQRs, deleteQR, toggleQR, duplicateQR, getGlobalAnalytics, getBillingUsage, getSubscription, type QRCode } from "@/lib/api"
 import { DownloadMenu } from "@/components/QRDownloadMenu"
+import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
 import { useWorkspace } from "@/hooks/useWorkspace"
 
@@ -169,32 +170,22 @@ export default function DashboardPage() {
     if (!qrs.length) return
     setBulkOp("download")
     try {
-      const [{ default: QRCodeStyling }, { default: JSZip }] = await Promise.all([
-        import("qr-code-styling"),
-        import("jszip"),
-      ])
+      const { default: JSZip } = await import("jszip")
       const zip = new JSZip()
-
-      await Promise.all(qrs.map(async (qr) => {
+      const used = new Set<string>()
+      // One at a time: a framed code is a ~1800×2520 render, and rendering a
+      // whole selection in parallel can exhaust the tab's memory.
+      for (const qr of qrs) {
         try {
-          const redirectUrl = `${getQrBaseUrl()}/r/${qr.slug}`
-          const d = qr.design
-          const instance = new QRCodeStyling({
-            data: redirectUrl,
-            width: 1024, height: 1024, type: "canvas", margin: 40,
-            dotsOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.dotStyle ?? "rounded") as import("qr-code-styling").DotType },
-            cornersSquareOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType },
-            cornersDotOptions: { color: d?.primaryColor ?? "#7c3aed" },
-            backgroundOptions: { color: d?.backgroundColor ?? "#ffffff" },
-            qrOptions: { errorCorrectionLevel: "H" as const },
-          })
-          const blob = await instance.getRawData("png")
-          if (blob) {
-            const filename = `${qr.name.replace(/[^a-z0-9_-]/gi, "_")}.png`
-            zip.file(filename, blob)
-          }
+          // Same renderer as the detail page: frame and logo included.
+          const { blob, filename } = await renderQRDownload(qr, "png")
+          // Two codes with the same name used to overwrite each other in the zip.
+          let name = filename
+          for (let n = 2; used.has(name); n++) name = filename.replace(/\.png$/, `-${n}.png`)
+          used.add(name)
+          zip.file(name, blob)
         } catch { /* skip individual failures */ }
-      }))
+      }
 
       const zipBlob = await zip.generateAsync({ type: "blob" })
       const url = URL.createObjectURL(zipBlob)

@@ -6,7 +6,7 @@ import QRCodeStyling, { type DotType, type CornerSquareType } from "qr-code-styl
 import {
   QrCode, Wifi, MessageCircle, Instagram, FileText, Video, Globe,
   Users, Image, Building2, Smartphone, Music, List, Facebook, Tag,
-  ChevronRight, ChevronLeft, ChevronDown, Check, Palette, Settings2, ArrowLeft,
+  ChevronRight, ChevronLeft, ChevronDown, Check, Palette, ArrowLeft,
   Upload, Loader2, X, Clock, ScanLine,
 } from "lucide-react"
 import * as Tabs from "@radix-ui/react-tabs"
@@ -23,6 +23,10 @@ import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
 import { RoleBlockedNotice } from "@/components/dashboard/RoleBlockedNotice"
+import { FramePicker } from "@/components/qr-frames/FramePicker"
+import { FramedPreview } from "@/components/qr-frames/FramedPreview"
+import { usePlanFeature } from "@/components/PlanFeatureGate"
+import { getFrame, shapeColor, type FrameFields } from "@/lib/frames/compose"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -62,7 +66,12 @@ const CORNER_STYLES: { value: CornerSquareType; label: string }[] = [
 
 const LOGO_MAX_BYTES = 1 * 1024 * 1024 // 1 MB — logos are small; no need for full image upload limit
 
-const FRAME_STYLES: { id: string; label: string }[] = [
+/**
+ * The classic CSS frames. Retired from the picker on 20 Oct 2026 in favour of
+ * the frame library (lib/frames); kept so codes saved with one still preview,
+ * download and name their frame exactly as before.
+ */
+const CLASSIC_FRAME_STYLES: { id: string; label: string }[] = [
   { id: "none",         label: "None"         },
   { id: "simple",       label: "Scan Me"      },
   { id: "top-label",    label: "Top Label"    },
@@ -590,6 +599,13 @@ export default function CreateQRPage() {
   const [frameStyle, setFrameStyle] = useState("none")
   const [frameText, setFrameText] = useState("SCAN ME")
   const [frameBgColor, setFrameBgColor] = useState("#1f2937")
+  // Library frames: edited text per field, and the colour picked for a shape
+  // (null = the shape's own default colour).
+  const [frameFields, setFrameFields] = useState<FrameFields>({})
+  const [shapeColorPick, setShapeColorPick] = useState<string | null>(null)
+  const libraryFrame = getFrame(frameStyle)
+  const classicFrameLabel = CLASSIC_FRAME_STYLES.find((f) => f.id === frameStyle && f.id !== "none")?.label ?? null
+  const { allowed: framesAllowed, requiredPlan: framesPlan } = usePlanFeature("premiumFrames")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [circularLogoUrl, setCircularLogoUrl] = useState<string | null>(null)
   const [logoSize, setLogoSize] = useState(35)
@@ -760,6 +776,9 @@ export default function CreateQRPage() {
     if (existingQR.data.design?.logoSize) {
       setLogoSize(existingQR.data.design.logoSize)
     }
+    const design = existingQR.data.design
+    setFrameFields((design?.frameFields ?? {}) as FrameFields)
+    if (getFrame(design?.frameStyle)?.group === "shape") setShapeColorPick(design?.frameColor ?? null)
   }, [existingQR, reset])
 
   const { mutateAsync: submitCreate, isPending: isCreating } = useMutation({
@@ -918,8 +937,19 @@ export default function CreateQRPage() {
           cornerSquareStyle: cornerStyle as string,
           frameStyle,
           frameText,
-          // Local UI state is named frameBgColor; the API/DB field is frameColor.
-          frameColor: frameBgColor,
+          // Classic frames keep their colour in frameBgColor; a library shape
+          // stores its colour, and premium/occasion artwork has none.
+          frameColor: libraryFrame
+            ? libraryFrame.group === "shape" ? shapeColor(libraryFrame, shapeColorPick) : undefined
+            : frameBgColor,
+          // Only text for fields this frame has, and only non-empty values.
+          frameFields: libraryFrame
+            ? Object.fromEntries(
+                libraryFrame.fields
+                  .map((f) => [f.id, frameFields[f.id]?.trim() ?? ""] as const)
+                  .filter(([, v]) => v !== ""),
+              )
+            : null,
           logoSize,
           ...(logoUrl ? { logoUrl } : {}),
           ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),
@@ -2124,62 +2154,24 @@ export default function CreateQRPage() {
                     )}
                   </div>
 
-                  {/* Frame Style */}
-                  <div>
-                    <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3 flex items-center gap-2">
-                      <Settings2 size={14} className="text-violet-400" /> Frame Style
-                    </h3>
-                    <div className="grid grid-cols-3 gap-2">
-                      {FRAME_STYLES.map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setFrameStyle(f.id)}
-                          className={cn(
-                            "py-2 px-2 rounded-lg text-xs font-medium transition-all border",
-                            frameStyle === f.id
-                              ? "border-violet-500 bg-violet-500/15 text-violet-400"
-                              : "border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-zinc-600"
-                          )}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Frame text + background — only relevant for label-bearing frame styles */}
-                    {["simple", "top-label", "both-labels", "scan-now", "banner"].includes(frameStyle) && (
-                      <div className="mt-4 space-y-3">
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Text</label>
-                          <Input
-                            value={frameText}
-                            onChange={(e) => setFrameText(e.target.value.toUpperCase())}
-                            placeholder="SCAN ME"
-                            className="font-mono text-xs tracking-widest"
-                            maxLength={24}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Background Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="w-10 h-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent cursor-pointer"
-                            />
-                            <Input
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="font-mono text-xs"
-                              maxLength={7}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  {/* Frame */}
+                  <FramePicker
+                    value={frameStyle}
+                    onChange={(id) => {
+                      setFrameStyle(id)
+                      setPreviewTab("qr")
+                    }}
+                    color={shapeColorPick}
+                    onColorChange={setShapeColorPick}
+                    fields={frameFields}
+                    onFieldsChange={setFrameFields}
+                    dotColor={primaryColor}
+                    panelColor={bgColor}
+                    onDotColorChange={setPrimaryColor}
+                    locked={!framesAllowed}
+                    requiredPlan={framesPlan}
+                    classicLabel={classicFrameLabel}
+                  />
                 </div>
               </div>
             )}
@@ -2274,7 +2266,27 @@ export default function CreateQRPage() {
 
             {/* ── QR Code tab — always mounted so qrRef is available at init ── */}
             <div className={previewTab === "qr" ? "" : "hidden"}>
-              <div className="flex flex-col items-center mb-4">
+              {libraryFrame && (
+                <FramedPreview
+                  frameId={libraryFrame.id}
+                  color={shapeColorPick}
+                  fields={frameFields}
+                  background={bgColor}
+                  className="mb-4 w-full max-w-[260px]"
+                  qr={{
+                    data: "https://genxqr.com/preview",
+                    dotsOptions: { color: primaryColor, type: dotStyle },
+                    cornersSquareOptions: { color: primaryColor, type: cornerStyle },
+                    cornersDotOptions: { color: primaryColor },
+                    image: circularLogoUrl ?? undefined,
+                    imageOptions: { hideBackgroundDots: true, imageSize: logoSize / 100, margin: 8, crossOrigin: "anonymous" },
+                    qrOptions: { errorCorrectionLevel: "H" },
+                  }}
+                />
+              )}
+              {/* Classic frames, and the plain code. Stays mounted while a library
+                  frame is shown: qrInstance renders into qrRef once, at mount. */}
+              <div className={cn("flex flex-col items-center mb-4", libraryFrame && "hidden")}>
                 {/* Top label — lives OUTSIDE the frame wrapper so qrRef never shifts position */}
                 {(frameStyle === "top-label" || frameStyle === "both-labels") && (
                   <div
@@ -2363,8 +2375,8 @@ export default function CreateQRPage() {
                 </div>
                 {frameStyle !== "none" && (
                   <div className="flex justify-between">
-                    <span>Frame style</span>
-                    <span className="text-zinc-700 dark:text-zinc-300 capitalize">{frameStyle.replace(/-/g, " ")}</span>
+                    <span>Frame</span>
+                    <span className="text-zinc-700 dark:text-zinc-300">{libraryFrame?.title ?? classicFrameLabel ?? frameStyle.replace(/-/g, " ")}</span>
                   </div>
                 )}
               </div>
