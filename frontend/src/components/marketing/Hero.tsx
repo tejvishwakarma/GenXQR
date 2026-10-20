@@ -65,11 +65,13 @@ export function MarketingHero() {
           </p>
 
           <div className="mt-8 flex flex-col items-center sm:flex-row sm:justify-center lg:justify-start gap-3">
-            <MktButton href="/signup" variant="accent" size="lg">
+            {/* "Free" means the no-account generator, so it goes there; the trial
+                is the second, explicit choice (decided 20 Oct 2026). */}
+            <MktButton href="/generate" variant="accent" size="lg">
               Create your QR code — free <ArrowRight size={18} />
             </MktButton>
-            <MktButton href="#mkt-product" variant="outline" size="lg">
-              See how it works
+            <MktButton href="/signup" variant="outline" size="lg">
+              Start your trial
             </MktButton>
           </div>
 
