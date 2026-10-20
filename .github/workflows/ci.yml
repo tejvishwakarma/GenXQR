@@ -107,13 +107,6 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @genx-qr/backend exec prisma generate
 
-      # Catches the failure modes that are invisible until a crawler hits them:
-      # off-domain URLs in structured data or the sitemap, and sitemap entries
-      # that robots.txt forbids.
-      - name: Validate SEO (structured data, sitemap, robots)
-        working-directory: frontend
-        run: pnpm seo:check
-
       # Several routes carry live credentials in the URL (password-reset and
       # email-verification tokens, the OAuth exchange code, team invite tokens).
       # This fails the build if any of them could reach Google Analytics, which
@@ -124,3 +117,14 @@ jobs:
 
       - name: Build
         run: pnpm build:frontend
+
+      # Catches the failure modes that are invisible until a crawler hits them:
+      # off-domain URLs in structured data or the sitemap, and sitemap entries
+      # that robots.txt forbids.
+      #
+      # Runs AFTER the build: the sitemap is generated into dist/ (since
+      # 27 Aug 2026), and the prerendered pages it checks only exist there.
+      # Before the build it failed on every run with "dist does not exist".
+      - name: Validate SEO (structured data, sitemap, robots)
+        working-directory: frontend
+        run: pnpm seo:check
