@@ -149,20 +149,6 @@ async function migrateLegacyTeamStateIfNeeded(ownerId: string, teamId: string): 
   ])
 }
 
-async function getTeamForUserOverview(userId: string): Promise<{ teamId: string; ownerId: string }> {
-  const owned = await prisma.team.findFirst({ where: { ownerId: userId }, select: { id: true, ownerId: true } })
-  if (owned) return { teamId: owned.id, ownerId: owned.ownerId }
-
-  const membership = await prisma.teamMember.findFirst({
-    where: { userId },
-    select: { teamId: true, team: { select: { ownerId: true } } },
-  })
-  if (membership) return { teamId: membership.teamId, ownerId: membership.team.ownerId }
-
-  const created = await getOrCreateOwnedTeam(userId)
-  return { teamId: created.id, ownerId: created.ownerId }
-}
-
 // ─── Invite email + lookup ─────────────────────────────────────────────────────
 
 function buildInviteUrl(token: string): string {
@@ -177,7 +163,7 @@ async function sendTeamInviteEmail(ownerName: string, inviteEmail: string, role:
     html: `
       <div style="font-family:sans-serif;max-width:620px;margin:0 auto;padding:24px;line-height:1.5">
         <h2 style="margin:0 0 8px;color:#7c3aed">You're invited to GenXQR</h2>
-        <p style="margin:0 0 12px;color:#333">${ownerName} invited you as <strong>${roleLabel}</strong> to collaborate on QR projects.</p>
+        <p style="margin:0 0 12px;color:#333">${ownerName} invited you to join their GenXQR team as <strong>${roleLabel}</strong>.</p>
         <p style="margin:0 0 12px;color:#555">Use the secure invite link below. After you sign up or sign in with <strong>${inviteEmail}</strong>, you'll be able to join the team.</p>
         <a href="${inviteUrl}"
            style="display:inline-block;padding:10px 18px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
@@ -216,8 +202,25 @@ async function findInviteByToken(rawToken: string) {
 
 // ─── Public service functions (called from team.routes.ts) ───────────────────
 
-export async function getTeamOverview(userId: string) {
-  const { teamId, ownerId } = await getTeamForUserOverview(userId)
+/**
+ * The team OWNED by `ownerId` — the selected workspace's owner (team.routes.ts
+ * passes wsOwner). Never falls back to a team the user merely belongs to: that
+ * pre-workspace behaviour showed a member someone else's team as if it were
+ * their own whenever they had not yet opened their own Team page. Other teams
+ * are reached by switching workspace.
+ */
+/** Team name and owner — all an Editor or Viewer is shown (no member list). */
+export async function getTeamIdentity(ownerUserId: string) {
+  const { id: teamId } = await getOrCreateOwnedTeam(ownerUserId)
+  const team = await prisma.team.findUniqueOrThrow({
+    where: { id: teamId },
+    select: { name: true, owner: { select: { name: true } } },
+  })
+  return { teamName: team.name, ownerName: team.owner.name }
+}
+
+export async function getTeamOverview(ownerUserId: string) {
+  const { id: teamId, ownerId } = await getOrCreateOwnedTeam(ownerUserId)
 
   const [owner, planInfo, memberRows, inviteRows] = await Promise.all([
     prisma.user.findUnique({
@@ -537,7 +540,70 @@ export async function acceptInvite(currentUserId: string, rawToken: string) {
 
   return {
     message: `Joined ${match.team.owner.name}'s team successfully`,
-    owner: { name: match.team.owner.name, email: match.team.owner.email },
+    owner: { id: match.team.ownerId, name: match.team.owner.name, email: match.team.owner.email },
     role: apiRoleFromDb(match.role),
   }
+}
+
+// ─── Member management (shared workspaces, 18 Oct 2026) ───────────────────────
+// Called with the WORKSPACE OWNER's id; the route has already checked that the
+// caller may manage this team (owner or admin — workspace.service.ts).
+
+async function findMembership(ownerId: string, memberUserId: string) {
+  const membership = await prisma.teamMember.findFirst({
+    where: { userId: memberUserId, team: { ownerId } },
+    select: { id: true, role: true, teamId: true, user: { select: { email: true } } },
+  })
+  if (!membership) throw new AppError(404, "Member not found")
+  return membership
+}
+
+export async function changeMemberRole(ownerId: string, actorId: string, memberUserId: string, role: TeamRole) {
+  if (memberUserId === actorId) throw new AppError(400, "You cannot change your own role")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.update({ where: { id: membership.id }, data: { role: dbRoleFromApi(role) } })
+  await prisma.auditLog.create({
+    data: {
+      userId: actorId,
+      action: "team.member.role",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId, memberEmail: membership.user.email, from: membership.role, to: dbRoleFromApi(role) },
+    },
+  })
+  return { userId: memberUserId, role }
+}
+
+export async function removeMember(ownerId: string, actorId: string, memberUserId: string): Promise<void> {
+  if (memberUserId === actorId) throw new AppError(400, "Use 'Leave team' to remove yourself")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.delete({ where: { id: membership.id } })
+  await prisma.auditLog.create({
+    data: {
+      userId: actorId,
+      action: "team.member.remove",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId, memberEmail: membership.user.email },
+    },
+  })
+}
+
+/** A member leaves an owner's team. The owner cannot leave their own team. */
+export async function leaveTeam(memberUserId: string, ownerId: string): Promise<void> {
+  if (memberUserId === ownerId) throw new AppError(400, "The owner cannot leave their own team")
+  const membership = await findMembership(ownerId, memberUserId)
+  await prisma.teamMember.delete({ where: { id: membership.id } })
+  await prisma.auditLog.create({
+    data: {
+      userId: memberUserId,
+      action: "team.member.leave",
+      category: "team",
+      entityType: "TeamMember",
+      entityId: membership.id,
+      metadata: { ownerId },
+    },
+  })
 }

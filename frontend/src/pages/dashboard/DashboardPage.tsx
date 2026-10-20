@@ -12,9 +12,11 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { listQRs, deleteQR, toggleQR, duplicateQR, getGlobalAnalytics, getQrBaseUrl, getBillingUsage, getSubscription, type QRCode } from "@/lib/api"
+import { listQRs, deleteQR, toggleQR, duplicateQR, getGlobalAnalytics, getBillingUsage, getSubscription, type QRCode } from "@/lib/api"
 import { DownloadMenu } from "@/components/QRDownloadMenu"
+import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 // â”€â”€â”€ Label / icon maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -37,6 +39,7 @@ function formatDate(iso: string): string {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient()
+  const { can } = useWorkspace()
   const [typeFilter, setTypeFilter] = useState("all")
 
   const { data, isLoading, isError } = useQuery({
@@ -52,6 +55,7 @@ export default function DashboardPage() {
   const { mutate: toggle, isPending: isToggling } = useMutation({
     mutationFn: (id: string) => toggleQR(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["qr-codes"] }),
+    onError: (err: unknown) => window.alert(err instanceof Error ? err.message : "Could not change this QR code's status."),
   })
 
   const { mutate: duplicate, isPending: isDuplicating } = useMutation({
@@ -166,32 +170,22 @@ export default function DashboardPage() {
     if (!qrs.length) return
     setBulkOp("download")
     try {
-      const [{ default: QRCodeStyling }, { default: JSZip }] = await Promise.all([
-        import("qr-code-styling"),
-        import("jszip"),
-      ])
+      const { default: JSZip } = await import("jszip")
       const zip = new JSZip()
-
-      await Promise.all(qrs.map(async (qr) => {
+      const used = new Set<string>()
+      // One at a time: a framed code is a ~1800×2520 render, and rendering a
+      // whole selection in parallel can exhaust the tab's memory.
+      for (const qr of qrs) {
         try {
-          const redirectUrl = `${getQrBaseUrl()}/r/${qr.slug}`
-          const d = qr.design
-          const instance = new QRCodeStyling({
-            data: redirectUrl,
-            width: 1024, height: 1024, type: "canvas", margin: 40,
-            dotsOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.dotStyle ?? "rounded") as import("qr-code-styling").DotType },
-            cornersSquareOptions: { color: d?.primaryColor ?? "#7c3aed", type: (d?.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType },
-            cornersDotOptions: { color: d?.primaryColor ?? "#7c3aed" },
-            backgroundOptions: { color: d?.backgroundColor ?? "#ffffff" },
-            qrOptions: { errorCorrectionLevel: "H" as const },
-          })
-          const blob = await instance.getRawData("png")
-          if (blob) {
-            const filename = `${qr.name.replace(/[^a-z0-9_-]/gi, "_")}.png`
-            zip.file(filename, blob)
-          }
+          // Same renderer as the detail page: frame and logo included.
+          const { blob, filename } = await renderQRDownload(qr, "png")
+          // Two codes with the same name used to overwrite each other in the zip.
+          let name = filename
+          for (let n = 2; used.has(name); n++) name = filename.replace(/\.png$/, `-${n}.png`)
+          used.add(name)
+          zip.file(name, blob)
         } catch { /* skip individual failures */ }
-      }))
+      }
 
       const zipBlob = await zip.generateAsync({ type: "blob" })
       const url = URL.createObjectURL(zipBlob)
@@ -236,12 +230,14 @@ export default function DashboardPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">{greeting}, {firstName} 👋</h1>
           <p className="text-zinc-500 text-sm mt-1">Here's how your QR codes are performing today.</p>
         </div>
-        <Link to="/app/create" className="shrink-0">
-          <Button className="w-full sm:w-auto">
-            <Plus size={16} />
-            Create QR Code
-          </Button>
-        </Link>
+        {can("qr:create") && (
+          <Link to="/app/create" className="shrink-0">
+            <Button className="w-full sm:w-auto">
+              <Plus size={16} />
+              Create QR Code
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Plan / Trial Banner — shown for trialing users, recently-expired trials, and plain FREE users */}
@@ -565,7 +561,7 @@ export default function DashboardPage() {
               ))
             ) : (
               <div className="px-6 py-8 text-center text-zinc-500 text-xs">
-                No QR codes yet — <Link to="/app/create" className="text-violet-400 hover:underline">create one</Link>
+                No QR codes yet{can("qr:create") && <> — <Link to="/app/create" className="text-violet-400 hover:underline">create one</Link></>}
               </div>
             )}
           </CardContent>
@@ -588,11 +584,13 @@ export default function DashboardPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Link to="/app/create">
-              <Button size="sm" variant="outline">
-                <Plus size={14} /> New
-              </Button>
-            </Link>
+            {can("qr:create") && (
+              <Link to="/app/create">
+                <Button size="sm" variant="outline">
+                  <Plus size={14} /> New
+                </Button>
+              </Link>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -621,9 +619,11 @@ export default function DashboardPage() {
               <p className="text-sm mb-4">
                 {typeFilter === "all" ? "No QR codes yet." : `No ${TYPE_LABEL[typeFilter.toUpperCase()] ?? typeFilter} QR codes.`}
               </p>
-              <Link to="/app/create">
-                <Button size="sm"><Plus size={14} /> Create your first</Button>
-              </Link>
+              {can("qr:create") && (
+                <Link to="/app/create">
+                  <Button size="sm"><Plus size={14} /> Create your first</Button>
+                </Link>
+              )}
             </div>
           )}
 
@@ -710,40 +710,48 @@ export default function DashboardPage() {
                               <BarChart3 size={14} />
                             </button>
                           </Link>
-                          <Link to={`/app/qr/${qr.id}/edit`}>
-                            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Edit">
-                              <Edit size={14} />
-                            </button>
-                          </Link>
+                          {can("qr:edit") && (
+                            <Link to={`/app/qr/${qr.id}/edit`}>
+                              <button className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" title="Edit">
+                                <Edit size={14} />
+                              </button>
+                            </Link>
+                          )}
                           <div className="hidden sm:block"><DownloadMenu qr={qr} /></div>
-                          <button
-                            onClick={() => duplicate(qr.id)}
-                            disabled={isDuplicating}
-                            className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
-                            title="Duplicate"
-                          >
-                            <Copy size={14} />
-                          </button>
-                          <button
-                            onClick={() => toggle(qr.id)}
-                            disabled={isToggling}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${
-                              qr.isActive
-                                ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10"
-                                : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
-                            }`}
-                            title={qr.isActive ? "Deactivate" : "Activate"}
-                          >
-                            <Power size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(qr)}
-                            disabled={isDeleting}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                          {can("qr:create") && (
+                            <button
+                              onClick={() => duplicate(qr.id)}
+                              disabled={isDuplicating}
+                              className="hidden sm:flex w-8 h-8 rounded-lg items-center justify-center text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors disabled:opacity-40"
+                              title="Duplicate"
+                            >
+                              <Copy size={14} />
+                            </button>
+                          )}
+                          {can("qr:edit") && (
+                            <button
+                              onClick={() => toggle(qr.id)}
+                              disabled={isToggling}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors disabled:opacity-40 ${
+                                qr.isActive
+                                  ? "text-emerald-400 hover:text-red-400 hover:bg-red-500/10"
+                                  : "text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/10"
+                              }`}
+                              title={qr.isActive ? "Deactivate" : "Activate"}
+                            >
+                              <Power size={14} />
+                            </button>
+                          )}
+                          {can("qr:delete") && (
+                            <button
+                              onClick={() => handleDelete(qr)}
+                              disabled={isDeleting}
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-40"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -778,6 +786,7 @@ export default function DashboardPage() {
             <span className="hidden sm:inline">Download</span>
           </button>
 
+          {can("qr:edit") && <>
           {/* Activate */}
           <button
             onClick={() => void handleBulkToggle(true)}
@@ -803,7 +812,9 @@ export default function DashboardPage() {
               : <PowerOff size={13} />}
             <span className="hidden sm:inline">Deactivate</span>
           </button>
+          </>}
 
+          {can("qr:delete") && <>
           {/* Divider */}
           <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-0.5 sm:mx-1 shrink-0" />
 
@@ -819,6 +830,7 @@ export default function DashboardPage() {
               : <Trash2 size={13} />}
             <span className="hidden sm:inline">Delete</span>
           </button>
+          </>}
 
           {/* Clear selection */}
           <button

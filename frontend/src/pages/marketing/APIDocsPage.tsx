@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import {
   Copy, Check, Key, ChevronRight, Menu, X,
   BookOpen, Shield, Zap, AlertTriangle, Radio,
-  List, Plus, Eye, Pencil, Trash2, BarChart2,
+  List, Plus, Eye, Pencil, Trash2, BarChart2, Power, ScanLine,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SEOMeta } from "@/components/SEOMeta"
@@ -64,6 +64,7 @@ const NAV = [
       { id: "ep-create", label: "Create QR Code" },
       { id: "ep-get",    label: "Get QR Code" },
       { id: "ep-update", label: "Update QR Code" },
+      { id: "ep-toggle", label: "Toggle QR Code" },
       { id: "ep-delete", label: "Delete QR Code" },
     ],
   },
@@ -72,6 +73,7 @@ const NAV = [
     icon: <BarChart2 size={13} />,
     items: [
       { id: "ep-analytics", label: "QR Analytics" },
+      { id: "ep-scans",     label: "List Scans" },
     ],
   },
   {
@@ -93,34 +95,40 @@ const ENDPOINTS: Endpoint[] = [
     method: "GET",
     path: "/v1/qr",
     summary: "List QR Codes",
-    description: "Returns a paginated list of all QR codes in your account, ordered by creation date descending. Use query parameters to filter and paginate.",
+    description: "Returns a paginated list of the QR codes in your account, newest first by default. Use query parameters to filter, sort and paginate.",
     queryParams: [
-      { name: "page",   type: "integer", desc: "Page number, 1-indexed. Default: 1" },
-      { name: "limit",  type: "integer", desc: "Results per page. Default: 20. Max: 100" },
-      { name: "type",   type: "string",  desc: "Filter by QR type (URL, PDF, WIFI, VCARD, …)" },
-      { name: "search", type: "string",  desc: "Search by QR code name (partial match)" },
+      { name: "page",         type: "integer", desc: "Page number, 1-indexed. Default: 1" },
+      { name: "limit",        type: "integer", desc: "Results per page. Default: 20. Max: 50" },
+      { name: "type",         type: "string",  desc: "Filter by QR type (URL, PDF, WIFI, VCARD, …)" },
+      { name: "search",       type: "string",  desc: "Matches QR code names (partial, case-insensitive) or an exact tag" },
+      { name: "updatedSince", type: "string",  desc: "ISO 8601 timestamp — only QR codes updated at or after this time" },
+      { name: "sort",         type: "string",  desc: "createdAt (default) or updatedAt — newest first" },
     ],
     responseFields: [
-      { name: "data",            type: "array",   desc: "Array of QR code objects" },
-      { name: "meta.page",       type: "integer", desc: "Current page number" },
-      { name: "meta.limit",      type: "integer", desc: "Results per page" },
-      { name: "meta.total",      type: "integer", desc: "Total number of QR codes" },
-      { name: "meta.totalPages", type: "integer", desc: "Total number of pages" },
+      { name: "data",                  type: "array",   desc: "Array of QR code objects" },
+      { name: "pagination.page",       type: "integer", desc: "Current page number" },
+      { name: "pagination.limit",      type: "integer", desc: "Results per page" },
+      { name: "pagination.total",      type: "integer", desc: "Total number of matching QR codes" },
+      { name: "pagination.totalPages", type: "integer", desc: "Total number of pages" },
+      { name: "pagination.hasNext",    type: "boolean", desc: "Whether a later page exists" },
+      { name: "pagination.hasPrev",    type: "boolean", desc: "Whether an earlier page exists" },
     ],
     codes: [
       { code: "200", desc: "Success — list returned" },
       { code: "401", desc: "Invalid or missing API key" },
-      { code: "429", desc: "Rate limit exceeded" },
+      { code: "403", desc: "Your plan does not include API access (Pro or higher)" },
+      { code: "422", desc: "Invalid query parameter" },
+      { code: "429", desc: "Rate limit or monthly quota exceeded" },
     ],
     examples: {
-      curl: `curl https://genxqr.com/v1/qr?page=1&limit=20 \\
+      curl: `curl "https://genxqr.com/v1/qr?page=1&limit=20" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       node: `const res = await fetch('https://genxqr.com/v1/qr?page=1&limit=20', {
   headers: {
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
   }
 })
-const { data, meta } = await res.json()`,
+const { data, pagination } = await res.json()`,
       python: `import requests, os
 
 res = requests.get(
@@ -138,18 +146,21 @@ data = res.json()`,
       "name": "Restaurant Menu",
       "type": "URL",
       "category": "DYNAMIC",
-      "slug": "abc123",
+      "slug": "aB3dE5fG",
+      "tags": ["menu"],
       "scanCount": 1243,
       "isActive": true,
       "createdAt": "2025-04-01T10:00:00.000Z",
       "updatedAt": "2025-04-14T08:30:00.000Z"
     }
   ],
-  "meta": {
+  "pagination": {
+    "total": 42,
     "page": 1,
     "limit": 20,
-    "total": 42,
-    "totalPages": 3
+    "totalPages": 3,
+    "hasNext": true,
+    "hasPrev": false
   }
 }`,
   },
@@ -158,13 +169,15 @@ data = res.json()`,
     method: "POST",
     path: "/v1/qr",
     summary: "Create QR Code",
-    description: "Creates a new dynamic QR code. The QR code will be assigned a unique slug which is embedded in the scannable URL (https://genxqr.com/r/<slug>).",
+    description: "Creates a new QR code. It is assigned a unique slug which is embedded in the scannable URL (https://genxqr.com/r/<slug>). New QR codes are active immediately.",
     bodyParams: [
-      { name: "name",     type: "string",  required: true,  desc: "Display name for the QR code (max 128 characters)" },
-      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, WIFI, VCARD, MENU, SOCIAL_MEDIA, IMAGE_GALLERY, APP, MP3, BUSINESS, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON" },
-      { name: "content",  type: "object",  required: true,  desc: "Type-specific content object. See content schemas below." },
-      { name: "tags",     type: "string[]",               desc: "Array of tag strings for organisation" },
-      { name: "isActive", type: "boolean",               desc: "Whether the QR is immediately active. Default: true" },
+      { name: "name",     type: "string",  required: true,  desc: "Display name for the QR code (max 200 characters)" },
+      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON" },
+      { name: "content",  type: "object",                   desc: "Type-specific content, wrapped as { data: { … } }. See Content Schemas below." },
+      { name: "category", type: "string",                   desc: "DYNAMIC (default) or STATIC" },
+      { name: "tags",     type: "string[]",                 desc: "Up to 10 tags, max 50 characters each" },
+      { name: "design",   type: "object",                   desc: "Colours, dot and corner styles, logo and frame — same fields as design in Get QR Code" },
+      { name: "settings", type: "object",                   desc: "Optional: password, activeFrom, activeUntil, scanLimit, fallbackUrl, fbPixelId, gaId, gtmId" },
     ],
     responseFields: [
       { name: "id",        type: "string",  desc: "Unique QR code ID (CUID)" },
@@ -177,10 +190,11 @@ data = res.json()`,
     ],
     codes: [
       { code: "201", desc: "QR code created successfully" },
-      { code: "400", desc: "Validation error — check request body" },
+      { code: "400", desc: "Expiry date is beyond your current subscription period" },
       { code: "401", desc: "Invalid or missing API key" },
-      { code: "403", desc: "Plan limit reached — upgrade your plan" },
-      { code: "429", desc: "Rate limit exceeded" },
+      { code: "403", desc: "QR code limit reached, or your plan lacks API access or expiry dates" },
+      { code: "422", desc: "Validation error — check request body" },
+      { code: "429", desc: "Rate limit or monthly quota exceeded" },
     ],
     examples: {
       curl: `curl -X POST https://genxqr.com/v1/qr \\
@@ -236,7 +250,8 @@ print(f"Scan URL: https://genxqr.com/r/{data['slug']}")`,
     "name": "Product Launch",
     "type": "URL",
     "category": "DYNAMIC",
-    "slug": "xyz789",
+    "slug": "xY7zW9qR",
+    "tags": ["marketing", "product"],
     "scanCount": 0,
     "isActive": true,
     "createdAt": "2025-04-14T10:00:00.000Z",
@@ -291,7 +306,7 @@ data = res.json()['data']`,
     "name": "Product Launch",
     "type": "URL",
     "category": "DYNAMIC",
-    "slug": "xyz789",
+    "slug": "xY7zW9qR",
     "scanCount": 57,
     "isActive": true,
     "content": {
@@ -314,23 +329,24 @@ data = res.json()['data']`,
     method: "PATCH",
     path: "/v1/qr/:id",
     summary: "Update QR Code",
-    description: "Updates the name, content, or settings of an existing QR code. Only the fields you provide are changed — all others remain untouched. For dynamic QR codes, updating the content takes effect immediately for all future scans without reprinting.",
+    description: "Updates an existing QR code. Only the fields you provide are changed — all others remain untouched. For dynamic QR codes, new content applies from the next scan, without reprinting. This endpoint does not change isActive — use Toggle QR Code for that.",
     bodyParams: [
-      { name: "name",       type: "string",  desc: "New display name" },
-      { name: "content",    type: "object",  desc: "New type-specific content object. Replaces existing content entirely." },
-      { name: "isActive",   type: "boolean", desc: "Enable (true) or disable (false) the QR code" },
-      { name: "tags",       type: "string[]",desc: "Replace tag list" },
-      { name: "scanLimit",  type: "integer", desc: "Maximum allowed scans. Set null to remove limit." },
-      { name: "activeUntil",type: "string",  desc: "ISO 8601 expiry date. Set null to remove expiry." },
+      { name: "name",     type: "string",   desc: "New display name" },
+      { name: "content",  type: "object",   desc: "New type-specific content, as { data: { … } }. Replaces existing content entirely." },
+      { name: "tags",     type: "string[]", desc: "Replace the tag list (max 10)" },
+      { name: "design",   type: "object",   desc: "Design fields to change — fields you omit keep their current value" },
+      { name: "settings", type: "object",   desc: "password (\"\" removes it), activeFrom, activeUntil (ISO 8601, null to clear), scanLimit (null to clear), fallbackUrl, fbPixelId, gaId, gtmId" },
     ],
     responseFields: [
       { name: "id",        type: "string",  desc: "QR code ID" },
       { name: "updatedAt", type: "string",  desc: "ISO 8601 timestamp of the update" },
+      { name: "…",         type: "",        desc: "Plus every other field returned by Get QR Code" },
     ],
     codes: [
       { code: "200", desc: "QR code updated successfully" },
-      { code: "400", desc: "Validation error" },
+      { code: "400", desc: "Expiry date is beyond your current subscription period" },
       { code: "401", desc: "Invalid or missing API key" },
+      { code: "403", desc: "Your plan lacks API access or expiry dates" },
       { code: "404", desc: "QR code not found" },
     ],
     examples: {
@@ -343,7 +359,7 @@ data = res.json()['data']`,
         "url": "https://yourproduct.com/new-page"
       }
     },
-    "isActive": true
+    "settings": { "scanLimit": 500 }
   }'`,
       node: `const res = await fetch(\`https://genxqr.com/v1/qr/\${id}\`, {
   method: 'PATCH',
@@ -353,7 +369,7 @@ data = res.json()['data']`,
   },
   body: JSON.stringify({
     content: { data: { url: 'https://yourproduct.com/new-page' } },
-    isActive: true
+    settings: { scanLimit: 500 }
   })
 })
 const { data } = await res.json()`,
@@ -365,7 +381,7 @@ const { data } = await res.json()`,
     },
     json={
         'content': {'data': {'url': 'https://yourproduct.com/new-page'}},
-        'isActive': True
+        'settings': {'scanLimit': 500}
     }
 )`,
     },
@@ -375,9 +391,53 @@ const { data } = await res.json()`,
     "id": "clxxxxxxxxxxxxxxxx",
     "name": "Product Launch",
     "type": "URL",
-    "slug": "xyz789",
+    "slug": "xY7zW9qR",
     "isActive": true,
+    "scanLimit": 500,
     "updatedAt": "2025-04-14T11:30:00.000Z"
+  }
+}`,
+  },
+  {
+    id: "ep-toggle",
+    method: "PATCH",
+    path: "/v1/qr/:id/toggle",
+    summary: "Toggle QR Code",
+    description: "Switches a QR code between active and inactive. When an inactive code is scanned, the visitor sees the deactivated page — or the code's fallback URL, if it has one. A code paused because your plan ended can only be switched back on by renewing.",
+    responseFields: [
+      { name: "id",       type: "string",  desc: "QR code ID" },
+      { name: "isActive", type: "boolean", desc: "The new active state" },
+      { name: "slug",     type: "string",  desc: "Scan URL slug" },
+    ],
+    codes: [
+      { code: "200", desc: "Active state flipped" },
+      { code: "401", desc: "Invalid or missing API key" },
+      { code: "403", desc: "Code was paused because your plan ended — renew to switch it back on" },
+      { code: "404", desc: "QR code not found" },
+    ],
+    examples: {
+      curl: `curl -X PATCH https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/toggle \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch(\`https://genxqr.com/v1/qr/\${id}/toggle\`, {
+  method: 'PATCH',
+  headers: {
+    'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
+  }
+})
+const { data } = await res.json()
+console.log('Active:', data.isActive)`,
+      python: `res = requests.patch(
+    f'https://genxqr.com/v1/qr/{qr_id}/toggle',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)
+print('Active:', res.json()['data']['isActive'])`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": {
+    "id": "clxxxxxxxxxxxxxxxx",
+    "isActive": false,
+    "slug": "xY7zW9qR"
   }
 }`,
   },
@@ -386,13 +446,12 @@ const { data } = await res.json()`,
     method: "DELETE",
     path: "/v1/qr/:id",
     summary: "Delete QR Code",
-    description: "Permanently deletes a QR code and all its associated scan data. This action is irreversible. If you only want to stop a QR code from accepting scans without losing data, use the Update endpoint to set isActive: false instead.",
+    description: "Permanently deletes a QR code and all its associated scan data. This action is irreversible. If you only want to stop a QR code from accepting scans without losing data, use Toggle QR Code instead.",
     responseFields: [
-      { name: "success", type: "boolean", desc: "Always true on 200" },
-      { name: "message", type: "string",  desc: "Confirmation message" },
+      { name: "(none)", type: "", desc: "Success returns 204 No Content with an empty body" },
     ],
     codes: [
-      { code: "200", desc: "QR code permanently deleted" },
+      { code: "204", desc: "QR code permanently deleted" },
       { code: "401", desc: "Invalid or missing API key" },
       { code: "404", desc: "QR code not found" },
     ],
@@ -405,36 +464,37 @@ const { data } = await res.json()`,
     'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
   }
 })
-const result = await res.json()
-// { success: true, message: 'QR code deleted' }`,
+// res.status === 204 — no response body`,
       python: `res = requests.delete(
     f'https://genxqr.com/v1/qr/{qr_id}',
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
-# { 'success': True, 'message': 'QR code deleted' }`,
+# res.status_code == 204 — no response body`,
     },
-    responseExample: `{
-  "success": true,
-  "message": "QR code deleted"
-}`,
+    responseExample: `HTTP/1.1 204 No Content`,
   },
   {
     id: "ep-analytics",
     method: "GET",
     path: "/v1/qr/:id/analytics",
     summary: "QR Analytics",
-    description: "Returns scan analytics for a specific QR code. Includes aggregated totals, daily scan counts for the past 30 days, and breakdowns by country, device type, and browser.",
+    description: "Returns scan analytics for a specific QR code: all-time totals, a daily timeline for the requested number of days, and breakdowns by device, OS, browser, country and city.",
     queryParams: [
-      { name: "period", type: "string", desc: "Time window. One of: 7d, 30d, 90d. Default: 30d" },
+      { name: "days", type: "integer", desc: "Days covered by the timeline and breakdowns. Default: 30. Max: 90" },
     ],
     responseFields: [
-      { name: "totalScans",      type: "integer", desc: "All-time total scan count" },
-      { name: "uniqueScans",     type: "integer", desc: "Deduplicated scan count (1 per device per 4h)" },
-      { name: "todayScans",      type: "integer", desc: "Scans in the current UTC day" },
-      { name: "timeSeries",      type: "array",   desc: "Daily scan counts for the requested period" },
-      { name: "topCountries",    type: "array",   desc: "Top countries by scan count" },
-      { name: "deviceBreakdown", type: "object",  desc: "Scan counts split by mobile / tablet / desktop" },
-      { name: "browserBreakdown",type: "object",  desc: "Scan counts per browser" },
+      { name: "totalScans",     type: "integer", desc: "All-time scan count, repeat scans included" },
+      { name: "uniqueScans",    type: "integer", desc: "All-time unique scans — repeats from the same IP and browser within 4 hours count once" },
+      { name: "scansToday",     type: "integer", desc: "Scans in the current UTC day" },
+      { name: "scansThisWeek",  type: "integer", desc: "Scans in the last 7 days" },
+      { name: "scansThisMonth", type: "integer", desc: "Scans in the last 30 days" },
+      { name: "timeline",       type: "array",   desc: "Daily scan counts ({ date, count }) for the requested period" },
+      { name: "byDevice",       type: "array",   desc: "Scan counts by deviceType: MOBILE, TABLET, DESKTOP, UNKNOWN" },
+      { name: "byOS",           type: "array",   desc: "Scan counts per operating system" },
+      { name: "byBrowser",      type: "array",   desc: "Scan counts per browser" },
+      { name: "byCountry",      type: "array",   desc: "Top 20 countries ({ country, countryCode, count })" },
+      { name: "byCity",         type: "array",   desc: "Top 20 cities ({ city, region, country, countryCode, count })" },
+      { name: "recentScans",    type: "array",   desc: "Latest 50 scans with time, IP, location, device, OS, browser and referrer" },
     ],
     codes: [
       { code: "200", desc: "Analytics returned" },
@@ -442,10 +502,10 @@ const result = await res.json()
       { code: "404", desc: "QR code not found" },
     ],
     examples: {
-      curl: `curl "https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/analytics?period=30d" \\
+      curl: `curl "https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/analytics?days=30" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
       node: `const res = await fetch(
-  \`https://genxqr.com/v1/qr/\${id}/analytics?period=30d\`,
+  \`https://genxqr.com/v1/qr/\${id}/analytics?days=30\`,
   {
     headers: {
       'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\`
@@ -456,7 +516,7 @@ const { data } = await res.json()
 console.log('Total scans:', data.totalScans)`,
       python: `res = requests.get(
     f'https://genxqr.com/v1/qr/{qr_id}/analytics',
-    params={'period': '30d'},
+    params={'days': 30},
     headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
 )
 analytics = res.json()['data']
@@ -467,30 +527,91 @@ print('Total scans:', analytics['totalScans'])`,
   "data": {
     "totalScans": 1243,
     "uniqueScans": 987,
-    "todayScans": 18,
-    "timeSeries": [
-      { "date": "2025-04-13", "scans": 42 },
-      { "date": "2025-04-14", "scans": 18 }
+    "scansToday": 18,
+    "scansThisWeek": 140,
+    "scansThisMonth": 512,
+    "timeline": [
+      { "date": "2025-04-13", "count": 42 },
+      { "date": "2025-04-14", "count": 18 }
     ],
-    "topCountries": [
-      { "country": "IN", "scans": 830 },
-      { "country": "US", "scans": 210 }
+    "byDevice": [
+      { "deviceType": "MOBILE", "count": 890 },
+      { "deviceType": "DESKTOP", "count": 290 }
     ],
-    "deviceBreakdown": {
-      "mobile": 890,
-      "desktop": 290,
-      "tablet": 63
-    },
-    "browserBreakdown": {
-      "Chrome": 720,
-      "Safari": 380,
-      "Firefox": 95,
-      "Other": 48
-    }
+    "byOS": [{ "os": "Android", "count": 610 }],
+    "byBrowser": [{ "browser": "Chrome", "count": 720 }],
+    "byCountry": [
+      { "country": "India", "countryCode": "IN", "count": 830 }
+    ],
+    "byCity": [
+      { "city": "Mumbai", "region": "Maharashtra", "country": "India", "countryCode": "IN", "count": 214 }
+    ],
+    "recentScans": [ … ]
   }
 }`,
   },
+  {
+    id: "ep-scans",
+    method: "GET",
+    path: "/v1/qr/:id/scans",
+    summary: "List Scans",
+    description: "Returns individual scans for a QR code, newest first. Each scan has a stable id, so polling integrations can de-duplicate.",
+    queryParams: [
+      { name: "limit", type: "integer", desc: "Number of scans to return. Default: 25. Max: 100" },
+      { name: "since", type: "string",  desc: "ISO 8601 timestamp — only scans at or after this time" },
+    ],
+    responseFields: [
+      { name: "data",                type: "array",  desc: "Array of scan objects" },
+      { name: "data[].id",           type: "string", desc: "Scan ID" },
+      { name: "data[].scannedAt",    type: "string", desc: "ISO 8601 scan time" },
+      { name: "data[].country",      type: "string", desc: "Country, with countryCode, city and region alongside" },
+      { name: "data[].deviceType",   type: "string", desc: "MOBILE, TABLET, DESKTOP or UNKNOWN" },
+      { name: "data[].os / browser", type: "string", desc: "Operating system and browser" },
+      { name: "data[].referrer",     type: "string", desc: "Referer header, if the scanner sent one" },
+    ],
+    codes: [
+      { code: "200", desc: "Scans returned" },
+      { code: "401", desc: "Invalid or missing API key" },
+      { code: "404", desc: "QR code not found" },
+      { code: "422", desc: "Invalid query parameter" },
+    ],
+    examples: {
+      curl: `curl "https://genxqr.com/v1/qr/clxxxxxxxxxxxxxxxx/scans?limit=25" \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch(
+  \`https://genxqr.com/v1/qr/\${id}/scans?limit=25\`,
+  { headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` } }
+)
+const { data } = await res.json()`,
+      python: `res = requests.get(
+    f'https://genxqr.com/v1/qr/{qr_id}/scans',
+    params={'limit': 25},
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)
+scans = res.json()['data']`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": [
+    {
+      "id": "clyyyyyyyyyyyyyyyy",
+      "qrId": "clxxxxxxxxxxxxxxxx",
+      "scannedAt": "2025-04-14T10:30:00.000Z",
+      "country": "India",
+      "countryCode": "IN",
+      "city": "Mumbai",
+      "region": "Maharashtra",
+      "deviceType": "MOBILE",
+      "os": "Android",
+      "browser": "Chrome",
+      "referrer": null
+    }
+  ]
+}`,
+  },
 ]
+
+const ANALYTICS_IDS = ["ep-analytics", "ep-scans"]
 
 // ─── Small components ─────────────────────────────────────────────────────────
 
@@ -648,14 +769,13 @@ function EndpointSection({ ep, lang }: { ep: Endpoint; lang: Lang }) {
 // ─── Error codes ──────────────────────────────────────────────────────────────
 
 const ERROR_CODES = [
-  { code: "400", title: "Bad Request",           desc: "The request body or query parameters failed validation. The response includes a list of validation errors." },
-  { code: "401", title: "Unauthorized",          desc: "Missing or invalid API key. Ensure your Authorization header is set correctly." },
-  { code: "403", title: "Forbidden",             desc: "Your current plan doesn't include this feature, or you've reached a plan limit. Upgrade to continue." },
+  { code: "400", title: "Bad Request",           desc: "The request is valid but can't be applied — for example an expiry date beyond your current subscription period, or an unusable webhook URL." },
+  { code: "401", title: "Unauthorized",          desc: "Missing, invalid, revoked or expired API key. Ensure your Authorization header is set correctly." },
+  { code: "403", title: "Forbidden",             desc: "Your current plan doesn't include API access or this feature, or you've reached a plan limit such as your QR code allowance. Upgrade to continue." },
   { code: "404", title: "Not Found",             desc: "The requested resource doesn't exist or belongs to another account." },
-  { code: "409", title: "Conflict",              desc: "A resource with the same unique identifier already exists." },
-  { code: "422", title: "Unprocessable Entity",  desc: "The request is well-formed but the semantic content is invalid for the operation." },
-  { code: "429", title: "Too Many Requests",     desc: "You have exceeded the rate limit. The response includes a Retry-After header with the wait time in seconds." },
-  { code: "500", title: "Internal Server Error", desc: "An unexpected error occurred on our side. These are automatically logged and monitored. Please retry after a moment." },
+  { code: "422", title: "Unprocessable Entity",  desc: "The request body or query parameters failed validation. The response includes a details object listing each invalid field." },
+  { code: "429", title: "Too Many Requests",     desc: "You exceeded the per-minute rate limit (the response includes a Retry-After header) or your plan's monthly API call quota." },
+  { code: "500", title: "Internal Server Error", desc: "An unexpected error occurred on our side. These are logged. Please retry after a moment." },
 ]
 
 // ─── Webhook events ───────────────────────────────────────────────────────────
@@ -663,38 +783,49 @@ const ERROR_CODES = [
 const WEBHOOK_EVENTS = [
   {
     event: "qr.scanned",
-    desc: "Fired when a QR code is scanned. Deduplicated: at most one event per device per 4 hours.",
+    desc: "Fired on every scan, including repeat scans from the same device. Location and device details are not included — fetch them from List Scans.",
     payload: `{
   "event": "qr.scanned",
-  "qrId": "clxxxxxxxxxxxxxxxx",
-  "slug": "abc123",
-  "scannedAt": "2025-04-14T10:30:00.000Z",
-  "country": "IN",
-  "city": "Mumbai",
-  "device": "mobile",
-  "browser": "Chrome",
-  "os": "Android"
+  "timestamp": "2025-04-14T10:30:01.000Z",
+  "data": {
+    "qrId": "clxxxxxxxxxxxxxxxx",
+    "name": "Restaurant Menu",
+    "slug": "aB3dE5fG",
+    "scannedAt": "2025-04-14T10:30:00.000Z"
+  }
 }`,
   },
   {
     event: "qr.created",
-    desc: "Fired when a new QR code is created, whether via the dashboard or the API.",
+    desc: "Fired when a new QR code is created, whether via the dashboard or the API. data.qr is the full QR code object.",
     payload: `{
   "event": "qr.created",
-  "qrId": "clxxxxxxxxxxxxxxxx",
-  "name": "Product Launch",
-  "type": "URL",
-  "slug": "xyz789",
-  "createdAt": "2025-04-14T10:00:00.000Z"
+  "timestamp": "2025-04-14T10:00:00.000Z",
+  "data": {
+    "qr": {
+      "id": "clxxxxxxxxxxxxxxxx",
+      "name": "Product Launch",
+      "type": "URL",
+      "slug": "xY7zW9qR",
+      "isActive": true,
+      "createdAt": "2025-04-14T10:00:00.000Z"
+    }
+  }
 }`,
   },
   {
     event: "qr.updated",
-    desc: "Fired when a QR code's content, name, or settings are changed.",
+    desc: "Fired when a QR code is edited. data.qr is the full updated QR code object.",
     payload: `{
   "event": "qr.updated",
-  "qrId": "clxxxxxxxxxxxxxxxx",
-  "updatedAt": "2025-04-14T11:00:00.000Z"
+  "timestamp": "2025-04-14T11:00:00.000Z",
+  "data": {
+    "qr": {
+      "id": "clxxxxxxxxxxxxxxxx",
+      "name": "Product Launch",
+      "updatedAt": "2025-04-14T11:00:00.000Z"
+    }
+  }
 }`,
   },
   {
@@ -702,8 +833,41 @@ const WEBHOOK_EVENTS = [
     desc: "Fired when a QR code is permanently deleted.",
     payload: `{
   "event": "qr.deleted",
-  "qrId": "clxxxxxxxxxxxxxxxx",
-  "deletedAt": "2025-04-14T12:00:00.000Z"
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "qrId": "clxxxxxxxxxxxxxxxx",
+    "name": "Product Launch"
+  }
+}`,
+  },
+  {
+    event: "subscription.activated",
+    desc: "Fired when a payment activates or renews your plan.",
+    payload: `{
+  "event": "subscription.activated",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": { "planName": "PRO", "billingCycle": "monthly" }
+}`,
+  },
+  {
+    event: "subscription.cancelled",
+    desc: "Fired when you cancel your plan. It stays active until the end of the current period.",
+    payload: `{
+  "event": "subscription.cancelled",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": { "cancelAtPeriodEnd": true }
+}`,
+  },
+  {
+    event: "test",
+    desc: "Sent when you press Test on a webhook in the dashboard. Delivered once, never retried.",
+    payload: `{
+  "event": "test",
+  "timestamp": "2025-04-14T12:00:00.000Z",
+  "data": {
+    "message": "This is a test event from GenXQR",
+    "webhookId": "clzzzzzzzzzzzzzzzz"
+  }
 }`,
   },
 ]
@@ -751,17 +915,18 @@ function AuthSection() {
       <p className="text-ink-soft text-sm leading-relaxed mb-4">
         All API requests require an API key passed in the <code className="text-accent bg-accent-soft px-1 rounded">Authorization</code> header using the Bearer scheme. Generate a key from{" "}
         <Link to="/app/api-keys" className="text-accent hover:text-accent-ink underline underline-offset-2">API Keys</Link> in your dashboard.
+        API access requires the Pro plan or higher — keys return 403 if the account drops below Pro — and each account can hold up to 10 keys.
       </p>
       <CodeBlock lang="bash" code={`# Every request must include this header
 curl https://genxqr.com/v1/qr \\
-  -H "Authorization: Bearer gxqr_••••••••••••••••••••••••••••••••"`} />
+  -H "Authorization: Bearer gxqr_live_••••••••••••••••••••••••••••••••"`} />
       <div className="mt-4 p-4 border border-amber-500/20 bg-amber-500/10 rounded-xl">
         <div className="flex items-start gap-3">
           <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
           <div>
             <p className="text-amber-700 dark:text-amber-300 text-xs font-semibold mb-1">Keep your key secret</p>
             <p className="text-ink-soft text-xs leading-relaxed">
-              API keys carry full account access. Store them in environment variables (<code className="text-amber-700 dark:text-amber-300">GenXQR_API_KEY</code>), never in client-side code or source files.
+              API keys have no scopes: any key can read, create, change and delete every QR code and webhook in your account. Store them in environment variables (<code className="text-amber-700 dark:text-amber-300">GenXQR_API_KEY</code>), never in client-side code or source files.
               If a key is exposed, revoke it immediately from the dashboard and generate a replacement.
             </p>
           </div>
@@ -777,7 +942,7 @@ function RateLimitsSection() {
     <section id="rate-limits" className="scroll-mt-32 mb-16">
       <h2 className="text-ink font-display font-bold text-2xl mb-4">Rate Limits</h2>
       <p className="text-ink-soft text-sm leading-relaxed mb-4">
-        Rate limits are applied per API key. When you exceed the limit, the API responds with <code className="text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1 rounded">HTTP 429</code> and a <code className="text-ink-soft bg-paper-pure border border-line px-1 rounded">Retry-After</code> header telling you how many seconds to wait.
+        Rate limits are applied per account — every API key on the account shares the same budget. When you exceed the per-minute limit, the API responds with <code className="text-amber-700 dark:text-amber-300 bg-amber-500/10 px-1 rounded">HTTP 429</code> and a <code className="text-ink-soft bg-paper-pure border border-line px-1 rounded">Retry-After</code> header telling you how many seconds to wait.
       </p>
       <div className="border border-line rounded-xl overflow-hidden mb-4">
         <table className="w-full text-xs">
@@ -790,9 +955,9 @@ function RateLimitsSection() {
           </thead>
           <tbody>
             {[
-              ["Sustained rate",  "200 req / min",   "Applies globally across all endpoints"],
-              ["Burst window",    "50 req / 5 sec",  "Short bursts beyond the sustained rate"],
-              ["Retry-After",     "Seconds to wait", "Included in the 429 response header"],
+              ["Per-minute rate", "300 req / min",   "Per account, across all /v1 endpoints"],
+              ["Monthly quota",   "10,000 (Pro) · 100,000 (Business)", "Calls per calendar month (UTC); over-quota calls get 429 without Retry-After"],
+              ["Retry-After",     "Seconds to wait", "Included in per-minute 429 responses"],
             ].map(([label, val, note], i) => (
               <tr key={label} className={cn("border-b border-line/60 last:border-0", i % 2 === 1 ? "bg-ink/[0.02]" : "")}>
                 <td className="px-4 py-2.5 text-ink">{label}</td>
@@ -810,7 +975,7 @@ Content-Type: application/json
 
 {
   "success": false,
-  "error": "Too many requests, please try again later."
+  "error": "API rate limit exceeded (300 req/min). Slow down or contact support to raise your cap."
 }`} />
       <div className="mt-6 border-t border-line" />
     </section>
@@ -822,16 +987,16 @@ function ErrorsSection() {
     <section id="errors" className="scroll-mt-32 mb-16">
       <h2 className="text-ink font-display font-bold text-2xl mb-4">Error Codes</h2>
       <p className="text-ink-soft text-sm leading-relaxed mb-4">
-        Errors always return a JSON body with <code className="text-accent bg-accent-soft px-1 rounded">success: false</code> and a human-readable <code className="text-accent bg-accent-soft px-1 rounded">error</code> field. Validation errors additionally include an <code className="text-accent bg-accent-soft px-1 rounded">errors</code> array.
+        Errors always return a JSON body with <code className="text-accent bg-accent-soft px-1 rounded">success: false</code> and a human-readable <code className="text-accent bg-accent-soft px-1 rounded">error</code> field. Validation errors (422) additionally include a <code className="text-accent bg-accent-soft px-1 rounded">details</code> object mapping each invalid field to its messages.
       </p>
       <CodeBlock lang="json" code={`// Standard error response
 {
   "success": false,
   "error": "Validation failed",
-  "errors": [
-    { "field": "type", "message": "Invalid QR type" },
-    { "field": "content.data.url", "message": "URL is required" }
-  ]
+  "details": {
+    "name": ["Required"],
+    "type": ["Invalid enum value. Expected 'URL' | 'PDF' | …, received 'LINK'"]
+  }
 }`} />
       <div className="mt-4 border border-line rounded-xl overflow-hidden">
         <table className="w-full text-xs">
@@ -863,18 +1028,20 @@ function PaginationSection() {
     <section id="pagination" className="scroll-mt-32 mb-16">
       <h2 className="text-ink font-display font-bold text-2xl mb-4">Pagination</h2>
       <p className="text-ink-soft text-sm leading-relaxed mb-4">
-        All list endpoints use cursor-free page-based pagination. Pass <code className="text-accent bg-accent-soft px-1 rounded">page</code> and <code className="text-accent bg-accent-soft px-1 rounded">limit</code> as query parameters. Every list response includes a <code className="text-accent bg-accent-soft px-1 rounded">meta</code> object.
+        <code className="text-accent bg-accent-soft px-1 rounded">GET /v1/qr</code> uses page-based pagination. Pass <code className="text-accent bg-accent-soft px-1 rounded">page</code> and <code className="text-accent bg-accent-soft px-1 rounded">limit</code> (max 50) as query parameters; the response includes a <code className="text-accent bg-accent-soft px-1 rounded">pagination</code> object. List Scans uses <code className="text-accent bg-accent-soft px-1 rounded">limit</code> and <code className="text-accent bg-accent-soft px-1 rounded">since</code> instead.
       </p>
       <div className="grid sm:grid-cols-2 gap-4">
         <CodeBlock lang="bash" code={`# Request page 3, 50 items per page
 curl "https://genxqr.com/v1/qr?page=3&limit=50" \\
   -H "Authorization: Bearer YOUR_API_KEY"`} />
-        <CodeBlock lang="json" code={`// meta object in every list response
-"meta": {
+        <CodeBlock lang="json" code={`// pagination object in the list response
+"pagination": {
+  "total": 142,
   "page": 3,
   "limit": 50,
-  "total": 142,
-  "totalPages": 3
+  "totalPages": 3,
+  "hasNext": false,
+  "hasPrev": true
 }`} />
       </div>
       <div className="mt-6 border-t border-line" />
@@ -895,11 +1062,16 @@ function WebhooksSection() {
           <Link to="/app/webhooks" className="text-accent hover:text-accent-ink underline underline-offset-2">Webhooks</Link>{" "}
           page in your dashboard. Each webhook has its own HMAC secret used to verify requests.
         </p>
+        <p className="text-ink-soft text-sm leading-relaxed mb-4">
+          Webhooks require the Pro plan or higher, and each account can have up to 20. URLs must use HTTPS. A delivery counts as successful on any 2xx response within 10 seconds; redirects are not followed. Failed deliveries are retried up to 5 attempts in total — after 30 seconds, 2 minutes, 8 minutes and 32 minutes. Integrations can also subscribe with <code className="text-accent bg-accent-soft px-1 rounded">POST /v1/webhooks</code> and a <code className="text-accent bg-accent-soft px-1 rounded">{"{ url, event }"}</code> body.
+        </p>
         <div className="border border-zinc-800 rounded-xl p-4 bg-zinc-950 font-mono text-xs space-y-1.5 mb-4">
           <p><span className="text-violet-300">POST</span> <span className="text-zinc-300">https://your-server.com/webhook</span></p>
           <p><span className="text-zinc-500">Content-Type:</span> <span className="text-zinc-300">application/json</span></p>
           <p><span className="text-zinc-500">X-GenXQR-Signature:</span> <span className="text-zinc-300">sha256=&lt;HMAC-SHA256&gt;</span></p>
           <p><span className="text-zinc-500">X-GenXQR-Event:</span> <span className="text-zinc-300">qr.scanned</span></p>
+          <p><span className="text-zinc-500">X-GenXQR-Attempt:</span> <span className="text-zinc-300">1</span></p>
+          <p><span className="text-zinc-500">User-Agent:</span> <span className="text-zinc-300">GenXQR-Webhooks/1.0</span></p>
         </div>
         <div className="mt-4 border-t border-line" />
       </section>
@@ -907,7 +1079,7 @@ function WebhooksSection() {
       <section id="webhooks-events" className="scroll-mt-32 mb-16">
         <h2 className="text-ink font-display font-bold text-2xl mb-4">Events & Payloads</h2>
         <p className="text-ink-soft text-sm leading-relaxed mb-6">
-          Subscribe to any combination of the events below when creating a webhook.
+          Subscribe to any combination of the events below when creating a webhook. Every delivery uses the same envelope: <code className="text-accent bg-accent-soft px-1 rounded">{"{ event, timestamp, data }"}</code>.
         </p>
         <div className="space-y-5">
           {WEBHOOK_EVENTS.map((ev) => (
@@ -945,7 +1117,7 @@ function WebhooksSection() {
 const crypto = require('crypto')
 
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig      = req.headers['x-GenXQR-signature']
+  const sig      = req.headers['x-genxqr-signature'] ?? ''  // Node lower-cases header names
   const body     = req.body   // raw Buffer — do NOT parse before verifying
   const secret   = process.env.GenXQR_WEBHOOK_SECRET
 
@@ -954,7 +1126,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
     .update(body)
     .digest('hex')
 
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  if (sig.length !== expected.length ||
+      !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     return res.status(401).send('Invalid signature')
   }
 
@@ -967,12 +1140,12 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 })`} />
           <CodeBlock lang="python" code={`# Python — FastAPI
 import hmac, hashlib, json, os
-from fastapi import Request, HTTPException
+from fastapi import BackgroundTasks, Request, HTTPException
 
 @app.post("/webhook")
-async def handle_webhook(request: Request):
+async def handle_webhook(request: Request, background_tasks: BackgroundTasks):
     body   = await request.body()
-    sig    = request.headers.get("x-GenXQR-signature", "")
+    sig    = request.headers.get("x-genxqr-signature", "")
     secret = os.environ["GenXQR_WEBHOOK_SECRET"].encode()
 
     expected = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
@@ -1000,8 +1173,10 @@ function Sidebar({ activeSection, onNav }: { activeSection: string; onNav: (id: 
     "ep-create":    <Plus size={12} />,
     "ep-get":       <Eye size={12} />,
     "ep-update":    <Pencil size={12} />,
+    "ep-toggle":    <Power size={12} />,
     "ep-delete":    <Trash2 size={12} />,
     "ep-analytics": <BarChart2 size={12} />,
+    "ep-scans":     <ScanLine size={12} />,
   }
 
   return (
@@ -1172,7 +1347,7 @@ export default function APIDocsPage() {
             <p className="text-ink-faint text-sm mb-8">Create, read, update, and delete QR codes in your account.</p>
           </div>
 
-          {ENDPOINTS.filter((ep) => ep.id !== "ep-analytics").map((ep) => (
+          {ENDPOINTS.filter((ep) => !ANALYTICS_IDS.includes(ep.id)).map((ep) => (
             <EndpointSection key={ep.id} ep={ep} lang={lang} />
           ))}
 
@@ -1181,7 +1356,7 @@ export default function APIDocsPage() {
             <p className="text-ink-faint text-sm mb-8">Retrieve scan analytics for your QR codes.</p>
           </div>
 
-          {ENDPOINTS.filter((ep) => ep.id === "ep-analytics").map((ep) => (
+          {ENDPOINTS.filter((ep) => ANALYTICS_IDS.includes(ep.id)).map((ep) => (
             <EndpointSection key={ep.id} ep={ep} lang={lang} />
           ))}
 
@@ -1196,11 +1371,11 @@ export default function APIDocsPage() {
             <div className="grid sm:grid-cols-2 gap-4">
               {[
                 { type: "URL", schema: `{ "data": { "url": "https://example.com" } }` },
-                { type: "WIFI", schema: `{ "data": { "ssid": "My Network", "password": "secret", "encryption": "WPA" } }` },
+                { type: "WIFI", schema: `{ "data": { "ssid": "My Network", "password": "secret", "security": "WPA" } }` },
                 { type: "WHATSAPP", schema: `{ "data": { "phone": "+919876543210", "message": "Hello!" } }` },
                 { type: "INSTAGRAM", schema: `{ "data": { "username": "yourhandle" } }` },
-                { type: "VCARD", schema: `{ "data": { "firstName": "Raj", "lastName": "Sharma", "phone": "+91...", "email": "raj@...", "company": "Acme" } }` },
-                { type: "FACEBOOK", schema: `{ "data": { "pageUrl": "https://facebook.com/yourpage" } }` },
+                { type: "VCARD", schema: `{ "data": { "fullName": "Raj Sharma", "organization": "Acme", "title": "Founder", "phone": "+91...", "email": "raj@..." } }` },
+                { type: "FACEBOOK", schema: `{ "data": { "url": "https://facebook.com/yourpage" } }` },
               ].map((item) => (
                 <div key={item.type} className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
                   <div className="px-4 py-2.5 bg-zinc-900/50 border-b border-zinc-800">

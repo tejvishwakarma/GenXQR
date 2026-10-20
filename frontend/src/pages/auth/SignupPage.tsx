@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { attributionQueryParam } from "@/lib/attribution"
 import { register, getTeamInvitePreview, ApiError } from "@/lib/api"
 
 const perks = [
@@ -88,7 +89,7 @@ export default function SignupPage() {
 
           <span className="section-header mb-6 w-fit animate-fade-in">
             <Zap size={14} className="text-violet-400" />
-            Free forever — no credit card
+            14-day Pro trial — no credit card
           </span>
 
           <h1 className="text-2xl lg:text-3xl font-bold text-white mb-3 leading-tight animate-fade-in animate-delay-100">
@@ -96,11 +97,11 @@ export default function SignupPage() {
             <span className="gradient-text">QR codes</span>
           </h1>
           <p className="text-zinc-400 text-sm mb-7 leading-relaxed animate-fade-in animate-delay-200">
-            Join 50,000+ businesses using GenXQR to drive more engagement — from dhabas in Pune to D2C brands in Bangalore.
+            Create, track and update QR codes from one dashboard.
           </p>
 
           {/* Perks list */}
-          <div className="space-y-3 mb-8">
+          <div className="space-y-3">
             {perks.map((perk, i) => (
               <div
                 key={perk.text}
@@ -113,26 +114,6 @@ export default function SignupPage() {
                 <span className="text-zinc-300 text-sm">{perk.text}</span>
               </div>
             ))}
-          </div>
-
-          {/* Testimonial card */}
-          <div className="glass-card p-4 rounded-xl animate-fade-in animate-delay-400">
-            {/* Stars */}
-            <div className="flex gap-0.5 mb-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <svg key={i} className="w-3.5 h-3.5 text-violet-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-            </div>
-            <p className="text-zinc-300 text-sm italic leading-relaxed">"GenXQR doubled our menu QR scans in the first month. The real-time analytics changed how we run our restaurant."</p>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="w-7 h-7 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 text-xs font-semibold shrink-0">R</div>
-              <div>
-                <div className="text-white text-xs font-medium">Rahul M.</div>
-                <div className="text-zinc-500 text-xs">Restaurant Owner, Pune</div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -150,7 +131,7 @@ export default function SignupPage() {
 
           <div className="glass-card p-5 sm:p-8 rounded-2xl">
             <h2 className="text-xl font-bold text-white mb-1">Create your account</h2>
-            <p className="text-zinc-400 text-sm mb-6">Free forever. No credit card required.</p>
+            <p className="text-zinc-400 text-sm mb-6">Starts with a 14-day Pro trial. No credit card required.</p>
 
             {success ? (
               <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-5 text-center">
@@ -172,7 +153,7 @@ export default function SignupPage() {
               <>
                 {/* Google OAuth */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}`}
+                  href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}${attributionQueryParam()}`}
                   className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm font-medium transition-all mb-6"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">

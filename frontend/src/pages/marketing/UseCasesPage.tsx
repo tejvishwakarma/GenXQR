@@ -65,7 +65,7 @@ const USE_CASES_JSON_LD = [
       "Bulk QR generation from CSV",
       "Password-protected QR codes",
       "Scan limits and scheduled expiry",
-      "Team workspace with role-based access",
+      "Team workspaces with admin, editor and viewer roles",
       "REST API and webhook events",
     ],
   },
@@ -86,7 +86,7 @@ const USE_CASES_JSON_LD = [
         "name": "How do I make a QR code for my business?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Go to genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, Instagram, and more), enter your content, customise the colour and dot style, and download a 600px PNG ready for print. For QR codes you can edit after printing and track every scan with city and device data, create a free GenXQR account. Dynamic QR codes start at ₹299/month.",
+          "text": "Go to genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and download a 600px PNG ready for print. For QR codes you can edit after printing and track every scan with city and device data, create a free GenXQR account. Dynamic QR codes start at ₹299/month.",
         },
       },
       {
@@ -94,7 +94,7 @@ const USE_CASES_JSON_LD = [
         "name": "Can I track who scanned my QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes — GenXQR tracks every scan automatically on dynamic QR codes. Your analytics dashboard shows the exact scan timestamp, city, country, device type (mobile, tablet, desktop), operating system, and browser — updated in real time. You can filter by date range and export the full dataset to CSV. No app is required for the person scanning. Scan analytics are available from the Starter plan at ₹299/month.",
+          "text": "Yes — GenXQR tracks every scan automatically on dynamic QR codes. Your analytics dashboard shows the exact scan timestamp, city, country, device type (mobile, tablet, desktop), operating system, and browser — updated in real time. You can filter by date range and export up to 10,000 scans per QR code to CSV. No app is required for the person scanning. Scan analytics are available from the Starter plan at ₹299/month.",
         },
       },
       {
@@ -133,7 +133,6 @@ type UseCase = {
   desc: string
   features: string[]
   outcome: string
-  outcomeStat: string
 }
 
 const useCases: UseCase[] = [
@@ -149,7 +148,6 @@ const useCases: UseCase[] = [
       "Scan count per table or branch",
     ],
     outcome: "Never reprint a menu again",
-    outcomeStat: "₹0 reprint cost",
   },
   {
     icon: ShoppingBag,
@@ -159,11 +157,10 @@ const useCases: UseCase[] = [
     features: [
       "Product page or offer landing link",
       "Diwali and sale campaign routing",
-      "iOS vs Android app store splits",
+      "App Store + Google Play download page",
       "Scan-by-city analytics for store performance",
     ],
     outcome: "Packaging that keeps working after purchase",
-    outcomeStat: "2.3× conversion lift",
   },
   {
     icon: CalendarDays,
@@ -177,7 +174,6 @@ const useCases: UseCase[] = [
       "Post-event feedback and survey links",
     ],
     outcome: "Change schedules — not the badges",
-    outcomeStat: "₹3.8L reprint cost avoided",
   },
   {
     icon: Stethoscope,
@@ -191,7 +187,6 @@ const useCases: UseCase[] = [
       "Time-limited access with fallback",
     ],
     outcome: "Secure sharing — no printed handouts",
-    outcomeStat: "62% fewer support queries",
   },
   {
     icon: GraduationCap,
@@ -205,7 +200,6 @@ const useCases: UseCase[] = [
       "Editable destinations each semester",
     ],
     outcome: "Physical materials with live digital content",
-    outcomeStat: "One QR, new content every semester",
   },
   {
     icon: Home,
@@ -219,7 +213,6 @@ const useCases: UseCase[] = [
       "Scan analytics by locality",
     ],
     outcome: "Signboards that work after the listing changes",
-    outcomeStat: "More qualified inquiries",
   },
   {
     icon: BedDouble,
@@ -233,7 +226,6 @@ const useCases: UseCase[] = [
       "Guest feedback and review collection",
     ],
     outcome: "Rooms that never need reprinted inserts",
-    outcomeStat: "Update all rooms from one dashboard",
   },
   {
     icon: Scissors,
@@ -247,21 +239,19 @@ const useCases: UseCase[] = [
       "WhatsApp enquiry shortcut",
     ],
     outcome: "One QR does the work of five handouts",
-    outcomeStat: "More appointment bookings",
   },
   {
     icon: Megaphone,
     title: "Marketing & Agencies",
     tint: "orange",
-    desc: "Run A/B tests across printed campaigns, route audiences by city or device, and swap landing pages mid-campaign — all without touching the printed flyer, OOH banner, or packaging.",
+    desc: "Run A/B tests across printed campaigns, route audiences by country or device, and swap landing pages mid-campaign — all without touching the printed flyer, OOH banner, or packaging.",
     features: [
       "A/B test — split traffic between variants",
-      "Device routing — iOS vs Android vs desktop",
-      "Geo routing — city or state targeting",
+      "Device routing — mobile vs tablet vs desktop",
+      "Geo routing — country targeting",
       "Campaign performance analytics by QR code",
     ],
     outcome: "Optimise campaigns after the print run",
-    outcomeStat: "2.3× conversion from A/B testing",
   },
 ]
 
@@ -272,7 +262,6 @@ const stats: { value: string; label: string; icon: ComponentType<{ size?: number
   { value: "9", label: "industries covered", icon: Layers, tint: "violet" },
   { value: "< 1s", label: "live destination edits", icon: RefreshCw, tint: "blue" },
   { value: "₹299", label: "per month to start", icon: IndianRupee, tint: "emerald" },
-  { value: "50+", label: "countries in scan analytics", icon: Globe, tint: "amber" },
 ]
 
 // ─── Cross-industry capability data ───────────────────────────────────────────
@@ -296,7 +285,7 @@ const capabilities: { icon: ComponentType<{ size?: number; className?: string }>
     icon: Globe,
     tint: "emerald",
     title: "Smart routing",
-    desc: "Send iOS users to the App Store, Android users to Google Play. Route by city, device, or time — automatically.",
+    desc: "Send mobile scanners to your app page and desktop scanners to your website. Route by country, device, or hour of day — automatically.",
     link: { to: "/dynamic-qr", label: "Explore routing →" },
   },
   {
@@ -318,7 +307,7 @@ const faqs = [
   },
   {
     q: "How do I make a QR code for my business?",
-    a: "Visit genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, vCard, or Instagram), enter your content, customise the colour and style, and download a print-ready 600px PNG. For QR codes you can update after printing and track every scan with city and device data, create a free account and use the dynamic QR creator. Dynamic plans start at ₹299/month.",
+    a: "Visit genxqr.com/generate to create a free QR code instantly — no account needed. Choose your QR type (URL, WhatsApp, WiFi, Instagram, SMS, or phone), enter your content, customise the colour and style, and download a print-ready 600px PNG. For QR codes you can update after printing and track every scan with city and device data, create a free account and use the dynamic QR creator. Dynamic plans start at ₹299/month.",
   },
   {
     q: "Can I track who scanned my QR code?",
@@ -381,7 +370,7 @@ export default function UseCasesPage() {
         }
       >
         {/* Deliverable 4: Stat bar — removed "target" qualifier, added INR anchor */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid sm:grid-cols-3 gap-4">
           {stats.map((metric) => (
             <div key={metric.label} className="rounded-2xl border border-line bg-paper-pure px-4 py-6 text-center">
               <div className="flex justify-center mb-3">
@@ -414,12 +403,9 @@ export default function UseCasesPage() {
                       </li>
                     ))}
                   </ul>
-                  {/* Outcome strip — result metric as the closer */}
-                  <div className="mt-5 pt-4 border-t border-line flex items-center justify-between gap-3">
+                  {/* Outcome strip — what the use case achieves, as the closer */}
+                  <div className="mt-5 pt-4 border-t border-line">
                     <div className="text-xs font-semibold text-accent">{useCase.outcome}</div>
-                    <span className="shrink-0 font-mono text-[11px] font-semibold px-2.5 py-1 rounded-full border border-line bg-ink/[0.03] text-ink-soft">
-                      {useCase.outcomeStat}
-                    </span>
                   </div>
                 </MktCard>
               </Reveal>
@@ -443,7 +429,7 @@ export default function UseCasesPage() {
               <>
                 These capabilities apply to every industry above — not add-ons, not enterprise-only.{" "}
                 <Link to="/pricing" className="text-accent underline underline-offset-2 hover:text-accent-ink">
-                  All plans from ₹299/month.
+                  Paid plans from ₹299/month; smart routing from Pro.
                 </Link>
               </>
             }

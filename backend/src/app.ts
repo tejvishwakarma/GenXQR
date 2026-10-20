@@ -94,7 +94,8 @@ app.use((req, res, next) => {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    // X-Workspace-Id selects a team workspace (middleware/workspace.middleware.ts).
+    allowedHeaders: ["Content-Type", "Authorization", "X-Workspace-Id"],
   })(req, res, next)
 })
 

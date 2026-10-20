@@ -26,10 +26,10 @@ import {
 } from "@/lib/api"
 
 const NOTIFICATION_ITEMS: Array<{ key: keyof NotificationPreferences; label: string; desc: string }> = [
-  { key: "scanMilestoneAlerts", label: "Scan milestone alerts", desc: "Get notified when your QR reaches 100, 1K, 10K scans" },
-  { key: "weeklyAnalyticsDigest", label: "Weekly analytics digest", desc: "A summary email every Monday morning" },
-  { key: "billingReminders", label: "Billing reminders", desc: "7-day and 1-day notice before renewal" },
-  { key: "productUpdates", label: "Product updates", desc: "New features and announcements" },
+  { key: "scanMilestoneAlerts", label: "Scan milestone alerts", desc: "An email when a QR code reaches 100, 1,000 and 10,000 total scans" },
+  { key: "weeklyAnalyticsDigest", label: "Weekly analytics digest", desc: "Mondays at 9:00 am IST, covering the previous Monday–Sunday. Skipped for weeks with no scans" },
+  { key: "billingReminders", label: "Billing reminders", desc: "Reminders 7, 3 and 1 day before your plan ends. Pause and expiry notices are always sent" },
+  { key: "productUpdates", label: "Product updates", desc: "Announcement emails about new features and changes to GenXQR" },
 ]
 
 export default function SettingsPage() {
@@ -631,7 +631,7 @@ export default function SettingsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="text-zinc-900 dark:text-white text-sm font-medium">Delete account</div>
-              <div className="text-zinc-500 text-xs mt-0.5">Permanently delete your account and all QR codes. Cannot be undone.</div>
+              <div className="text-zinc-500 text-xs mt-0.5">Permanently delete your account, QR codes, uploaded files and scan data. Cannot be undone.</div>
             </div>
             <Button variant="destructive" size="sm" onClick={() => { setShowDeleteModal(true); setDeletePassword(""); setDeleteError(null) }}>
               Delete account

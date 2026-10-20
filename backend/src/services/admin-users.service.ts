@@ -1,5 +1,7 @@
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
+import { deleteUserAndData } from "./account-erasure.service.js"
+import { invalidateScanQuota } from "./scan-quota.service.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { signAccessToken } from "../utils/jwt.js"
 import { hashPassword } from "../utils/password.js"
@@ -59,6 +61,8 @@ export async function getUserDetail(userId: string) {
       id: true, name: true, email: true, role: true,
       emailVerified: true, createdAt: true, updatedAt: true, lastLoginAt: true,
       avatarUrl: true, googleId: true,
+      signupSource: true, signupMedium: true, signupCampaign: true, signupContent: true,
+      signupTerm: true, signupReferrer: true, signupLandingPath: true, firstTouchAt: true,
       subscription: {
         select: {
           status: true, trialEndsAt: true, currentPeriodStart: true,
@@ -186,6 +190,10 @@ export async function changePlan(
       status: "ACTIVE",
       trialEndsAt: null,
       cancelAtPeriodEnd: false,
+      // An admin decision replaces any first-run notice deadline.
+      codesPauseAt: null,
+      // Moving to FREE starts the 3-month scan-history clock; a paid plan stops it.
+      lapsedAt: planName === "FREE" ? now : null,
       currentPeriodStart: now,
       currentPeriodEnd: periodEnd,
     },
@@ -197,6 +205,7 @@ export async function changePlan(
       currentPeriodEnd: periodEnd,
     },
   })
+  await invalidateScanQuota(targetUser.id)
 
   await prisma.auditLog.create({
     data: {
@@ -231,7 +240,7 @@ export async function deleteUser(adminId: string, adminRole: AdminRole, targetId
     throw new AppError(403, "Only SUPER_ADMINs can delete admin users")
   }
 
-  await prisma.user.delete({ where: { id: targetId } })
+  await deleteUserAndData(targetId)
 
   // Block the deleted email. Increment blockCount on each deletion.
   // After 3 blocks the entry becomes permanently banned and cannot be removed.

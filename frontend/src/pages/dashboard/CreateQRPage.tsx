@@ -6,7 +6,7 @@ import QRCodeStyling, { type DotType, type CornerSquareType } from "qr-code-styl
 import {
   QrCode, Wifi, MessageCircle, Instagram, FileText, Video, Globe,
   Users, Image, Building2, Smartphone, Music, List, Facebook, Tag,
-  ChevronRight, ChevronLeft, ChevronDown, Check, Palette, Settings2, ArrowLeft,
+  ChevronRight, ChevronLeft, ChevronDown, Check, Palette, ArrowLeft,
   Upload, Loader2, X, Clock, ScanLine,
 } from "lucide-react"
 import * as Tabs from "@radix-ui/react-tabs"
@@ -21,6 +21,12 @@ import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } fr
 import LandingPreview from "./LandingPreview"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
+import { useWorkspace } from "@/hooks/useWorkspace"
+import { RoleBlockedNotice } from "@/components/dashboard/RoleBlockedNotice"
+import { FramePicker } from "@/components/qr-frames/FramePicker"
+import { FramedPreview } from "@/components/qr-frames/FramedPreview"
+import { usePlanFeature } from "@/components/PlanFeatureGate"
+import { getFrame, shapeColor, type FrameFields } from "@/lib/frames/compose"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,11 +42,11 @@ const qrTypes = [
   { id: "app",      label: "App Download",    icon: <Smartphone size={22} />,   desc: "App Store & Play Store links",         category: "page"  },
   { id: "mp3",      label: "Audio / MP3",     icon: <Music size={22} />,        desc: "Share music or podcast",               category: "file"  },
   { id: "menu",     label: "Restaurant Menu", icon: <QrCode size={22} />,       desc: "Digital menu with sections",           category: "page"  },
-  { id: "wifi",     label: "WiFi",            icon: <Wifi size={22} />,         desc: "Auto-connect to your network",         category: "basic" },
+  { id: "wifi",     label: "WiFi",            icon: <Wifi size={22} />,         desc: "Share network name and password",      category: "basic" },
   { id: "whatsapp", label: "WhatsApp",        icon: <MessageCircle size={22} />, desc: "Direct WhatsApp chat",               category: "basic" },
   { id: "instagram",label: "Instagram",       icon: <Instagram size={22} />,    desc: "Link to Instagram profile",            category: "basic" },
   { id: "facebook", label: "Facebook",        icon: <Facebook size={22} />,     desc: "Facebook page or profile",             category: "page"  },
-  { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupons with barcode",         category: "page"  },
+  { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupon with code and expiry",  category: "page"  },
 ]
 
 const DOT_STYLES: { value: DotType; label: string }[] = [
@@ -60,7 +66,12 @@ const CORNER_STYLES: { value: CornerSquareType; label: string }[] = [
 
 const LOGO_MAX_BYTES = 1 * 1024 * 1024 // 1 MB — logos are small; no need for full image upload limit
 
-const FRAME_STYLES: { id: string; label: string }[] = [
+/**
+ * The classic CSS frames. Retired from the picker on 20 Oct 2026 in favour of
+ * the frame library (lib/frames); kept so codes saved with one still preview,
+ * download and name their frame exactly as before.
+ */
+const CLASSIC_FRAME_STYLES: { id: string; label: string }[] = [
   { id: "none",         label: "None"         },
   { id: "simple",       label: "Scan Me"      },
   { id: "top-label",    label: "Top Label"    },
@@ -240,7 +251,7 @@ function populateFormFromQR(
 
   if (qr.design) {
     setPrimaryColor(qr.design.primaryColor ?? "#7c3aed")
-    setBgColor(qr.design.backgroundColor ?? "#000000")
+    setBgColor(qr.design.backgroundColor ?? "#ffffff")
     setPageAccentColor((qr.design as unknown as Record<string, unknown>).secondaryColor as string ?? "#7c3aed")
     setDotStyle((qr.design.dotStyle ?? "rounded") as import("qr-code-styling").DotType)
     setCornerStyle((qr.design.cornerSquareStyle ?? "square") as import("qr-code-styling").CornerSquareType)
@@ -573,18 +584,28 @@ export default function CreateQRPage() {
   const queryClient = useQueryClient()
   const { id } = useParams<{ id?: string }>()
   const isEdit = !!id
+  const { can } = useWorkspace()
 
   const [step, setStep] = useState(0)
   const [selectedType, setSelectedType] = useState("url")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [primaryColor, setPrimaryColor] = useState("#7c3aed")
-  const [bgColor, setBgColor] = useState("#000000")
+  // Dark dots on a light background: light-on-dark ("inverted") codes are outside
+  // the QR norm and some scanner apps cannot read them. Same default as /generate.
+  const [bgColor, setBgColor] = useState("#ffffff")
   const [pageAccentColor, setPageAccentColor] = useState("#7c3aed")
   const [dotStyle, setDotStyle] = useState<DotType>("rounded")
   const [cornerStyle, setCornerStyle] = useState<CornerSquareType>("square")
   const [frameStyle, setFrameStyle] = useState("none")
   const [frameText, setFrameText] = useState("SCAN ME")
   const [frameBgColor, setFrameBgColor] = useState("#1f2937")
+  // Library frames: edited text per field, and the colour picked for a shape
+  // (null = the shape's own default colour).
+  const [frameFields, setFrameFields] = useState<FrameFields>({})
+  const [shapeColorPick, setShapeColorPick] = useState<string | null>(null)
+  const libraryFrame = getFrame(frameStyle)
+  const classicFrameLabel = CLASSIC_FRAME_STYLES.find((f) => f.id === frameStyle && f.id !== "none")?.label ?? null
+  const { allowed: framesAllowed, requiredPlan: framesPlan } = usePlanFeature("premiumFrames")
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [circularLogoUrl, setCircularLogoUrl] = useState<string | null>(null)
   const [logoSize, setLogoSize] = useState(35)
@@ -755,6 +776,9 @@ export default function CreateQRPage() {
     if (existingQR.data.design?.logoSize) {
       setLogoSize(existingQR.data.design.logoSize)
     }
+    const design = existingQR.data.design
+    setFrameFields((design?.frameFields ?? {}) as FrameFields)
+    if (getFrame(design?.frameStyle)?.group === "shape") setShapeColorPick(design?.frameColor ?? null)
   }, [existingQR, reset])
 
   const { mutateAsync: submitCreate, isPending: isCreating } = useMutation({
@@ -913,8 +937,19 @@ export default function CreateQRPage() {
           cornerSquareStyle: cornerStyle as string,
           frameStyle,
           frameText,
-          // Local UI state is named frameBgColor; the API/DB field is frameColor.
-          frameColor: frameBgColor,
+          // Classic frames keep their colour in frameBgColor; a library shape
+          // stores its colour, and premium/occasion artwork has none.
+          frameColor: libraryFrame
+            ? libraryFrame.group === "shape" ? shapeColor(libraryFrame, shapeColorPick) : undefined
+            : frameBgColor,
+          // Only text for fields this frame has, and only non-empty values.
+          frameFields: libraryFrame
+            ? Object.fromEntries(
+                libraryFrame.fields
+                  .map((f) => [f.id, frameFields[f.id]?.trim() ?? ""] as const)
+                  .filter(([, v]) => v !== ""),
+              )
+            : null,
           logoSize,
           ...(logoUrl ? { logoUrl } : {}),
           ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),
@@ -951,6 +986,11 @@ export default function CreateQRPage() {
     ? qrTypes
     : qrTypes.filter((t) => t.category === selectedCategory)
 
+  // ── Role wall: team-workspace roles that can't create / edit ──────────────
+  if (!can(isEdit ? "qr:edit" : "qr:create")) {
+    return <RoleBlockedNotice action={isEdit ? "edit" : "create"} />
+  }
+
   // ── Upgrade wall: shown when trial expired + at FREE QR limit ─────────────
   if (trialExpiredAtLimit) {
     return (
@@ -978,7 +1018,7 @@ export default function CreateQRPage() {
             You're on the <span className="text-zinc-300 font-medium">Free plan</span> which allows up to <span className="text-zinc-300 font-medium">{qrLimit} QR codes</span>.
           </p>
           <p className="text-zinc-500 text-sm mb-8">
-            Upgrade to a paid plan to create unlimited QR codes, unlock analytics, custom branding, and more.
+            Upgrade to a paid plan to create QR codes again: 50 on Starter, 250 on Pro, 2,000 on Business.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/app/billing">
@@ -2114,62 +2154,28 @@ export default function CreateQRPage() {
                     )}
                   </div>
 
-                  {/* Frame Style */}
-                  <div>
-                    <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3 flex items-center gap-2">
-                      <Settings2 size={14} className="text-violet-400" /> Frame Style
-                    </h3>
-                    <div className="grid grid-cols-3 gap-2">
-                      {FRAME_STYLES.map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => setFrameStyle(f.id)}
-                          className={cn(
-                            "py-2 px-2 rounded-lg text-xs font-medium transition-all border",
-                            frameStyle === f.id
-                              ? "border-violet-500 bg-violet-500/15 text-violet-400"
-                              : "border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-zinc-600"
-                          )}
-                        >
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Frame text + background — only relevant for label-bearing frame styles */}
-                    {["simple", "top-label", "both-labels", "scan-now", "banner"].includes(frameStyle) && (
-                      <div className="mt-4 space-y-3">
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Text</label>
-                          <Input
-                            value={frameText}
-                            onChange={(e) => setFrameText(e.target.value.toUpperCase())}
-                            placeholder="SCAN ME"
-                            className="font-mono text-xs tracking-widest"
-                            maxLength={24}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1.5">Frame Background Color</label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="w-10 h-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent cursor-pointer"
-                            />
-                            <Input
-                              value={frameBgColor}
-                              onChange={(e) => setFrameBgColor(e.target.value)}
-                              className="font-mono text-xs"
-                              maxLength={7}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  {/* Frame */}
+                  <FramePicker
+                    value={frameStyle}
+                    onChange={(id) => {
+                      // Each frame starts from its own sample text (decided
+                      // 20 Oct 2026): text typed for one frame is not carried
+                      // into the next. The shape colour pick is kept.
+                      if (id !== frameStyle) setFrameFields({})
+                      setFrameStyle(id)
+                      setPreviewTab("qr")
+                    }}
+                    color={shapeColorPick}
+                    onColorChange={setShapeColorPick}
+                    fields={frameFields}
+                    onFieldsChange={setFrameFields}
+                    dotColor={primaryColor}
+                    panelColor={bgColor}
+                    onDotColorChange={setPrimaryColor}
+                    locked={!framesAllowed}
+                    requiredPlan={framesPlan}
+                    classicLabel={classicFrameLabel}
+                  />
                 </div>
               </div>
             )}
@@ -2264,7 +2270,27 @@ export default function CreateQRPage() {
 
             {/* ── QR Code tab — always mounted so qrRef is available at init ── */}
             <div className={previewTab === "qr" ? "" : "hidden"}>
-              <div className="flex flex-col items-center mb-4">
+              {libraryFrame && (
+                <FramedPreview
+                  frameId={libraryFrame.id}
+                  color={shapeColorPick}
+                  fields={frameFields}
+                  background={bgColor}
+                  className="mb-4 w-full max-w-[260px]"
+                  qr={{
+                    data: "https://genxqr.com/preview",
+                    dotsOptions: { color: primaryColor, type: dotStyle },
+                    cornersSquareOptions: { color: primaryColor, type: cornerStyle },
+                    cornersDotOptions: { color: primaryColor },
+                    image: circularLogoUrl ?? undefined,
+                    imageOptions: { hideBackgroundDots: true, imageSize: logoSize / 100, margin: 8, crossOrigin: "anonymous" },
+                    qrOptions: { errorCorrectionLevel: "H" },
+                  }}
+                />
+              )}
+              {/* Classic frames, and the plain code. Stays mounted while a library
+                  frame is shown: qrInstance renders into qrRef once, at mount. */}
+              <div className={cn("flex flex-col items-center mb-4", libraryFrame && "hidden")}>
                 {/* Top label — lives OUTSIDE the frame wrapper so qrRef never shifts position */}
                 {(frameStyle === "top-label" || frameStyle === "both-labels") && (
                   <div
@@ -2353,8 +2379,8 @@ export default function CreateQRPage() {
                 </div>
                 {frameStyle !== "none" && (
                   <div className="flex justify-between">
-                    <span>Frame style</span>
-                    <span className="text-zinc-700 dark:text-zinc-300 capitalize">{frameStyle.replace(/-/g, " ")}</span>
+                    <span>Frame</span>
+                    <span className="text-zinc-700 dark:text-zinc-300">{libraryFrame?.title ?? classicFrameLabel ?? frameStyle.replace(/-/g, " ")}</span>
                   </div>
                 )}
               </div>

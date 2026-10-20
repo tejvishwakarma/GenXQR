@@ -4,10 +4,10 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { TrendingUp, Scan, QrCode, DollarSign, PieChart as PieIcon, Loader2 } from "lucide-react"
+import { TrendingUp, Scan, QrCode, DollarSign, PieChart as PieIcon, Loader2, Megaphone } from "lucide-react"
 import {
   fetchAdminSignups, fetchAdminScans, fetchAdminStaticQRStats,
-  fetchAdminRevenueTrend, fetchAdminPlanBreakdown,
+  fetchAdminRevenueTrend, fetchAdminPlanBreakdown, fetchAdminSignupSources,
 } from "@/lib/api"
 
 const RANGE_OPTIONS = [7, 30, 90] as const
@@ -44,6 +44,7 @@ function ChartCard({ title, sub, icon, children }: {
 
 export default function AdminAnalyticsPage() {
   const [range, setRange] = useState<Range>(30)
+  const [sourceGroup, setSourceGroup] = useState<"source" | "campaign">("source")
 
   const { data: signupsData, isLoading: loadSignups } = useQuery({
     queryKey: ["admin", "analytics", "signups", range],
@@ -66,7 +67,13 @@ export default function AdminAnalyticsPage() {
     queryFn: fetchAdminPlanBreakdown,
   })
 
+  const { data: sourcesData, isLoading: loadSources } = useQuery({
+    queryKey: ["admin", "analytics", "signup-sources", range, sourceGroup],
+    queryFn: () => fetchAdminSignupSources(range, sourceGroup),
+  })
+
   const signups = signupsData?.data ?? []
+  const sources = sourcesData?.data?.rows ?? []
   const scans   = scansData?.data ?? []
   const staticQR = staticQRData?.data?.series ?? []
   const revenue  = revenueData?.data ?? []
@@ -153,6 +160,61 @@ export default function AdminAnalyticsPage() {
           )}
         </ChartCard>
       </div>
+
+      {/* Sign-ups by first-touch source */}
+      <ChartCard
+        title="Sign-ups by Source"
+        sub={`First touch — accounts created in the last ${range} days. "Paid" = at least one paid invoice.`}
+        icon={<Megaphone size={16} className="text-pink-400" />}
+      >
+        <div className="flex gap-2 mb-4">
+          {(["source", "campaign"] as const).map((g) => (
+            <button
+              key={g}
+              onClick={() => setSourceGroup(g)}
+              className={`px-3 py-1.5 text-xs rounded-xl font-medium transition capitalize ${
+                sourceGroup === g
+                  ? "bg-violet-600 text-white"
+                  : "bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+              }`}
+            >
+              By {g}
+            </button>
+          ))}
+        </div>
+        {loadSources ? (
+          <div className="h-32 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600" /></div>
+        ) : sources.length === 0 ? (
+          <p className="text-zinc-600 text-sm text-center py-8">No sign-ups in this period</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-zinc-500 text-xs text-left border-b border-zinc-800">
+                  <th className="py-2 pr-4 font-medium capitalize">{sourceGroup}</th>
+                  <th className="py-2 px-4 font-medium text-right">Sign-ups</th>
+                  <th className="py-2 px-4 font-medium text-right">Paid</th>
+                  <th className="py-2 px-4 font-medium text-right">Conversion</th>
+                  <th className="py-2 pl-4 font-medium text-right">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sources.map((row) => (
+                  <tr key={row.key} className="border-b border-zinc-800/60 last:border-0">
+                    <td className="py-2 pr-4 text-zinc-300 break-all">{row.key}</td>
+                    <td className="py-2 px-4 text-zinc-300 text-right tabular-nums">{row.signups}</td>
+                    <td className="py-2 px-4 text-zinc-300 text-right tabular-nums">{row.paidUsers}</td>
+                    <td className="py-2 px-4 text-zinc-400 text-right tabular-nums">
+                      {Math.round((row.paidUsers / row.signups) * 100)}%
+                    </td>
+                    <td className="py-2 pl-4 text-zinc-300 text-right tabular-nums">₹{row.revenue.toLocaleString("en-IN")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ChartCard>
 
       {/* Row 2: Revenue + Static QR */}
       <div className="grid lg:grid-cols-2 gap-6">

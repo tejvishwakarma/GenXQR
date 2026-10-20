@@ -299,7 +299,7 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 
 #### `/api/public` → `public.routes.ts`
 - `GET  /qr/:slug` — minimal QR content for the `/l/:slug` landing page (post-scan; 404s if inactive/password-protected)
-- `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans`, `uptimeSla`)
+- `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans` — no uptime figure: there is no SLA)
 - `GET  /site-content` — changelog + careers section content (from `PlatformSetting`, with static fallbacks)
 
 Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated despite the `/billing` prefix), not under `/api/public` — a previous version of this doc had that wrong. Job listings have their own router too: `/api/careers` → `careers.routes.ts` (`GET /jobs` public; the rest CV/application-management, admin-only). `/api/support` and `/api/notifications` also exist and aren't detailed here yet.
@@ -410,6 +410,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 | `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer gxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
 | `rateLimit.middleware.ts` | `apiLimiter` (global 60 req/min via Redis store) |
+| `workspace.middleware.ts` | `withWorkspace` resolves `X-Workspace-Id` → `req.workspace = { ownerId, actorId, role }`; `requireWorkspacePermission(action)`; scope data with `wsOwner(req)`. See §13. |
 | `error.middleware.ts` | Global error handler; maps Zod errors → **422**, JWT errors → 401, Prisma unique → 409, etc. Hand-thrown validation failures should use 422 too, so one class of error has one status. |
 
 ### 5.5 Services Layer
@@ -445,6 +446,8 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 |---|---|---|---|
 | `scan.worker.ts` | `scan-processing` | Every QR scan | Records `QRScan`, upserts `QRScanDaily`, increments `QRCode.scanCount`, fires webhooks, checks scan limits, fires limit notifications |
 | `renewal-reminder.worker.ts` | Cron-based | Daily at midnight | Queries subscriptions expiring in 7/3/1 days → sends reminder emails; deduped by `RenewalReminder` table |
+| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses dynamic codes; sends notice/expired emails; resumes codes for accounts entitled again. See §8 "Expiry". |
+| `weekly-digest.worker.ts` | `weekly-digest` | Mondays 09:00 IST (BullMQ scheduler, tz Asia/Kolkata) | Sends last week's analytics digest to opted-in owners with scans (`engagement-email.service.ts`) |
 | `webhook-retry.worker.ts` | `setInterval` (60s) | Failed deliveries | Scans `WebhookDelivery` rows where `success=false` and `nextRetryAt <= now`; retries with exponential backoff (30s → 2m → 8m → 32m), max 5 attempts |
 
 ### 5.7 Redis Client
@@ -587,6 +590,38 @@ is the idempotency key: if the webhook and the browser-return verification race,
 the loser hits P2002 and its whole transaction rolls back, so one payment can never
 grant two billing periods.
 
+**Expiry** (`services/subscription-expiry.service.ts`, decided 17 Oct 2026). There is
+no auto-debit, so renewing means paying again. Until this existed, nothing acted on
+`currentPeriodEnd` — one payment bought a plan forever. Now:
+- **No grace period.** When a paid period or trial ends, the account drops to FREE
+  and its active DYNAMIC codes are paused (`isActive=false`, `pausedForBilling=true`).
+  Scanners get the "deactivated" page or the code's `fallbackUrl`.
+- Paying again (or an admin granting a plan) resumes exactly the `pausedForBilling`
+  codes. A code the owner turned off stays off. `toggleQR` refuses (403) to switch a
+  `pausedForBilling` code on, so the pause can't be bypassed from the dashboard or `/v1`.
+- Two triggers, one function (`expireSubscription`, idempotent via a conditional
+  update): `getUserPlanLimits` on any authenticated request, and the 10-minute worker.
+- `Subscription.codesPauseAt` is a one-time notice deadline: accounts already lapsed
+  when this shipped (incl. old trials still holding active codes) got 7 days' notice,
+  set by migration `20261017130000`. While it is in the future, the account is not lapsed.
+- The "expired" email is sent by the expiry service, not the renewal-reminder job,
+  so it can say what actually happened.
+- Admin plan changes set a 1-month period, so admin-granted plans now expire too.
+
+**Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
+`PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
+`reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.
+The window is a month anchored on `currentPeriodStart` (yearly plans get the monthly
+allowance month by month). Counted in Redis per account per window (seeded from Postgres),
+every scan incl. repeats. FREE (limit 0) is not enforced — expiry handles those accounts.
+Fails open on Redis/DB errors. The billing usage figure and the 80%/100% emails use the
+same window. Invalidate with `invalidateScanQuota(userId)` on any plan/period change.
+
+**Scan history retention** (decided 18 Oct 2026): kept while a plan/trial is live and for
+3 months after the account drops to FREE (`Subscription.lapsedAt`), then the expiry
+worker purges scans, daily rollups and per-code counters (codes stay, paused).
+`analyticsRetentionDays` no longer exists — there are no per-plan history limits.
+
 ---
 
 ## 9. File Upload & Storage
@@ -628,6 +663,38 @@ grant two billing periods.
 - `logoUrl` + sizing + margin
 - `frameStyle` + `frameText` + `frameColor`
 - Client-side rendering uses `qr-code-styling` library in `CreateQRPage.tsx`
+
+**Frame library** (built 20 Oct 2026) — 86 SVG frames: 64 recolourable single-colour
+shapes, 6 premium, 16 occasions. Paid feature: `PLAN_LIMITS.premiumFrames` (every plan
+except FREE; trial included), enforced in `qr.service` (`assertFrameAllowed`) so it also
+covers `/v1` and workspaces. Adding/switching a frame or changing its text/colour needs
+the flag; a lapsed account keeps the frame it has.
+- Stored as `QRDesign.frameStyle = "<group>:<file>"` (`shape:coffee-cup`), shape colour in
+  `frameColor`, edited text in `frameFields` (JSON, keys whitelisted in `FRAME_FIELD_IDS`).
+  Any other `frameStyle` is a **classic** CSS frame — retired from the picker, still
+  previewed/downloaded by the old code in `CreateQRPage`/`QRDetailPage` for saved codes.
+- Assets in `frontend/public/frames/` + `src/lib/frames/catalog.ts` are GENERATED by
+  `node frontend/scripts/import-qr-frames.mjs <pack-dir>` (validates every SVG for
+  scripts/external refs, adds ids to unnamed text, builds compact thumbnails). Re-run it
+  to update the pack; never hand-edit those files. Excluded from the PWA precache.
+- `src/lib/frames/compose.ts` puts the live qr-code-styling SVG into the frame's
+  `#qr-slot` (4-module quiet zone), recolours shapes, sets text (embedding full fonts from
+  `public/frames/fonts` only when text was edited, since frames ship glyph subsets), and
+  squeezes text that would hit the frame's decoration (`textRoom`, measured from the
+  frame's geometry). One composed SVG feeds the preview `<img>` and every download.
+  Framed PDFs are a JPEG image, not vectors (svg2pdf cannot use embedded fonts).
+- UI: `components/qr-frames/FramePicker.tsx` + `FramedPreview.tsx`.
+- **Every download goes through `src/lib/qrDownload.ts`** (`renderQRDownload` / `downloadQR`):
+  the detail page, the per-row `QRDownloadMenu`, and bulk "Download selected" on the
+  dashboard and My QR Codes. It renders library frames via `renderFramed` and classic
+  frames via the renderers moved out of `QRDetailPage`. The row menu and bulk download
+  used to build their own plain qr-code-styling image, so files from the list had no
+  frame (and no logo) — never build a QR file outside this module.
+- **Scan reliability depends on dot colour.** Measured with ZXing at 240/600/1200 px: the
+  default violet `#7c3aed` (5.6:1 on white) failed at some size on 4 of 6 premium frames;
+  ≥8.5:1 decoded on all premium/occasion frames at 600 and 1200 px. The picker warns
+  below `MIN_FRAME_DOT_CONTRAST` (7) and offers `darkenForFrame()`. Don't lower that
+  threshold without re-running such a check.
 
 ---
 
@@ -841,6 +908,20 @@ Access: `/admin/*` — requires JWT with `ADMIN` or `SUPER_ADMIN` role.
 
 **Limit:** `Plan.teamSeatsLimit` (0 = team features disabled on FREE plan)
 
+**Shared workspaces (built 18 Oct 2026)** — `services/workspace.service.ts`,
+`middleware/workspace.middleware.ts`, frontend `hooks/useWorkspace.ts` + `lib/workspace.ts`.
+Members work inside the OWNER's workspace: the dashboard sends `X-Workspace-Id: <ownerId>`
+on every request (apiFetch + authHeader); routes using `withWorkspace` scope data by
+`wsOwner(req)` and check the role:
+- OWNER/ADMIN — view, create, edit, delete codes; manage team (ADMIN: no billing)
+- EDITOR — view, create, edit/toggle; no delete, no team management
+- VIEWER — view codes + analytics only
+Workspace-aware: `/api/qr/*`, `/api/analytics/*`, `/api/upload/*`, `/api/bulk/*`, `/api/team`
+(+ member routes). Plan gates (`requireQRSlot`, `requirePlanFeature`) use the OWNER's plan.
+Personal-only (ignore the header): billing, API keys, webhooks, branding, settings, `/v1`.
+Access needs the owner's plan to have `teamSeatsLimit > 1`. Audit logs record the actor.
+Uploads record the uploader; attaching accepts files uploaded by the owner or the actor.
+
 ---
 
 ## 14. Analytics
@@ -885,6 +966,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
   - `/locales/*.json` — stale-while-revalidate (i18n)
   - `/api/**` — network-first with 10s timeout, 5-min expiry
 - Excluded from SW: `/api/`, `/admin-api/`, `/r/`, `/uploads/`
+- `navigateFallback` is `/app-shell.html`, not `/index.html` — `index.html` is the prerendered homepage, and serving it for every offline navigation would flash the homepage before React swaps routes
 - SW disabled in dev (`devOptions.enabled: false`) to avoid stale cache issues
 
 ---
@@ -910,7 +992,7 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 **Nginx** is edited via CloudPanel's per-site Vhost Editor, not a standalone `nginx.conf` — see [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) for the exact block that replaces CloudPanel's default `location /` proxy-everything block:
 - `/api/`, `/admin-api/`, `/r/:slug` (exact match) → `127.0.0.1:3001`
 - `/uploads/` → served directly from disk
-- All other routes → `index.html` (SPA fallback)
+- HTML routing (no blanket SPA fallback any more — see gotcha 16): app routes (`/app`, `/admin`, auth screens, `/invite`, `/l`) → `app-shell.html`; `/` → the prerendered `index.html`; public pages → their prerendered `<route>/index.html`; anything else → a real **404** with `404.html`; a trailing slash 301s to the bare path
 - Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
 
 **PM2 config** (`ecosystem.config.cjs`):
@@ -965,6 +1047,16 @@ pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking
 - `tests/` (repo root) — the older manual suite: `.http` files for VS Code REST
   Client plus a PowerShell runner against a live server. Broader surface area,
   but manual.
+
+**Test harness:** `tests/setup.ts` truncates with `lock_timeout = 1s` and retries — a plain
+TRUNCATE deadlocked/stalled against fire-and-forget writes from the previous test (1–2
+random timeouts per full run, also on the pre-change code). Full run ≈ 2 min.
+
+**macOS dev:** `pnpm db:up/down/logs` go through `scripts/compose.mjs`, which uses WSL on
+Windows and plain `docker compose` elsewhere. On a Mac, Docker runs in Colima: `colima start`
+first (and register the compose plugin: `ln -sfn $(brew --prefix)/opt/docker-compose/bin/docker-compose ~/.docker/cli-plugins/docker-compose`).
+The dev backend listens on **4000** (`PORT` in backend/.env) because the Vite proxy targets 4000;
+production runs on 3001.
 
 When adding a security test, verify it can fail: break the guard it covers,
 confirm the suite goes red naming that test, then restore. A test that has only
@@ -1040,3 +1132,49 @@ pnpm preview               # vite preview (serves dist/)
     gate, so guessing "allowed" costs at worst the 403 that would have happened anyway,
     while guessing "locked" tells a paying customer their feature is gone because one
     request timed out. Never move authorisation into this hook.
+
+15. **Notification preferences are read with `readPrefs()`** (`utils/notification-prefs.util.ts`).
+    Until 18 Oct 2026 they were saved as `JSON.stringify(prefs)` — a string inside the Json
+    column — so every read returned the defaults and no toggle was ever honoured. Writes
+    now store the object; `readPrefs` accepts both shapes. Honoured by: milestone alerts and
+    the weekly digest (`engagement-email.service.ts`), the 7/3/1-day renewal reminders (pause
+    and expiry notices are always sent), and admin broadcasts (product updates).
+
+16. **Three HTML entry files, not one** (SEO audit, 18 Oct 2026). `pnpm build` writes
+    `dist/app-shell.html` (the empty SPA shell, emitted by `appShellPlugin` in
+    `vite.config.ts`), `dist/index.html` (the PRERENDERED homepage) and `dist/404.html`
+    (the NotFound page, prerendered by `scripts/prerender.mjs`). Before this, the
+    homepage was an empty shell to non-JS crawlers and every unknown URL returned 200
+    (a soft 404). nginx maps app routes to the shell and everything else to a file or a
+    real 404 — so **a new public page must be added to `scripts/public-routes.mjs`**, or
+    it 404s in production (it is not prerendered, and nothing falls back to the shell).
+    A new logged-in/auth route must be added to the app-route regex in both
+    `deploy/*.conf` files for the same reason.
+
+17. **Static `<head>` tags are deleted before React renders.** react-helmet-async v3 on
+    React 19 renders head tags as hoisted elements and does not adopt existing ones, so
+    the fallback tags in `index.html` and the prerendered ones (`seo-collector.ts`) would
+    otherwise sit next to Helmet's — two titles, two canonicals. They all carry
+    `data-seo-static`, and `main.tsx` removes them first. Any head tag added to either
+    place needs that attribute.
+
+18. **The homepage hero QR is real and must keep scanning.** `QrArt` (`components/marketing/ui.tsx`)
+    draws `heroQrMatrix.ts`, generated by `frontend/scripts/generate-hero-qr.mjs` (EC level H)
+    for `https://genxqr.com/generate?utm_source=hero_qr`. The floating chips in `Hero.tsx` sit
+    above/below the code because one over a finder eye stopped it decoding (checked with
+    jsQR on headless-Chrome screenshots). After changing either file, screenshot the
+    homepage and decode it again.
+
+19. **`/generate/<type>` pages are distinct pages**, each with its own title, H1, intro and
+    self-canonical (`TYPE_PAGES` in `StaticGeneratePage.tsx`). They used to share
+    `/generate`'s canonical and content, which tells Google they are duplicates.
+
+20. **IndexNow runs at the end of `deploy.sh`** (`frontend/scripts/indexnow.mjs --submit`).
+    It submits only public pages whose prerendered HTML changed (state in the gitignored
+    `frontend/.indexnow-state.json` on the server); the key is `frontend/public/<key>.txt`.
+    Without `--submit` it is a dry run — never pass it from a dev machine, where
+    `SITE_URL` is also genxqr.com. Bing/Yandex only; Google ignores IndexNow.
+
+21. **Blog and careers are `noindex` while empty**, and `/blog` drops out of the sitemap
+    until a post is published (`sitemap: BLOG_ROUTES.length > 0` in `public-routes.mjs`).
+    Both flip automatically: publishing a post or listing a job removes the noindex.

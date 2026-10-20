@@ -17,6 +17,8 @@ import { redis } from "../redis/client.js"
 import { prisma } from "../db/prisma.js"
 import { logAudit } from "../services/audit.service.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
+import { parseAttributionParam } from "../utils/attribution.util.js"
+import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.util.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -58,20 +60,6 @@ const REFRESH_COOKIE_OPTIONS = {
 // ─── Router ───────────────────────────────────────────────────────────────────
 
 const router: IRouter = Router()
-
-const NotificationPrefsSchema = z.object({
-  scanMilestoneAlerts: z.boolean(),
-  weeklyAnalyticsDigest: z.boolean(),
-  billingReminders: z.boolean(),
-  productUpdates: z.boolean(),
-})
-
-const DEFAULT_NOTIFICATION_PREFS = {
-  scanMilestoneAlerts: true,
-  weeklyAnalyticsDigest: true,
-  billingReminders: true,
-  productUpdates: true,
-} satisfies z.infer<typeof NotificationPrefsSchema>
 
 function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
   if (typeof input !== "string" || !input.startsWith("/") || input.startsWith("//")) {
@@ -302,7 +290,9 @@ router.delete(
       }
       const deletedUserId = (req.user as unknown as AccessTokenPayload).sub
       await AuthService.deleteAccount(deletedUserId, parsed.data.password)
-      logAudit({ userId: deletedUserId, action: "auth.account.delete", category: "auth", entityId: deletedUserId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
+      // userId is null: the row it would point at is gone, and the FK made this
+      // insert fail silently, so deletions were never logged. entityId keeps the id.
+      logAudit({ userId: null, action: "auth.account.delete", category: "auth", entityId: deletedUserId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
       // Clear the refresh token cookie
       res.clearCookie("refresh_token", { path: "/api/auth" })
       res.json({ success: true, message: "Your account has been permanently deleted." })
@@ -378,13 +368,9 @@ router.get(
     try {
       const userId = (req.user as unknown as AccessTokenPayload).sub
       const user = await AuthService.findUserById(userId)
-      const parsed = NotificationPrefsSchema.safeParse(user?.notificationPrefs)
-
       res.json({
         success: true,
-        data: {
-          notifications: parsed.success ? parsed.data : DEFAULT_NOTIFICATION_PREFS,
-        },
+        data: { notifications: readPrefs(user?.notificationPrefs) },
       })
     } catch (err) {
       next(err)
@@ -527,6 +513,15 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
   const nextPath = safeFrontendPath(req.query["next"], "/app/dashboard")
   const state = randomBytes(32).toString("hex")
   void redis.setex(`oauth:state:${state}`, 600, nextPath) // 10 min to finish the flow
+  // First-touch attribution for a Google SIGN-UP rides alongside the state under
+  // its own key (not inside the state value, so in-flight logins survive a
+  // deploy). Only used if the callback creates a new account.
+  // The raw param is stored (after checking it parses) and parsed again at the
+  // callback, so there is one input format, not two.
+  const rawAttribution = req.query["attribution"]
+  if (typeof rawAttribution === "string" && parseAttributionParam(rawAttribution)) {
+    void redis.setex(`oauth:attr:${state}`, 600, rawAttribution)
+  }
 
   res.cookie("oauth_state", state, {
     httpOnly: true,
@@ -665,9 +660,13 @@ router.get(
         return
       }
 
+      const storedAttribution = await redis.get(`oauth:attr:${returnedState}`)
+      if (storedAttribution !== null) await redis.del(`oauth:attr:${returnedState}`)
+
       const { accessToken, refreshToken } = await AuthService.handleGoogleOAuth(
         profile,
         req.ip ?? "",
+        storedAttribution !== null ? parseAttributionParam(storedAttribution) : null,
       )
       const nextPath = safeFrontendPath(storedNextPath, "/app/dashboard")
 

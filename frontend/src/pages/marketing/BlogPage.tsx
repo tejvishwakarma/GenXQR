@@ -1,158 +1,163 @@
+import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 import { ArrowRight, Clock3 } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, Reveal, MktButton, Eyebrow, FinderGlyph } from "@/components/marketing/ui"
 import { PageHero } from "@/components/marketing/PageHero"
+import { type BlogPost, formatPostDate, getPublishedPosts, loadDrafts } from "@/lib/blog"
+import { cn } from "@/lib/utils"
 
-const categories = ["All", "Product", "Analytics", "Growth", "Engineering", "Security"]
-
-const featuredPost = {
-  title: "How to turn QR scans into growth decisions",
-  excerpt:
-    "A practical framework for reading scan trends, segmenting by device and geography, and improving campaign conversion with faster iteration loops.",
-  date: "March 16, 2026",
-  readTime: "8 min read",
-  category: "Analytics",
+function DraftBadge() {
+  return (
+    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-amber-800">
+      Draft — dev only
+    </span>
+  )
 }
 
-const posts = [
-  {
-    title: "Dynamic QR codes vs static QR codes: what changes operationally",
-    excerpt: "Understand when to use each type and how dynamic QR workflows reduce reprint costs.",
-    date: "March 14, 2026",
-    readTime: "6 min read",
-    category: "Product",
-  },
-  {
-    title: "Using smart routing for location-aware campaigns",
-    excerpt: "Serve localized destinations by geography, device, and time windows with measurable outcomes.",
-    date: "March 11, 2026",
-    readTime: "7 min read",
-    category: "Growth",
-  },
-  {
-    title: "Designing QR experiences that scan more reliably",
-    excerpt: "Best practices for color contrast, size, placement, and print surfaces across environments.",
-    date: "March 8, 2026",
-    readTime: "5 min read",
-    category: "Product",
-  },
-  {
-    title: "Security checklist for enterprise QR deployments",
-    excerpt: "A concise checklist covering auth, content controls, abuse protection, and audit readiness.",
-    date: "March 5, 2026",
-    readTime: "9 min read",
-    category: "Security",
-  },
-  {
-    title: "From campaign launch to post-scan analysis in one dashboard",
-    excerpt: "How teams close the loop between creation, distribution, and performance review faster.",
-    date: "March 2, 2026",
-    readTime: "6 min read",
-    category: "Analytics",
-  },
-  {
-    title: "Building resilient scan pipelines in high-volume scenarios",
-    excerpt: "Notes on queue-backed ingestion, deduplication strategy, and keeping analytics consistent.",
-    date: "February 28, 2026",
-    readTime: "10 min read",
-    category: "Engineering",
-  },
-]
-
 export default function BlogPage() {
+  // Drafts are listed in local dev only, for review; loadDrafts() is always
+  // empty in a production build.
+  const [drafts, setDrafts] = useState<BlogPost[]>([])
+  useEffect(() => {
+    if (import.meta.env.DEV) void loadDrafts().then(setDrafts)
+  }, [])
+
+  const posts = useMemo(() => [...getPublishedPosts(), ...drafts], [drafts])
+  const categories = useMemo(() => [...new Set(posts.map((p) => p.category))].sort(), [posts])
+  const [category, setCategory] = useState<string | null>(null)
+
+  const featured = posts.find((p) => p.featured) ?? posts[0]
+  const rest = posts.filter((p) => p !== featured && (category === null || p.category === category))
+  const showFeatured = featured && (category === null || featured.category === category)
+
   return (
     <div>
       <SEOMeta
         title="Blog"
-        description="Insights, guides, and product updates from GenXQR on QR strategy, analytics, growth, and engineering."
+        description="Guides from GenXQR on dynamic QR codes, scan analytics, smart routing and printing QR codes that scan."
         url="/blog"
+        // noindex until the first article is published (decided 18 Oct 2026).
+        // Published posts are files, so this is decided at build time and is in
+        // the prerendered HTML itself.
+        noIndex={getPublishedPosts().length === 0}
       />
 
       <PageHero
-        eyebrow="Insights and updates"
+        eyebrow="Guides and updates"
         title={<>GenXQR <span className="text-accent">Blog</span></>}
-        intro="Product deep-dives, campaign playbooks, and technical notes to help you create better QR experiences."
+        intro="Practical guides to creating, printing and measuring QR codes."
       />
 
-      <section className="pb-4">
-        <MktContainer>
-          <Reveal className="flex flex-wrap gap-2 justify-center">
-            {categories.map((category) => (
-              <span
-                key={category}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-line bg-paper-pure text-ink-soft text-xs"
-              >
-                <FinderGlyph size={11} className="text-accent" />
-                {category}
-              </span>
-            ))}
-          </Reveal>
-        </MktContainer>
-      </section>
+      {posts.length === 0 ? (
+        <section className="pb-24">
+          <MktContainer>
+            <p className="text-center text-ink-soft">No articles published yet.</p>
+          </MktContainer>
+        </section>
+      ) : (
+        <>
+          {categories.length > 1 && (
+            <section className="pb-4">
+              <MktContainer>
+                <Reveal className="flex flex-wrap gap-2 justify-center">
+                  {[null, ...categories].map((c) => (
+                    <button
+                      key={c ?? "all"}
+                      type="button"
+                      onClick={() => setCategory(c)}
+                      aria-pressed={category === c}
+                      className={cn(
+                        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs transition",
+                        category === c
+                          ? "border-accent bg-accent text-white"
+                          : "border-line bg-paper-pure text-ink-soft hover:border-ink/30",
+                      )}
+                    >
+                      <FinderGlyph size={11} className={category === c ? "text-white" : "text-accent"} />
+                      {c ?? "All"}
+                    </button>
+                  ))}
+                </Reveal>
+              </MktContainer>
+            </section>
+          )}
 
-      <section className="py-10 md:py-14">
-        <MktContainer>
-          <Reveal className="rounded-[24px] border border-line bg-paper-pure p-8 md:p-10 shadow-card">
-            <Eyebrow>Featured</Eyebrow>
-            <h2 className="mt-4 text-2xl md:text-3xl font-bold font-display tracking-tightest text-ink">
-              {featuredPost.title}
-            </h2>
-            <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-soft">{featuredPost.excerpt}</p>
-            <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-ink-faint">
-              <span>{featuredPost.date}</span>
-              <span className="inline-flex items-center gap-1">
-                <Clock3 size={14} />
-                {featuredPost.readTime}
-              </span>
-              <span className="text-ink-soft">{featuredPost.category}</span>
-            </div>
-            <MktButton href="#" variant="ink" className="mt-7">
-              Read article
-              <ArrowRight size={16} />
-            </MktButton>
-          </Reveal>
-        </MktContainer>
-      </section>
-
-      <section className="pb-20 md:pb-28">
-        <MktContainer>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post, index) => (
-              <Reveal key={post.title} delay={index * 60}>
-                <div className="group flex flex-col h-full rounded-2xl border border-line bg-paper-pure p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">{post.category}</div>
-                  <h3 className="mt-2.5 text-lg font-semibold font-display text-ink leading-snug">{post.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-ink-soft">{post.excerpt}</p>
-                  <div className="mt-auto pt-5 flex items-center justify-between text-xs text-ink-faint border-t border-line">
-                    <span>{post.date}</span>
+          {showFeatured && (
+            <section className="py-10 md:py-14">
+              <MktContainer>
+                <Reveal className="rounded-[24px] border border-line bg-paper-pure p-8 md:p-10 shadow-card">
+                  <Eyebrow>Featured{featured.draft && <DraftBadge />}</Eyebrow>
+                  <h2 className="mt-4 text-2xl md:text-3xl font-bold font-display tracking-tightest text-ink">
+                    {featured.title}
+                  </h2>
+                  <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-ink-soft">{featured.description}</p>
+                  <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-ink-faint">
+                    <span>{formatPostDate(featured.date)}</span>
                     <span className="inline-flex items-center gap-1">
-                      <Clock3 size={12} />
-                      {post.readTime}
+                      <Clock3 size={14} />
+                      {featured.readMinutes} min read
                     </span>
+                    <span className="text-ink-soft">{featured.category}</span>
                   </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </MktContainer>
-      </section>
+                  <MktButton href={`/blog/${featured.slug}`} variant="ink" className="mt-7">
+                    Read article
+                    <ArrowRight size={16} />
+                  </MktButton>
+                </Reveal>
+              </MktContainer>
+            </section>
+          )}
+
+          <section className="pb-20 md:pb-28">
+            <MktContainer>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {rest.map((post, index) => (
+                  <Reveal key={post.slug} delay={index * 60}>
+                    <Link
+                      to={`/blog/${post.slug}`}
+                      className="group flex flex-col h-full rounded-2xl border border-line bg-paper-pure p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10"
+                    >
+                      <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+                        {post.category}
+                        {post.draft && <DraftBadge />}
+                      </div>
+                      <h3 className="mt-2.5 text-lg font-semibold font-display text-ink leading-snug group-hover:text-accent transition-colors">
+                        {post.title}
+                      </h3>
+                      <p className="mt-3 text-sm leading-relaxed text-ink-soft">{post.description}</p>
+                      <div className="mt-auto pt-5 flex items-center justify-between text-xs text-ink-faint border-t border-line">
+                        <span>{formatPostDate(post.date)}</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 size={12} />
+                          {post.readMinutes} min read
+                        </span>
+                      </div>
+                    </Link>
+                  </Reveal>
+                ))}
+              </div>
+            </MktContainer>
+          </section>
+        </>
+      )}
 
       <section className="pb-24">
         <MktContainer>
           <Reveal className="rounded-[28px] border border-line bg-paper-pure p-8 md:p-12 text-center">
             <h2 className="text-2xl md:text-4xl font-bold font-display tracking-tightest text-ink">
-              Want updates in your inbox?
+              Put it into practice
             </h2>
             <p className="mt-4 max-w-2xl mx-auto text-ink-soft">
-              Follow product releases, design guides, and campaign ideas as we publish new articles.
+              Make a free static QR code with no account, or create a dynamic one you can edit after printing.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
               <MktButton href="/signup" variant="accent" size="lg">
                 Get started free
                 <ArrowRight size={16} />
               </MktButton>
-              <MktButton href="/changelog" variant="outline" size="lg">
-                View changelog
+              <MktButton href="/generate" variant="outline" size="lg">
+                Free QR generator
               </MktButton>
             </div>
           </Reveal>

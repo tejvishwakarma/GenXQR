@@ -62,7 +62,6 @@ export default function ImageGalleryLandingPage({ name, content, files }: Props)
           </div>
         )}
 
-        <p className="mt-8 text-center text-xs text-gray-600">Powered by GenXQR</p>
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import multer from "multer"
 import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import { requirePlanFeature } from "../middleware/plan-gate.middleware.js"
 import { AppError } from "../middleware/error.middleware.js"
 import {
@@ -43,12 +44,15 @@ router.get("/template", (_req, res) => {
 router.post(
   "/csv",
   requireAuth,
+  // Codes are created in the selected workspace, under the owner's plan.
+  withWorkspace,
+  requireWorkspacePermission("qr:create"),
   requirePlanFeature("bulkGeneration"),
   upload.single("file"),
   async (req, res, next) => {
     try {
       if (!req.file) throw new AppError(400, "No CSV file uploaded. Use multipart field name 'file'.")
-      const { results, created, failed } = await processBulkCsv(uid(req), req.file.buffer)
+      const { results, created, failed } = await processBulkCsv(wsOwner(req), req.file.buffer)
       res.status(created > 0 ? 201 : 422).json({
         success: created > 0,
         data: { results, summary: { total: results.length, created, failed } },
@@ -67,6 +71,8 @@ router.post(
 router.post(
   "/download",
   requireAuth,
+  withWorkspace,
+  requireWorkspacePermission("qr:view"),
   async (req, res, next) => {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,7 +80,7 @@ router.post(
       if (!Array.isArray(results) || results.length === 0) {
         throw new AppError(400, "No results provided")
       }
-      await streamResultsZip(uid(req), results, res)
+      await streamResultsZip(wsOwner(req), results, res)
     } catch (err) {
       next(err)
     }

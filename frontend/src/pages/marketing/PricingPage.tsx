@@ -24,28 +24,28 @@ const PRICING_JSON_LD = [
         "name": "Free",
         "price": "0",
         "priceCurrency": "INR",
-        "description": "Static QR codes — URL, WiFi, WhatsApp, Instagram. No account needed.",
+        "description": "Static QR codes — URL, WiFi, WhatsApp, Instagram, SMS, phone. No account needed.",
       },
       {
         "@type": "Offer",
         "name": "Starter",
         "price": "299",
         "priceCurrency": "INR",
-        "description": "50 dynamic QR codes with scan analytics, all 16 QR types, PNG & SVG download.",
+        "description": "50 dynamic QR codes with scan analytics, 5,000 scans/month, all 16 QR types, PNG & SVG download.",
       },
       {
         "@type": "Offer",
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "250 dynamic QR codes, A/B testing, smart routing, REST API, bulk generation.",
+        "description": "250 dynamic QR codes, 50,000 scans/month, 5 team seats, A/B testing, smart routing, REST API, bulk generation.",
       },
       {
         "@type": "Offer",
         "name": "Business",
         "price": "2499",
         "priceCurrency": "INR",
-        "description": "2,000 dynamic QR codes, 20 team seats, custom domain, webhooks, 100,000 API calls/month.",
+        "description": "2,000 dynamic QR codes, 500,000 scans/month, 20 team seats, white-label branding, webhooks, 100,000 API calls/month.",
       },
     ],
   },
@@ -58,7 +58,7 @@ const PRICING_JSON_LD = [
         "name": "Can I switch QR code plans any time?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. You can upgrade or downgrade your GenXQR plan at any time from your billing dashboard. Upgrades take effect immediately. Downgrades take effect at the end of your current billing period.",
+          "text": "Yes. You can upgrade or downgrade your GenXQR plan at any time from your billing dashboard. A paid upgrade takes effect immediately and starts a new billing period from the day you pay. A downgrade also takes effect immediately and keeps your current billing period's end date.",
         },
       },
       {
@@ -74,7 +74,7 @@ const PRICING_JSON_LD = [
         "name": "What happens to my QR codes if I downgrade?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Your QR codes remain active after a downgrade. If you exceed the lower plan's limits, additional QR codes are locked — they won't be deleted. Upgrade again to reactivate them. Your scan analytics history is preserved.",
+          "text": "Your QR codes stay active after a downgrade and are never deleted. If you have more QR codes than the lower plan allows, you can't create new ones until you are back under its limit. If a paid period or trial ends without payment, the account moves to the Free plan and dynamic QR codes are paused — pay again and they are switched back on automatically. Scan history is kept for 3 months after the account moves to Free, then deleted.",
         },
       },
       {
@@ -82,7 +82,7 @@ const PRICING_JSON_LD = [
         "name": "Is there a free trial for GenXQR paid plans?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR offers a 14-day free trial on all paid plans. No credit card is required to start the trial. You only pay when you choose to continue after the trial ends.",
+          "text": "Yes. New GenXQR accounts start with a 14-day free trial of the Pro plan. No credit card is required to start the trial. When the trial ends, the account moves to the Free plan and dynamic QR codes are paused until you choose a plan and pay.",
         },
       },
       {
@@ -112,14 +112,14 @@ const plans = [
     priceMonthly: 0,
     priceYearly: 0,
     yearlySaving: 0,
-    perDay: null as string | null,
+    perDay: null as { monthly: string; yearly: string } | null,
     desc: "Test the platform. Create static QR codes — no account needed.",
     cta: "Start free",
     ctaVariant: "outline" as const,
     href: "/signup",
     highlight: false,
     features: [
-      "4 static QR types (URL, WiFi, WhatsApp, Instagram)",
+      "6 static QR types (URL, WiFi, WhatsApp, Instagram, SMS, phone)",
       "PNG download",
       "No watermark",
       "No account needed — generate instantly",
@@ -127,8 +127,9 @@ const plans = [
     missing: [
       "Dynamic QR codes (editable after print)",
       "Scan analytics",
-      "Custom design & logo",
+      "Logo upload",
       "Custom landing pages",
+      "QR frames",
     ],
   },
   {
@@ -138,7 +139,7 @@ const plans = [
     priceMonthly: 299,
     priceYearly: 249,
     yearlySaving: 600,
-    perDay: "₹8",
+    perDay: { monthly: "₹10", yearly: "₹9" },
     desc: "Your first 50 dynamic QR codes with scan tracking. Perfect for small businesses.",
     cta: "Start free trial",
     ctaVariant: "outline" as const,
@@ -149,7 +150,8 @@ const plans = [
       "Scan analytics — city, device & browser tracked",
       "All 16 QR types — URL, PDF, menu, vCard, WiFi & more",
       "PNG + SVG download — print or digital ready",
-      "90-day analytics history",
+      "86 print-ready QR frames — colourful shapes, premium & occasion designs",
+      "5,000 scans/month",
       "Scheduled activation & auto-expiry",
       "No ads",
       "Email support",
@@ -168,7 +170,7 @@ const plans = [
     priceMonthly: 799,
     priceYearly: 649,
     yearlySaving: 1800,
-    perDay: "₹22",
+    perDay: { monthly: "₹27", yearly: "₹22" },
     desc: "250 dynamic QR codes, A/B testing, smart routing — the full marketer's toolkit.",
     cta: "Start free trial",
     ctaVariant: "default" as const,
@@ -176,21 +178,22 @@ const plans = [
     highlight: true,
     features: [
       "250 QR codes you can update any time",
-      "Full analytics — 1-year history, geo & device breakdown",
-      "A/B testing — split-test destinations, auto-pick the winner",
-      "Smart routing — different pages for different cities or devices",
+      "Full analytics — geo & device breakdown",
+      "50,000 scans/month",
+      "A/B testing — split-test two destinations, compare scans",
+      "Smart routing — different pages by country, device or time of day",
       "Scheduled activation & auto-expiry",
       "Bulk generate up to 100 QR codes from CSV",
       "REST API — 10,000 calls/month",
-      "Webhooks — trigger Zapier, Slack, or your own systems",
-      "Custom short domain for branded QR codes",
-      "5 team seats with role-based access",
+      "Webhooks — signed events to your own systems or automation tools",
+      "5 team seats (incl. yours) — admin, editor & viewer roles",
       "All download formats — PNG, SVG, PDF",
+      "86 print-ready QR frames — colourful shapes, premium & occasion designs",
       "Email support",
     ],
     missing: [
       "Priority phone & email support",
-      "Google Drive auto-backup",
+      "Google Drive export",
     ],
   },
   {
@@ -200,7 +203,7 @@ const plans = [
     priceMonthly: 2499,
     priceYearly: 1999,
     yearlySaving: 6000,
-    perDay: "₹67",
+    perDay: { monthly: "₹83", yearly: "₹67" },
     desc: "2,000 QR codes for teams, agencies, and brands that run at scale.",
     cta: "Start free trial",
     ctaVariant: "glow" as const,
@@ -209,12 +212,13 @@ const plans = [
     features: [
       "2,000 QR codes — 8× Pro's limit",
       "Everything in Pro +",
-      "20 team seats with role-based access",
+      "500,000 scans/month",
+      "20 team seats (incl. yours) — admin, editor & viewer roles",
+      "White-label scan pages — your brand, not ours",
       "Bulk generate up to 5,000 QR codes from CSV",
       "100,000 API calls/month",
-      "Google Drive auto-backup",
+      "Google Drive export",
       "Priority phone & email support",
-      "99.9% uptime SLA guarantee",
     ],
     missing: [],
   },
@@ -227,20 +231,21 @@ type CellValue = boolean | string
 
 const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pro: CellValue; business: CellValue }[] = [
   { feature: "Dynamic QR codes",          free: false,    starter: "50",         pro: "250",          business: "2,000" },
-  { feature: "Scan analytics",            free: false,    starter: "90 days",    pro: "1 year",       business: "2 years" },
+  { feature: "Scan analytics",            free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Scans per month",           free: false,    starter: "5,000",      pro: "50,000",       business: "500,000" },
   { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,           business: true },
-  { feature: "Custom design & logo",      free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Custom design & logo",      free: "Colours, no logo", starter: true,         pro: true,           business: true },
+  { feature: "QR frames (86 designs)",    free: false,    starter: true,         pro: true,           business: true },
   { feature: "A/B testing",               free: false,    starter: false,        pro: true,           business: true },
   { feature: "Smart routing",             free: false,    starter: false,        pro: true,           business: true },
   { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "5,000 QRs" },
   { feature: "REST API",                  free: false,    starter: false,        pro: "10K calls/mo", business: "100K calls/mo" },
-  { feature: "Team seats",                free: false,    starter: false,        pro: "5 seats",      business: "20 seats" },
-  { feature: "Custom short domain",       free: false,    starter: false,        pro: true,           business: true },
+  { feature: "Team seats (incl. owner)",  free: false,    starter: false,        pro: "5 seats",      business: "20 seats" },
+  { feature: "White-label scan pages",    free: false,    starter: false,        pro: false,          business: true },
   { feature: "Webhooks",                  free: false,    starter: false,        pro: true,           business: true },
-  { feature: "Google Drive backup",       free: false,    starter: false,        pro: false,          business: true },
+  { feature: "Google Drive export",       free: false,    starter: false,        pro: false,          business: true },
   { feature: "Password-protected QR",     free: false,    starter: true,         pro: true,           business: true },
   { feature: "Schedule & expiry",         free: false,    starter: true,         pro: true,           business: true },
-  { feature: "Uptime SLA",               free: false,    starter: false,        pro: false,          business: "99.9%" },
 ]
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
@@ -249,7 +254,7 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
 const faqItems = [
   {
     q: "Can I switch plans any time?",
-    a: "Yes. Upgrade or downgrade from your billing dashboard at any time. Upgrades take effect immediately. Downgrades take effect at the end of your current billing period — your QR codes stay active until then.",
+    a: "Yes. Upgrade or downgrade from your billing dashboard at any time. A paid upgrade takes effect immediately and starts a new billing period from the day you pay. A downgrade also takes effect immediately and keeps your current period's end date — your QR codes stay active.",
   },
   {
     q: "What payment methods do you accept?",
@@ -257,11 +262,11 @@ const faqItems = [
   },
   {
     q: "What happens to my QR codes if I downgrade?",
-    a: "Your QR codes are never deleted. If you exceed the lower plan's limit, extra QR codes are temporarily locked — not erased. Upgrade again any time to reactivate them. Your analytics history is always preserved.",
+    a: "Your QR codes are never deleted and stay active after a downgrade. If you have more than the lower plan allows, you can't create new ones until you're back under its limit. If a paid period or trial ends without payment, the account moves to Free and dynamic QR codes are paused — pay again and they're switched back on automatically. Scan history is kept for 3 months after the account moves to Free, then deleted.",
   },
   {
     q: "Is there a free trial for paid plans?",
-    a: "Yes — all paid plans include a 14-day free trial. No credit card required to start. You only pay when you decide to continue after the trial ends.",
+    a: "Yes — new accounts start with a 14-day free trial of the Pro plan. No credit card required to start. When the trial ends, the account moves to the Free plan and dynamic QR codes are paused until you choose a plan and pay.",
   },
   {
     q: "What's the difference between static and dynamic QR codes?",
@@ -335,7 +340,7 @@ export default function PricingPage() {
         intro={
           <>
             From a single free QR code to unlimited dynamic QR codes for your whole team —
-            every plan includes{" "}
+            every paid plan includes{" "}
             <Link to="/dynamic-qr" className="text-accent underline underline-offset-2 hover:text-accent-ink">
               dynamic QR codes
             </Link>{" "}
@@ -436,7 +441,7 @@ export default function PricingPage() {
                         higher than the rest of the row. */}
                     {plan.perDay && plan.priceMonthly > 0 ? (
                       <p className="text-ink-faint text-xs mt-1">
-                        Less than {plan.perDay}/day
+                        Less than {yearly ? plan.perDay.yearly : plan.perDay.monthly}/day
                       </p>
                     ) : (
                       <p aria-hidden="true" className="invisible text-xs mt-1">&nbsp;</p>
@@ -482,8 +487,8 @@ export default function PricingPage() {
           <span className="flex items-center gap-2"><Check size={13} className="text-live" /> No credit card for free plan</span>
           <span className="flex items-center gap-2"><Check size={13} className="text-live" /> Cancel any time — no lock-in</span>
           <span className="flex items-center gap-2"><Check size={13} className="text-live" /> UPI, net banking &amp; cards accepted</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> 14-day free trial on all paid plans</span>
-          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> Your data is yours — export any time</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> 14-day Pro trial — no card needed</span>
+          <span className="flex items-center gap-2"><Check size={13} className="text-live" /> Your scan data is yours — export it as CSV</span>
         </div>
 
         {/* ── Feature comparison table ── */}
@@ -552,7 +557,7 @@ export default function PricingPage() {
               </span>
             </div>
             <p className="text-ink-soft max-w-lg text-sm leading-relaxed">
-              Need white-label QR codes, SSO, a dedicated success manager, custom SLA,
+              Need white-label QR codes, a dedicated success manager,
               or volume pricing across 10+ team seats?{" "}
               <Link to="/features" className="text-accent underline underline-offset-2 hover:text-accent-ink">
                 See all enterprise features

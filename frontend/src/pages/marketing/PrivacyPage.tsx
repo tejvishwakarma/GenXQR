@@ -13,11 +13,11 @@ const sections = [
   },
   {
     title: "3. Data Security",
-    content: "Security is our top priority. We implement industry-standard security measures including AES-256-GCM encryption for data at rest and TLS 1.3 for data in transit. Passwords are cryptographically hashed using Argon2id. We regularly audit our systems for vulnerabilities.",
+    content: "Security is our top priority. We implement industry-standard security measures including AES-256-GCM encryption for data at rest and TLS 1.3 for data in transit. Passwords are cryptographically hashed using bcrypt (cost factor 12). We regularly audit our systems for vulnerabilities.",
   },
   {
     title: "4. Third-Party Services",
-    content: "We use trusted third-party service providers (such as Stripe for payments, Oracle Cloud for hosting, and Resend for emails). These providers only have access to the information necessary to perform their specific functions and are prohibited from using it for any other purpose.",
+    content: "We use trusted third-party service providers (such as Cashfree for payments and Resend for emails). These providers only have access to the information necessary to perform their specific functions and are prohibited from using it for any other purpose.",
   },
   {
     title: "5. Your Rights (GDPR & CCPA)",
@@ -25,7 +25,7 @@ const sections = [
   },
   {
     title: "6. Data Retention",
-    content: "We retain your account data for as long as your account is active. Analytics data is retained according to your subscription tier (e.g., 30 days for Free, 1 year for Pro). You can export your data at any time before account deletion.",
+    content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files and all scan data. You can export your data at any time before account deletion.",
   },
 ]
 
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
         <LegalStats
           items={[
             { icon: Lock, tint: "violet", label: "Encrypted", sub: "AES-256 at rest" },
-            { icon: Database, tint: "blue", label: "Secure storage", sub: "Oracle Cloud Infrastructure" },
+            { icon: Database, tint: "blue", label: "Secure storage", sub: "On servers we operate" },
             { icon: Eye, tint: "emerald", label: "No selling", sub: "Your data is yours" },
           ]}
         />

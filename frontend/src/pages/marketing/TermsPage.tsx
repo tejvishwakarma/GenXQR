@@ -34,7 +34,7 @@ export default function TermsPage() {
 
           <LegalSection title="3. Subscriptions and Payments">
             <p>
-              Some parts of the Service are billed on a subscription basis. You will be billed in advance on a recurring and periodic basis (monthly or annually). Your subscription will automatically renew under the exact same conditions unless you cancel it or we cancel it.
+              Some parts of the Service are billed on a subscription basis. You pay in advance for each billing period (monthly or annually). Payments are not taken automatically: your subscription does not auto-renew, and to continue after a period ends you pay again. If you do not, your account moves to the free plan and its dynamic QR codes are paused until you do; scan history is kept for 3 months after that and then deleted. Each paid plan includes a monthly scan allowance: once it is used up, your QR codes stop redirecting until the allowance resets or you upgrade.
             </p>
           </LegalSection>
 

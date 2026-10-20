@@ -8,7 +8,7 @@
  *
  * Reference: https://developers.google.com/search/docs/appearance/structured-data
  */
-import { ORGANISATION, SITE_DESCRIPTION, SITE_NAME, absoluteUrl } from "./site"
+import { ORGANISATION, SITE_DESCRIPTION, SITE_NAME, SOCIAL_PROFILES, absoluteUrl } from "./site"
 
 /** Stable @id for the organisation so other nodes can reference it rather than duplicating it. */
 export const ORG_ID = absoluteUrl("/#organization")
@@ -32,9 +32,14 @@ export function organisationSchema() {
       ? { telephone: ORGANISATION.phone }
       : {}),
     url: absoluteUrl("/"),
+    sameAs: SOCIAL_PROFILES.map((p) => p.url),
     logo: {
       "@type": "ImageObject",
-      url: absoluteUrl("/og-image.png"),
+      // Square, as Google requires for an Organization logo (min 112×112).
+      // og-image.png is the 1200×630 social card, not a logo.
+      url: absoluteUrl("/apple-touch-icon.png"),
+      width: 180,
+      height: 180,
     },
     description: SITE_DESCRIPTION,
     address: {
@@ -69,7 +74,7 @@ export function websiteSchema() {
     url: absoluteUrl("/"),
     description: SITE_DESCRIPTION,
     publisher: { "@id": ORG_ID },
-    inLanguage: "en",
+    inLanguage: "en-IN",
   }
 }
 
@@ -166,7 +171,39 @@ export function webPageSchema(options: { name: string; path: string; description
     ...(options.description ? { description: options.description } : {}),
     isPartOf: { "@id": WEBSITE_ID },
     publisher: { "@id": ORG_ID },
-    inLanguage: "en",
+    inLanguage: "en-IN",
+  }
+}
+
+/**
+ * A blog article — eligible for article rich results.
+ *
+ * The author is the organisation (by @id), which Google accepts. Switch to a
+ * Person once named founders are published on the About page; a person who
+ * cannot be found anywhere on the site is a weaker signal than the company.
+ */
+export function blogPostingSchema(options: {
+  headline: string
+  description: string
+  path: string
+  datePublished: string
+  dateModified?: string
+  image?: string
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: options.headline,
+    description: options.description,
+    url: absoluteUrl(options.path),
+    mainEntityOfPage: absoluteUrl(options.path),
+    datePublished: options.datePublished,
+    dateModified: options.dateModified ?? options.datePublished,
+    ...(options.image ? { image: absoluteUrl(options.image) } : {}),
+    author: { "@id": ORG_ID },
+    publisher: { "@id": ORG_ID },
+    isPartOf: { "@id": WEBSITE_ID },
+    inLanguage: "en-IN",
   }
 }
 

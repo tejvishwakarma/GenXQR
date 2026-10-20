@@ -125,12 +125,13 @@ function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardPro
     { label: `${plan.dynamicQRLimit >= 999999 ? "Unlimited" : plan.dynamicQRLimit} dynamic QR codes`, enabled: true },
     { label: `${plan.scanLimit >= 999999999 ? "Unlimited" : plan.scanLimit.toLocaleString()} scans/month`, enabled: true },
     { label: `${plan.fileStorageGB}GB file storage`, enabled: plan.fileStorageGB > 0 },
-    { label: "Advanced analytics", enabled: (limits?.analyticsRetentionDays ?? 0) >= 90 },
+    // Scan history is kept while subscribed and 3 months after (subscription-expiry.service).
+    { label: "Full scan history while subscribed", enabled: plan.dynamicQRLimit > 0 },
+    { label: "QR frames (86 designs)", enabled: limits?.premiumFrames ?? false },
     { label: "A/B testing", enabled: limits?.abTesting ?? false },
     { label: "Smart routing", enabled: limits?.smartRouting ?? false },
     { label: "Bulk generation", enabled: limits?.bulkGeneration ?? false },
     { label: "API access", enabled: limits?.apiAccess ?? false },
-    { label: "Custom domains", enabled: limits?.customDomains ?? false },
     { label: `${plan.teamSeatsLimit} team seat${plan.teamSeatsLimit !== 1 ? "s" : ""}`, enabled: plan.teamSeatsLimit > 1 },
     { label: "White-label", enabled: limits?.whiteLabel ?? false },
     { label: "Priority support", enabled: limits?.prioritySupport ?? false },
@@ -386,7 +387,7 @@ export default function BillingPage() {
       const isDowngrade = planOrder.indexOf(planName) < planOrder.indexOf(currentPlan)
 
       if (isDowngrade) {
-        if (!window.confirm(`Are you sure you want to downgrade to ${planName}?`)) {
+        if (!window.confirm(`Are you sure you want to downgrade to ${planName}? This takes effect immediately.`)) {
           setCheckoutLoading(false)
           return
         }
@@ -503,7 +504,7 @@ export default function BillingPage() {
   }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon])
 
   const handleCancel = useCallback(() => {
-    if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period.")) return
+    if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period. After that your account moves to the Free plan and your active dynamic QR codes are paused until you pay again. Scan history is kept for 3 months after that, then deleted.")) return
     cancelMut.mutate()
   }, [cancelMut])
 
@@ -716,7 +717,7 @@ export default function BillingPage() {
           <span className="text-zinc-700 dark:text-zinc-300 flex-1 min-w-0">
             You're on a <span className="text-violet-300 font-semibold">14-day PRO trial</span>
             {" "}— {daysLeft(sub.trialEndsAt)} day{daysLeft(sub.trialEndsAt) !== 1 ? "s" : ""} remaining.
-            Upgrade now to keep PRO features.
+            Upgrade now to keep PRO features — when the trial ends without payment, your active dynamic QR codes are paused.
           </span>
           <Button variant="glow" size="sm" className="shrink-0" onClick={() => void handleSubscribe("PRO", "monthly")} disabled={checkoutLoading}>
             {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : "Upgrade"}
@@ -729,9 +730,10 @@ export default function BillingPage() {
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-sm">
           <AlertTriangle size={16} className="text-amber-400 shrink-0" />
           <span className="text-zinc-700 dark:text-zinc-300">
-            Your subscription will be cancelled on{" "}
+            Your plan will not be renewed and ends on{" "}
             <span className="font-semibold text-amber-300">{formatDate(subscription.currentPeriodEnd)}</span>.
-            You'll be downgraded to the Free plan.
+            You'll then move to the Free plan and your active dynamic QR codes will be paused until you pay again.
+            Scan history is kept for 3 months after that, then deleted.
           </span>
         </div>
       )}
@@ -778,7 +780,7 @@ export default function BillingPage() {
                         <div className="text-zinc-600 dark:text-zinc-400 text-sm">
                           {sub?.isTrialing
                             ? `Trial ends ${formatDate(subscription.trialEndsAt!)}`
-                            : `Renews ${formatDate(subscription.currentPeriodEnd)}`}
+                            : `Active until ${formatDate(subscription.currentPeriodEnd)}`}
                         </div>
                       </div>
                     </div>
@@ -826,6 +828,15 @@ export default function BillingPage() {
                   {[
                     { label: "Dynamic QR Codes", used: usage.qrCodes.used, max: usage.qrCodes.limit },
                     ...(currentPlanName !== "FREE" ? [
+                      // Enforced: at the limit, codes stop redirecting until the reset date.
+                      {
+                        label: "Scans this month",
+                        used: usage.scans.used,
+                        max: usage.scans.limit,
+                        note: usage.scans.resetsAt
+                          ? `Resets ${new Date(usage.scans.resetsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}. At the limit your codes stop redirecting until then.`
+                          : undefined,
+                      },
                       { label: "Storage Used", used: usage.storageGB.used, max: usage.storageGB.limit, unit: "GB" },
                       { label: "API Calls (this month)", used: usage.apiCalls.used, max: usage.apiCalls.limit },
                     ] : []),
@@ -837,10 +848,11 @@ export default function BillingPage() {
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-zinc-700 dark:text-zinc-300 text-sm">{item.label}</span>
                           <span className="text-zinc-500 text-sm">
-                            {item.used} / {unlimited ? "—" : item.max}
-                            {item.unit ? ` ${item.unit}` : ""}
+                            {item.used.toLocaleString("en-IN")} / {unlimited ? "—" : item.max.toLocaleString("en-IN")}
+                            {"unit" in item && item.unit ? ` ${item.unit}` : ""}
                           </span>
                         </div>
+                        {"note" in item && item.note && <p className="text-zinc-500 text-xs mb-1.5">{item.note}</p>}
                         {!unlimited && (
                           <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                             <div

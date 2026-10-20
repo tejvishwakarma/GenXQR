@@ -1,7 +1,7 @@
 import {
   MapPin, Check, Split, Route, Layers, Users, Code2, Plug,
   ShoppingBag, UtensilsCrossed, CalendarDays, Home, Package, Megaphone,
-  Lock, Timer, ShieldCheck, KeyRound,
+  Lock, Timer, ShieldCheck, Power,
 } from "lucide-react"
 import { MktContainer, SectionHead, Eyebrow, MktButton, FinderGlyph } from "./ui"
 import { cn } from "@/lib/utils"
@@ -33,7 +33,7 @@ export function MarketingAnalytics() {
           />
           <ul className="mt-8 space-y-3 w-fit mx-auto lg:mx-0">
             {[
-              "Geolocation down to the city, with a live map",
+              "Geolocation down to the city, with top-location breakdowns",
               "Device, OS, and browser breakdowns",
               "Scan timelines — today, this week, this month",
               "Export raw scans or view per-QR reports",
@@ -126,10 +126,10 @@ export function MarketingAnalytics() {
 
 // ── Power features (dark band) ────────────────────────────────────────────────
 const FEATURES = [
-  { icon: Split, title: "A/B testing", body: "Split scans across variants and let the winner emerge." },
+  { icon: Split, title: "A/B testing", body: "Split scans between two destinations and compare scans per variant." },
   { icon: Route, title: "Smart routing", body: "Send scanners to different URLs by time, device, or country." },
-  { icon: Layers, title: "Bulk generation", body: "Upload a CSV and get thousands of codes as a ZIP." },
-  { icon: Users, title: "Team workspaces", body: "Invite your team with owner, admin, editor, and viewer roles." },
+  { icon: Layers, title: "Bulk generation", body: "Upload a CSV to create codes in one batch, with a ZIP of their scan links." },
+  { icon: Users, title: "Team workspaces", body: "Invite teammates as admins, editors, or viewers — each role enforced by the server." },
   { icon: Code2, title: "Developer API", body: "Automate everything with a clean REST API and API keys." },
   { icon: Plug, title: "Integrations", body: "Connect Zapier, Make, and n8n to your existing workflows." },
 ]
@@ -168,7 +168,7 @@ const USE_CASES = [
   { icon: CalendarDays, title: "Events", body: "Tickets, check-ins, schedules, and post-event surveys." },
   { icon: Home, title: "Real estate", body: "Listing pages and virtual tours on signage and flyers." },
   { icon: Package, title: "Logistics", body: "Track-and-trace and asset labels that never go stale." },
-  { icon: Megaphone, title: "Marketing", body: "Campaign QR with A/B tests and full attribution." },
+  { icon: Megaphone, title: "Marketing", body: "Campaign QR with A/B tests and per-scan analytics." },
 ]
 
 export function MarketingUseCases() {
@@ -196,8 +196,8 @@ export function MarketingUseCases() {
 const CONTROLS = [
   { icon: Lock, title: "Password protection", body: "Lock sensitive codes behind a password before they resolve." },
   { icon: Timer, title: "Expiry & scan limits", body: "Set a code to stop working after a date or a number of scans." },
-  { icon: KeyRound, title: "Role-based access", body: "Owner, admin, editor, and viewer permissions for your team." },
-  { icon: ShieldCheck, title: "Privacy first", body: "No hidden trackers — you own your scan data, exportable anytime." },
+  { icon: Power, title: "Instant on/off", body: "Switch a code off with one toggle and turn it back on any time." },
+  { icon: ShieldCheck, title: "Privacy first", body: "You own your scan data — export it as CSV while your plan is active and for 3 months after it ends." },
 ]
 
 export function MarketingSecurity() {

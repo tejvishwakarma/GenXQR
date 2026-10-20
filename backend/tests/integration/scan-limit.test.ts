@@ -144,8 +144,18 @@ describe("scan limit enforcement", () => {
     // instead: deciding isUnique is the part of the change that lives in
     // scan.service, and it is fully observable here. The worker's own job is
     // only to increment by that flag.
-    const jobs = await scanQueue.getJobs(["waiting", "delayed", "prioritized"])
-    const mine = jobs.filter((j) => j.data.qrId === qr.id)
+    //
+    // Poll for them: queueScan runs after the redirect is sent and increments the
+    // live counter BEFORE it enqueues, so waitForScanCount can return while the
+    // last job is still on its way. Reading once raced on slower machines (CI saw
+    // 4 of 5 twice in a row, Oct 2026).
+    let mine: Awaited<ReturnType<typeof scanQueue.getJobs>> = []
+    for (const deadline = Date.now() + 5000; Date.now() < deadline; ) {
+      const jobs = await scanQueue.getJobs(["waiting", "delayed", "prioritized"])
+      mine = jobs.filter((j) => j.data.qrId === qr.id)
+      if (mine.length >= 5) break
+      await new Promise((r) => setTimeout(r, 25))
+    }
     expect(mine).toHaveLength(5)
     expect(mine.filter((j) => j.data.isUnique)).toHaveLength(1)
     expect(mine.filter((j) => !j.data.isUnique)).toHaveLength(4)

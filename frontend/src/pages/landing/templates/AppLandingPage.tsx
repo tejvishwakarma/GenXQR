@@ -81,7 +81,6 @@ export default function AppLandingPage({ name, content, files }: Props) {
         </div>
       </div>
 
-      <p className="absolute bottom-4 text-xs text-gray-600">Powered by GenXQR</p>
     </div>
   )
 }

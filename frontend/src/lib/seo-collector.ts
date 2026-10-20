@@ -50,20 +50,20 @@ function attr(value: string): string {
  * shape it escapes stay together.
  */
 export function renderCollectedSeo(seo: CollectedSeo): string {
-  const parts: string[] = [`<title>${attr(seo.title)}</title>`]
+  const parts: string[] = [`<title data-seo-static>${attr(seo.title)}</title>`]
 
   for (const tag of seo.meta) {
     const attrs = Object.entries(tag)
       .map(([k, v]) => `${k}="${attr(v)}"`)
       .join(" ")
-    parts.push(`<meta ${attrs} />`)
+    parts.push(`<meta data-seo-static ${attrs} />`)
   }
 
   for (const tag of seo.link) {
     const attrs = Object.entries(tag)
       .map(([k, v]) => `${k}="${attr(v)}"`)
       .join(" ")
-    parts.push(`<link ${attrs} />`)
+    parts.push(`<link data-seo-static ${attrs} />`)
   }
 
   if (seo.jsonLd) {
@@ -71,7 +71,7 @@ export function renderCollectedSeo(seo: CollectedSeo): string {
     // only "</" can terminate the element early. Escaping quotes here would
     // corrupt the JSON.
     const json = JSON.stringify(seo.jsonLd).replace(/<\//g, "<\\/")
-    parts.push(`<script type="application/ld+json">${json}</script>`)
+    parts.push(`<script data-seo-static type="application/ld+json">${json}</script>`)
   }
 
   return parts.join("\n    ")

@@ -260,7 +260,7 @@ function buildEmailShell(subject: string, innerHtml: string): string {
                 <tr>
                   <td>
                     <p class="footer-txt" style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:12px;color:#71717a;line-height:1.65">
-                      You received this because you have a GenXQR account.<br>
+                      You received this because you have a GenXQR account or contacted GenXQR.<br>
                       &copy; ${year} GenXQR &middot; All rights reserved.
                     </p>
                   </td>
@@ -439,7 +439,7 @@ export function buildRenewalReminderEmail(
       Your plan expires ${urgency}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. After this date, your account will be downgraded to the Free plan and some features may become unavailable.
+      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. If it is not renewed by then, your account moves to the Free plan and your dynamic QR codes are paused: people who scan them will see a "deactivated" page (or your fallback URL, if you set one) until you renew.
     </p>
 
     <!-- Usage warning box -->
@@ -486,14 +486,25 @@ export function buildExpiredNoticeEmail(
   name: string,
   planName: string,
   paymentUrl: string,
+  opts: { wasTrial?: boolean; pausedCodes?: number; historyKeptUntil?: string } = {},
 ): string {
+  const ended = opts.wasTrial ? `trial has ended` : `plan has expired`
+  const paused = opts.pausedCodes ?? 0
+  // Only state what happened to codes when the caller knows (the expiry path
+  // does; an admin's manual reminder does not).
+  const pausedSentence =
+    opts.pausedCodes === undefined
+      ? ""
+      : paused > 0
+      ? `Your ${paused} dynamic QR code${paused === 1 ? " has" : "s have"} been paused: people who scan ${paused === 1 ? "it" : "them"} now see a "deactivated" page, or your fallback URL if you set one.`
+      : `You had no active dynamic QR codes, so nothing has been paused.`
   const inner = `
-    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Subscription Expired</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${opts.wasTrial ? "Trial Ended" : "Subscription Expired"}</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Your ${planName} plan has expired
+      Your ${planName} ${ended}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> subscription on GenXQR has expired. Your account has been moved to the Free plan. Dynamic QR codes may have been deactivated, and premium features are no longer available.
+      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> ${ended}, and your account has moved to the Free plan. ${pausedSentence}
     </p>
 
     <!-- Expired box -->
@@ -501,17 +512,17 @@ export function buildExpiredNoticeEmail(
       <tr>
         <td style="background:#fef2f2;border:1px solid #fecaca;border-left:4px solid #ef4444;border-radius:10px;padding:16px 20px">
           <p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#ef4444;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            ❌ Subscription Expired
+            ❌ ${opts.wasTrial ? "Trial Ended" : "Subscription Expired"}
           </p>
           <p style="margin:0;font-size:14px;color:#52525b;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            Your <strong style="color:#18181b">${planName}</strong> plan has ended. Reactivate to restore all features and QR codes.
+            Renew any plan and the codes we paused switch back on straight away, with the same links and designs. Codes you had turned off yourself stay off.
           </p>
         </td>
       </tr>
     </table>
 
     <p style="margin:0 0 12px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Reactivate your subscription now to restore access to your premium QR codes, analytics, team features, and more:
+      Your QR codes and designs are kept.${opts.historyKeptUntil ? ` Your scan history is kept until <strong style="color:#18181b">${opts.historyKeptUntil}</strong>, then deleted unless you renew before then.` : ""} Renew to switch your codes back on:
     </p>
 
     <!-- CTA button -->
@@ -530,7 +541,48 @@ export function buildExpiredNoticeEmail(
       Questions? Reply to this email or contact our support team. We're here to help.
     </p>`
 
-  return buildEmailShell(`Your ${planName} plan has expired — GenXQR`, inner)
+  return buildEmailShell(`Your ${planName} ${ended} — GenXQR`, inner)
+}
+
+/**
+ * One-time notice for accounts that had already lapsed when expiry enforcement
+ * shipped: their codes kept working with no plan, and will now pause on a date.
+ */
+export function buildCodesPauseNoticeEmail(
+  name: string,
+  pauseDate: string,
+  activeCodes: number,
+  paymentUrl: string,
+  /** When scan history is deleted if they do not renew (3 months after lapse). */
+  historyKeptUntil: string,
+): string {
+  const codes = `${activeCodes} dynamic QR code${activeCodes === 1 ? "" : "s"}`
+  const inner = `
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Action needed</p>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Your QR codes will pause on ${pauseDate}
+    </h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Hi ${name}, your GenXQR plan or trial has ended, but your ${codes} kept working. From <strong style="color:#18181b">${pauseDate}</strong>, dynamic QR codes need an active plan. If you have not renewed by then, people who scan your codes will see a "deactivated" page, or your fallback URL if you set one.
+    </p>
+    <p style="margin:0 0 12px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Renew any plan before that date and nothing changes for the people scanning your codes. If they do pause, renewing switches them back on with the same links and designs. Your scan history is kept until <strong style="color:#18181b">${historyKeptUntil}</strong>, then deleted unless you renew.
+    </p>
+    <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
+      <tr>
+        <td style="border-radius:10px;background:#6366f1">
+          <a href="${paymentUrl}" target="_blank"
+            style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
+            Choose a plan →
+          </a>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Questions? Reply to this email and we'll help.
+    </p>`
+
+  return buildEmailShell(`Your GenXQR QR codes will pause on ${pauseDate}`, inner)
 }
 
 // ─── Broadcast email ──────────────────────────────────────────────────────────
@@ -670,27 +722,27 @@ export function buildSupportTicketConfirmationEmail(opts: {
       We've received your request
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${safe.userName}, thanks for reaching out! Your support ticket has been submitted and our team will get back to you as soon as possible.
+      Hi ${safe.userName}, thanks for reaching out! We've received your message and our team will get back to you as soon as possible.
     </p>
 
     <!-- Ticket summary -->
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 28px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;overflow:hidden">
       <tr>
         <td style="padding:20px 24px">
-          <p style="margin:0 0 8px;font-size:12px;color:#818cf8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Ticket Summary</p>
+          <p style="margin:0 0 8px;font-size:12px;color:#818cf8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Summary</p>
           <p style="margin:0 0 4px;font-size:15px;font-weight:600;color:#1e1b4b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${safe.subject}</p>
           <p style="margin:0;font-size:13px;color:#6366f1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-            Category: ${safe.category} &nbsp;·&nbsp; Ticket ID: <strong>${safe.ticketId.slice(0, 8).toUpperCase()}</strong>
+            Category: ${safe.category} &nbsp;·&nbsp; Reference: <strong>${safe.ticketId.slice(0, 8).toUpperCase()}</strong>
           </p>
         </td>
       </tr>
     </table>
 
     <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      We typically respond within 1–2 business days. You can track your ticket status from your dashboard → Help &amp; Support.
+      We typically respond within 1–2 business days. If you sent this as a support ticket from your GenXQR dashboard, you can follow it under Help &amp; Support.
     </p>`
 
-  return buildEmailShell(`Support ticket received — GenXQR`, inner)
+  return buildEmailShell(`We've received your message — GenXQR`, inner)
 }
 
 // ─── Job Application email ────────────────────────────────────────────────────
@@ -825,4 +877,85 @@ export function buildJobApplicationEmail(opts: {
     </p>`
 
   return buildEmailShell(`[Application] ${opts.candidateName} → ${opts.jobTitle}`, inner)
+}
+
+// ─── Engagement emails (engagement-email.service.ts) ───────────────────────────
+
+const P = `margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const H1 = `margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const SMALL = `margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const escHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+
+function ctaButton(href: string, label: string): string {
+  return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px"><tr>
+    <td style="border-radius:10px;background:#6366f1"><a href="${href}" target="_blank"
+      style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${label}</a></td>
+  </tr></table>`
+}
+
+/** "Your QR code reached 1,000 scans" — per code, at 100 / 1,000 / 10,000. */
+export function buildScanMilestoneEmail(opts: {
+  name: string
+  qrName: string
+  milestone: number
+  analyticsUrl: string
+  settingsUrl: string
+}): { subject: string; html: string } {
+  const n = opts.milestone.toLocaleString("en-IN")
+  const subject = `"${opts.qrName}" reached ${n} scans — GenXQR`
+  const inner = `
+    <h1 style="${H1}">${escHtml(opts.qrName)} reached ${n} scans</h1>
+    <p style="${P}">Hi ${escHtml(opts.name)}, your QR code <strong style="color:#18181b">${escHtml(opts.qrName)}</strong> has now been scanned ${n} times in total, repeat scans included.</p>
+    ${ctaButton(opts.analyticsUrl, "See its analytics →")}
+    <p style="${SMALL}">You get these at 100, 1,000 and 10,000 scans per code. Turn them off under <a href="${opts.settingsUrl}" style="color:#6366f1">Settings → Notifications</a>.</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+export interface WeeklyDigestData {
+  name: string
+  weekLabel: string
+  totalScans: number
+  previousWeekScans: number
+  uniqueScans: number
+  topCodes: { name: string; scans: number }[]
+  topCountries: { country: string; scans: number }[]
+  devices: { device: string; scans: number }[]
+  dashboardUrl: string
+  settingsUrl: string
+}
+
+/** The Monday-morning summary of last week's scans. */
+export function buildWeeklyDigestEmail(d: WeeklyDigestData): { subject: string; html: string } {
+  const fmt = (v: number) => v.toLocaleString("en-IN")
+  const change =
+    d.previousWeekScans === 0
+      ? ""
+      : (() => {
+          const pct = Math.round(((d.totalScans - d.previousWeekScans) / d.previousWeekScans) * 100)
+          return ` (${pct >= 0 ? "+" : ""}${pct}% vs the week before)`
+        })()
+  const list = (rows: { label: string; value: number }[]) =>
+    rows.length === 0
+      ? `<p style="${P}">—</p>`
+      : `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 20px">${rows
+          .map(
+            (r) => `<tr><td style="padding:6px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#3f3f46;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${escHtml(r.label)}</td>
+              <td align="right" style="padding:6px 0;border-bottom:1px solid #f4f4f5;font-size:14px;color:#18181b;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${fmt(r.value)}</td></tr>`,
+          )
+          .join("")}</table>`
+  const h2 = `margin:0 0 8px;font-size:13px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:0.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+  const subject = `Your QR codes last week: ${fmt(d.totalScans)} scans — GenXQR`
+  const inner = `
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Weekly summary · ${escHtml(d.weekLabel)}</p>
+    <h1 style="${H1}">${fmt(d.totalScans)} scans last week</h1>
+    <p style="${P}">Hi ${escHtml(d.name)}, your QR codes were scanned ${fmt(d.totalScans)} times${change}, ${fmt(d.uniqueScans)} of them unique (repeats from the same IP and browser within 4 hours not counted).</p>
+    <p style="${h2}">Top QR codes</p>
+    ${list(d.topCodes.map((c) => ({ label: c.name, value: c.scans })))}
+    <p style="${h2}">Top countries</p>
+    ${list(d.topCountries.map((c) => ({ label: c.country, value: c.scans })))}
+    <p style="${h2}">Devices</p>
+    ${list(d.devices.map((c) => ({ label: c.device, value: c.scans })))}
+    ${ctaButton(d.dashboardUrl, "Open analytics →")}
+    <p style="${SMALL}">Sent every Monday at 9:00 am IST for weeks with scans. Turn it off under <a href="${d.settingsUrl}" style="color:#6366f1">Settings → Notifications</a>.</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
 }

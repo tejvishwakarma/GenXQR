@@ -59,6 +59,12 @@ try {
     BreadcrumbList: S.breadcrumbSchema([{ name: "Pricing", path: "/pricing" }]),
     FAQPage: S.faqSchema([{ question: "Is it free?", answer: "Yes." }]),
     WebPage: S.webPageSchema({ name: "About", path: "/about" }),
+    BlogPosting: S.blogPostingSchema({
+      headline: "Post",
+      description: "Desc",
+      path: "/blog/post",
+      datePublished: "2026-10-17",
+    }),
     HowTo: S.howToSchema({
       name: "Create a QR code",
       description: "Steps",
@@ -81,8 +87,11 @@ try {
     if (!round["@type"]) fail(`${name}: missing @type`)
 
     const urls = collectUrls(round)
+    // `sameAs` lists our own profiles on other sites — external by definition.
+    // Every other URL must be on the canonical domain.
+    const sameAs = new Set(Array.isArray(round.sameAs) ? round.sameAs : [])
     const offDomain = urls.filter(
-      (u) => !u.startsWith(EXPECTED_ORIGIN) && !u.startsWith("https://schema.org"),
+      (u) => !u.startsWith(EXPECTED_ORIGIN) && !u.startsWith("https://schema.org") && !sameAs.has(u),
     )
     if (offDomain.length) fail(`${name}: off-domain URLs — ${offDomain.join(", ")}`)
     if (JSON.stringify(round).includes('"undefined"')) fail(`${name}: contains a literal "undefined"`)
@@ -108,7 +117,8 @@ try {
 
   // ── sitemap.xml ──────────────────────────────────────────────────────────
   console.log("\nSITEMAP")
-  const xml = fs.readFileSync(path.join(root, "public/sitemap.xml"), "utf8")
+  // generate-sitemap.mjs writes to dist/ (since 567d4fc), not public/.
+  const xml = fs.readFileSync(path.join(root, "dist/sitemap.xml"), "utf8")
   const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
 
   if (!locs.length) fail("no <loc> entries")

@@ -109,10 +109,6 @@ export default function MenuLandingPage({ name, content }: Props) {
           <p className="text-center text-gray-400 py-16">Menu items coming soon</p>
         )}
       </div>
-
-      <div className="fixed bottom-0 left-0 right-0 text-center py-2 bg-white/80 backdrop-blur-sm text-xs text-gray-400 border-t">
-        Powered by GenXQR
-      </div>
     </div>
   )
 }

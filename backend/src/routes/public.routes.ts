@@ -167,7 +167,6 @@ router.get(
         qrCodesGenerated: qrStats._count.id,
         activeBusinesses: userCount,
         totalScans: qrStats._sum.scanCount ?? 0,
-        uptimeSla: 99.9,
       })
     } catch (err) {
       next(err)

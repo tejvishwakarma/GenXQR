@@ -6,6 +6,7 @@ import { env } from "../config/env.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { isDestinationBlocked, isOwnerBlocked } from "./blocklist.service.js"
+import { isOverScanQuota, recordAccountScan } from "./scan-quota.service.js"
 import type { QRCode, QRContent, QRDesign, SmartRoutingRule, ABTestVariant } from "@prisma/client"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -215,6 +216,10 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
       },
       abVariants: {
         select: { id: true, targetUrl: true, splitPct: true },
+        // Same order the dashboard lists them in (qr.routes.ts), so the split %
+        // applies to the variant the owner sees as "Variant A". Without an
+        // orderBy Postgres returns rows in no guaranteed order.
+        orderBy: { createdAt: "asc" },
       },
     },
   })
@@ -429,6 +434,12 @@ export async function resolveQRScan(
     }
   }
 
+  // 4b. The owner's monthly scan quota (scan-quota.service.ts). Same page as a
+  // per-code limit — the scanner's experience is identical either way.
+  if (qr.userId && (await isOverScanQuota(qr.userId))) {
+    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "limit" }
+  }
+
   // 5. Password protection check
   if (qr.isPasswordProtected && !opts?.passwordVerified) {
     return { action: "password", slug }
@@ -440,7 +451,7 @@ export async function resolveQRScan(
   const countryCode = await getCountryCode(ip)
   const smartUrl = evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode })
   if (smartUrl) {
-    void queueScan(qr.id, qr.slug, ip, ua, ref)
+    void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref)
     return await wrapRedirect(smartUrl, qr)
   }
 
@@ -448,13 +459,13 @@ export async function resolveQRScan(
   if (qr.abTestEnabled && qr.abVariants.length > 0) {
     const variant = pickABVariant(qr.abVariants, qr.abTestSplitPct)
     if (variant) {
-      void queueScan(qr.id, qr.slug, ip, ua, ref, variant.variantId)
+      void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref, variant.variantId)
       return await wrapRedirect(variant.url, qr)
     }
   }
 
   // 8. Log scan asynchronously
-  void queueScan(qr.id, qr.slug, ip, ua, ref)
+  void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref)
 
   // 9. Determine destination
   if (REDIRECT_TYPES.has(qr.type) && qr.content) {
@@ -502,6 +513,7 @@ const DEDUP_TTL_SECONDS = 4 * 60 * 60 // 4 hours
 
 async function queueScan(
   qrId: string,
+  ownerId: string | null,
   slug: string,
   ip: string,
   userAgent: string | undefined,
@@ -528,6 +540,7 @@ async function queueScan(
     // headline figure. Previously only unique scans did, so a limit of 100 could
     // absorb far more than 100 actual opens.
     await incrementLiveScanCount(slug)
+    if (ownerId) await recordAccountScan(ownerId)
 
     await scanQueue.add("log-scan" as string, {
       qrId,

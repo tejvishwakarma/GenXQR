@@ -15,6 +15,7 @@
  * DELETE /admin-api/qr-codes/:id     – hard-delete
  * GET  /admin-api/analytics/signups  – signup trend (30 days)
  * GET  /admin-api/analytics/scans    – platform-wide scan trend (30 days)
+ * GET  /admin-api/analytics/signup-sources – sign-ups by first-touch source, with paid conversions
  * GET  /admin-api/revenue            – MRR / ARR + recent invoices
  * GET  /admin-api/storage            – storage usage totals + by user
  * POST /admin-api/storage/cleanup-orphans – delete QRFile rows with no parent QR
@@ -333,6 +334,22 @@ router.get(
  * GET /admin-api/analytics/scans?days=30
  * Daily platform-wide scan counts for the last N days.
  */
+/**
+ * GET /admin-api/analytics/signup-sources?days=30&groupBy=source|campaign
+ * Sign-ups by first-touch source or campaign, with paid conversions and revenue.
+ */
+router.get(
+  "/analytics/signup-sources",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = await AdminPlatformService.getSignupSources(req.query["days"], req.query["groupBy"])
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 router.get(
   "/analytics/scans",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {

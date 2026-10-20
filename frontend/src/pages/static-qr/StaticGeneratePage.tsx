@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import {
   QrCode, Wifi, MessageCircle, Instagram, ArrowRight,
   Download, Palette, Phone, MessageSquare, ChevronDown,
@@ -58,7 +58,7 @@ const GENERATE_JSON_LD = [
         "name": "How do I create a QR code for free?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, create a free account and use the dynamic QR creator.",
+          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, start a 14-day free trial (no credit card) and use the dynamic QR creator.",
         },
       },
       {
@@ -74,7 +74,7 @@ const GENERATE_JSON_LD = [
         "name": "Can I customise the colour of my QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR's free generator lets you pick any foreground (dot) colour and background colour using the colour picker. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) and three eye frame and eye centre shapes. The preview updates live as you change options. For logo upload and brand-level customisation, use the full QR creator after creating a free account.",
+          "text": "Yes. GenXQR's free generator lets you pick any foreground (dot) colour and background colour using the colour picker. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) three eye frame shapes, and two eye centre shapes. The preview updates live as you change options. For logo upload and brand-level customisation, use the full QR creator during a 14-day free trial or on a paid plan.",
         },
       },
       {
@@ -142,10 +142,14 @@ function buildQRData(
     case "url":
       return fields.url?.trim() || "https://genxqr.com"
     case "wifi": {
-      const sec = fields.security || "WPA"
-      const ssid = fields.ssid || ""
-      const pass = fields.password || ""
-      return `WIFI:T:${sec};S:${ssid};P:${pass};;`
+      // The WIFI: format (defined by ZXing) uses T:nopass for an open network —
+      // "none" is not a recognised value — and requires \ ; , : " in the network
+      // name or password to be backslash-escaped, or the fields split wrongly.
+      const esc = (v: string) => v.replace(/[\\;,:"]/g, (ch) => `\\${ch}`)
+      const sec = fields.security === "none" ? "nopass" : fields.security || "WPA"
+      const ssid = esc(fields.ssid || "")
+      if (sec === "nopass") return `WIFI:T:nopass;S:${ssid};;`
+      return `WIFI:T:${sec};S:${ssid};P:${esc(fields.password || "")};;`
     }
     case "whatsapp": {
       const num = (fields.phone || "").replace(/\D/g, "")
@@ -174,7 +178,7 @@ function buildQRData(
 const faqs = [
   {
     q: "How do I create a QR code for free?",
-    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, create a free GenXQR account and use the dynamic QR creator.",
+    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, start a 14-day GenXQR free trial (no credit card) and use the dynamic QR creator.",
   },
   {
     q: "What is the difference between a static and dynamic QR code?",
@@ -182,7 +186,7 @@ const faqs = [
   },
   {
     q: "Can I customise the colour of my QR code?",
-    a: "Yes — pick any foreground dot colour and background colour using the colour picker in Step 3. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) and three eye frame shapes. The preview updates live. For logo upload and full brand customisation, create a free GenXQR account and use the full QR editor.",
+    a: "Yes — pick any foreground dot colour and background colour using the colour picker in Step 3. You can also choose from six dot styles (square, rounded, dots, classy, classy-rounded, extra-rounded) three eye frame shapes, and two eye centre shapes. The preview updates live. For logo upload and full brand customisation, use the full QR editor during a 14-day free trial or on a paid plan.",
   },
   {
     q: "How do I create a QR code for WhatsApp?",
@@ -209,19 +213,66 @@ function FaqItem({ q, a }: { q: string; a: string }) {
           className={cn("text-ink-soft shrink-0 transition-transform duration-200", open && "rotate-180")}
         />
       </button>
-      {open && (
-        <div className="px-6 pb-5 text-ink-soft text-sm leading-relaxed border-t border-line">
-          <p className="pt-4">{a}</p>
-        </div>
-      )}
+      {/* Always in the HTML, hidden when collapsed — see FaqAccordion. */}
+      <div hidden={!open} className="px-6 pb-5 text-ink-soft text-sm leading-relaxed border-t border-line">
+        <p className="pt-4">{a}</p>
+      </div>
     </div>
   )
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+/**
+ * /generate and its four type routes used to render one identical page — the
+ * URL tab selected and canonical /generate on every route — so search engines
+ * saw /generate/wifi etc. as duplicates of /generate. Each type route now opens
+ * its own tab and has its own title, description, H1, intro and self-canonical.
+ * Copy describes only what the generator encodes (see the payload builder).
+ */
+const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string; h1: string; accent: string; intro: string }>> = {
+  url: {
+    title: "Free URL QR Code Generator — Link to Any Website",
+    description: "Make a free QR code for any website link. Custom colours and dot styles, instant 600px PNG download. No account or credit card needed.",
+    h1: "Free URL QR code generator —",
+    accent: "link to any website",
+    intro: "Paste any web address and get a QR code that opens it when scanned. The link is stored in the code itself, so it works without an account and never expires.",
+  },
+  wifi: {
+    title: "Free WiFi QR Code Generator — Share Your Network",
+    description: "Make a free WiFi QR code from your network name, password and security type. Guests scan it to join without typing the password. PNG download, no account.",
+    h1: "Free WiFi QR code generator —",
+    accent: "share your network",
+    intro: "Enter your network name, password and security type (WPA/WPA2, WEP or none). The code stores them in the standard WiFi QR format, so guests can scan it with their phone camera to join without typing the password.",
+  },
+  whatsapp: {
+    title: "Free WhatsApp QR Code Generator — Open a Chat",
+    description: "Make a free WhatsApp QR code that opens a chat with your number, with an optional pre-filled message. Custom colours, PNG download, no account needed.",
+    h1: "Free WhatsApp QR code generator —",
+    accent: "open a chat in one scan",
+    intro: "Enter your WhatsApp number and, optionally, a message. The code opens a wa.me link, which starts a WhatsApp chat with you and the message already typed in.",
+  },
+  instagram: {
+    title: "Free Instagram QR Code Generator — Link Your Profile",
+    description: "Make a free Instagram QR code that opens your profile when scanned. Custom colours and dot styles, instant PNG download, no account needed.",
+    h1: "Free Instagram QR code generator —",
+    accent: "link your profile",
+    intro: "Enter your Instagram username and get a QR code that opens your profile at instagram.com when scanned. Print it on packaging, menus or signage to turn visitors into followers.",
+  },
+}
+
+const TYPE_FROM_PATH: Record<string, QRTypeId> = {
+  "/generate/url": "url",
+  "/generate/wifi": "wifi",
+  "/generate/whatsapp": "whatsapp",
+  "/generate/instagram": "instagram",
+}
+
 export default function StaticGeneratePage() {
-  const [activeType, setActiveType] = useState<QRTypeId>("url")
+  const { pathname } = useLocation()
+  const routeType = TYPE_FROM_PATH[pathname]
+  const typePage = routeType ? TYPE_PAGES[routeType] : undefined
+  const [activeType, setActiveType] = useState<QRTypeId>(routeType ?? "url")
   const [fields, setFields] = useState<Record<string, string>>({})
   const [fgColor, setFgColor] = useState("#7c3aed")
   const [bgColor, setBgColor] = useState("#ffffff")
@@ -297,9 +348,9 @@ export default function StaticGeneratePage() {
         Deliverable 8: JSON-LD — SoftwareApplication + FAQPage
       */}
       <SEOMeta
-        title="Free QR Code Generator — No Account Needed"
-        description="Free QR code generator for URL, WiFi, WhatsApp, Instagram, SMS and phone. Custom colours, dot shapes, instant PNG download. No account or credit card needed."
-        url="/generate"
+        title={typePage?.title ?? "Free QR Code Generator — No Account Needed"}
+        description={typePage?.description ?? "Free QR code generator for URL, WiFi, WhatsApp, Instagram, SMS and phone. Custom colours, dot shapes, instant PNG download. No account or credit card needed."}
+        url={routeType ? `/generate/${routeType}` : "/generate"}
         jsonLd={GENERATE_JSON_LD}
       />
 
@@ -321,8 +372,8 @@ export default function StaticGeneratePage() {
               left in place there. */}
           <Eyebrow className="justify-center">Free QR code generator — no account needed</Eyebrow>
           <h1 className="text-3xl md:text-5xl font-bold text-ink mt-4 mb-4">
-            Generate a free QR code —{" "}
-            <span className="text-accent">custom style, instant download</span>
+            {typePage ? typePage.h1 : "Generate a free QR code —"}{" "}
+            <span className="text-accent">{typePage ? typePage.accent : "custom style, instant download"}</span>
           </h1>
           {/*
             Deliverable 4: Subheading rewrite — benefit-led, India-first
@@ -330,8 +381,9 @@ export default function StaticGeneratePage() {
             Deliverable 9: Internal link to /dynamic-qr
           */}
           <p className="text-ink-soft text-lg max-w-2xl mx-auto">
-            No account. No credit card. No expiry. Paste your link or content, pick a
-            style, and download a 600px PNG — ready to print or share in under a minute.
+            {typePage
+              ? typePage.intro
+              : "No account. No credit card. No expiry. Paste your link or content, pick a style, and download a 600px PNG — ready to print or share in under a minute."}
           </p>
           <p className="text-ink-faint text-sm mt-3">
             Need to edit it after printing or track every scan?{" "}
@@ -342,7 +394,7 @@ export default function StaticGeneratePage() {
 
           {/* Trust bar */}
           <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2 mt-6 text-xs text-ink-faint">
-            {["No account required", "600px PNG download", "6 dot styles", "Custom colours", "Works on all printers"].map((t) => (
+            {["No account required", "600px PNG download", "6 dot styles", "Custom colours", "Never expires"].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
                 <span className="w-1 h-1 rounded-full bg-accent inline-block" />
                 {t}
@@ -669,7 +721,7 @@ export default function StaticGeneratePage() {
                 </p>
                 <p className="text-ink-faint text-xs mb-3">
                   Dynamic QR codes let you change the destination any time — and track
-                  every scan by city, device, and time. Free plan available.
+                  every scan by city, device, and time. 14-day free trial, no card needed.
                 </p>
                 <Link to="/dynamic-qr">
                   <Button variant="ghost" size="sm" className="text-accent hover:text-accent-ink w-full justify-start px-0">
@@ -721,7 +773,7 @@ export default function StaticGeneratePage() {
                 icon: <Zap size={20} className="text-amber-400" />,
                 bg: "bg-amber-500/10 border-amber-500/20",
                 title: "A/B test campaigns",
-                desc: "Split traffic between two destinations and see which version drives more conversions.",
+                desc: "Split traffic between two destinations and see how many scans each version gets.",
               },
             ].map((card) => (
               <div key={card.title} className={`glass-card rounded-xl p-5 border ${card.bg}`}>

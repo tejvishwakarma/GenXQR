@@ -15,8 +15,6 @@ import {
   Server,
   Link2,
   Hash,
-  AlertTriangle,
-  Lightbulb,
   MapPin,
   Shield,
   Monitor,
@@ -55,17 +53,17 @@ const DYNAMIC_JSON_LD = [
     "operatingSystem": "Web",
     "url": "https://genxqr.com",
     "description":
-      "Dynamic QR code generator with edit-after-print, real-time scan analytics, smart routing by device and city, A/B testing, and scheduled expiry. Free trial, INR pricing.",
+      "Dynamic QR code generator with edit-after-print, real-time scan analytics, smart routing by device and country, A/B testing, and scheduled expiry. Free trial, INR pricing.",
     "featureList": [
       "Edit QR code destination after printing",
       "Real-time scan analytics — city, device, browser",
-      "Smart routing by location and device type",
-      "A/B testing with auto-winner selection",
+      "Smart routing by country, device type and hour of day",
+      "A/B testing between two destinations",
       "Scheduled activation and expiry",
       "Password-protected QR codes",
       "Scan webhooks to external systems",
-      "Bulk API updates",
-      "UTM parameter passthrough",
+      "Bulk QR generation from CSV",
+      "Google Analytics, GTM and Meta Pixel on redirect scans",
       "Per-QR scan limits with fallback URL",
     ],
     "offers": {
@@ -116,7 +114,7 @@ const DYNAMIC_JSON_LD = [
         "name": "How long do dynamic QR codes last?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR dynamic QR codes last as long as your active subscription. They never expire on their own unless you set a custom expiry date. If your subscription lapses, QR codes are paused — not deleted. Renew your subscription and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code.",
+          "text": "GenXQR dynamic QR codes last as long as your active subscription. They never expire on their own unless you set a custom expiry date. If your account uses up its monthly scan allowance, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew your subscription and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code.",
         },
       },
     ],
@@ -131,14 +129,14 @@ const powerFeatures = [
     color: "text-violet-400",
     bg: "bg-violet-500/10 border-violet-500/20",
     title: "Know every city that scanned you",
-    desc: "Export the full scan log — date, city, device, OS, browser — to CSV or JSON. Plug straight into your BI tool, Google Sheets, or analytics stack.",
+    desc: "Export up to 10,000 scans per QR code — date, city, device, OS, browser, referrer — to CSV, or pull them as JSON from the REST API. Plug straight into your BI tool, Google Sheets, or analytics stack.",
   },
   {
     icon: <Link2 size={22} />,
     color: "text-blue-400",
     bg: "bg-blue-500/10 border-blue-500/20",
-    title: "Attribution stays intact",
-    desc: "UTM parameters from the QR scan pass through to the destination URL automatically. Your Google Analytics campaign data is never broken by the redirect.",
+    title: "Your tracking pixels fire on redirects",
+    desc: "Add a Google Analytics, Tag Manager or Meta Pixel ID to a QR code. It fires on scans that redirect straight to a URL — smart-routing matches, A/B variants, WhatsApp and Instagram codes.",
   },
   {
     icon: <Webhook size={22} />,
@@ -151,15 +149,15 @@ const powerFeatures = [
     icon: <Server size={22} />,
     color: "text-amber-400",
     bg: "bg-amber-500/10 border-amber-500/20",
-    title: "Update 1,000 QR codes in one API call",
-    desc: "Seasonal pivot? Campaign refresh? Update the destination of every QR code in your catalogue with a single REST API call. Essential for large-scale rollouts.",
+    title: "Generate hundreds of QR codes from one CSV",
+    desc: "Upload a CSV of names and URLs and every QR code is created in one go — up to 100 per batch on Pro, 5,000 on Business. Then update any of them through the REST API.",
   },
   {
     icon: <Globe size={22} />,
     color: "text-pink-400",
     bg: "bg-pink-500/10 border-pink-500/20",
-    title: "Your brand on every redirect",
-    desc: "Use your own domain — qr.yourbrand.com — for every GenXQR redirect. Scanners see your brand in the address bar, not ours.",
+    title: "Your brand on every scan page",
+    desc: "On Business plans, the landing page, password gate and expired notice show your brand name and logo instead of GenXQR's.",
   },
   {
     icon: <Hash size={22} />,
@@ -175,8 +173,8 @@ const smartRoutingFeatures = [
     icon: <MapPin size={20} />,
     color: "text-violet-400",
     bg: "bg-violet-500/10 border-violet-500/20",
-    title: "Route by city or country",
-    desc: "Send Mumbai scanners to a Hindi page, Bangalore to English, Delhi to a different offer entirely — one QR code handles all of it.",
+    title: "Route by country",
+    desc: "Send scanners in India to a Hindi page, the UAE to an Arabic one, and everyone else to English — one QR code handles all of it.",
   },
   {
     icon: <Smartphone size={20} />,
@@ -190,14 +188,14 @@ const smartRoutingFeatures = [
     color: "text-emerald-400",
     bg: "bg-emerald-500/10 border-emerald-500/20",
     title: "Route by time of day",
-    desc: "Lunch menu until 3 PM, dinner menu after. Happy hour offer on Fridays. Scheduled routes that switch automatically — no manual changes needed.",
+    desc: "Lunch menu in the afternoon, dinner menu in the evening. Hour-of-day windows (set in UTC) switch automatically — no manual changes needed.",
   },
   {
     icon: <Shield size={20} />,
     color: "text-amber-400",
     bg: "bg-amber-500/10 border-amber-500/20",
     title: "A/B test your destinations",
-    desc: "Split traffic 50/50 between two landing pages. GenXQR tracks the scan-to-conversion rate and can auto-select the winner.",
+    desc: "Split traffic between two destinations at the ratio you choose. GenXQR reports the scans and share each variant received.",
   },
 ]
 
@@ -207,68 +205,10 @@ const comparison = [
   { feature: "Geo / device-based routing",        dynamic: true,  static: false },
   { feature: "Scheduled activation & expiry",     dynamic: true,  static: false },
   { feature: "Password protection",              dynamic: true,  static: false },
-  { feature: "A/B testing with auto-winner",      dynamic: true,  static: false },
+  { feature: "A/B testing (two variants)",        dynamic: true,  static: false },
   { feature: "Works without an account",          dynamic: false, static: true },
   { feature: "Free forever",                      dynamic: false, static: true },
   { feature: "Instant generation (no login)",     dynamic: false, static: true },
-]
-
-const stories = [
-  {
-    industry: "Events",
-    /* Full-width header strip colours */
-    headerBg: "bg-violet-600",
-    headerText: "text-white",
-    /* Large result metric — the visual hero */
-    metric: "₹3.8L",
-    metricSub: "in reprint costs avoided",
-    metricColor: "text-violet-400",
-    metricGlow: "from-violet-600/20 via-transparent to-transparent",
-    /* Supporting detail under the metric */
-    resultDetail: "Attendee confusion eliminated. Sponsor logos stayed on all materials. Done in 30 seconds.",
-    /* Two-column context below */
-    pain: {
-      text: "TechSummit 2025 printed 8,000 badges and 400 banners with schedule QR codes — then half the speaker sessions were rescheduled two days out.",
-    },
-    fix: {
-      text: "The organiser updated the destination link in 30 seconds. Every badge and banner instantly pointed to the new schedule. No reprint.",
-    },
-    borderColor: "border-violet-500/30",
-  },
-  {
-    industry: "Packaging",
-    headerBg: "bg-blue-600",
-    headerText: "text-white",
-    metric: "62%",
-    metricSub: "fewer support tickets",
-    metricColor: "text-blue-400",
-    metricGlow: "from-blue-600/20 via-transparent to-transparent",
-    resultDetail: "No factory recall. No sticker campaign. 1,20,000 units in the field corrected with one dashboard update.",
-    pain: {
-      text: "Aurex Electronics shipped 1,20,000 routers with a QR linking to the Quick-Start guide. A firmware update made the old guide dangerously wrong.",
-    },
-    fix: {
-      text: "Support swapped the destination to the updated PDF. Every sold, gifted, or warehoused unit now scans to the correct document automatically.",
-    },
-    borderColor: "border-blue-500/30",
-  },
-  {
-    industry: "Marketing",
-    headerBg: "bg-pink-600",
-    headerText: "text-white",
-    metric: "2.3×",
-    metricSub: "conversion lift, same flyers",
-    metricColor: "text-pink-400",
-    metricGlow: "from-pink-600/20 via-transparent to-transparent",
-    resultDetail: "Three destination swaps mid-campaign. Scan analytics identified the winning variant. Zero extra ad spend.",
-    pain: {
-      text: "A D2C brand ran a Diwali campaign with 50,000 printed flyers. The first landing page underperformed — and static QR codes made mid-campaign testing impossible.",
-    },
-    fix: {
-      text: "With GenXQR dynamic codes they swapped the destination three times, testing different offers and reading scan analytics in real time to find the winner.",
-    },
-    borderColor: "border-pink-500/30",
-  },
 ]
 
 const editFlow = [
@@ -286,7 +226,7 @@ const editFlow = [
     step: "2",
     icon: <Pencil size={28} />,
     title: "Open your dashboard. Change the destination.",
-    desc: "Find the QR code in your list, click 'Edit destination', paste the new URL or update your content. One click to save.",
+    desc: "Find the QR code in your list, click 'Edit', paste the new URL or update your content. One click to save.",
     detail: "No reprint. No new QR. No downtime.",
     color: "text-violet-400",
     bg: "bg-violet-500/10 border-violet-500/20",
@@ -296,7 +236,7 @@ const editFlow = [
     step: "3",
     icon: <Zap size={28} />,
     title: "Live everywhere in under one second.",
-    desc: "The next scan — anywhere in the field — hits the new destination. Our edge network propagates the change in milliseconds. Every printed QR code updates instantly.",
+    desc: "The next scan — anywhere in the field — hits the new destination. Saving clears the cached redirect immediately, so every printed QR code updates at once.",
     detail: "Every scan already in the field updates instantly.",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10 border-emerald-500/20",
@@ -323,7 +263,7 @@ const faqs = [
   },
   {
     q: "How long do dynamic QR codes last?",
-    a: "GenXQR dynamic QR codes stay active as long as your subscription is active. They never expire automatically unless you set a custom expiry date. If your subscription lapses, QR codes are paused — not deleted. Renew and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code for campaigns that have a natural end date.",
+    a: "GenXQR dynamic QR codes stay active as long as your subscription is active. They never expire automatically unless you set a custom expiry date. If your account uses up its monthly scan allowance, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code for campaigns that have a natural end date.",
   },
 ]
 
@@ -353,7 +293,7 @@ const DEVICE_ICON: Record<string, React.ReactNode> = {
 // ─── Local styling helpers (restyle-only — new design tokens) ─────────────────
 // These are NOT part of the preserved data arrays above; they only translate
 // each section's existing accent-color intent into the new light/dark-aware
-// token palette used for icon tiles, story cards, and the edit-flow steps.
+// token palette used for icon tiles and the edit-flow steps.
 
 type Tint = "violet" | "blue" | "emerald" | "amber" | "pink" | "red"
 
@@ -366,18 +306,8 @@ const TILE_BG: Record<Tint, string> = {
   red: "bg-red-500/10 text-red-600 dark:text-red-400",
 }
 
-const TILE_TEXT: Record<Tint, string> = {
-  violet: "text-violet-600 dark:text-violet-400",
-  blue: "text-blue-600 dark:text-blue-400",
-  emerald: "text-emerald-600 dark:text-emerald-400",
-  amber: "text-amber-600 dark:text-amber-400",
-  pink: "text-pink-600 dark:text-pink-400",
-  red: "text-red-600 dark:text-red-400",
-}
-
 const POWER_TINTS: Tint[] = ["violet", "blue", "emerald", "amber", "pink", "red"]
 const ROUTING_TINTS: Tint[] = ["violet", "blue", "emerald", "amber"]
-const STORY_TINTS: Tint[] = ["violet", "blue", "pink"]
 
 const STEP_STYLES: { ring: string; tile: string }[] = [
   { ring: "bg-ink/10", tile: "border-line bg-paper-pure text-ink-faint" },
@@ -541,7 +471,7 @@ function LiveScanDemo() {
           </div>
 
           <p className="text-center text-paper-pure/25 text-[10px] mt-3">
-            This is what your analytics dashboard looks like — live, the moment someone scans.
+            Illustrative demo with sample data. Your dashboard records each scan's country, city and device as it happens.
           </p>
         </div>
       </div>
@@ -565,7 +495,7 @@ export default function DynamicQRPage() {
 
       {/* ── 1. Hero ─────────────────────────────────────────────────────────── */}
       <PageHero
-        eyebrow="Dynamic QR Code Generator — India's most advanced"
+        eyebrow="Dynamic QR Code Generator"
         title={
           <>
             The Dynamic QR Code{" "}
@@ -581,7 +511,7 @@ export default function DynamicQRPage() {
             <Link to="/features" className="text-accent hover:text-accent-ink underline underline-offset-2">
               Scan analytics
             </Link>{" "}
-            included on every plan.
+            included on every paid plan.
           </>
         }
         actions={
@@ -747,7 +677,7 @@ export default function DynamicQRPage() {
             title={<>One QR code.{" "}<span className="text-accent">Different pages for different people.</span></>}
             intro={
               <>
-                Route scans automatically by city, country, device type, or time of day —
+                Route scans automatically by country, device type, or hour of day —
                 no code, no manual switching, no reprinting.{" "}
                 <Link to="/pricing" className="text-accent hover:text-accent-ink underline underline-offset-2">
                   Available on PRO plans →
@@ -801,67 +731,6 @@ export default function DynamicQRPage() {
         </MktContainer>
       </section>
 
-      {/* ── 6. Real stories ───────────────────────────────────────────────────── */}
-      <section className="py-20 md:py-28 bg-paper-pure border-y border-line">
-        <MktContainer className="max-w-5xl">
-          <SectionHead
-            eyebrow="Real stories, real savings"
-            title={<>Problems only{" "}<span className="text-accent">dynamic QR codes solve</span></>}
-            intro="These aren't hypothetical. They're the exact situations where a static QR code would have cost real money — or caused a product recall."
-            align="center"
-          />
-
-          <div className="mt-14 grid md:grid-cols-3 gap-6">
-            {stories.map((s, i) => {
-              const tint = STORY_TINTS[i]
-              return (
-                <div
-                  key={s.industry}
-                  className="rounded-2xl border border-line bg-paper-pure overflow-hidden shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift flex flex-col"
-                >
-                  {/* ── Industry label ── */}
-                  <div className="px-5 py-3 border-b border-line">
-                    <span className={cn("text-[11px] font-mono font-bold uppercase tracking-widest", TILE_TEXT[tint])}>
-                      {s.industry}
-                    </span>
-                  </div>
-
-                  {/* ── Result metric — the visual hero ── */}
-                  <div className="px-6 pt-8 pb-6 text-center">
-                    <div className={cn("text-5xl font-black font-display tabular-nums leading-none mb-1", TILE_TEXT[tint])}>
-                      {s.metric}
-                    </div>
-                    <div className="text-ink-soft text-sm font-medium">{s.metricSub}</div>
-                    <p className="text-ink-faint text-xs leading-relaxed mt-3 px-1">{s.resultDetail}</p>
-                  </div>
-
-                  {/* ── Divider ── */}
-                  <div className="mx-5 border-t border-line" />
-
-                  {/* ── Pain / Fix context ── */}
-                  <div className="grid grid-cols-2 divide-x divide-line flex-1">
-                    <div className="px-4 py-4">
-                      <div className="flex items-center gap-1.5 text-ink-faint text-[10px] font-bold uppercase tracking-wider mb-2">
-                        <AlertTriangle size={11} />
-                        Problem
-                      </div>
-                      <p className="text-ink-soft text-xs leading-relaxed">{s.pain.text}</p>
-                    </div>
-                    <div className="px-4 py-4">
-                      <div className="flex items-center gap-1.5 text-ink-faint text-[10px] font-bold uppercase tracking-wider mb-2">
-                        <Lightbulb size={11} />
-                        Fix
-                      </div>
-                      <p className="text-ink-soft text-xs leading-relaxed">{s.fix.text}</p>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </MktContainer>
-      </section>
-
       {/* ── 7. Pricing teaser ────────────────────────────────────────────────── */}
       <section className="py-20 md:py-28 bg-paper">
         <MktContainer className="max-w-3xl text-center">
@@ -888,7 +757,7 @@ export default function DynamicQRPage() {
                 plan: "Starter",
                 price: "₹299",
                 qrs: "50 dynamic QR codes",
-                analytics: "90-day scan history",
+                analytics: "5,000 scans/month",
                 highlight: false,
                 badge: "Most Popular",
               },
@@ -896,7 +765,7 @@ export default function DynamicQRPage() {
                 plan: "Pro",
                 price: "₹799",
                 qrs: "250 dynamic QR codes",
-                analytics: "1-year history + A/B testing",
+                analytics: "50,000 scans/month + A/B testing",
                 highlight: true,
                 badge: null,
               },
@@ -904,7 +773,7 @@ export default function DynamicQRPage() {
                 plan: "Business",
                 price: "₹2,499",
                 qrs: "2,000 dynamic QR codes",
-                analytics: "20 team seats, API, webhooks",
+                analytics: "500,000 scans/month, 20 team seats",
                 highlight: false,
                 badge: null,
               },

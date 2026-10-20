@@ -1,6 +1,7 @@
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
+import { readPrefs } from "../utils/notification-prefs.util.js"
 import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail } from "./email.service.js"
 
 type ReminderType = "7_days" | "3_days" | "1_day" | "expired" | "manual"
@@ -108,8 +109,8 @@ async function attemptSend(opts: {
 }
 
 /**
- * Runs daily: finds subscriptions expiring in 1/3/7 days and already-expired
- * subscriptions (still marked ACTIVE), sends reminder emails with deduplication.
+ * Runs daily: finds subscriptions expiring in 1/3/7 days and sends reminder
+ * emails with deduplication. (Expiry itself: subscription-expiry.service.ts.)
  */
 export async function checkAndSendRenewalReminders(): Promise<void> {
   const now = new Date()
@@ -136,11 +137,18 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         id: true,
         currentPeriodEnd: true,
         plan: { select: { name: true, displayName: true } },
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, notificationPrefs: true } },
       },
     })
 
     for (const sub of subs) {
+      // "Billing reminders" off stops these advance reminders only. Pause and
+      // expiry notices (subscription-expiry.service) are always sent: they tell
+      // the customer their printed codes have stopped working.
+      if (!readPrefs(sub.user.notificationPrefs).billingReminders) {
+        totalSkipped++
+        continue
+      }
       const result = await attemptSend({
         subscriptionId: sub.id,
         userId: sub.user.id,
@@ -160,43 +168,10 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
     }
   }
 
-  // ── 2. Already-expired reminders ──────────────────────────────────────────────
-  // Subscriptions that passed their period end but are still ACTIVE (lazy downgrade pattern)
-  // Only look back up to 3 days to avoid spamming very old expirations
-  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
-
-  const expiredSubs = await prisma.subscription.findMany({
-    where: {
-      status: { in: ["ACTIVE", "TRIALING"] },
-      currentPeriodEnd: { gte: threeDaysAgo, lt: now },
-      plan: { name: { not: "FREE" } },
-    },
-    select: {
-      id: true,
-      currentPeriodEnd: true,
-      plan: { select: { name: true, displayName: true } },
-      user: { select: { id: true, name: true, email: true } },
-    },
-  })
-
-  for (const sub of expiredSubs) {
-    const result = await attemptSend({
-      subscriptionId: sub.id,
-      userId: sub.user.id,
-      userEmail: sub.user.email,
-      userName: sub.user.name,
-      planName: sub.plan.name,
-      planDisplayName: sub.plan.displayName,
-      reminderType: "expired",
-      periodKey: toDateKey(sub.currentPeriodEnd),
-      expiryDate: sub.currentPeriodEnd.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
-      daysLeft: null,
-    })
-
-    if (result.sent)    totalSent++
-    else if (result.skipped) totalSkipped++
-    else totalFailed++
-  }
+  // The "your plan has expired" email is sent by subscription-expiry.service.ts
+  // at the moment it actually downgrades the account and pauses its codes, so
+  // the email can say what happened. Sending it from here as well would tell
+  // customers still inside their notice period that their codes had paused.
 
   logger.info(`Renewal reminder check complete — sent: ${totalSent}, skipped: ${totalSkipped}, failed: ${totalFailed}`)
 }

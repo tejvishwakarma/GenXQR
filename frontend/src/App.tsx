@@ -32,6 +32,8 @@ import UseCasesPage from "@/pages/marketing/UseCasesPage"
 import APIDocsPage from "@/pages/marketing/APIDocsPage"
 import AboutPage from "@/pages/marketing/AboutPage"
 import BlogPage from "@/pages/marketing/BlogPage"
+import BlogPostPage from "@/pages/marketing/BlogPostPage"
+import NotFoundPage from "@/pages/marketing/NotFoundPage"
 import ContactPage from "@/pages/marketing/ContactPage"
 import PrivacyPage from "@/pages/marketing/PrivacyPage"
 import TermsPage from "@/pages/marketing/TermsPage"
@@ -171,6 +173,7 @@ export function AppRoutes() {
           <Route path="/api-docs" element={<APIDocsPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/terms" element={<TermsPage />} />
@@ -242,8 +245,11 @@ export function AppRoutes() {
           <Route path="support" element={<AdminSupportPage />} />
         </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch-all: a real 404 page (prerendered to dist/404.html and served
+            with a 404 status by nginx) instead of silently redirecting home. */}
+        <Route element={<MarketingLayout />}>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Routes>
     </>
   )

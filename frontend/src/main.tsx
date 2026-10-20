@@ -4,6 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App.tsx'
+import { captureAttribution } from './lib/attribution'
+
+// Before the first render, not in an effect: the sign-up page builds its Google
+// link during render, so a visitor landing straight on /signup?utm_source=…
+// would otherwise get a link without the campaign. Only the landing URL matters
+// — in-app navigation never carries a new campaign — so once per load is right.
+captureAttribution()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +30,19 @@ const tree = (
     </HelmetProvider>
   </StrictMode>
 )
+
+/**
+ * Head tags written into the HTML by the prerender (or the index.html
+ * fallback) carry data-seo-static. They exist for crawlers that do not run
+ * JavaScript. Once React renders, <SEOMeta> emits the page's tags again — and
+ * react-helmet-async on React 19 renders them as elements that React hoists,
+ * rather than adopting what is already in <head> — so leaving the static ones
+ * produced two titles, two descriptions and two canonicals on every page (seen
+ * in Search Console's rendered HTML). Removing them first leaves one set.
+ * JSON-LD is marked too: Helmet re-renders it on the client as well (measured:
+ * two ld+json blocks per page before this).
+ */
+document.head.querySelectorAll('[data-seo-static]').forEach((el) => el.remove())
 
 const container = document.getElementById('root')!
 

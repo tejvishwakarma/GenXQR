@@ -2,6 +2,8 @@
  * Thin API client. All requests go through here so auth headers,
  * base URL, and error handling are centralised.
  */
+import { getAttribution } from "@/lib/attribution"
+import { setWorkspaceOwnerId, workspaceHeader } from "@/lib/workspace"
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
 
@@ -47,6 +49,7 @@ export function clearClientSession(): void {
   localStorage.removeItem("access_token")
   localStorage.removeItem("user")
   localStorage.removeItem(IMPERSONATION_STORAGE_KEY)
+  setWorkspaceOwnerId(null)
 }
 
 export function startImpersonationSession(params: {
@@ -153,7 +156,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const res = await fetch(`${BASE_URL}${path}`, {
     credentials: "include",
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    // X-Workspace-Id: the selected team workspace (lib/workspace.ts). Routes
+    // that are personal-only (billing, API keys, …) ignore it.
+    headers: { "Content-Type": "application/json", ...workspaceHeader(), ...init?.headers },
   })
 
   // 401 on a protected route: attempt silent token refresh, then retry once.
@@ -177,6 +182,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         ...init,
         headers: {
           "Content-Type": "application/json",
+          ...workspaceHeader(),
           ...(init?.headers as Record<string, string> | undefined),
           Authorization: `Bearer ${newToken}`,
         },
@@ -364,7 +370,7 @@ export interface RegisterResponse {
 export function register(name: string, email: string, password: string) {
   return apiFetch<RegisterResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, attribution: getAttribution() ?? undefined }),
   })
 }
 
@@ -598,6 +604,10 @@ export interface AdminUserDetail extends AdminUser {
   } | null
   invoices: { id: string; amount: number; currency: string; status: string; planName: string; createdAt: string }[]
   _count: { qrCodes: number; apiKeys: number }
+  /** First-touch attribution; all null when not recorded. */
+  signupSource: string | null; signupMedium: string | null; signupCampaign: string | null
+  signupContent: string | null; signupTerm: string | null; signupReferrer: string | null
+  signupLandingPath: string | null; firstTouchAt: string | null
 }
 export type AdminMeta = { total: number; page: number; limit: number; pages: number }
 export type AdminPlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE"
@@ -662,6 +672,12 @@ export interface PlanBreakdownEntry { planName: string; displayName: string; cou
 
 export const fetchAdminSignups = (days = 30) =>
   adminFetch<{ success: boolean; data: TrendPoint[] }>(`/admin-api/analytics/signups?days=${days}`)
+export interface SignupSourceRow { key: string; signups: number; paidUsers: number; revenue: number }
+export interface SignupSources { days: number; groupBy: "source" | "campaign"; rows: SignupSourceRow[] }
+export const fetchAdminSignupSources = (days = 30, groupBy: "source" | "campaign" = "source") =>
+  adminFetch<{ success: boolean; data: SignupSources }>(
+    `/admin-api/analytics/signup-sources?days=${days}&groupBy=${groupBy}`,
+  )
 export const fetchAdminScans = (days = 30) =>
   adminFetch<{ success: boolean; data: TrendPoint[] }>(`/admin-api/analytics/scans?days=${days}`)
 export const fetchAdminStaticQRStats = (days = 30) =>
@@ -1039,6 +1055,8 @@ export interface QRDesign {
   frameStyle: string | null
   frameText: string | null
   frameColor: string | null
+  /** Text per field of a library frame (see lib/frames); null when none edited. */
+  frameFields: Partial<Record<string, string>> | null
   foregroundColor: string
 }
 
@@ -1111,6 +1129,8 @@ export interface CreateQRPayload {
      * persisted and the reader fell back to a default.
      */
     frameColor?: string
+    /** Library frames only: edited text per field id ("cta", "brand"…). */
+    frameFields?: Partial<Record<string, string>> | null
     logoUrl?: string
     logoSize?: number
   }
@@ -1134,7 +1154,9 @@ export interface CreateQRPayload {
 
 function authHeader(): Record<string, string> {
   const token = localStorage.getItem("access_token") ?? ""
-  return { Authorization: `Bearer ${token}` }
+  // Also used for raw fetch() calls (uploads, downloads), so it carries the
+  // workspace header too.
+  return { Authorization: `Bearer ${token}`, ...workspaceHeader() }
 }
 
 export function createQR(payload: CreateQRPayload) {
@@ -1611,7 +1633,6 @@ export interface PlanLimits {
   fileStorageGB: number
   teamSeatsLimit: number
   apiCallsLimit: number
-  analyticsRetentionDays: number
   bulkGeneration: boolean
   apiAccess: boolean
   customDomains: boolean
@@ -1620,6 +1641,7 @@ export interface PlanLimits {
   abTesting: boolean
   smartRouting: boolean
   qrExpiry: boolean
+  premiumFrames: boolean
 }
 
 export interface Plan {
@@ -1645,6 +1667,10 @@ export interface SubscriptionInfo {
   isTrialing: boolean
   trialEndsAt: string | null
   subscriptionStatus: SubscriptionStatus
+  /** Dynamic codes switched off because the plan lapsed; payment resumes them. */
+  pausedCodes: number
+  /** One-time notice deadline for accounts already lapsed at launch; null otherwise. */
+  codesPauseAt: string | null
   subscription: {
     id: string
     status: SubscriptionStatus
@@ -1675,7 +1701,8 @@ export interface Invoice {
 export interface BillingUsage {
   planName: PlanName
   qrCodes: { used: number; limit: number }
-  scans: { used: number; limit: number }
+  /** resetsAt: when the enforced monthly scan count resets (plan-anchored). */
+  scans: { used: number; limit: number; resetsAt?: string }
   storageGB: { used: number; limit: number }
   apiCalls: { used: number; limit: number }
 }
@@ -1929,10 +1956,31 @@ export interface TeamPendingInvite {
 export interface TeamOverview {
   members: TeamMember[]
   pendingInvites: TeamPendingInvite[]
+  /** null for Editors/Viewers, who are not shown the roster. */
   seats: {
     used: number
     limit: number
-  }
+  } | null
+  /** True for Editors/Viewers: members and invites are withheld by the server. */
+  restricted: boolean
+  teamName: string
+  ownerName: string
+  /** Owner of the team shown (the selected workspace's owner). */
+  ownerId: string
+  /** The caller's role in it; "owner" in your own workspace. */
+  myRole: "owner" | TeamRole
+}
+
+/** Server-side role in a workspace (backend workspace.service.ts). */
+export type WorkspaceRole = "OWNER" | "ADMIN" | "EDITOR" | "VIEWER"
+
+export interface WorkspaceSummary {
+  ownerId: string
+  name: string
+  ownerName: string
+  role: WorkspaceRole
+  /** False when the owner's plan no longer includes team seats. */
+  available: boolean
 }
 
 export interface TeamInvitePreview {
@@ -1980,13 +2028,36 @@ export function getTeamInvitePreview(token: string) {
 }
 
 export function acceptTeamInvite(token: string) {
-  return apiFetch<{ success: boolean; message: string; data: { owner: { name: string; email: string }; role: TeamRole } }>(
+  return apiFetch<{ success: boolean; message: string; data: { owner: { id: string; name: string; email: string }; role: TeamRole } }>(
     `/api/team/invites/token/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",
       headers: authHeader(),
     },
   )
+}
+
+/** Workspaces the user can switch to — personal first. (This route ignores the workspace header.) */
+export function listWorkspaces() {
+  return apiFetch<{ success: boolean; data: WorkspaceSummary[] }>("/api/team/workspaces", {
+    headers: authHeader(),
+  })
+}
+
+export function changeTeamMemberRole(userId: string, role: TeamRole) {
+  return apiFetch<{ success: boolean; data: { userId: string; role: TeamRole } }>(`/api/team/members/${userId}/role`, {
+    method: "PATCH",
+    headers: authHeader(),
+    body: JSON.stringify({ role }),
+  })
+}
+
+/** Leave another owner's team. */
+export function leaveTeam(ownerId: string) {
+  return apiFetch<{ success: boolean; message: string }>(`/api/team/memberships/${ownerId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  })
 }
 
 export function removeTeamMember(userId: string) {
@@ -2067,6 +2138,12 @@ export function listWebhooks() {
   })
 }
 
+export function getWebhookSecret(id: string) {
+  return apiFetch<{ success: boolean; data: { secret: string } }>(`/api/webhooks/${id}/secret`, {
+    headers: authHeader(),
+  })
+}
+
 export function getWebhookEvents() {
   return apiFetch<{ success: boolean; data: string[] }>("/api/webhooks/events", {
     headers: authHeader(),
@@ -2074,7 +2151,7 @@ export function getWebhookEvents() {
 }
 
 export function createWebhook(name: string, url: string, events: string[]) {
-  return apiFetch<{ success: boolean; data: WebhookRecord }>("/api/webhooks", {
+  return apiFetch<{ success: boolean; data: WebhookRecord & { secret: string } }>("/api/webhooks", {
     method: "POST",
     headers: authHeader(),
     body: JSON.stringify({ name, url, events }),

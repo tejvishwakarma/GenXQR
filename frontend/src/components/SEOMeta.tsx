@@ -70,7 +70,7 @@ export function SEOMeta({
     { property: "og:description", content: description },
     { property: "og:image", content: fullImage },
     { property: "og:image:alt", content: `${SITE_NAME} — ${SITE_TAGLINE}` },
-    { property: "og:locale", content: "en_US" },
+    { property: "og:locale", content: "en_IN" },
     ...(canonicalUrl ? [{ property: "og:url", content: canonicalUrl }] : []),
     ...(type === "article" && publishedTime
       ? [{ property: "article:published_time", content: publishedTime }]

@@ -96,7 +96,6 @@ export default function WiFiLandingPage({ content }: Props) {
           </div>
         </div>
 
-        <p className="mt-6 text-xs text-center text-gray-400">Powered by GenXQR</p>
       </div>
     </div>
   )

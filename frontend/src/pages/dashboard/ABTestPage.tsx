@@ -11,6 +11,7 @@ import {
   type ABVariant, type ABVariantPayload,
 } from "@/lib/api"
 import { usePlanFeature, FeatureLocked } from "@/components/PlanFeatureGate"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 interface VariantForm { name: string; targetUrl: string; splitPct: string }
 const emptyVariantForm = (): VariantForm => ({ name: "", targetUrl: "", splitPct: "50" })
@@ -18,6 +19,8 @@ const emptyVariantForm = (): VariantForm => ({ name: "", targetUrl: "", splitPct
 export default function ABTestPage() {
   const { id } = useParams<{ id: string }>()
   const qc = useQueryClient()
+  // Read-only for team roles that can't edit codes (the server refuses anyway).
+  const canEdit = useWorkspace().can("qr:edit")
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -105,7 +108,7 @@ export default function ABTestPage() {
         <FeatureLocked
           feature="abTesting"
           title="A/B testing is a Pro feature"
-          description="Send a share of your scans to one destination and the rest to another, then compare which converts better."
+          description="Send a share of your scans to one destination and the rest to another, then compare how many scans each one received."
         />
       )}
 
@@ -118,8 +121,14 @@ export default function ABTestPage() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-1">A/B Test Status</div>
-              <p className="text-zinc-500 text-xs">When enabled, traffic is split between the variants below.</p>
+              <p className="text-zinc-500 text-xs">When enabled, each scan is randomly sent to Variant A or B using the split % here. A matching smart routing rule takes priority.</p>
             </div>
+            {!canEdit ? (
+              <div className="flex items-center gap-2">
+                <Badge variant={qr?.abTestEnabled ? "success" : "secondary"}>{qr?.abTestEnabled ? "Enabled" : "Disabled"}</Badge>
+                <span className="text-xs text-zinc-500">Variant A split: {qr?.abTestSplitPct ?? 50}%</span>
+              </div>
+            ) : (
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-500">Variant A split %</span>
@@ -141,8 +150,12 @@ export default function ABTestPage() {
                 {qr?.abTestEnabled ? "Disable A/B Test" : "Enable A/B Test"}
               </Button>
             </div>
+            )}
           </div>
-          {variants.length < 2 && (
+          {!canEdit && (
+            <p className="text-zinc-500 text-xs mt-3">Your role in this workspace can view this test but not change it.</p>
+          )}
+          {canEdit && variants.length < 2 && (
             <p className="text-amber-400/80 text-xs mt-3">⚠ Add 2 variants before enabling the test.</p>
           )}
         </CardContent>
@@ -152,7 +165,7 @@ export default function ABTestPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <CardTitle className="text-base">Variants ({variants.length} / 2)</CardTitle>
-          {!showForm && variants.length < 2 && (
+          {canEdit && !showForm && variants.length < 2 && (
             <Button size="sm" onClick={() => { setShowForm(true); setEditingId(null); setForm(emptyVariantForm()) }}>
               <Plus size={14} className="mr-1" />Add Variant
             </Button>
@@ -163,7 +176,7 @@ export default function ABTestPage() {
             <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-zinc-500" /></div>
           )}
           {!isLoading && variants.length === 0 && !showForm && (
-            <p className="text-zinc-500 text-sm text-center py-10">No variants yet. Add Variant A and Variant B.</p>
+            <p className="text-zinc-500 text-sm text-center py-10">{canEdit ? "No variants yet. Add Variant A and Variant B." : "No variants yet."}</p>
           )}
 
           {variants.map((v, i) => {
@@ -184,6 +197,7 @@ export default function ABTestPage() {
                       <span>{v.scanCount.toLocaleString()} scans{pct !== null ? ` (${pct}%)` : ""}</span>
                     </div>
                     <Badge variant="secondary" className="text-[10px]">{v.splitPct}%</Badge>
+                    {canEdit && <>
                     <button onClick={() => startEdit(v)} className="w-7 h-7 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors">
                       <Edit2 size={13} />
                     </button>
@@ -194,6 +208,7 @@ export default function ABTestPage() {
                     >
                       <Trash2 size={13} />
                     </button>
+                    </>}
                   </div>
                 </div>
                 {totalScans > 0 && (
@@ -206,7 +221,7 @@ export default function ABTestPage() {
           })}
 
           {/* Add / Edit form */}
-          {showForm && (
+          {canEdit && showForm && (
             <form onSubmit={handleSubmit} className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
               <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200 mb-2">
                 {editingId ? "Edit Variant" : `Variant ${String.fromCharCode(65 + variants.length)}`}
@@ -220,7 +235,7 @@ export default function ABTestPage() {
                 <Input placeholder="https://example.com/variant-b" value={form.targetUrl} onChange={e => setForm(f => ({ ...f, targetUrl: e.target.value }))} className="h-9 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-zinc-500 mb-1 block">Traffic Split % (percent sent to this variant)</label>
+                <label className="text-xs text-zinc-500 mb-1 block">Variant Split % (saved for reference; scans are split by the Variant A split % above)</label>
                 <Input type="number" min={1} max={99} value={form.splitPct} onChange={e => setForm(f => ({ ...f, splitPct: e.target.value }))} className="h-9 text-sm w-28" />
               </div>
               {error && <p className="text-red-400 text-xs">{error}</p>}

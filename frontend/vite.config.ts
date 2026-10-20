@@ -1,7 +1,37 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import path from 'path'
+
+/**
+ * Emits dist/app-shell.html: a byte-for-byte copy of the built index.html.
+ *
+ * index.html is later overwritten with the prerendered homepage
+ * (scripts/prerender.mjs), so the empty shell that app routes (/app, /admin,
+ * /login, …) boot from needs its own file. Emitted during the bundle — not
+ * copied afterwards — so vite-plugin-pwa sees it and precaches it for the
+ * service worker's navigateFallback.
+ */
+function appShellPlugin(): Plugin {
+  // The SSR build (`vite build --ssr src/entry-server.tsx`, used by the
+  // prerender) has no index.html by design — only the client build emits one.
+  let isSsrBuild = false
+  return {
+    name: "genxqr-app-shell",
+    enforce: "post",
+    configResolved(config) {
+      isSsrBuild = Boolean(config.build.ssr)
+    },
+    generateBundle(_options, bundle) {
+      if (isSsrBuild) return
+      const index = bundle["index.html"]
+      if (!index || index.type !== "asset") {
+        throw new Error("genxqr-app-shell: index.html missing from the bundle")
+      }
+      this.emitFile({ type: "asset", fileName: "app-shell.html", source: index.source })
+    },
+  }
+}
 
 const pwaConfig = VitePWA({
   registerType: 'autoUpdate',
@@ -11,7 +41,10 @@ const pwaConfig = VitePWA({
   workbox: {
     maximumFileSizeToCacheInBytes: 5242880, // 5 MiB
     // Cache static QR generator + scanner routes for offline use
-    navigateFallback: '/index.html',
+    // app-shell.html, not index.html: index.html is the prerendered HOMEPAGE
+    // (scripts/prerender.mjs), and serving it for app routes would flash
+    // homepage markup before React replaced it.
+    navigateFallback: '/app-shell.html',
     navigateFallbackDenylist: [
       /^\/api\//,
       /^\/admin-api\//,
@@ -19,6 +52,9 @@ const pwaConfig = VitePWA({
       /^\/uploads\//,
     ],
     globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+    // The QR frame library (~2.6 MB of SVGs and fonts, public/frames) is
+    // fetched on demand in the dashboard — never precached for every visitor.
+    globIgnores: ['frames/**'],
     runtimeCaching: [
       {
         // Pentest finding #11: this used to be /^\/api\/(?!admin).+/, which
@@ -52,7 +88,7 @@ export default defineConfig({
   // Both are vite@7.3.1 — the mismatch is an artefact of pnpm's virtual store layout.
   // Safe to cast; runtime behaviour is identical.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  plugins: [react(), ...(pwaConfig as unknown as any[])],
+  plugins: [react(), appShellPlugin(), ...(pwaConfig as unknown as any[])],
   ssr: {
     // Bundle these rather than leaving them as bare imports in the SSR output.
     //

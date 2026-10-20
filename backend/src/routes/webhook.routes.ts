@@ -12,6 +12,7 @@ import {
   getWebhookDeliveries,
   testWebhook,
   WEBHOOK_EVENTS,
+  getWebhookWithSecret,
 } from "../services/webhook.service.js"
 
 const router: IRouter = Router()
@@ -102,6 +103,23 @@ router.get("/:id/deliveries", requireAuth, planGuard, async (req, res, next) => 
     const { id } = req.params as { id: string }
     const deliveries = await getWebhookDeliveries(uid(req), id)
     res.json({ success: true, data: deliveries })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * GET /api/webhooks/:id/secret
+ * The signing secret, for the owner to verify X-GenXQR-Signature. Owner-scoped
+ * (getWebhookWithSecret matches on userId); the same secret is already
+ * available to the owner via GET /v1/webhooks/:id.
+ */
+router.get("/:id/secret", requireAuth, planGuard, async (req, res, next) => {
+  try {
+    const { id } = req.params as { id: string }
+    const hook = await getWebhookWithSecret(uid(req), id)
+    res.setHeader("Cache-Control", "no-store")
+    res.json({ success: true, data: { secret: hook.secret } })
   } catch (err) {
     next(err)
   }

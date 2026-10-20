@@ -7,12 +7,22 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getQR, updateQR, getSubscription } from "@/lib/api"
 import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
+import { useWorkspace } from "@/hooks/useWorkspace"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * A stored UTC instant → the "YYYY-MM-DDTHH:mm" a datetime-local input expects,
+ * in the BROWSER's time zone — the inverse of fromLocalDateTimeInput below.
+ * It used to slice the UTC ISO string, so an IST user who saved 18:00 saw 12:30
+ * on reload, and every re-save moved the stored time 5h30m earlier.
+ */
 function toLocalDateTimeInput(iso: string | null): string {
   if (!iso) return ""
-  return iso.slice(0, 16) // "YYYY-MM-DDTHH:mm"
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function fromLocalDateTimeInput(val: string): string | null {
@@ -35,6 +45,8 @@ export default function QRSettingsPage() {
   // Reads the same cached ["subscription"] query as subInfo above — no extra fetch.
   const smartRouting = usePlanFeature("smartRouting")
   const abTesting = usePlanFeature("abTesting")
+  // Read-only for team roles that can't edit codes (the server refuses anyway).
+  const canEdit = useWorkspace().can("qr:edit")
 
   // ── Form state ──
   const [activeFrom, setActiveFrom] = useState("")
@@ -142,15 +154,22 @@ export default function QRSettingsPage() {
             <p className="text-zinc-500 text-sm">{qr?.name ?? "..."}</p>
           </div>
         </div>
-        <Button onClick={handleSave} disabled={saveMut.isPending} size="sm">
-          {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Save size={14} className="mr-1.5" />}
-          Save Settings
-        </Button>
+        {canEdit && (
+          <Button onClick={handleSave} disabled={saveMut.isPending} size="sm">
+            {saveMut.isPending ? <Loader2 size={14} className="animate-spin mr-1.5" /> : <Save size={14} className="mr-1.5" />}
+            Save Settings
+          </Button>
+        )}
       </div>
 
       {successMsg && <p className="text-emerald-400 text-sm">{successMsg}</p>}
       {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
+      {!canEdit && (
+        <p className="text-zinc-500 text-sm">Your role in this workspace can view these settings but not change them.</p>
+      )}
 
+      {/* Read-only roles see the saved values in disabled fields. */}
+      <fieldset disabled={!canEdit} className="space-y-6 min-w-0 border-0 p-0 m-0">
       {/* Scheduling */}
       <Card>
         <CardHeader>
@@ -193,7 +212,7 @@ export default function QRSettingsPage() {
             <Input type="number" min={1} placeholder="e.g. 1000" value={scanLimit} onChange={e => setScanLimit(e.target.value)} className="h-9 text-sm w-40" />
           </div>
           <div>
-            <label className="text-xs text-zinc-500 mb-1 block">Fallback URL (redirect when expired)</label>
+            <label className="text-xs text-zinc-500 mb-1 block">Fallback URL (redirect when paused, expired, not yet active, or over the scan limit)</label>
             <Input placeholder="https://example.com/fallback" value={fallbackUrl} onChange={e => setFallbackUrl(e.target.value)} className="h-9 text-sm" />
           </div>
         </CardContent>
@@ -221,6 +240,7 @@ export default function QRSettingsPage() {
                     : "Enter a password below and save to protect this code."}
               </p>
             </div>
+            {canEdit && (
             <button
               type="button"
               role="switch"
@@ -246,9 +266,10 @@ export default function QRSettingsPage() {
                 }`}
               />
             </button>
+            )}
           </div>
 
-          {pwEnabled && (
+          {canEdit && pwEnabled && (
             <Input
               type="password"
               // Dots only ever go in the placeholder, never the value — a real
@@ -263,7 +284,7 @@ export default function QRSettingsPage() {
             />
           )}
 
-          {confirmRemovePw && (
+          {canEdit && confirmRemovePw && (
             <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center gap-2">
               <span className="text-xs text-zinc-600 dark:text-zinc-300">
                 Remove protection? Anyone scanning this QR will reach it without a password.
@@ -293,7 +314,7 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm flex items-center gap-2"><BarChart3 size={15} className="text-blue-400" />Retargeting Pixels</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-zinc-500 text-xs">Fired via a trampoline page on each scan before redirecting.</p>
+          <p className="text-zinc-500 text-xs">Fired via a short intermediate page on scans that redirect (smart routing, A/B variants, WhatsApp and Instagram codes). Not fired on scans that open a GenXQR landing page.</p>
           <div>
             <label className="text-xs text-zinc-500 mb-1 block">Facebook Pixel ID</label>
             <Input placeholder="e.g. 1234567890" value={fbPixelId} onChange={e => setFbPixelId(e.target.value)} className="h-9 text-sm" />
@@ -308,6 +329,7 @@ export default function QRSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </fieldset>
 
       {/* Quick links */}
       <Card>
@@ -315,6 +337,7 @@ export default function QRSettingsPage() {
           <CardTitle className="text-sm">Advanced Features</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {canEdit && <>
           <Link to={smartRouting.allowed ? `/app/qr/${id}/smart-routing` : "/app/billing"}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
               {smartRouting.allowed
@@ -343,6 +366,7 @@ export default function QRSettingsPage() {
               </div>
             </div>
           </Link>
+          </>}
           <Link to={`/app/qr/${id}/analytics`}>
             <div className="flex items-center gap-3 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors cursor-pointer">
               <BarChart3 size={18} className="text-blue-400 shrink-0" />

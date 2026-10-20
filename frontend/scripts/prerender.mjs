@@ -38,7 +38,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, "..")
 const DIST = path.join(ROOT, "dist")
 const SSR_ENTRY = path.join(ROOT, "dist-ssr", "entry-server.js")
-const TEMPLATE = path.join(DIST, "index.html")
+// The untouched shell (emitted by appShellPlugin in vite.config.ts). Rendering
+// from it rather than from index.html keeps every run identical even though
+// index.html itself is overwritten below with the prerendered homepage.
+const TEMPLATE = path.join(DIST, "app-shell.html")
 
 const FALLBACK_START = "<!-- SEO-FALLBACK-START"
 const FALLBACK_END = "<!-- SEO-FALLBACK-END -->"
@@ -48,7 +51,7 @@ function fail(message) {
   process.exit(1)
 }
 
-if (!fs.existsSync(TEMPLATE)) fail(`${TEMPLATE} not found — run \`vite build\` first.`)
+if (!fs.existsSync(TEMPLATE)) fail(`${TEMPLATE} not found — run \`vite build\` first (appShellPlugin emits it).`)
 if (!fs.existsSync(SSR_ENTRY)) {
   fail(`${SSR_ENTRY} not found — run \`vite build --ssr src/entry-server.tsx --outDir dist-ssr\` first.`)
 }
@@ -70,33 +73,29 @@ if (!template.includes('<div id="root"></div>')) {
 const { render, renderCollectedSeo } = await import(pathToFileURL(SSR_ENTRY).href)
 
 /**
- * "/" is deliberately NOT prerendered.
+ * "/" IS prerendered now, into dist/index.html.
  *
- * nginx resolves "/" to dist/index.html via its `index index.html` directive,
- * and that same file is the SPA fallback for every route without a file of its
- * own — /login, /app/*, /admin/*, and /r/:slug/password among them. Baking the
- * homepage into it would make all of those serve homepage markup for a beat
- * before React hydrated the real page over the top. That is a visible flash on
- * the pages least able to afford one: the password gate is reached mid-scan.
- *
- * The cost is small — the homepage is already indexed, unlike the 19 subpages
- * this exists to fix. To prerender it too, write it to dist/home/index.html and
- * add to the vhost:
- *
- *     location = / {
- *         root /home/genxqr/htdocs/genxqr.com/frontend/dist;
- *         try_files /home/index.html /index.html;
- *         expires epoch;
- *     }
- *
- * which keeps dist/index.html pristine as the fallback.
+ * It used to be skipped because dist/index.html doubled as the SPA fallback for
+ * every route without a file of its own (/login, /app/*, /admin/*, …), and
+ * baking the homepage into it would have flashed homepage markup on all of
+ * them. The fallback is now dist/app-shell.html (vite.config.ts appShellPlugin;
+ * nginx and the service worker point at it), so the homepage can be rendered
+ * like any other page — and crawlers that do not run JavaScript (GPTBot,
+ * ClaudeBot, PerplexityBot, and Bing less reliably) finally see its content.
  */
-const ROUTES = PUBLIC_ROUTES.filter((r) => r.path !== "/")
+const ROUTES = PUBLIC_ROUTES
+
+/**
+ * dist/404.html: App.tsx's catch-all (NotFoundPage), served by nginx with a
+ * real 404 status for unknown URLs. Rendered from a path no route matches.
+ * Not in PUBLIC_ROUTES, so never in the sitemap.
+ */
+const NOT_FOUND = { route: "/__genxqr-not-found__", file: "404.html" }
 
 let written = 0
 const failures = []
 
-for (const { path: route } of ROUTES) {
+for (const { path: route, file } of [...ROUTES, { path: NOT_FOUND.route, file: NOT_FOUND.file }]) {
   let html
   let seo
   try {
@@ -134,7 +133,7 @@ for (const { path: route } of ROUTES) {
   // "/pricing" becomes dist/pricing/index.html. nginx already serves these via
   // `try_files $uri $uri/ /index.html` — the $uri/ term matches the directory
   // and `index index.html` serves the file — so no vhost change is needed.
-  const outPath = path.join(DIST, route.replace(/^\//, ""), "index.html")
+  const outPath = file ? path.join(DIST, file) : path.join(DIST, route.replace(/^\//, ""), "index.html")
 
   fs.mkdirSync(path.dirname(outPath), { recursive: true })
   fs.writeFileSync(outPath, page, "utf8")
@@ -147,7 +146,7 @@ if (failures.length) {
   fail(`${failures.length} of ${ROUTES.length} routes could not be prerendered.`)
 }
 
-console.log(`prerender — ${written} routes written to dist/ (\"/\" left as the SPA shell by design)`)
+console.log(`prerender — ${written} pages written to dist/ (homepage, ${ROUTES.length - 1} routes and 404.html; app routes use app-shell.html)`)
 
 // ── Strict-CSP guard ────────────────────────────────────────────────────────
 // The production CSP has script-src WITHOUT 'unsafe-inline' (deploy/*.conf), so

@@ -86,7 +86,7 @@ const FAQ_JSON_LD = [
         "name": "How do I track who scanned my QR code?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR tracks every scan on dynamic QR codes automatically — no setup required. Your dashboard shows the exact timestamp, city, country, device type, operating system, and browser for every scan, updated in real time. You can filter by date range and export the full dataset to CSV. No app is required for the person scanning. Scan analytics are available from the Starter plan at ₹299/month.",
+          "text": "GenXQR tracks every scan on dynamic QR codes automatically — no setup required. Your dashboard shows the exact timestamp, city, country, device type, operating system, and browser for every scan, updated in real time. You can filter by date range and export up to the 10,000 most recent scans per QR code to CSV. No app is required for the person scanning. Scan analytics are available from the Starter plan at ₹299/month.",
         },
       },
       {
@@ -94,7 +94,7 @@ const FAQ_JSON_LD = [
         "name": "Does GenXQR work in India?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics cover Indian cities across all states. Data is stored on infrastructure in Mumbai, India. The platform is used by restaurants, retailers, event organisers, clinics, and real estate agents across India.",
+          "text": "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics cover Indian cities across all states. The platform is used by restaurants, retailers, event organisers, clinics, and real estate agents across India.",
         },
       },
       {
@@ -102,7 +102,7 @@ const FAQ_JSON_LD = [
         "name": "What payment methods does GenXQR accept?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR accepts UPI, debit cards, credit cards, and net banking via Cashfree — India's payment gateway. All payments are in Indian Rupees (INR). You can choose monthly or yearly billing. Yearly plans save up to 17% compared to monthly. An invoice is sent to your email after every payment.",
+          "text": "GenXQR accepts UPI, debit cards, credit cards, and net banking via Cashfree — India's payment gateway. All payments are in Indian Rupees (INR). You can choose monthly or yearly billing. Yearly plans save up to 20% compared to monthly. A PDF invoice for every payment can be downloaded from Billing in your dashboard.",
         },
       },
       {
@@ -118,7 +118,7 @@ const FAQ_JSON_LD = [
         "name": "Is GenXQR secure?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. GenXQR uses HTTPS on every connection, bcrypt password hashing, short-lived JWT authentication with HttpOnly refresh cookies, and rate limiting on all endpoints. QR codes can be password-protected and set to expire after a date or scan limit. No personal data from the person scanning is collected — only aggregate metadata (city, device type, OS, browser). All data is stored in India.",
+          "text": "Yes. GenXQR uses HTTPS on every connection, bcrypt password hashing, short-lived JWT authentication with HttpOnly refresh cookies, and rate limiting on sign-in and API endpoints. QR codes can be password-protected and set to expire after a date or scan limit. For each scan we record the scanner's IP address, approximate location looked up from it (city, region, country), device type, OS, browser, and referrer — never names, email addresses, or GPS location. All data is stored on servers we operate and secure.",
         },
       },
     ],
@@ -128,7 +128,7 @@ const FAQ_JSON_LD = [
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
 // Deliverable 4 + 7: Full copy rewrite across 6 categories — 22 questions total.
 // Benefit-led answers, India-first examples, INR pricing, no jargon.
-// False claims corrected: bcrypt (not Argon2id), indefinite retention (not 30-day limit).
+// False claims corrected: bcrypt (not Argon2id), retention = while subscribed + 3 months after lapse (subscription-expiry.service).
 
 type FAQCategory = {
   id: string
@@ -157,7 +157,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "Does GenXQR work in India?",
-        a: "Yes — GenXQR is built specifically for India. Pricing is in INR from ₹299/month. Payments accept UPI, debit cards, credit cards, and net banking via Cashfree. Scan analytics cover Indian cities across every state. Data is stored on infrastructure based in Mumbai. Support is available in Indian Standard Time (IST).",
+        a: "Yes — GenXQR is built specifically for India. Pricing is in INR from ₹299/month. Payments accept UPI, debit cards, credit cards, and net banking via Cashfree. Scan analytics cover Indian cities across every state. Support is available in Indian Standard Time (IST).",
       },
     ],
   },
@@ -188,7 +188,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "What download formats are available?",
-        a: "The free generator at genxqr.com/generate downloads a 600px PNG — ready for print and digital use. On paid plans, the full QR editor generates PNG for download. SVG output is available for vector-quality export suitable for large-format printing.",
+        a: "The free generator at genxqr.com/generate downloads a 600px PNG — ready for print and digital use. On paid plans, the full QR editor downloads PNG, JPEG, and WebP, plus SVG and editable vector PDF for vector-quality export suitable for large-format printing.",
       },
     ],
   },
@@ -199,15 +199,15 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         q: "How do I track who scanned my QR code?",
-        a: "GenXQR tracks every scan on dynamic QR codes automatically — no setup needed. Your dashboard shows the timestamp, city, country, device type (mobile/tablet/desktop), OS, and browser for every scan, updated in real time. Filter by date range and export the full dataset to CSV. No app is required for the person scanning. Scan analytics are included from the Starter plan at ₹299/month.",
+        a: "GenXQR tracks every scan on dynamic QR codes automatically — no setup needed. Your dashboard shows the timestamp, city, country, device type (mobile/tablet/desktop), OS, and browser for every scan, updated in real time. Filter by date range and export up to the 10,000 most recent scans per QR code to CSV. No app is required for the person scanning. Scan analytics are included from the Starter plan at ₹299/month.",
       },
       {
         q: "What scan data does GenXQR collect?",
-        a: "For each scan we record: timestamp, country, city, device type (mobile/tablet/desktop), operating system (iOS/Android/Windows/macOS), and browser. We do not collect exact GPS coordinates, names, email addresses, or any personally identifiable information from the person scanning. Scan data is stored on infrastructure in Mumbai, India.",
+        a: "For each scan we record: timestamp, IP address, country, region, city, and approximate coordinates (all looked up from the IP address, not GPS), device type (mobile/tablet/desktop), operating system (iOS/Android/Windows/macOS), browser, the full user-agent string, and the referring page if the browser sends one. We do not collect GPS location, names, email addresses, or phone numbers from the person scanning. Scan data is stored on servers we operate and secure.",
       },
       {
         q: "How long is analytics data retained?",
-        a: "Raw scan records are stored for the lifetime of your account — we do not delete or aggregate away your historical data. Daily rollup summaries are used for fast time-series chart rendering but the underlying per-scan records remain available for CSV export at any time.",
+        a: "Scan history is kept for as long as your plan or trial is active, on every plan — there is no per-plan history limit. If the plan ends and the account moves to Free, the history is kept for 3 more months and then deleted (raw scans, daily totals and per-code counts). Your QR codes are not deleted — they stay paused and can be renewed. While the data is kept, the most recent 10,000 scans per QR code can be exported to CSV.",
       },
     ],
   },
@@ -218,15 +218,23 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         q: "What plans does GenXQR offer?",
-        a: "Free (₹0): static QR codes, no credit card. Starter (₹299/month): 50 dynamic QR codes, full analytics, CSV export. Pro (₹799/month): 250 QR codes, A/B testing, smart routing, team seats, REST API, webhooks. Business (₹2,499/month): 2,000 QR codes, 20 team seats, bulk generation, white-label. Enterprise (₹9,999/month): custom limits, SLA, dedicated support. Yearly billing saves up to 17%.",
+        a: "Free (₹0): static QR codes, no credit card. Starter (₹299/month): 50 dynamic QR codes, 5,000 scans/month, full analytics, CSV export. Pro (₹799/month): 250 QR codes, 50,000 scans/month, A/B testing, smart routing, 5 team seats, REST API, webhooks. Business (₹2,499/month): 2,000 QR codes, 500,000 scans/month, 20 team seats, bulk generation, white-label. Enterprise (₹9,999/month): custom limits, dedicated support. Yearly billing saves up to 20%.",
+      },
+      {
+        q: "What happens if I use up my monthly scans?",
+        a: "Your QR codes stop redirecting until your scan count resets or you upgrade — people who scan them see a \"scan limit reached\" page, or the code's fallback URL if you set one. Every scan counts, repeats included. The month runs from your plan's start date (a plan that started on the 17th resets on the 17th), and yearly plans get the monthly allowance each month. We email you at 80% and 100% of your allowance.",
+      },
+      {
+        q: "Can my team work on the same QR codes?",
+        a: "Yes — on Pro (5 seats) and Business (20 seats); seats include yours. Invite people by email into your workspace. Admins can create, edit, switch on/off and delete your codes, view analytics and manage members; Editors can create, edit and switch codes on/off but not delete them; Viewers can see codes and analytics only. Codes created in your workspace belong to you and count against your plan. Billing, API keys and webhooks stay with the owner.",
       },
       {
         q: "What payment methods does GenXQR accept?",
-        a: "GenXQR accepts UPI, debit cards, credit cards, and net banking — all in Indian Rupees (INR) via Cashfree. You can choose monthly or yearly billing. An invoice is emailed after every payment. No foreign transaction fees — everything is priced and billed in INR.",
+        a: "GenXQR accepts UPI, debit cards, credit cards, and net banking — all in Indian Rupees (INR) via Cashfree. You can choose monthly or yearly billing. A PDF invoice for every payment can be downloaded from Billing in your dashboard. No foreign transaction fees — everything is priced and billed in INR.",
       },
       {
         q: "Can I cancel anytime?",
-        a: "Yes. Cancel at any time from your account settings — no penalties, no questions. Your account stays active until the end of the current billing period. After that it reverts to the free plan and your QR codes are paused (not deleted). Reactivate any time by upgrading again.",
+        a: "Yes. Cancel at any time from Billing in your dashboard — no penalties, no questions. Your account stays active until the end of the current billing period. After that it reverts to the free plan and your QR codes are paused (not deleted); scan history is kept for 3 months after that, then deleted. Reactivate any time by upgrading again.",
       },
       {
         q: "Do you offer refunds?",
@@ -241,15 +249,15 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         q: "Is GenXQR secure?",
-        a: "Yes. All connections use HTTPS. Passwords are hashed with bcrypt (cost factor 12). Authentication uses short-lived JWTs stored in HttpOnly cookies — not accessible to JavaScript. All public endpoints are rate-limited. QR codes can be password-protected and set to expire automatically after a date or scan count. We follow OWASP Top 10 security practices.",
+        a: "Yes. All connections use HTTPS. Passwords are hashed with bcrypt (cost factor 12). Authentication uses short-lived (15-minute) JWT access tokens, renewed by a refresh token kept in an HttpOnly cookie that JavaScript cannot read. Sign-in and API endpoints are rate-limited. QR codes can be password-protected and set to expire automatically after a date or scan count. We follow OWASP Top 10 security practices.",
       },
       {
         q: "Where is my data stored?",
-        a: "All GenXQR data — your account, QR codes, and scan analytics — is stored on infrastructure based in Mumbai, India. This ensures low scan latency for Indian users and keeps your data within Indian jurisdiction.",
+        a: "All GenXQR data — your account, QR codes, and scan analytics — is stored on servers we operate and secure. Every connection to them uses HTTPS.",
       },
       {
         q: "What data does GenXQR collect from people who scan QR codes?",
-        a: "When someone scans a GenXQR dynamic QR code, we record: the timestamp, city and country (derived from IP address), device type, OS, and browser. We do not record the scanner's name, email, phone number, or exact GPS location. No personally identifiable information (PII) is stored about the person scanning.",
+        a: "When someone scans a GenXQR dynamic QR code, we record: the timestamp, the IP address, city, region, country, and approximate coordinates (derived from the IP address), device type, OS, browser, the full user-agent string, and the referring page if one is sent. We do not record the scanner's name, email, phone number, or exact GPS location.",
       },
     ],
   },
@@ -259,7 +267,6 @@ const faqCategories: FAQCategory[] = [
 
 export default function FAQPage() {
   const [activeCategory, setActiveCategory] = useState<string>("getting-started")
-  const activeCategoryData = faqCategories.find((cat) => cat.id === activeCategory)
 
   return (
     <>
@@ -289,7 +296,7 @@ export default function FAQPage() {
         intro={
           // Deliverable 4: Subheading — benefit-led, replaces generic copy
           <>
-            22 questions across 5 categories — getting started, QR types, analytics,
+            20 questions across 5 categories — getting started, QR types, analytics,
             pricing, and security. If it's not here,{" "}
             <Link to="/contact" className="text-accent hover:text-accent-ink underline underline-offset-2">
               ask us directly →
@@ -337,31 +344,19 @@ export default function FAQPage() {
 
           {/* ── FAQ list ─────────────────────────────────────────────────────── */}
           {/* Deliverable 4: All answers rewritten — benefit-led, India-first, jargon removed */}
-          {/* False claims corrected: bcrypt (not Argon2id), indefinite retention (not 30 days) */}
-          {activeCategoryData && (
-            <div className="mb-8">
+          {/* False claims corrected: bcrypt (not Argon2id), retention = while subscribed + 3 months after lapse */}
+          {/* Every category is in the HTML; the tabs only show/hide them. This
+              replaces a separate screen-reader-only copy of all answers, which
+              screen readers read twice and crawlers saw as duplicate text. */}
+          {faqCategories.map((cat) => (
+            <div key={cat.id} hidden={cat.id !== activeCategory} className="mb-8">
               <h2 className="flex items-center gap-2 font-display font-semibold text-lg text-ink mb-4">
                 <span className="w-1.5 h-5 rounded-full bg-accent" />
-                {activeCategoryData.label}
+                {cat.label}
               </h2>
-              <FaqAccordion items={activeCategoryData.items} />
+              <FaqAccordion items={cat.items} />
             </div>
-          )}
-
-          {/* All categories expanded view for SEO crawling (screen-reader + crawler accessible) */}
-          <div className="sr-only" aria-hidden="false">
-            {faqCategories.map((cat) => (
-              <div key={cat.id}>
-                <h2>{cat.label}</h2>
-                {cat.items.map((item) => (
-                  <div key={item.q}>
-                    <h3>{item.q}</h3>
-                    <p>{item.a}</p>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          ))}
 
           {/* ── Browse all categories strip ──────────────────────────────────── */}
           <div className="flex flex-wrap gap-2 justify-center">

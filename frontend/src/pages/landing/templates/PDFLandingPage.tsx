@@ -70,7 +70,6 @@ export default function PDFLandingPage({ name, content, files }: Props) {
         </div>
       </div>
 
-      <p className="mt-6 text-xs text-gray-400">Powered by GenXQR</p>
     </div>
   )
 }

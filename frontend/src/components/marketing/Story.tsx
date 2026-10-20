@@ -1,7 +1,9 @@
 import {
   Link2, List, Contact, Building2, Smartphone, FileText, Video, Music, Images,
   UtensilsCrossed, Ticket, Share2, MessageCircle, Wifi, Palette, BarChart3, RefreshCw,
+  Instagram, Facebook,
 } from "lucide-react"
+import { Link } from "react-router-dom"
 import { MktContainer, SectionHead, FinderGlyph } from "./ui"
 import { usePlatformStats } from "@/hooks/usePlatformStats"
 import { useCountUp } from "@/hooks/useCountUp"
@@ -14,35 +16,50 @@ function formatStat(value: number): string {
 }
 
 // ── Trust stats band — real platform data, animated count-up ─────────────────
-function TrustStat({ value, suffix, label, borderLeft }: { value: number; suffix: string; label: string; borderLeft: boolean }) {
-  const [count, ref] = useCountUp(value)
-  // useCountUp rounds to a whole number internally (built for large integer
-  // counters), which would round 99.9% up to "100.0%". Percent stats skip the
-  // animated count and just show the real decimal value; the ref is still
-  // attached so the reveal trigger stays consistent with the other stats.
-  const display = suffix === "%" ? value.toFixed(1) : formatStat(count)
+// `value` is null until /api/public/stats answers (and always in the prerendered
+// HTML, where effects never run). A null value renders a neutral dash, never a
+// made-up number.
+function TrustStat({ value, label, borderLeft }: { value: number | null; label: string; borderLeft: boolean }) {
   return (
-    <div ref={ref} className={borderLeft ? "md:border-l md:border-line md:pl-8" : ""}>
-      <div className="font-mono text-3xl md:text-4xl font-semibold text-ink tracking-tight">{display}{suffix}</div>
+    <div className={borderLeft ? "md:border-l md:border-line md:pl-8" : ""}>
+      <div className="font-mono text-3xl md:text-4xl font-semibold text-ink tracking-tight">
+        {/* CountUp is only mounted once the real value exists: useCountUp
+            animates once per mount, so mounting it with a placeholder 0 and
+            swapping the target later would leave it stuck at 0. */}
+        {value === null ? "—" : <CountUp value={value} />}
+      </div>
       <div className="mt-1 text-sm text-ink-soft">{label}</div>
     </div>
   )
 }
 
+function CountUp({ value }: { value: number }) {
+  const [count, ref] = useCountUp(value)
+  return <div ref={ref}>{formatStat(count)}+</div>
+}
+
+/**
+ * Live platform stats. NOT rendered (removed from HomePage 18 Oct 2026): the
+ * real numbers are still small, and small numbers hurt credibility more than
+ * no numbers. Re-add <TrustStrip /> to HomePage once they help.
+ */
 export function TrustStrip() {
-  const { stats } = usePlatformStats()
+  const { stats, failed } = usePlatformStats()
   return (
     <section className="border-y border-line bg-paper-pure">
       <MktContainer className="py-8">
         <p className="text-center text-sm text-ink-faint">
           Made in India, used worldwide — by teams in retail, hospitality, events, and marketing.
         </p>
-        <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-y-6">
-          <TrustStat value={stats.qrCodesGenerated} suffix="+" label="QR codes created" borderLeft={false} />
-          <TrustStat value={stats.totalScans} suffix="+" label="scans tracked" borderLeft />
-          <TrustStat value={stats.activeBusinesses} suffix="+" label="businesses across India" borderLeft />
-          <TrustStat value={stats.uptimeSla} suffix="%" label="uptime guaranteed" borderLeft />
-        </div>
+        {/* If the stats request fails, show no numbers at all rather than
+            placeholders that never resolve. */}
+        {!failed && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-y-6">
+            <TrustStat value={stats?.qrCodesGenerated ?? null} label="QR codes created" borderLeft={false} />
+            <TrustStat value={stats?.totalScans ?? null} label="scans tracked" borderLeft />
+            <TrustStat value={stats?.activeBusinesses ?? null} label="accounts created" borderLeft />
+          </div>
+        )}
       </MktContainer>
     </section>
   )
@@ -53,9 +70,10 @@ const GROUPS = [
   {
     group: "Link & web",
     items: [
-      { icon: Link2, label: "Website / URL" },
+      { icon: Link2, label: "Website / URL", href: "/generate/url" },
       { icon: List, label: "Multi-link page" },
-      { icon: Wifi, label: "WiFi access" },
+      { icon: Wifi, label: "WiFi access", href: "/generate/wifi" },
+      { icon: UtensilsCrossed, label: "Menu" },
     ],
   },
   {
@@ -64,6 +82,7 @@ const GROUPS = [
       { icon: Contact, label: "vCard" },
       { icon: Building2, label: "Business info" },
       { icon: Smartphone, label: "App download" },
+      { icon: Ticket, label: "Coupon" },
     ],
   },
   {
@@ -76,12 +95,12 @@ const GROUPS = [
     ],
   },
   {
-    group: "Marketing",
+    group: "Social",
     items: [
-      { icon: UtensilsCrossed, label: "Menu" },
-      { icon: Ticket, label: "Coupon" },
       { icon: Share2, label: "Social profiles" },
-      { icon: MessageCircle, label: "WhatsApp" },
+      { icon: MessageCircle, label: "WhatsApp", href: "/generate/whatsapp" },
+      { icon: Instagram, label: "Instagram", href: "/generate/instagram" },
+      { icon: Facebook, label: "Facebook" },
     ],
   },
 ]
@@ -93,7 +112,7 @@ export function QrTypes() {
         <SectionHead
           eyebrow="One code for everything"
           title={<>Every kind of QR code your business needs</>}
-          intro="Fourteen content types, grouped by what you're trying to do — not a wall of icons to decode."
+          intro="Sixteen content types, grouped by what you're trying to do — not a wall of icons to decode."
           align="center"
         />
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -101,17 +120,28 @@ export function QrTypes() {
             <div key={g.group} className="rounded-[20px] border border-line bg-paper-pure p-6 shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-ink/10">
               <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-ink-faint">{g.group}</div>
               <ul className="mt-4 space-y-1">
-                {g.items.map((it) => (
-                  <li
-                    key={it.label}
-                    className="group flex items-center gap-3 rounded-xl px-2.5 py-2 -mx-2.5 hover:bg-accent-soft transition-colors cursor-default"
-                  >
-                    <span className="grid place-items-center w-8 h-8 rounded-lg bg-ink/[0.04] text-ink group-hover:bg-white group-hover:text-accent transition-colors">
-                      <it.icon size={16} />
-                    </span>
-                    <span className="text-[15px] text-ink">{it.label}</span>
-                  </li>
-                ))}
+                {g.items.map((it) => {
+                  const inner = (
+                    <>
+                      <span className="grid place-items-center w-8 h-8 rounded-lg bg-ink/[0.04] text-ink group-hover:bg-white group-hover:text-accent transition-colors">
+                        <it.icon size={16} />
+                      </span>
+                      <span className="text-[15px] text-ink">{it.label}</span>
+                    </>
+                  )
+                  const rowClass = "group flex items-center gap-3 rounded-xl px-2.5 py-2 -mx-2.5 hover:bg-accent-soft transition-colors"
+                  // Types with their own free generator page link to it (internal
+                  // links help those pages rank); the rest are dashboard-only.
+                  return (
+                    <li key={it.label}>
+                      {"href" in it && it.href ? (
+                        <Link to={it.href} className={rowClass}>{inner}</Link>
+                      ) : (
+                        <div className={`${rowClass} cursor-default`}>{inner}</div>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}

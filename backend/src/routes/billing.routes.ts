@@ -17,6 +17,8 @@ import {
   PLAN_PRICES_INR,
 } from "../services/billing.service.js"
 import { verifyWebhookSignature } from "../services/cashfree.service.js"
+import { countCodesPausedForBilling } from "../services/subscription-expiry.service.js"
+import { getScanQuota, getScanUsage, invalidateScanQuota } from "../services/scan-quota.service.js"
 import { quoteCoupon } from "../services/coupon.service.js"
 import { generateInvoicePDF } from "../services/invoice-pdf.service.js"
 import { prisma } from "../db/prisma.js"
@@ -34,7 +36,7 @@ function uid(req: Request): string {
  * Shown as the payee on invoices. The registered legal entity must appear on a
  * receipt for a payment-gateway-processed transaction.
  */
-const LEGAL_NAME = "Digital chitrakar"
+const LEGAL_NAME = "Digital Chitrakar"
 const SUPPORT_EMAIL = "support@genxqr.com"
 
 // ─── GET /api/billing/plans ────────────────────────────────────────────────────
@@ -61,10 +63,15 @@ router.get(
     try {
       const info = await getUserPlanLimits(uid(req))
       const sub = await getOrCreateSubscription(uid(req))
+      const pausedCodes = await countCodesPausedForBilling(uid(req))
       res.json({
         success: true,
         data: {
           ...info,
+          /** Dynamic codes switched off because the plan lapsed; payment resumes them. */
+          pausedCodes,
+          /** One-time notice deadline (already-lapsed accounts at launch); null otherwise. */
+          codesPauseAt: sub.codesPauseAt,
           subscription: {
             id: sub.id,
             status: sub.status,
@@ -140,7 +147,8 @@ router.post(
         where: { id: sub.id },
         data: { planId: newPlan.id },
       })
-      
+      await invalidateScanQuota(sub.userId)
+
       res.json({ success: true, message: `Successfully downgraded to ${planName}.` })
     } catch (err) {
       next(err)
@@ -436,9 +444,9 @@ router.get(
       const userId = uid(req)
       const { limits, planName } = await getUserPlanLimits(userId)
 
-      const monthStart = new Date()
-      monthStart.setDate(1)
-      monthStart.setHours(0, 0, 0, 0)
+      // The ENFORCED window and count (scan-quota.service.ts), so the number
+      // shown here is the number scans are refused at.
+      const quota = await getScanQuota(userId)
 
       const [qrCount, storage, scansThisMonth, apiCallsThisMonth] = await Promise.all([
         prisma.qRCode.count({ where: { userId } }),
@@ -446,13 +454,7 @@ router.get(
           where: { qrCode: { userId } },
           _sum: { sizeBytes: true },
         }),
-        prisma.qRScan.count({
-          // Quota counts EVERY scan, repeats included — the same figure the
-          // dashboard shows as "Total Scans", so the two can never disagree.
-          // Note this consumes quota faster than the pre-split behaviour, where
-          // repeat scans were discarded before they were ever recorded.
-          where: { qrCode: { userId }, scannedAt: { gte: monthStart } },
-        }),
+        getScanUsage(userId, quota),
         // The same Redis counter the API-key middleware enforces (finding #8),
         // so what a customer sees here matches what actually gets rejected.
         getMonthlyApiCallCount(userId),
@@ -466,7 +468,9 @@ router.get(
         data: {
           planName,
           qrCodes:   { used: qrCount,                                      limit: limits.dynamicQRLimit     },
-          scans:     { used: scansThisMonth,                                limit: limits.scanLimitPerMonth  },
+          scans:     { used: scansThisMonth,                                limit: limits.scanLimitPerMonth,
+                       /** When the monthly scan count resets (anchored on the plan's start date). */
+                       resetsAt: quota.windowEnd.toISOString() },
           storageGB: { used: Math.round(storageGBUsed * 100) / 100,        limit: limits.fileStorageGB      },
           apiCalls:  { used: apiCallsThisMonth,                             limit: limits.apiCallsLimit      },
         },
