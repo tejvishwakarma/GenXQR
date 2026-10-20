@@ -186,7 +186,7 @@ export async function deleteApiKey(userId: string, keyId: string): Promise<void>
  */
 export async function verifyApiKey(
   rawKey: string,
-): Promise<{ userId: string; keyId: string }> {
+): Promise<{ userId: string; keyId: string; apiCallsLimit: number }> {
   // Accepts legacy prefixes too — see ACCEPTED_KEY_PREFIXES.
   if (!isApiKeyFormat(rawKey)) {
     throw new AppError(401, "Invalid API key format")
@@ -226,14 +226,30 @@ export async function verifyApiKey(
     throw new AppError(403, "Your current plan does not include API access.")
   }
 
+  // The monthly quota is NOT consumed here — see meterApiCall. Authentication
+  // runs before the per-minute rate limiter (which keys on the user), and
+  // counting here meant calls the limiter then refused still used up quota.
+  return { userId: matched.userId, keyId: matched.id, apiCallsLimit: limits.apiCallsLimit }
+}
+
+/**
+ * Count one /v1 call against the monthly quota, rejecting it once the plan's
+ * limit is reached, and bump the key's usage stats.
+ *
+ * Runs AFTER the per-minute rate limiter (v1.routes.ts), so only calls that are
+ * actually served are counted. Before 20 Oct 2026 this lived inside
+ * verifyApiKey, ahead of the limiter, and a client hammering the API spent its
+ * monthly quota on requests that were answered with a rate-limit 429.
+ */
+export async function meterApiCall(userId: string, keyId: string, apiCallsLimit: number): Promise<void> {
   // ── Finding #8: enforce the monthly call quota, don't just notify ──────────
   // callCount is all-time and the old check only sent an email. This is an
   // atomic per-user, per-calendar-month Redis counter that REJECTS once the plan
   // limit is reached. A limit of 0 means unlimited (see PLAN_LIMITS), so only a
   // positive limit gates.
-  if (limits.apiCallsLimit > 0) {
+  if (apiCallsLimit > 0) {
     const month = new Date().toISOString().slice(0, 7) // YYYY-MM (UTC)
-    const usageKey = `apiusage:${matched.userId}:${month}`
+    const usageKey = `apiusage:${userId}:${month}`
     let count: number
     try {
       count = await redis.incr(usageKey)
@@ -242,11 +258,11 @@ export async function verifyApiKey(
       // Redis down: fail OPEN on metering rather than block a paying customer's
       // integration over an infra blip. Enforcement resumes when Redis returns.
       logger.error("API quota counter unavailable — allowing the call", {
-        userId: matched.userId, error: String(err),
+        userId: userId, error: String(err),
       })
       count = 0
     }
-    if (count > limits.apiCallsLimit) {
+    if (count > apiCallsLimit) {
       // Do not count the rejected call.
       void redis.decr(usageKey).catch(() => undefined)
       throw new AppError(429, "Monthly API call limit reached for your plan.")
@@ -257,22 +273,21 @@ export async function verifyApiKey(
   void (async () => {
     try {
       await prisma.apiKey.update({
-        where: { id: matched.id },
+        where: { id: keyId },
         data: { lastUsedAt: new Date(), callCount: { increment: 1 } },
       })
-      const { limits: freshLimits, planName } = await getUserPlanLimits(matched.userId)
+      const { limits: freshLimits, planName } = await getUserPlanLimits(userId)
       if (freshLimits.apiCallsLimit > 0) {
         const month = new Date().toISOString().slice(0, 7)
-        const used = Number((await redis.get(`apiusage:${matched.userId}:${month}`)) ?? 0)
-        await checkAndNotifyLimit(matched.userId, "api_calls", used, freshLimits.apiCallsLimit, planName)
+        const used = Number((await redis.get(`apiusage:${userId}:${month}`)) ?? 0)
+        await checkAndNotifyLimit(userId, "api_calls", used, freshLimits.apiCallsLimit, planName)
       }
     } catch (err) {
-      logger.warn("API usage notification failed", { userId: matched.userId, error: String(err) })
+      logger.warn("API usage notification failed", { userId: userId, error: String(err) })
     }
   })()
-
-  return { userId: matched.userId, keyId: matched.id }
 }
+
 
 /**
  * Current-month API call count for a user, from the same Redis counter the

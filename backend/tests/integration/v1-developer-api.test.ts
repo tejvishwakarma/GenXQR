@@ -270,6 +270,61 @@ describe("/v1 developer API", () => {
    * attach.imljson post this body; the four event names are hardcoded in all
    * three integrations, so the accepted set is part of their contract.
    */
+  /**
+   * PATCH promises "fields you omit keep their current value". The design object
+   * used to be parsed with the create schema's defaults, so changing one design
+   * field reset every other one (fixed 20 Oct 2026).
+   */
+  describe("PATCH /v1/qr/:id — partial design", () => {
+    it("should change only the design fields sent", async () => {
+      const created = await request(app)
+        .post("/v1/qr")
+        .set("Authorization", `Bearer ${apiKey}`)
+        .send({
+          name: "styled", type: "URL", content: { data: { url: "https://example.com" } },
+          design: { primaryColor: "#111111", dotStyle: "dots", cornerSquareStyle: "extra-rounded" },
+        })
+        .expect(201)
+
+      const res = await request(app)
+        .patch(`/v1/qr/${created.body.data.id}`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .send({ design: { backgroundColor: "#fafafa" } })
+        .expect(200)
+
+      expect(res.body.data.design).toMatchObject({
+        backgroundColor: "#fafafa",
+        primaryColor: "#111111",
+        dotStyle: "dots",
+        cornerSquareStyle: "extra-rounded",
+      })
+    })
+  })
+
+  describe("GET /v1/qr/:id/analytics — days", () => {
+    it("should refuse a non-numeric days with 422 instead of a 500", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`)
+        .send({ name: "a", type: "URL", content: { data: { url: "https://example.com" } } })
+        .expect(201)
+      const res = await request(app)
+        .get(`/v1/qr/${created.body.data.id}/analytics?days=abc`)
+        .set("Authorization", `Bearer ${apiKey}`)
+      expect(res.status).toBe(422)
+    })
+
+    it("should cap days above 90 rather than refuse them", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`)
+        .send({ name: "b", type: "URL", content: { data: { url: "https://example.com" } } })
+        .expect(201)
+      await request(app)
+        .get(`/v1/qr/${created.body.data.id}/analytics?days=365`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .expect(200)
+    })
+  })
+
   describe("webhook subscribe/unsubscribe", () => {
     it("should subscribe to each event the integrations hardcode", async () => {
       for (const event of ["qr.created", "qr.updated", "qr.deleted", "qr.scanned"]) {

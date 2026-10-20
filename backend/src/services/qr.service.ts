@@ -103,7 +103,13 @@ export const updateQRSchema = z.object({
   type: z.nativeEnum(QRType).optional(),
   tags: z.array(z.string().max(50).trim()).max(10).optional(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).optional(),
-  design: createQRSchema.shape.design.optional(),
+  // Partial and WITHOUT the create defaults: an update changes only the design
+  // fields it names. Reusing the create schema filled every omitted field with
+  // its default, so PATCH {design:{frameStyle}} reset the colours, dot and
+  // corner styles of the code (found 20 Oct 2026; the dashboard always sends
+  // the whole design, so only /v1 callers hit it). ZodOptional short-circuits
+  // on undefined, so the inner .default()s never run.
+  design: createQRSchema.shape.design.removeDefault().partial().optional(),
   settings: createQRSchema.shape.settings.optional(),
   uploadedFiles: createQRSchema.shape.uploadedFiles.optional(),
 })
@@ -248,7 +254,7 @@ const DESIGN_FIELD_DEFAULTS = {
 type WritableDesignField = keyof typeof DESIGN_FIELD_DEFAULTS
 type DesignInput = z.infer<typeof createQRSchema>["design"]
 
-function buildDesignCreate(design: DesignInput): Prisma.QRDesignCreateWithoutQrCodeInput {
+function buildDesignCreate(design: Partial<NonNullable<DesignInput>>): Prisma.QRDesignCreateWithoutQrCodeInput {
   const result = {} as Record<WritableDesignField, unknown>
   for (const field of Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]) {
     result[field] = design[field] ?? DESIGN_FIELD_DEFAULTS[field]
@@ -257,7 +263,7 @@ function buildDesignCreate(design: DesignInput): Prisma.QRDesignCreateWithoutQrC
 }
 
 /** Same field list as buildDesignCreate, but only including fields the caller actually set (for a partial Prisma update). */
-function buildDesignUpdate(design: DesignInput): Prisma.QRDesignUpdateWithoutQrCodeInput {
+function buildDesignUpdate(design: Partial<NonNullable<DesignInput>>): Prisma.QRDesignUpdateWithoutQrCodeInput {
   const result: Partial<Record<WritableDesignField, unknown>> = {}
   for (const field of Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]) {
     if (design[field] !== undefined) result[field] = design[field]

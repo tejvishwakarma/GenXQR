@@ -289,6 +289,91 @@ describe("webhook delivery", () => {
    * started for real here — the rest of the suite never runs it, which is why a
    * broken enqueue would otherwise show up as nothing at all.
    */
+  /**
+   * Paths that changed a code without telling anyone (fixed 20 Oct 2026):
+   * switching a code on/off, duplicating it, and bulk generation raised no event,
+   * so an integration mirroring a user's codes silently drifted.
+   */
+  describe("events from every path that changes codes", () => {
+    it("should deliver qr.updated with the full code when a code is toggled via /api and /v1", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`).send(CREATE_BODY).expect(201)
+      const hook = await subscribe(["qr.updated"])
+
+      await request(app)
+        .patch(`/api/qr/${created.body.data.id}/toggle`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .expect(200)
+      await request(app)
+        .patch(`/v1/qr/${created.body.data.id}/toggle`)
+        .set("Authorization", `Bearer ${apiKey}`)
+        .expect(200)
+
+      const got = await receiver.wait(2)
+      expect(got, "toggling raised no qr.updated").toHaveLength(2)
+      const states = got.map((g) => (g.body.data as { qr: { id: string; isActive: boolean } }).qr)
+      expect(states.every((q) => q.id === created.body.data.id)).toBe(true)
+      expect(states.map((q) => q.isActive).sort()).toEqual([false, true])
+      expect(got[0]!.headers["x-genxqr-signature"]).toBe(sign(got[0]!.raw, hook.secret))
+    })
+
+    it("should deliver qr.created when a code is duplicated", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`).send(CREATE_BODY).expect(201)
+      await subscribe(["qr.created"])
+
+      const dup = await request(app)
+        .post(`/api/qr/${created.body.data.id}/duplicate`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .expect(201)
+
+      // The original's own qr.created (fired in the background by the create
+      // above) can land after the subscription exists, so look for the
+      // duplicate's event specifically rather than taking the first arrival.
+      const isDup = (g: Received) => (g.body.data as { qr?: { id: string } }).qr?.id === dup.body.data.id
+      for (const deadline = Date.now() + 5_000; !receiver.received.some(isDup) && Date.now() < deadline; ) {
+        await new Promise((r) => setTimeout(r, 25))
+      }
+      expect(receiver.received.some(isDup), "duplicating raised no qr.created").toBe(true)
+    })
+
+    it("should deliver qr.created for every code a bulk upload creates", async () => {
+      await subscribe(["qr.created"])
+
+      await request(app)
+        .post("/api/bulk/csv")
+        .set("Authorization", `Bearer ${user.token}`)
+        .attach("file", Buffer.from("name,url\nFirst,https://example.com/1\nSecond,https://example.com/2\n"), "codes.csv")
+        .expect(201)
+
+      const got = await receiver.wait(2)
+      expect(got, "bulk upload raised no qr.created").toHaveLength(2)
+      const names = got.map((g) => (g.body.data as { qr: { name: string } }).qr.name).sort()
+      expect(names).toEqual(["First", "Second"])
+    })
+  })
+
+  /**
+   * Webhooks are part of API access (Pro and above). Management was gated but
+   * delivery was not, so an account that dropped below Pro kept receiving events.
+   */
+  describe("plan gate on delivery", () => {
+    it("should not deliver once the account is below Pro", async () => {
+      await subscribe(["qr.updated"])
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`).send(CREATE_BODY).expect(201)
+      await giveSubscription(user.id, "STARTER")
+
+      await request(app)
+        .put(`/api/qr/${created.body.data.id}`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ name: "renamed on starter" })
+        .expect(200)
+
+      expect(await receiver.expectNone()).toHaveLength(0)
+    })
+  })
+
   describe("qr.scanned through the scan worker", () => {
     beforeAll(() => {
       startScanWorker()

@@ -224,6 +224,34 @@ describe("security remediation", () => {
         .expect(200)
       expect(usage.body.data.apiCalls.used, "billing must report the real count, not 0").toBeGreaterThanOrEqual(1)
     })
+
+    /**
+     * The quota used to be counted while authenticating — BEFORE the per-minute
+     * rate limiter — so a client hammering the API spent its monthly allowance on
+     * calls that were answered with a rate-limit 429 (fixed 20 Oct 2026).
+     */
+    it("does not count a call the per-minute rate limiter refused", async () => {
+      const { redis } = await import("../../src/redis/client.js")
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const { createApiKey } = await import("../../src/services/apikeys.service.js")
+      const { rawKey } = await createApiKey(user.id, "k")
+
+      const month = new Date().toISOString().slice(0, 7)
+      const usageKey = `apiusage:${user.id}:${month}`
+      await redis.set(usageKey, "5")
+      // Put this user at the 300/min limit (rate-limit-redis keys on prefix + key).
+      await redis.set(`rl:v1:u:${user.id}`, "300", "PX", 60_000)
+
+      const res = await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`)
+      expect(res.status).toBe(429)
+      expect(res.body.error, "must be the rate limiter, not the quota").toMatch(/rate limit/i)
+      expect(Number(await redis.get(usageKey)), "a refused call must not use quota").toBe(5)
+
+      await redis.del(`rl:v1:u:${user.id}`)
+      await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`).expect(200)
+      expect(Number(await redis.get(usageKey)), "a served call is still counted").toBe(6)
+    })
   })
 
   // ─── #1 remainder: attach-time upload ownership ───────────────────────────
