@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
+import { referralQueryParam } from "@/lib/referralLink"
 import { login, resendVerificationEmail, ApiError } from "@/lib/api"
 
 // Stable decorative scan chart bars (no random — consistent across renders)
@@ -152,7 +153,7 @@ export default function LoginPage() {
 
             {/* Google OAuth */}
             <a
-              href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}${attributionQueryParam()}`}
+              href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}${attributionQueryParam()}${referralQueryParam()}`}
               className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm font-medium transition-all mb-6"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">

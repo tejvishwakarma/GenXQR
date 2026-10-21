@@ -2,8 +2,8 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import {
   QrCode, LayoutDashboard, Users, BarChart3, DollarSign,
   HardDrive, ScrollText, LogOut, Shield, Menu, X,
-  CreditCard, AlertOctagon, Mail, Send, Settings, HeadphonesIcon, Receipt, Briefcase, Ticket } from "lucide-react"
-import { useState } from "react"
+  CreditCard, AlertOctagon, Mail, Send, Settings, HeadphonesIcon, Receipt, Briefcase, Ticket, Gift } from "lucide-react"
+import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { fetchUnresolvedAbuseCount, fetchOpenSupportTicketCount, fetchNewApplicationCount } from "@/lib/api"
@@ -17,6 +17,7 @@ const navItems = [
   { label: "Analytics",     href: "/admin/analytics",     icon: <BarChart3 size={18} /> },
   { label: "Revenue",       href: "/admin/revenue",       icon: <DollarSign size={18} /> },
   { label: "Coupons",       href: "/admin/coupons",       icon: <Ticket size={18} /> },
+  { label: "Referrals",     href: "/admin/referrals",     icon: <Gift size={18} /> },
   { label: "Storage",       href: "/admin/storage",       icon: <HardDrive size={18} /> },
   { label: "Abuse",         href: "/admin/abuse",         icon: <AlertOctagon size={18} /> },
   { label: "Email Logs",    href: "/admin/email",         icon: <Mail size={18} /> },
@@ -32,6 +33,19 @@ export function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // The admin panel is always dark (bg-zinc-950 below), but nothing put
+  // Tailwind into dark mode, so pages written with light/dark variants —
+  // Coupons, Referrals — rendered dark-on-dark text unless the dashboard theme
+  // happened to be "dark". Force it while the admin layout is mounted.
+  useEffect(() => {
+    const root = document.documentElement
+    const had = root.classList.contains("dark")
+    root.classList.add("dark")
+    return () => {
+      if (!had) root.classList.remove("dark")
+    }
+  }, [])
 
   const { data: abuseCount = 0 } = useQuery({
     queryKey: ["admin", "abuse-unresolved-count"],

@@ -15,7 +15,9 @@ import {
   getUserInvoices,
   PLAN_LIMITS,
   PLAN_PRICES_INR,
+  priceCheckout,
 } from "../services/billing.service.js"
+import { getCreditBalance } from "../services/referral.service.js"
 import { verifyWebhookSignature } from "../services/cashfree.service.js"
 import { countCodesPausedForBilling } from "../services/subscription-expiry.service.js"
 import { getScanQuota, getScanUsage, invalidateScanQuota } from "../services/scan-quota.service.js"
@@ -196,6 +198,58 @@ router.post(
         res.json({ success: false, error: err.message })
         return
       }
+      next(err)
+    }
+  },
+)
+
+// ─── POST /api/billing/quote ──────────────────────────────────────────────────
+//
+// The whole checkout total — list price, coupon, GenXQR credit, what is left to
+// pay — from the SAME priceCheckout that prices the real order. A coupon that
+// does not apply answers 200 with `couponError` and the total WITHOUT it, so the
+// page can show why and still show what credit does.
+
+const QuoteSchema = z.object({
+  planName:     z.enum(["STARTER", "PRO", "BUSINESS"]),
+  billingCycle: z.enum(["monthly", "yearly"]),
+  couponCode:   z.string().trim().min(1).max(40).optional(),
+})
+
+router.post(
+  "/quote",
+  requireAuth,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const body = QuoteSchema.parse(req.body)
+      const base = { userId: uid(req), planName: body.planName, billingCycle: body.billingCycle }
+      try {
+        res.json({ success: true, data: await priceCheckout({ ...base, couponCode: body.couponCode }) })
+      } catch (err) {
+        if (body.couponCode && err instanceof AppError && err.statusCode === 422) {
+          res.json({ success: true, data: await priceCheckout(base), couponError: err.message })
+          return
+        }
+        throw err
+      }
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── GET /api/billing/credit ──────────────────────────────────────────────────
+// GenXQR credit (referral rewards): spendable now, held, and when the next
+// held amount becomes usable.
+
+router.get(
+  "/credit",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json({ success: true, data: await getCreditBalance(uid(req)) })
+    } catch (err) {
       next(err)
     }
   },
@@ -399,6 +453,14 @@ router.get(
           })
         : null
 
+      // Credit spent on the order lives in the ledger, keyed by the same order id.
+      const creditSpend = inv.cashfreeOrderId
+        ? await prisma.creditEntry.findUnique({
+            where: { orderId_kind: { orderId: inv.cashfreeOrderId, kind: "REDEMPTION" } },
+            select: { amountPaise: true },
+          })
+        : null
+
       const pdfBuffer = await generateInvoicePDF({
         invoiceNumber,
         createdAt: inv.createdAt,
@@ -412,6 +474,7 @@ router.get(
               discountPaise: redemption.discountPaise,
             }
           : null,
+        creditPaise: creditSpend ? -creditSpend.amountPaise : 0,
         currency: inv.currency,
         status: inv.status,
         planName: inv.planName,

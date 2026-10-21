@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy } from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -42,6 +42,7 @@ const CREATE_NAV = new Set(["/app/create", "/app/bulk-generate"])
 
 const bottomItems = [
   { label: "Billing", href: "/app/billing", icon: <CreditCard size={18} /> },
+  { label: "Refer & earn", href: "/app/referrals", icon: <Gift size={18} /> },
   { label: "Settings", href: "/app/settings", icon: <Settings size={18} /> },
 ]
 

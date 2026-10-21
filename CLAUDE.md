@@ -328,10 +328,18 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `GET  /subscription` — current plan + subscription status + trial info
 - `GET  /usage` — usage counts (QR codes, scans, storage, API calls) vs plan limits
 - `GET  /invoices` — paginated invoice history
-- `POST /create-order` — prices the plan server-side, creates a Cashfree order, returns `paymentSessionId`
+- `GET  /invoices/:id/download` — invoice PDF (shows coupon and GenXQR credit rows)
+- `POST /validate-coupon` — checks a coupon code against a plan/cycle (no redemption)
+- `POST /quote` — full checkout price: list → coupon → GenXQR credit → final (`priceCheckout`); a coupon that doesn't apply comes back as `couponError` with the rest still priced
+- `GET  /credit` — the user's credit balance (available / pending / next usable date)
+- `POST /create-order` — prices the plan server-side (same `priceCheckout`), creates a Cashfree order, returns `paymentSessionId`; when coupon/credit leave < ₹1 it grants the plan with no order instead
+- `POST /downgrade` — switch to a lower plan, keeping the current period end
 - `POST /verify-payment` — (auth) re-reads an order from Cashfree after the browser returns; ownership-checked
 - `POST /cashfree-webhook` — public; HMAC verified against `req.rawBody`; authoritative activation path
 - `POST /cancel` — schedules subscription cancellation at period end
+
+#### `/api/referrals` → `referral.routes.ts`
+- `GET  /me` — the user's referral code (created on first call), balance, referrals (friend emails masked), credit history
 
 #### `/api/apikeys` → `apikeys.routes.ts`
 - `GET  /` — list API keys
@@ -400,6 +408,8 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `/admin-api/email/broadcast` — send email to a user segment
 - `/admin-api/settings` — get/update `PlatformSetting` key-value store
 - `/admin-api/support/tickets` — list/get/update support tickets
+- `/admin-api/coupons` — list / get / create / update (PUT) / delete coupons
+- `/admin-api/referrals` — list (`?status=signed_up|pending|credited|cancelled`); `POST /:id/cancel {reason}` voids both rewards
 
 ### 5.4 Middleware Stack
 
@@ -622,6 +632,30 @@ limits that. Since 21 Oct 2026:
 - **Coupon links:** `?coupon=CODE` on any page is kept 30 days (`lib/couponLink.ts`, latest
   link wins) and applied when checkout opens on `/app/billing`; admins copy links per code.
 
+**Referral programme + credit** (`services/referral.service.ts`, decided 21 Oct 2026).
+- Every user has a code (`User.referralCode`, made on first visit to `/app/referrals`).
+  `?ref=CODE` is kept 60 days (`lib/referralLink.ts`) and sent at sign-up (register body /
+  Google start URL → `oauth:ref:<state>`); `attachReferralAtSignup` records a `Referral` for
+  NEW accounts only, refusing the referrer's own inbox (same `normalizedEmail` rule as trials).
+- A referrer refers each PERSON once: `Referral.refereeEmailHash` (sha256 of the normalised
+  inbox) is UNIQUE with `referrerId`, so an alias or a deleted-and-recreated account is not
+  recorded again, even in a race. The row outlives the referee (`refereeId` → SetNull, shown
+  as "Deleted account"). A *different* referrer can still refer that person's new account.
+  The programme's rules are public in Terms §4, the FAQ + Pricing FAQ, the Refund policy §10
+  and the Privacy policy (masked email shown to referrer, hash kept after deletion) — keep
+  all of them in step with the code.
+- The referee's FIRST paid purchase qualifies it (`qualifyReferralInTx`, inside the
+  `applyPurchasedPeriod` transaction): both sides get `REFERRAL_REWARD_PERCENT` (20) of what was
+  actually paid — after coupon and credit, so ₹0 purchases earn nothing — as `CreditEntry`
+  rows usable after `REFERRAL_HOLD_DAYS` (15; refund window is 7).
+- Credit is a ledger (`CreditEntry`): balance = sum of unvoided entries whose `availableAt`
+  has passed. `priceCheckout` applies it after the coupon; paid orders carry a bounded
+  `creditPaise` tag and spend it at activation (REDEMPTION, unique per order); free grants
+  re-check the balance under `pg_advisory_xact_lock`. Shown on invoices as "GenXQR credit".
+- Refunds happen in the Cashfree dashboard and GenXQR is not told: an admin cancels the
+  referral at `/admin/referrals`, voiding both rewards (spent credit → negative balance).
+- No cash payouts: they would need Cashfree Payouts (separate activation) and §194R TDS.
+
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
 `reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.
@@ -755,7 +789,8 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `BlogPage.tsx` | `/blog` |
 | `ContactPage.tsx` | `/contact` |
 | `PrivacyPage.tsx` | `/privacy` |
-| `TermsPage.tsx` | `/terms` |
+| `TermsPage.tsx` | `/terms` (§4 = referral programme rules) |
+| `RefundPolicyPage.tsx` | `/refund-policy` |
 | `CookiePolicyPage.tsx` | `/cookie-policy` |
 | `GDPRPage.tsx` | `/gdpr` |
 | `ChangelogPage.tsx` | `/changelog` |
@@ -782,7 +817,8 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `TeamPage.tsx` | `/app/team` | Team management (invite, roles, remove) |
 | `APIKeysPage.tsx` | `/app/api-keys` | Create/revoke API keys |
 | `WebhooksPage.tsx` | `/app/webhooks` | Manage webhooks |
-| `BillingPage.tsx` | `/app/billing` | Subscription, plan upgrade, invoices |
+| `BillingPage.tsx` | `/app/billing` | Subscription, plan upgrade, invoices; coupon + credit at checkout |
+| `ReferralsPage.tsx` | `/app/referrals` | Refer & earn: invite link, credit balance, referrals, history |
 | `SettingsPage.tsx` | `/app/settings` | Profile, password, notification prefs, delete account |
 | `UserReportPage.tsx` | `/app/report` | Submit and view abuse reports |
 | `VCardEditor.tsx` | (embedded in CreateQRPage) | Rich vCard form editor |
@@ -816,6 +852,8 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `AdminChangelogPage.tsx` | `/admin/changelog` |
 | `AdminCareersPage.tsx` | `/admin/careers` |
 | `AdminSupportPage.tsx` | `/admin/support` |
+| `AdminCouponsPage.tsx` | `/admin/coupons` |
+| `AdminReferralsPage.tsx` | `/admin/referrals` |
 
 ### 11.3 Components
 
@@ -838,7 +876,7 @@ object properties (`href: "/x"`), not JSX attributes, so a regex written for
 
 #### UI (`/src/components/ui/`)
 All components are based on Radix UI primitives or custom implementations:
-- `badge.tsx` — variants: default, secondary, success, warning, danger
+- `badge.tsx` — variants: default, secondary, success, warning, destructive, outline
 - `button.tsx` — variants: default, destructive, outline, ghost, link; sizes: sm, md, lg
 - `card.tsx` — Card, CardHeader, CardTitle, CardContent, CardFooter
 - `input.tsx` — styled input wrapper
@@ -904,6 +942,8 @@ Access: `/admin/*` — requires JWT with `ADMIN` or `SUPER_ADMIN` role.
 - **Changelog**: publish changelog entries (stored in PlatformSetting)
 - **Careers**: manage job listing content
 - **Support tickets**: view/update/resolve user support tickets
+- **Coupons**: create/edit codes, copy a coupon link per code
+- **Referrals**: review referrals; cancel one (e.g. its purchase was refunded) to void both rewards
 
 ---
 
