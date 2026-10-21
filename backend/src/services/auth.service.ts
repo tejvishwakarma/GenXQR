@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from "../utils/password.js"
 import { generateSecureToken, hashToken } from "../utils/crypto.js"
 import { isDisposableEmail } from "../utils/disposable-email.util.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
+import { attachReferralAtSignup } from "./referral.service.js"
 import { parseAttribution, type UserAttributionData } from "../utils/attribution.util.js"
 import { deleteUserAndData } from "./account-erasure.service.js"
 // Reused so a number saved in settings is stored in exactly the form checkout
@@ -44,6 +45,8 @@ export const registerSchema = z.object({
     .regex(/[0-9]/, "Must contain at least one number"),
   /** First-touch marketing data; validated leniently by parseAttribution(). */
   attribution: z.unknown().optional(),
+  /** A referral link's code (genxqr.com/signup?ref=CODE). Ignored if unknown. */
+  referralCode: z.string().trim().max(20).optional(),
 })
 
 export const loginSchema = z.object({
@@ -167,6 +170,8 @@ export async function registerUser(input: z.infer<typeof registerSchema>) {
     },
     select: { id: true, email: true, name: true }
   })
+
+  await attachReferralAtSignup(user.id, input.referralCode)
 
   if (!autoVerify) {
     const rawToken = generateSecureToken()
@@ -471,6 +476,8 @@ export async function handleGoogleOAuth(
   ip: string,
   /** Applied only if this call CREATES the account; existing users keep theirs. */
   attribution: UserAttributionData | null = null,
+  /** Referral code from the sign-up link — likewise, new accounts only. */
+  referralCode: string | null = null,
 ): Promise<{ accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "USER" | "ADMIN" | "SUPER_ADMIN"; avatarUrl: string | null } }> {
   const emailBlockEntry = await prisma.blocklist.findFirst({
     where: { type: "email", value: profile.email },
@@ -517,6 +524,8 @@ export async function handleGoogleOAuth(
       }
     })
   }
+
+  if (createdUser) await attachReferralAtSignup(user.id, referralCode)
 
   if (createdUser && !wasEverBlocked) {
     await ensureVerifiedTrialSubscription(user.id)

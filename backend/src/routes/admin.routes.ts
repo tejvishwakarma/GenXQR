@@ -36,6 +36,7 @@ import * as AdminPlatformService from "../services/admin-platform.service.js"
 import * as AdminModerationService from "../services/admin-moderation.service.js"
 import * as AdminSupportService from "../services/admin-support.service.js"
 import * as AdminCouponsService from "../services/admin-coupons.service.js"
+import * as ReferralService from "../services/referral.service.js"
 import { logAudit } from "../services/audit.service.js"
 import type { NotificationType } from "@prisma/client"
 
@@ -1225,6 +1226,50 @@ router.delete(
         // its redemptions are the audit trail for discounted money.
         message: result.deleted ? "Coupon deleted." : "Coupon has redemptions, so it was deactivated instead of deleted.",
       })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── Referrals ─────────────────────────────────────────────────────────────────
+// Referral programme (referral.service.ts). Admins review referrals and cancel
+// them — e.g. when the qualifying purchase is refunded — which voids both rewards.
+
+const ReferralStatusSchema = z.enum(["signed_up", "pending", "credited", "cancelled"]).optional()
+
+router.get(
+  "/referrals",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const status = ReferralStatusSchema.parse(req.query["status"] || undefined)
+      res.json({ success: true, data: await ReferralService.listReferralsForAdmin({ status }) })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+const CancelReferralSchema = z.object({ reason: z.string().trim().min(3).max(200) })
+
+router.post(
+  "/referrals/:id/cancel",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = String(req.params["id"])
+      const { reason } = CancelReferralSchema.parse(req.body)
+      await ReferralService.cancelReferral(id, reason)
+      logAudit({
+        userId: (req.user as AccessTokenPayload).sub,
+        action: "admin.referral.cancel",
+        category: "admin",
+        entityId: id,
+        entityType: "Referral",
+        metadata: { reason },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
+      res.json({ success: true, message: "Referral cancelled; both rewards voided." })
     } catch (err) {
       next(err)
     }

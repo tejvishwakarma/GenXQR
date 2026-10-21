@@ -73,6 +73,7 @@ import BulkGeneratePage from "@/pages/dashboard/BulkGeneratePage"
 import TeamPage from "@/pages/dashboard/TeamPage"
 import APIKeysPage from "@/pages/dashboard/APIKeysPage"
 import BillingPage from "@/pages/dashboard/BillingPage"
+import ReferralsPage from "@/pages/dashboard/ReferralsPage"
 import SettingsPage from "@/pages/dashboard/SettingsPage"
 import UserReportPage from "@/pages/dashboard/UserReportPage"
 import SupportPage from "@/pages/dashboard/SupportPage"
@@ -91,6 +92,7 @@ import AdminQRCodesPage from "@/pages/admin/AdminQRCodesPage"
 import AdminAnalyticsPage from "@/pages/admin/AdminAnalyticsPage"
 import AdminRevenuePage from "@/pages/admin/AdminRevenuePage"
 import AdminCouponsPage from "@/pages/admin/AdminCouponsPage"
+import AdminReferralsPage from "@/pages/admin/AdminReferralsPage"
 import AdminStoragePage from "@/pages/admin/AdminStoragePage"
 import AdminAuditPage from "@/pages/admin/AdminAuditPage"
 import AdminSubscriptionsPage from "@/pages/admin/AdminSubscriptionsPage"
@@ -209,6 +211,7 @@ export function AppRoutes() {
           <Route path="api-keys" element={<APIKeysPage />} />
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route path="billing" element={<BillingPage />} />
+          <Route path="referrals" element={<ReferralsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="report" element={<UserReportPage />} />
           <Route path="support" element={<SupportPage />} />
@@ -232,6 +235,7 @@ export function AppRoutes() {
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="revenue" element={<AdminRevenuePage />} />
           <Route path="coupons" element={<AdminCouponsPage />} />
+          <Route path="referrals" element={<AdminReferralsPage />} />
           <Route path="storage" element={<AdminStoragePage />} />
           <Route path="abuse" element={<AdminAbusePage />} />
           <Route path="email" element={<AdminEmailPage />} />

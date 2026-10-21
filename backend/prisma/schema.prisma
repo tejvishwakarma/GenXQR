@@ -74,6 +74,13 @@ model User {
   teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
   teamMemberships         TeamMember[]
   couponRedemptions       CouponRedemption[]
+  /// This user's own code to share (genxqr.com/signup?ref=CODE). Created the
+  /// first time they open the Referrals page, not at sign-up.
+  referralCode            String?                  @unique
+  referralsMade           Referral[]               @relation("ReferralReferrer")
+  /// Set once, at sign-up through someone's link. Never changed afterwards.
+  referredBy              Referral?                @relation("ReferralReferee")
+  creditEntries           CreditEntry[]
   teamsOwned              Team[]                   @relation("UserTeamsOwned")
   webhooks                Webhook[]
 
@@ -908,4 +915,80 @@ enum ApplicationStatus {
   SHORTLISTED
   REJECTED
   HIRED
+}
+
+/// A new account that signed up through someone's referral link
+/// (referral.service.ts, decided 21 Oct 2026). The referee's FIRST paid
+/// purchase qualifies it: both people then get 20% of what was actually paid as
+/// GenXQR credit, usable 15 days later (after the 7-day refund window).
+model Referral {
+  id         String   @id @default(cuid())
+  referrerId String
+  /// One referrer per account, for life. Null once the referee deletes their
+  /// account — the row stays so refereeEmailHash keeps blocking a re-referral.
+  refereeId  String?  @unique
+  /// sha256 of the referee's inbox (normalizeEmail: aliases and Gmail dots
+  /// folded). UNIQUE with referrerId: a referrer can refer a person once, not
+  /// again through an alias or a deleted-and-recreated account.
+  refereeEmailHash String
+  createdAt  DateTime @default(now())
+
+  /// The purchase that earned the rewards. UNIQUE: one qualification ever.
+  qualifyingOrderId     String?   @unique
+  /// What the referee actually paid on it, in paise (after coupons and credit).
+  qualifyingAmountPaise Int?
+  /// Each side's reward, in paise: 20% of qualifyingAmountPaise, floored.
+  rewardPaise           Int?
+  qualifiedAt           DateTime?
+  /// When both rewards become usable (qualifiedAt + REFERRAL_HOLD_DAYS).
+  availableAt           DateTime?
+
+  /// Set by an admin, e.g. when the qualifying purchase was refunded. Voids
+  /// both reward entries.
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  referrer User          @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee  User?         @relation("ReferralReferee", fields: [refereeId], references: [id], onDelete: SetNull)
+  credits  CreditEntry[]
+
+  @@unique([referrerId, refereeEmailHash])
+  @@index([referrerId, createdAt])
+  @@map("referrals")
+}
+
+enum CreditKind {
+  /// Earned through a referral (either side). Held until availableAt.
+  REFERRAL_REWARD
+  /// Spent at checkout — negative.
+  REDEMPTION
+  /// Manual correction by an admin, either sign.
+  ADJUSTMENT
+}
+
+/// The credit ledger. A user's balance is the SUM of their unvoided entries
+/// whose availableAt has passed — there is no stored balance to drift.
+model CreditEntry {
+  id          String     @id @default(cuid())
+  userId      String
+  /// Paise. Positive = credit added, negative = credit spent.
+  amountPaise Int
+  kind        CreditKind
+  /// Counts towards the balance from this instant (rewards are held; spends are immediate).
+  availableAt DateTime   @default(now())
+  referralId  String?
+  /// REDEMPTION: the order the credit paid towards. Unique per kind, so a
+  /// replayed payment cannot spend the same credit twice.
+  orderId     String?
+  note        String?
+  /// Voided entries stay for the record but stop counting.
+  voidedAt    DateTime?
+  createdAt   DateTime   @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referral Referral? @relation(fields: [referralId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, kind])
+  @@index([userId, availableAt])
+  @@map("credit_entries")
 }

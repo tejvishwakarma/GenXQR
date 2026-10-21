@@ -3,6 +3,7 @@
  * base URL, and error handling are centralised.
  */
 import { getAttribution } from "@/lib/attribution"
+import { getPendingReferral } from "@/lib/referralLink"
 import { setWorkspaceOwnerId, workspaceHeader } from "@/lib/workspace"
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
@@ -370,7 +371,12 @@ export interface RegisterResponse {
 export function register(name: string, email: string, password: string) {
   return apiFetch<RegisterResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ name, email, password, attribution: getAttribution() ?? undefined }),
+    body: JSON.stringify({
+      name, email, password,
+      attribution: getAttribution() ?? undefined,
+      // From a referral link (lib/referralLink); the server decides if it counts.
+      referralCode: getPendingReferral() ?? undefined,
+    }),
   })
 }
 
@@ -1834,6 +1840,78 @@ export function verifyPayment(orderId: string) {
 // ─── Coupons ──────────────────────────────────────────────────────────────────
 
 /** What a coupon is worth for a specific plan and cycle. All amounts in paise. */
+/** The full checkout total from the server (POST /api/billing/quote). */
+export interface CheckoutPricing {
+  listPaise: number
+  coupon: CouponQuote | null
+  creditAvailablePaise: number
+  creditAppliedPaise: number
+  finalPaise: number
+  isFree: boolean
+}
+
+export function getCheckoutQuote(body: { planName: PlanName; billingCycle: "monthly" | "yearly"; couponCode?: string }) {
+  return apiFetch<{ success: boolean; data: CheckoutPricing; couponError?: string }>("/api/billing/quote", {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify(body),
+  })
+}
+
+/** GenXQR credit (referral rewards), in paise. */
+export interface CreditBalance {
+  availablePaise: number
+  pendingPaise: number
+  nextAvailableAt: string | null
+}
+
+export function getCreditBalance() {
+  return apiFetch<{ success: boolean; data: CreditBalance }>("/api/billing/credit", { headers: authHeader() })
+}
+
+export type ReferralStatus = "signed_up" | "pending" | "credited" | "cancelled"
+
+export interface ReferralSummary {
+  code: string
+  rewardPercent: number
+  holdDays: number
+  balance: CreditBalance
+  referrals: Array<{ id: string; friend: string; joinedAt: string; status: ReferralStatus; rewardPaise: number | null; availableAt: string | null }>
+  referredBy: { status: ReferralStatus; rewardPaise: number | null; availableAt: string | null } | null
+  history: Array<{ id: string; amountPaise: number; kind: "REFERRAL_REWARD" | "REDEMPTION" | "ADJUSTMENT"; availableAt: string; voidedAt: string | null; note: string | null; createdAt: string }>
+}
+
+export function getReferralSummary() {
+  return apiFetch<{ success: boolean; data: ReferralSummary }>("/api/referrals/me", { headers: authHeader() })
+}
+
+export interface AdminReferral {
+  id: string
+  createdAt: string
+  status: ReferralStatus
+  qualifyingOrderId: string | null
+  qualifyingAmountPaise: number | null
+  rewardPaise: number | null
+  qualifiedAt: string | null
+  availableAt: string | null
+  cancelledAt: string | null
+  cancelReason: string | null
+  referrer: { id: string; email: string; name: string }
+  /** Null when the friend has since deleted their account. */
+  referee: { id: string; email: string; name: string } | null
+}
+
+export function fetchAdminReferrals(status?: ReferralStatus) {
+  return adminFetch<{ success: boolean; data: AdminReferral[] }>(`/admin-api/referrals${status ? `?status=${status}` : ""}`)
+}
+
+export function cancelAdminReferral(id: string, reason: string) {
+  return adminFetch<{ success: boolean; message: string }>(`/admin-api/referrals/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  })
+}
+
 export interface CouponQuote {
   code: string
   couponId: string

@@ -522,6 +522,12 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
   if (typeof rawAttribution === "string" && parseAttributionParam(rawAttribution)) {
     void redis.setex(`oauth:attr:${state}`, 600, rawAttribution)
   }
+  // Referral code from the sign-up link, kept the same way. Only used if the
+  // callback creates a new account (referral.service attachReferralAtSignup).
+  const rawRef = req.query["ref"]
+  if (typeof rawRef === "string" && /^[A-Za-z0-9]{4,20}$/.test(rawRef)) {
+    void redis.setex(`oauth:ref:${state}`, 600, rawRef)
+  }
 
   res.cookie("oauth_state", state, {
     httpOnly: true,
@@ -662,11 +668,14 @@ router.get(
 
       const storedAttribution = await redis.get(`oauth:attr:${returnedState}`)
       if (storedAttribution !== null) await redis.del(`oauth:attr:${returnedState}`)
+      const storedRef = await redis.get(`oauth:ref:${returnedState}`)
+      if (storedRef !== null) await redis.del(`oauth:ref:${returnedState}`)
 
       const { accessToken, refreshToken } = await AuthService.handleGoogleOAuth(
         profile,
         req.ip ?? "",
         storedAttribution !== null ? parseAttributionParam(storedAttribution) : null,
+        storedRef,
       )
       const nextPath = safeFrontendPath(storedNextPath, "/app/dashboard")
 

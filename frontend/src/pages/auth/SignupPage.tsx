@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
+import { clearPendingReferral, getPendingReferral, referralQueryParam } from "@/lib/referralLink"
 import { register, getTeamInvitePreview, ApiError } from "@/lib/api"
 
 const perks = [
@@ -40,6 +41,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  // Arrived through a friend's referral link (lib/referralLink).
+  const [referred] = useState(() => getPendingReferral() !== null)
 
   // Pre-fill the email field when the invite preview resolves
   useEffect(() => {
@@ -56,6 +59,8 @@ export default function SignupPage() {
     try {
       const name = `${firstName.trim()} ${lastName.trim()}`.trim()
       await register(name, email, password)
+      // Sent with the sign-up; not needed again.
+      clearPendingReferral()
       setSuccess(true)
     } catch (err) {
       if (err instanceof ApiError && err.status === 403 && err.message === "account_deleted") {
@@ -132,6 +137,11 @@ export default function SignupPage() {
           <div className="glass-card p-5 sm:p-8 rounded-2xl">
             <h2 className="text-xl font-bold text-white mb-1">Create your account</h2>
             <p className="text-zinc-400 text-sm mb-6">Starts with a 14-day Pro trial. No credit card required.</p>
+            {referred && !success && (
+              <p className="mb-6 -mt-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2.5 text-xs leading-relaxed text-violet-200">
+                You were invited by a friend. After your first purchase, you both get 20% of it back as GenXQR credit.
+              </p>
+            )}
 
             {success ? (
               <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-5 text-center">
@@ -153,7 +163,7 @@ export default function SignupPage() {
               <>
                 {/* Google OAuth */}
                 <a
-                  href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}${attributionQueryParam()}`}
+                  href={`${import.meta.env.VITE_API_URL ?? ""}/api/auth/google?next=${encodeURIComponent(next)}${attributionQueryParam()}${referralQueryParam()}`}
                   className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-zinc-700 rounded-xl px-4 py-3 text-white text-sm font-medium transition-all mb-6"
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24">

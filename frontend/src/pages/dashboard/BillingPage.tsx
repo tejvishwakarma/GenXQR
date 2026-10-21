@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { createPortal } from "react-dom"
-import { useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Check, Zap, Download, ArrowRight, Loader2,
@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   getSubscription, getBillingUsage, getPlans, getInvoices, downloadInvoice,
   createPaymentOrder, verifyPayment, cancelSubscription, downgradeSubscription,
-  validateCoupon, type CouponQuote,
+  getCheckoutQuote, getCreditBalance, type CheckoutPricing, type CouponQuote,
   getCurrentUser,
   type Plan, type PlanName, type CheckoutSession, type Invoice,
 } from "@/lib/api"
@@ -290,6 +290,9 @@ export default function BillingPage() {
       void qc.invalidateQueries({ queryKey: ["subscription"] })
       void qc.invalidateQueries({ queryKey: ["billing-usage"] })
       void qc.invalidateQueries({ queryKey: ["invoices"] })
+      // Credit may have been spent on this purchase.
+      void qc.invalidateQueries({ queryKey: ["credit"] })
+      void qc.invalidateQueries({ queryKey: ["referrals"] })
       // Auto-open invoices section so user can see and download their new invoice
       setShowInvoices(true)
     }
@@ -339,25 +342,30 @@ export default function BillingPage() {
   /** A code from a coupon link (lib/couponLink), applied when checkout opens. */
   const [linkCoupon, setLinkCoupon] = useState<string | null>(() => getPendingCoupon())
 
-  /** Prices a code against a plan; shared by the Apply button and coupon links. */
-  const priceCoupon = useCallback(async (
-    code: string,
+  /**
+   * The server's full total for the purchase being confirmed — list price,
+   * coupon, GenXQR credit, what is left to pay (POST /api/billing/quote, the
+   * same pricing the order uses). Null while loading.
+   */
+  const [pricing, setPricing] = useState<CheckoutPricing | null>(null)
+
+  /** Re-prices the purchase, with or without a coupon code. */
+  const refreshQuote = useCallback(async (
     purchase: { planName: PlanName; cycle: "monthly" | "yearly" },
+    code?: string,
   ) => {
     setCouponChecking(true)
     setCouponError("")
     try {
-      const res = await validateCoupon({ code, planName: purchase.planName, billingCycle: purchase.cycle })
-      if (res.success && res.data) {
-        setAppliedCoupon(res.data)
-      } else {
-        setAppliedCoupon(null)
-        // The server explains why — expired, already used, wrong plan.
-        setCouponError(res.error ?? "That coupon code is not valid.")
-      }
+      const res = await getCheckoutQuote({ planName: purchase.planName, billingCycle: purchase.cycle, couponCode: code })
+      setPricing(res.data)
+      setAppliedCoupon(res.data.coupon)
+      // The server explains why a code did not apply — expired, already used,
+      // wrong plan — and still prices the purchase without it.
+      if (res.couponError) setCouponError(res.couponError)
     } catch (err) {
       setAppliedCoupon(null)
-      setCouponError(err instanceof Error ? err.message : "Could not check that code.")
+      setCouponError(err instanceof Error ? err.message : "Could not price this purchase.")
     } finally {
       setCouponChecking(false)
     }
@@ -378,6 +386,9 @@ export default function BillingPage() {
     queryFn: getPlans,
     staleTime: 10 * 60 * 1000,
   })
+
+  const { data: creditData } = useQuery({ queryKey: ["credit"], queryFn: getCreditBalance })
+  const credit = creditData?.data
 
   const { data: invoicesData } = useQuery({
     queryKey: ["invoices", invoicePage],
@@ -442,17 +453,19 @@ export default function BillingPage() {
       setCouponInput(fromLink ?? "")
       setCouponError("")
       setAppliedCoupon(null)
+      setPricing(null)
       setPhoneInput("")
       setPhoneError("")
       setPendingPurchase({ planName, cycle, listPaise })
       setCheckoutLoading(false)
-      if (fromLink) void priceCoupon(fromLink, { planName, cycle })
+      // Always priced on open: available credit applies even without a code.
+      void refreshQuote({ planName, cycle }, fromLink ?? undefined)
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to process request"
       setCheckoutError(msg)
       setCheckoutLoading(false)
     }
-  }, [subData?.data?.planName, qc, plans, priceCoupon])
+  }, [subData?.data?.planName, qc, plans, refreshQuote])
 
   // Modal behaviours a hand-rolled dialog does not get for free: Escape closes
   // it, and the page behind stops scrolling while it is open (a fixed overlay
@@ -477,8 +490,8 @@ export default function BillingPage() {
       setCouponError("Enter a coupon code.")
       return
     }
-    await priceCoupon(code, pendingPurchase)
-  }, [couponInput, pendingPurchase, priceCoupon])
+    await refreshQuote(pendingPurchase, code)
+  }, [couponInput, pendingPurchase, refreshQuote])
 
   /** Creates the order and hands off to Cashfree. */
   const handleConfirmPurchase = useCallback(async () => {
@@ -489,7 +502,7 @@ export default function BillingPage() {
     // A free (fully discounted) purchase never reaches the payment provider,
     // which is the only thing that needs it.
     let phone = storedPhone
-    if (!phone && !appliedCoupon?.isFree) {
+    if (!phone && !pricing?.isFree) {
       const digits = phoneInput.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")
       if (!/^[6-9]\d{9}$/.test(digits)) {
         setPhoneError("Enter a valid 10-digit Indian mobile number.")
@@ -528,7 +541,7 @@ export default function BillingPage() {
       setCheckoutError(err instanceof Error ? err.message : "Failed to start payment")
       setCheckoutLoading(false)
     }
-  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon, setSearchParams])
+  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon, pricing, setSearchParams])
 
   const handleCancel = useCallback(() => {
     if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period. After that your account moves to the Free plan and your active dynamic QR codes are paused until you pay again. Scan history is kept for 3 months after that, then deleted.")) return
@@ -627,6 +640,7 @@ export default function BillingPage() {
                     setAppliedCoupon(null); setCouponInput(""); setCouponError("")
                     // Removing it here also forgets a code that came from a link.
                     clearPendingCoupon(); setLinkCoupon(null)
+                    if (pendingPurchase) void refreshQuote(pendingPurchase)
                   }}
                 >
                   Remove
@@ -648,29 +662,41 @@ export default function BillingPage() {
             <div className="mt-5 rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-2 text-sm">
               <div className="flex justify-between text-zinc-600 dark:text-zinc-400">
                 <span>Subtotal</span>
-                <span>{paiseToRupeesExact(appliedCoupon?.originalPaise ?? pendingPurchase.listPaise)}</span>
+                <span>{paiseToRupeesExact(pricing?.listPaise ?? pendingPurchase.listPaise)}</span>
               </div>
               {appliedCoupon && (
                 <div className="flex justify-between text-emerald-500">
-                  <span>Discount</span>
+                  <span>Discount ({appliedCoupon.code})</span>
                   <span>−{paiseToRupeesExact(appliedCoupon.discountPaise)}</span>
+                </div>
+              )}
+              {pricing && pricing.creditAppliedPaise > 0 && (
+                <div className="flex justify-between text-emerald-500">
+                  <span>GenXQR credit</span>
+                  <span>−{paiseToRupeesExact(pricing.creditAppliedPaise)}</span>
                 </div>
               )}
               <div className="flex justify-between pt-2 border-t border-zinc-200 dark:border-zinc-700 font-bold text-zinc-900 dark:text-white">
                 <span>Total due today</span>
-                <span>{paiseToRupeesExact(appliedCoupon?.finalPaise ?? pendingPurchase.listPaise)}</span>
+                <span>
+                  {pricing
+                    ? paiseToRupeesExact(pricing.finalPaise)
+                    : <Loader2 size={14} className="inline animate-spin" />}
+                </span>
               </div>
-              {appliedCoupon && (
+              {pricing && (appliedCoupon || pricing.creditAppliedPaise > 0) && (
                 <p className="text-zinc-500 text-xs pt-1">
-                  {appliedCoupon.isFree
-                    ? "No payment needed — your plan starts as soon as you confirm. Renewals are charged at the standard rate."
-                    : "The discount applies to this payment. Renewals are charged at the standard rate."}
+                  {pricing.isFree
+                    ? "No payment needed — your plan starts as soon as you confirm."
+                    : appliedCoupon
+                      ? "The discount applies to this payment. Renewals are charged at the standard rate."
+                      : "Your GenXQR credit is used on this payment. Credit you have when you renew is applied then too."}
                 </p>
               )}
             </div>
 
             {/* Phone — only when none is on file, and only for a real payment */}
-            {!storedPhone && !appliedCoupon?.isFree && (
+            {!storedPhone && !pricing?.isFree && (
               <div className="mt-5">
                 <label htmlFor="checkout-phone" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5 block">
                   Mobile number
@@ -707,9 +733,9 @@ export default function BillingPage() {
                 variant="glow"
                 className="flex-1"
                 onClick={() => void handleConfirmPurchase()}
-                disabled={checkoutLoading}
+                disabled={checkoutLoading || !pricing}
               >
-                {checkoutLoading ? "Starting…" : appliedCoupon?.isFree ? "Activate plan" : "Continue to payment"}
+                {checkoutLoading ? "Starting…" : pricing?.isFree ? "Activate plan" : "Continue to payment"}
               </Button>
             </div>
           </Card>
@@ -738,8 +764,17 @@ export default function BillingPage() {
         <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
           <CheckCircle size={16} className="text-emerald-400 shrink-0" />
           <span className="text-zinc-700 dark:text-zinc-300">
-            Coupon applied — your plan is active. No payment was needed.
+            Your plan is active — no payment was needed.
           </span>
+        </div>
+      )}
+      {credit && (credit.availablePaise > 0 || credit.pendingPaise > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+          <span className="text-zinc-700 dark:text-zinc-300">
+            GenXQR credit: <span className="font-semibold">{paiseToRupeesExact(Math.max(0, credit.availablePaise))}</span> available
+            {credit.pendingPaise > 0 && <> · {paiseToRupeesExact(credit.pendingPaise)} pending</>}. Applied automatically at checkout.
+          </span>
+          <Link to="/app/referrals" className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:underline">Refer &amp; earn →</Link>
         </div>
       )}
       {linkCoupon && !paymentResult && !verifying && (

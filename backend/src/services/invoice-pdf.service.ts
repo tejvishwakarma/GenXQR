@@ -53,6 +53,11 @@ export interface InvoiceData {
     originalPaise: number
     discountPaise: number
   } | null
+  /**
+   * GenXQR credit (referral rewards) spent on this purchase, in paise — from
+   * the order's REDEMPTION CreditEntry. Shown as its own line after any coupon.
+   */
+  creditPaise?: number
   currency: string
   status: string
   planName: PlanName
@@ -233,7 +238,8 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     })
   // The line item is the plan at LIST price; the discount is applied in the
   // totals below, the way a receipt is normally read.
-  const lineItemPaise = data.discount ? data.discount.originalPaise : data.amount
+  const creditPaise = data.creditPaise ?? 0
+  const lineItemPaise = data.discount ? data.discount.originalPaise : data.amount + creditPaise
   doc
     .fillColor(COLOR.ink)
     .font("Helvetica-Bold")
@@ -257,7 +263,7 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
   const totalsLeft = right - totalsWidth
   // One extra row when a coupon was used, so the box grows rather than overlapping
   // the payment-details grid beneath it.
-  const totalsHeight = data.discount ? 92 : 74
+  const totalsHeight = 74 + (data.discount ? 18 : 0) + (creditPaise > 0 ? 18 : 0)
   const formatted = formatAmount(data.amount, data.currency)
 
   doc.roundedRect(totalsLeft, totalsTop, totalsWidth, totalsHeight, 8).fill(COLOR.panel)
@@ -282,6 +288,10 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
       `-${formatAmount(data.discount.discountPaise, data.currency)}`,
       rowY,
     )
+    rowY += 18
+  }
+  if (creditPaise > 0) {
+    totalsRow("GenXQR credit", `-${formatAmount(creditPaise, data.currency)}`, rowY)
     rowY += 18
   }
   totalsRow("Tax (GST)", "Included", rowY)
@@ -311,7 +321,9 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     if (data.cashfreePaymentId) cells.push(["CASHFREE REF", data.cashfreePaymentId])
     // A ₹0 invoice from a coupon that made the purchase free (billing.service
     // grantFreePeriodWithCoupon) involved no payment at all.
-    cells.push(["METHOD", data.amount === 0 && !data.cashfreePaymentId ? "Coupon — no payment" : "Cashfree Payments"])
+    const noPayment = data.amount === 0 && !data.cashfreePaymentId
+    const covered = [data.discount ? "Coupon" : null, creditPaise > 0 ? "GenXQR credit" : null].filter(Boolean).join(" and ")
+    cells.push(["METHOD", noPayment ? `${covered || "Coupon"} — no payment` : "Cashfree Payments"])
     cells.push(["CURRENCY", data.currency])
 
     const cellWidth = CONTENT_WIDTH / 2 - 6

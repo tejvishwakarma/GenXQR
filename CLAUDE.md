@@ -622,6 +622,28 @@ limits that. Since 21 Oct 2026:
 - **Coupon links:** `?coupon=CODE` on any page is kept 30 days (`lib/couponLink.ts`, latest
   link wins) and applied when checkout opens on `/app/billing`; admins copy links per code.
 
+**Referral programme + credit** (`services/referral.service.ts`, decided 21 Oct 2026).
+- Every user has a code (`User.referralCode`, made on first visit to `/app/referrals`).
+  `?ref=CODE` is kept 60 days (`lib/referralLink.ts`) and sent at sign-up (register body /
+  Google start URL → `oauth:ref:<state>`); `attachReferralAtSignup` records a `Referral` for
+  NEW accounts only, refusing the referrer's own inbox (same `normalizedEmail` rule as trials).
+- A referrer refers each PERSON once: `Referral.refereeEmailHash` (sha256 of the normalised
+  inbox) is UNIQUE with `referrerId`, so an alias or a deleted-and-recreated account is not
+  recorded again, even in a race. The row outlives the referee (`refereeId` → SetNull, shown
+  as "Deleted account"). A *different* referrer can still refer that person's new account.
+  The programme's rules are in Terms §4 — keep them in step with the code.
+- The referee's FIRST paid purchase qualifies it (`qualifyReferralInTx`, inside the
+  `applyPurchasedPeriod` transaction): both sides get `REFERRAL_REWARD_PERCENT` (20) of what was
+  actually paid — after coupon and credit, so ₹0 purchases earn nothing — as `CreditEntry`
+  rows usable after `REFERRAL_HOLD_DAYS` (15; refund window is 7).
+- Credit is a ledger (`CreditEntry`): balance = sum of unvoided entries whose `availableAt`
+  has passed. `priceCheckout` applies it after the coupon; paid orders carry a bounded
+  `creditPaise` tag and spend it at activation (REDEMPTION, unique per order); free grants
+  re-check the balance under `pg_advisory_xact_lock`. Shown on invoices as "GenXQR credit".
+- Refunds happen in the Cashfree dashboard and GenXQR is not told: an admin cancels the
+  referral at `/admin/referrals`, voiding both rewards (spent credit → negative balance).
+- No cash payouts: they would need Cashfree Payouts (separate activation) and §194R TDS.
+
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
 `reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.
@@ -838,7 +860,7 @@ object properties (`href: "/x"`), not JSX attributes, so a regex written for
 
 #### UI (`/src/components/ui/`)
 All components are based on Radix UI primitives or custom implementations:
-- `badge.tsx` — variants: default, secondary, success, warning, danger
+- `badge.tsx` — variants: default, secondary, success, warning, destructive, outline
 - `button.tsx` — variants: default, destructive, outline, ghost, link; sizes: sm, md, lg
 - `card.tsx` — Card, CardHeader, CardTitle, CardContent, CardFooter
 - `input.tsx` — styled input wrapper
