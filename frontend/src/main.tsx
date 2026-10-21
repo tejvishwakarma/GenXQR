@@ -6,6 +6,7 @@ import './index.css'
 import App from './App.tsx'
 import { captureAttribution } from './lib/attribution'
 import { captureCouponLink } from './lib/couponLink'
+import { captureReferralLink } from './lib/referralLink'
 
 // Before the first render, not in an effect: the sign-up page builds its Google
 // link during render, so a visitor landing straight on /signup?utm_source=…
@@ -13,6 +14,7 @@ import { captureCouponLink } from './lib/couponLink'
 // — in-app navigation never carries a new campaign — so once per load is right.
 captureAttribution()
 captureCouponLink()
+captureReferralLink()
 
 const queryClient = new QueryClient({
   defaultOptions: {

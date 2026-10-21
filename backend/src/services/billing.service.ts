@@ -31,6 +31,7 @@ import { expireSubscription, isLapsed, resumeCodesPausedForBilling } from "./sub
 import { invalidateScanQuota } from "./scan-quota.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
 import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE, type CouponQuote } from "./coupon.service.js"
+import { getCreditBalance, lockCredit, recordCreditSpend, qualifyReferralInTx } from "./referral.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -481,6 +482,49 @@ function cashfreeMode(): "sandbox" | "production" {
 }
 
 /**
+ * What a purchase costs, in one place: list price, then the coupon, then the
+ * buyer's GenXQR credit (referral rewards), then the free check. Used for the
+ * checkout preview (POST /api/billing/quote) and to price the real order, so
+ * what is shown is what is charged.
+ *
+ * Coupon before credit: credit then covers what the coupon left. Anything
+ * under MINIMUM_CHARGEABLE_PAISE left to pay makes the purchase free.
+ */
+export interface CheckoutPricing {
+  listPaise: number
+  coupon: CouponQuote | null
+  /** Spendable credit before this purchase, in paise (never negative here). */
+  creditAvailablePaise: number
+  /** Credit this purchase uses, in paise. */
+  creditAppliedPaise: number
+  /** What the buyer pays, in paise. 0 = free (no payment order). */
+  finalPaise: number
+  isFree: boolean
+}
+
+export async function priceCheckout(params: {
+  userId: string
+  planName: PurchasablePlan
+  billingCycle: "monthly" | "yearly"
+  couponCode?: string
+}): Promise<CheckoutPricing> {
+  const prices = PLAN_PRICES_INR[params.planName]
+  const listPaise = Math.round((params.billingCycle === "yearly" ? prices.yearly : prices.monthly) * 100)
+  const coupon = params.couponCode
+    ? await quoteCoupon({ code: params.couponCode, userId: params.userId, planName: params.planName, billingCycle: params.billingCycle })
+    : null
+  const afterCoupon = coupon ? coupon.finalPaise : listPaise
+
+  const { availablePaise } = await getCreditBalance(params.userId)
+  const creditAvailablePaise = Math.max(0, availablePaise)
+  const creditAppliedPaise = Math.min(creditAvailablePaise, afterCoupon)
+  let finalPaise = afterCoupon - creditAppliedPaise
+  if (finalPaise < MINIMUM_CHARGEABLE_PAISE) finalPaise = 0
+
+  return { listPaise, coupon, creditAvailablePaise, creditAppliedPaise, finalPaise, isFree: finalPaise === 0 }
+}
+
+/**
  * Prices the plan, creates a Cashfree order, and returns what the browser needs
  * to open checkout.
  *
@@ -512,13 +556,14 @@ export async function createPaymentOrder(
     select: { name: true, email: true, phone: true },
   })
 
-  // The client sends only a CODE. What it is worth is decided here, against the
-  // coupon record and the price table — never taken from the request.
-  const quote = couponCode ? await quoteCoupon({ code: couponCode, userId, planName, billingCycle }) : null
+  // The client sends only a CODE. What it is worth — and how much credit is
+  // spent — is decided here, never taken from the request.
+  const pricing = await priceCheckout({ userId, planName, billingCycle, couponCode })
+  const quote = pricing.coupon
 
   // Nothing to pay: grant the plan without a payment order. Before the phone
   // check on purpose — the number is only needed by Cashfree.
-  if (quote?.isFree) return grantFreePeriodWithCoupon(userId, planName, billingCycle, quote)
+  if (pricing.isFree) return grantFreePeriod(userId, planName, billingCycle, pricing)
 
   // Cashfree requires a 10-digit mobile on every order. Prefer one supplied now,
   // otherwise reuse what the user gave last time. A placeholder is NOT
@@ -536,10 +581,7 @@ export async function createPaymentOrder(
     await prisma.user.update({ where: { id: userId }, data: { phone: suppliedPhone } })
   }
 
-  const prices = PLAN_PRICES_INR[planName]
-  const listPaise = Math.round((billingCycle === "yearly" ? prices.yearly : prices.monthly) * 100)
-
-  const chargePaise = quote ? quote.finalPaise : listPaise
+  const chargePaise = pricing.finalPaise
   const amountINR = chargePaise / 100
 
   // Order ids must be unique per merchant account forever — a collision makes
@@ -588,6 +630,8 @@ export async function createPaymentOrder(
       // in: it must not exceed the list price.
       expectedPaise: String(chargePaise),
       ...(quote ? { couponCode: quote.code, couponId: quote.couponId } : {}),
+      // Credit to spend when this order is paid (recorded at activation).
+      ...(pricing.creditAppliedPaise > 0 ? { creditPaise: String(pricing.creditAppliedPaise) } : {}),
     },
     expiryMinutes: ORDER_EXPIRY_MINUTES,
   })
@@ -611,19 +655,18 @@ export async function createPaymentOrder(
 }
 
 /**
- * Grants a plan bought with a coupon that leaves nothing to pay (see
- * MINIMUM_CHARGEABLE_PAISE in coupon.service). No Cashfree order exists, so the
- * grant is recorded under a synthetic id with the same prefix as real orders —
- * a ₹0 invoice and the redemption, through the same applyPurchasedPeriod as a
- * paid activation. With no payment to honour, the coupon's limits are enforced
- * strictly inside the transaction: a code that ran out between quote and grant
- * is refused rather than over-redeemed.
+ * Grants a plan when a coupon and/or credit leave nothing to pay (see
+ * priceCheckout). No Cashfree order exists, so the grant is recorded under a
+ * synthetic id with the same prefix as real orders — a ₹0 invoice, the coupon
+ * redemption, the credit spent — through the same applyPurchasedPeriod as a
+ * paid activation. With no payment to honour, coupon limits and the credit
+ * balance are both re-checked strictly inside the transaction.
  */
-async function grantFreePeriodWithCoupon(
+async function grantFreePeriod(
   userId: string,
   planName: PurchasablePlan,
   billingCycle: "monthly" | "yearly",
-  quote: CouponQuote,
+  pricing: CheckoutPricing,
 ): Promise<FreeCheckout> {
   const orderId = `${ORDER_ID_PREFIX}free_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
   await applyPurchasedPeriod({
@@ -634,9 +677,11 @@ async function grantFreePeriodWithCoupon(
     paymentId: null,
     amountPaise: 0,
     currency: "INR",
-    listPaise: quote.originalPaise,
-    coupon: { couponId: quote.couponId, couponCode: quote.code },
+    listPaise: pricing.listPaise,
+    coupon: pricing.coupon ? { couponId: pricing.coupon.couponId, couponCode: pricing.coupon.code } : null,
     strictCoupon: true,
+    creditPaise: pricing.creditAppliedPaise,
+    strictCredit: true,
   })
   return { free: true, orderId, planName, billingCycle, amount: 0, currency: "INR" }
 }
@@ -737,6 +782,18 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
   const couponId = tags["couponId"] ?? null
   const couponCode = tags["couponCode"] ?? null
 
+  // Credit to spend, set by us at order creation. Bounded like expectedPaise:
+  // never negative, and never more than the list price.
+  let creditPaise = 0
+  if (tags["creditPaise"] !== undefined) {
+    const parsed = Number.parseInt(tags["creditPaise"], 10)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > listPaise) {
+      logger.error("Cashfree order carries an out-of-range credit amount", { orderId, creditPaise: tags["creditPaise"], listPaise })
+      throw new AppError(422, "This payment could not be verified. Please contact support.")
+    }
+    creditPaise = parsed
+  }
+
   // All prices are quoted in INR, so a payment collected in anything else has
   // not paid for this plan whatever the numeric total says. Cannot happen while
   // we create every order ourselves with order_currency INR — this is here so a
@@ -757,6 +814,7 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
     currency: paidCurrency,
     listPaise,
     coupon: couponId ? { couponId, couponCode } : null,
+    creditPaise,
   })
 }
 
@@ -785,6 +843,15 @@ async function applyPurchasedPeriod(p: {
   coupon: { couponId: string; couponCode: string | null } | null
   /** Enforce coupon limits inside the transaction — for free grants (see recordRedemption). */
   strictCoupon?: boolean
+  /** GenXQR credit this purchase spends, in paise. */
+  creditPaise?: number
+  /**
+   * Free grants: re-check the balance under a per-user lock and refuse if it
+   * no longer covers creditPaise. Paid orders skip this — the customer has
+   * already paid the reduced amount, so the spend is honoured even if a
+   * concurrent checkout used the same credit (the balance then goes negative).
+   */
+  strictCredit?: boolean
 }): Promise<ActivationResult> {
   const { userId, planName, billingCycle, orderId } = p
   const plan = await prisma.plan.findUniqueOrThrow({ where: { name: planName } })
@@ -804,6 +871,18 @@ async function applyPurchasedPeriod(p: {
   // extension, so the user cannot be granted two periods for one payment.
   try {
     await prisma.$transaction(async (tx) => {
+      const creditPaise = p.creditPaise ?? 0
+      if (creditPaise > 0) {
+        if (p.strictCredit) {
+          await lockCredit(tx, userId)
+          const { availablePaise } = await getCreditBalance(userId, tx)
+          if (availablePaise < creditPaise) {
+            throw new AppError(409, "Your credit balance changed. Please review the total and try again.")
+          }
+        }
+        await recordCreditSpend(tx, userId, orderId, creditPaise)
+      }
+
       const existingSub = await tx.subscription.findUnique({
         where: { userId },
         include: { plan: true },
@@ -875,7 +954,9 @@ async function applyPurchasedPeriod(p: {
             userId,
             cashfreeOrderId: orderId,
             originalPaise: p.listPaise,
-            discountPaise: p.listPaise - p.amountPaise,
+            // Credit is recorded separately (CreditEntry), so the coupon's own
+            // discount is what is left between list price and credit + payment.
+            discountPaise: p.listPaise - p.amountPaise - (p.creditPaise ?? 0),
             finalPaise: p.amountPaise,
             planName,
             billingCycle,
@@ -883,6 +964,10 @@ async function applyPurchasedPeriod(p: {
           { strict: p.strictCoupon },
         )
       }
+
+      // The buyer's first paid purchase qualifies their referral, if they were
+      // referred: both rewards are created, held for REFERRAL_HOLD_DAYS.
+      await qualifyReferralInTx(tx, { userId, orderId, amountPaise: p.amountPaise, now })
     })
   } catch (err) {
     // P2002 = unique violation on cashfreeOrderId: the other path won the race

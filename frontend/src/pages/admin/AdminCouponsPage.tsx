@@ -161,7 +161,7 @@ export default function AdminCouponsPage() {
         <div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">Coupons</h1>
           <p className="text-zinc-500 text-sm mt-1">
-            Discount codes for checkout. Applied to the first payment; renewals charge the standard rate.
+            Discount codes for checkout. Every renewal is a new checkout, so a code works on any purchase up to its per-customer limit (once by default).
           </p>
         </div>
         {!form && (
