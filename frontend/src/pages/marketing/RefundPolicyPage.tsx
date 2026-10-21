@@ -61,7 +61,12 @@ const sections = [
       "Accounts suspended or terminated for violating our Terms of Service — including using QR codes for phishing, malware distribution, or other illegal activity — are not eligible for a refund of any kind.",
   },
   {
-    title: "10. Enterprise and custom agreements",
+    title: "10. Coupons and GenXQR credit",
+    content:
+      "A refund covers only the money you actually paid. If part of a purchase was covered by a coupon or by GenXQR credit, that part is not paid out as money, and a purchase covered entirely by a coupon or credit has nothing to refund. If the refunded payment was a referred friend's first purchase, the referral rewards it earned are cancelled for both people (see section 4 of our Terms of Service).",
+  },
+  {
+    title: "11. Enterprise and custom agreements",
     content:
       "Enterprise plans are arranged directly and governed by the refund and cancellation terms in their individual agreement, which take precedence over this page where the two differ.",
   },
@@ -88,7 +93,7 @@ export default function RefundPolicyPage() {
       <LegalHero
         icon={BadgeIndianRupee}
         title={<>Refund &amp; <span className="text-accent">Cancellation</span></>}
-        subtitle="Last updated: August 13, 2026"
+        subtitle="Last updated: October 22, 2026"
       />
       <LegalBody>
         <LegalStats

@@ -270,6 +270,14 @@ const faqItems = [
     a: "Yes — new accounts start with a 14-day free trial of the Pro plan. No credit card required to start. When the trial ends, the account moves to the Free plan and dynamic QR codes are paused until you choose a plan and pay.",
   },
   {
+    q: "Do you have a referral programme?",
+    a: "Yes. Every account has a personal invite link under Refer & earn in your dashboard. When a friend signs up through it and makes their first paid purchase, you each get 20% of what they paid as GenXQR credit. The credit becomes usable 15 days after the purchase and is applied automatically at your next checkout, up to the full price. It can't be withdrawn as cash. Only a friend's first purchase counts, and you can refer each person once. Full rules are in our Terms of Service, section 4.",
+  },
+  {
+    q: "Do you accept coupon codes?",
+    a: "Enter the code at checkout on the Billing page, or open a coupon link, which remembers the code for 30 days and applies it when you check out. Each code has its own terms: which plans and billing cycles it works on, when it expires, and how many times it can be used. By default, a code can be used once per account. If a code covers the whole price, your plan is activated without any payment. GenXQR credit, if you have any, is applied after the coupon.",
+  },
+  {
     q: "What's the difference between static and dynamic QR codes?",
     a: "A static QR code has the destination baked into the image — it can never be changed after creation. A dynamic QR code points to a redirect, so you can update the destination any time without reprinting. Dynamic QR codes also track every scan with location, device, and time data. GenXQR includes dynamic QR codes from the Starter plan.",
   },

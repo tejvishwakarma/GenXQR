@@ -46,7 +46,7 @@ export default function TermsPage() {
               <li>Only the referred account's first paid purchase earns a reward. A purchase paid entirely with coupons or credit earns nothing, and later purchases earn nothing.</li>
               <li>Credit becomes usable 15 days after the qualifying purchase. It is then applied automatically to your next GenXQR plan purchase and can cover the full price.</li>
               <li>Credit can only be used for GenXQR plan purchases. It has no cash value and cannot be withdrawn, transferred to another account, or exchanged for money. Credit is lost if your account is deleted.</li>
-              <li>You may refer as many people as you like, but each person only once. An account can be referred by only one person, and further accounts on the same email inbox (including address aliases, or an account deleted and created again) are not referred again. Referring yourself does not count.</li>
+              <li>You may refer as many people as you like, but each person only once. An account can be referred by only one person, and you cannot refer the same person again through another account on the same email inbox (including address aliases, or an account deleted and created again). Referring yourself does not count.</li>
               <li>If the qualifying purchase is refunded or charged back, or we find the programme has been abused (for example through fake or duplicate accounts), we may cancel the rewards for that referral. If cancelled credit has already been spent, the amount is deducted from credit you earn later.</li>
               <li>If a purchase paid partly with credit is refunded, only the amount you paid is refunded.</li>
               <li>We may change or end the referral programme at any time.</li>

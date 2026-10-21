@@ -126,7 +126,7 @@ const FAQ_JSON_LD = [
 ]
 
 // ─── FAQ data ─────────────────────────────────────────────────────────────────
-// Deliverable 4 + 7: Full copy rewrite across 6 categories — 22 questions total.
+// Deliverable 4 + 7: Full copy rewrite across 6 categories — 24 questions total (referral + coupon questions added 22 Oct 2026).
 // Benefit-led answers, India-first examples, INR pricing, no jargon.
 // False claims corrected: bcrypt (not Argon2id), retention = while subscribed + 3 months after lapse (subscription-expiry.service).
 
@@ -237,6 +237,14 @@ const faqCategories: FAQCategory[] = [
         a: "Yes. Cancel at any time from Billing in your dashboard — no penalties, no questions. Your account stays active until the end of the current billing period. After that it reverts to the free plan and your QR codes are paused (not deleted); scan history is kept for 3 months after that, then deleted. Reactivate any time by upgrading again.",
       },
       {
+        q: "Do you have a referral programme?",
+        a: "Yes. Every account has a personal invite link under Refer & earn in your dashboard. When a friend signs up through it and makes their first paid purchase, you each get 20% of what they paid as GenXQR credit. The credit becomes usable 15 days after the purchase and is applied automatically at your next checkout, up to the full price. It can't be withdrawn as cash. Only a friend's first purchase counts, and you can refer each person once. Full rules are in our Terms of Service, section 4.",
+      },
+      {
+        q: "How do coupon codes work?",
+        a: "Enter the code at checkout on the Billing page, or open a coupon link, which remembers the code for 30 days and applies it when you check out. Each code has its own terms: which plans and billing cycles it works on, when it expires, and how many times it can be used. By default, a code can be used once per account. If a code covers the whole price, your plan is activated without any payment. GenXQR credit, if you have any, is applied after the coupon.",
+      },
+      {
         q: "Do you offer refunds?",
         a: "We offer a 7-day money-back guarantee on new subscriptions. If you are not satisfied within the first 7 days, contact us and we will issue a full refund. After 7 days, payments are non-refundable — but you can cancel to stop future charges.",
       },
@@ -323,7 +331,7 @@ export default function FAQPage() {
 
           {/* ── Category nav tabs ─────────────────────────────────────────────── */}
           {/* Deliverable 10 fix: QR Tiger has a search bar; we add category tabs
-              as the navigation layer — faster than scrolling through 22 questions */}
+              as the navigation layer — faster than scrolling through 24 questions */}
           <div className="flex flex-wrap gap-2 justify-center mb-10">
             {faqCategories.map((cat) => (
               <button

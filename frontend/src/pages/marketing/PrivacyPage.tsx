@@ -5,7 +5,7 @@ import { LegalPage, LegalHero, LegalStats, LegalBody, LegalCard, LegalSection } 
 const sections = [
   {
     title: "1. Information We Collect",
-    content: "When you use GenXQR, we collect specific information to provide our services. This includes account information (name, email), billing details, and analytics data collected from users who scan your QR codes (IP address, approximate location, device type, browser, and scan timestamp).",
+    content: "When you use GenXQR, we collect specific information to provide our services. This includes account information (name, email), billing details, and analytics data collected from users who scan your QR codes (IP address, approximate location, device type, browser, and scan timestamp). If you sign up through someone's referral link, we record who referred you. That person can see a partly hidden form of your email address (for example a••••@gmail.com), when you joined, and whether your first purchase earned a reward, including the reward amount.",
   },
   {
     title: "2. How We Use Your Information",
@@ -25,7 +25,7 @@ const sections = [
   },
   {
     title: "6. Data Retention",
-    content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files and all scan data. You can export your data at any time before account deletion.",
+    content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files, all scan data and any GenXQR credit. If you joined through a referral link, we keep a one-way hash of your email address (not the address itself) linked to the account that referred you, so the same person cannot be referred again. You can export your data at any time before account deletion.",
   },
 ]
 
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />
-      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: March 12, 2026" />
+      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 22, 2026" />
       <LegalBody>
         <LegalStats
           items={[

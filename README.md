@@ -10,12 +10,15 @@ A full-stack SaaS platform for generating, managing, and tracking QR codes. Supp
 - **Dynamic QR codes** — Update the destination anytime without reprinting.
 - **Scan analytics** — Track scans by device, OS, browser, city, and country.
 - **Smart routing** — Route scanners based on geo-location or device type.
-- **A/B testing** — Split traffic between two destinations with auto-winner selection.
-- **Bulk generation** — Generate up to 5,000 QR codes at once via CSV upload.
+- **A/B testing** — Split traffic between two destinations and compare their scans.
+- **QR frames** — 86 designed frames with editable text and colours (paid plans).
+- **Bulk generation** — Generate QR codes from a CSV upload (up to 5,000 rows on Business, 10,000 on Enterprise).
 - **Team seats** — Invite members and collaborate on QR campaigns.
 - **Webhooks** — Receive real-time POST events on QR create, update, scan, delete.
 - **REST API** — Programmatic access for Pro and higher plans.
-- **Admin panel** — Full user management, subscription control, revenue analytics, broadcast email.
+- **Coupons** — Percentage or fixed-amount codes, shareable coupon links, and 100%-off codes that activate a plan without payment.
+- **Refer & earn** — A referred friend's first purchase gives both people 20% of it as GenXQR credit, usable 15 days later at checkout.
+- **Admin panel** — Full user management, subscription control, revenue analytics, broadcast email, coupons, referrals.
 
 ---
 
@@ -279,13 +282,15 @@ curl http://localhost:3001/health
 
 ## Subscription Plans
 
-| Plan | Monthly | Yearly | Dynamic QRs |
-|---|---|---|---|
-| Free | ₹0 | ₹0 | 3 |
-| Starter | ₹299 | ₹249/mo | 10 |
-| Pro | ₹799 | ₹649/mo | 50 |
-| Business | ₹2,499 | ₹1,999/mo | Unlimited |
-| Enterprise | Custom | Custom | Unlimited |
+| Plan | Monthly | Yearly | Dynamic QRs | Scans / month |
+|---|---|---|---|---|
+| Free | ₹0 | ₹0 | 0 (static only) | — |
+| Starter | ₹299 | ₹2,988 | 50 | 5,000 |
+| Pro | ₹799 | ₹7,788 | 250 | 50,000 |
+| Business | ₹2,499 | ₹23,988 | 2,000 | 500,000 |
+| Enterprise | ₹9,999 | ₹99,990 | Custom | Custom |
+
+New accounts get a 14-day Pro trial. `PLAN_LIMITS` / `PLAN_PRICES_INR` in `backend/src/services/billing.service.ts` are the source of truth.
 
 ---
 
@@ -293,7 +298,7 @@ curl http://localhost:3001/health
 
 Access at `http://localhost:5173/admin` after logging in with the admin credentials.
 
-Features: user management, subscription control, revenue dashboard, broadcast email, audit log, QR code oversight, abuse detection.
+Features: user management, subscription control, revenue dashboard, broadcast email, audit log, QR code oversight, abuse detection, coupons, referrals (cancel a referral when its purchase is refunded).
 
 ---
 
