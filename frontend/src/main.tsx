@@ -5,12 +5,14 @@ import { HelmetProvider } from 'react-helmet-async'
 import './index.css'
 import App from './App.tsx'
 import { captureAttribution } from './lib/attribution'
+import { captureCouponLink } from './lib/couponLink'
 
 // Before the first render, not in an effect: the sign-up page builds its Google
 // link during render, so a visitor landing straight on /signup?utm_source=…
 // would otherwise get a link without the campaign. Only the landing URL matters
 // — in-app navigation never carries a new campaign — so once per load is right.
 captureAttribution()
+captureCouponLink()
 
 const queryClient = new QueryClient({
   defaultOptions: {

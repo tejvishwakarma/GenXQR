@@ -465,8 +465,10 @@ model Invoice {
 
 /// A discount code created by a super-admin and redeemed by a customer at checkout.
 ///
-/// Discounts apply to the FIRST payment of a subscription, not to renewals —
-/// renewals are separate Cashfree orders created without a coupon.
+/// There is no auto-debit: every renewal is a fresh checkout, so a code can be
+/// entered on any purchase, renewals included. How often one customer may use it
+/// is maxRedemptionsPerUser (default 1). A code that leaves less than ₹1 to pay
+/// makes the purchase free: the plan is granted without a Cashfree order.
 model Coupon {
   id               String             @id @default(cuid())
   /// Always stored UPPERCASE and matched case-insensitively, so "save20" and

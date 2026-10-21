@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Loader2, Plus, Trash2, Pencil, Ticket } from "lucide-react"
+import { Loader2, Plus, Trash2, Pencil, Ticket, Link2, Check } from "lucide-react"
+import { couponLink } from "@/lib/couponLink"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -413,6 +414,7 @@ export default function AdminCouponsPage() {
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        <CopyLinkButton code={c.code} />
                         <Button variant="ghost" size="sm" onClick={() => { setForm(fromCoupon(c)); setError("") }}>
                           <Pencil size={14} />
                         </Button>
@@ -429,5 +431,31 @@ export default function AdminCouponsPage() {
         </Card>
       )}
     </div>
+  )
+}
+
+/**
+ * Copies the coupon's shareable link (lib/couponLink): anyone opening it has
+ * the code applied at checkout automatically. Uses this site's own origin, so
+ * the link points at whichever environment the admin is working in.
+ */
+function CopyLinkButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+  const link = couponLink(code, window.location.origin)
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={copied ? "Copied" : `Copy link: ${link}`}
+      aria-label={`Copy link for ${code}`}
+      onClick={() => {
+        void navigator.clipboard.writeText(link).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+      }}
+    >
+      {copied ? <Check size={14} className="text-emerald-500" /> : <Link2 size={14} />}
+    </Button>
   )
 }

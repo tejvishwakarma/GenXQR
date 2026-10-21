@@ -608,6 +608,20 @@ no auto-debit, so renewing means paying again. Until this existed, nothing acted
   so it can say what actually happened.
 - Admin plan changes set a 1-month period, so admin-granted plans now expire too.
 
+**Coupons** (`services/coupon.service.ts`, admin CRUD in `admin-coupons.service.ts` +
+`/admin/coupons`). The client only ever sends a CODE; `quoteCoupon` prices it from the
+coupon record and `PLAN_PRICES_INR`, and checkout tags the order with `expectedPaise`, which
+activation bounds (≤ list price, ≥ ₹1) before comparing with what Cashfree collected.
+Redemptions are written in the activation transaction, unique per order id. Every renewal is
+a fresh checkout, so a code can apply to renewals too — `maxRedemptionsPerUser` (default 1)
+limits that. Since 21 Oct 2026:
+- **Free coupons:** a code leaving < ₹1 makes the purchase free — `grantFreePeriodWithCoupon`
+  grants the plan with no Cashfree order (synthetic `genxqr_free_…` id, ₹0 invoice, no phone
+  needed) through the same `applyPurchasedPeriod` as paid activation, with coupon limits
+  enforced strictly in the transaction (`recordRedemption(…, { strict: true })`).
+- **Coupon links:** `?coupon=CODE` on any page is kept 30 days (`lib/couponLink.ts`, latest
+  link wins) and applied when checkout opens on `/app/billing`; admins copy links per code.
+
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
 `reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.

@@ -418,5 +418,99 @@ describe("coupons", () => {
       expect(invoice?.amount).toBe(STARTER_MONTHLY_PAISE)
       expect(await prisma.couponRedemption.count({ where: { cashfreeOrderId: orderId } })).toBe(0)
     })
+
+  /**
+   * Coupons that leave nothing to pay (added 21 Oct 2026). They used to be
+   * refused, so a 100%-off code could only be honoured by an admin changing the
+   * plan by hand. Now the plan is granted directly — no Cashfree order — and,
+   * with no payment to honour, the limits are enforced strictly.
+   */
+  describe("coupons that make the purchase free", () => {
+    /** Fails the test if checkout reaches Cashfree at all. */
+    function forbidCashfree() {
+      vi.stubGlobal("fetch", async () => {
+        throw new Error("a free checkout must not call Cashfree")
+      })
+    }
+
+    it("should grant the plan without a payment, a phone number, or a Cashfree order", async () => {
+      forbidCashfree()
+      const user = await createUser()
+      const coupon = await givenCoupon({ discountValue: 100 })
+
+      const res = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly", couponCode: coupon.code })
+
+      expect(res.status).toBe(200)
+      expect(res.body.data).toMatchObject({ free: true, planName: "PRO", billingCycle: "monthly", amount: 0 })
+
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id }, include: { plan: true } })
+      expect(sub.plan.name).toBe("PRO")
+      expect(sub.status).toBe("ACTIVE")
+      expect(sub.currentPeriodEnd.getTime()).toBeGreaterThan(Date.now() + 27 * 24 * 60 * 60 * 1000)
+
+      const invoice = await prisma.invoice.findUniqueOrThrow({ where: { cashfreeOrderId: res.body.data.orderId } })
+      expect(invoice.amount).toBe(0)
+      expect(invoice.cashfreePaymentId).toBeNull()
+
+      const redemption = await prisma.couponRedemption.findUniqueOrThrow({ where: { cashfreeOrderId: res.body.data.orderId } })
+      expect(redemption).toMatchObject({ originalPaise: PRO_MONTHLY_PAISE, discountPaise: PRO_MONTHLY_PAISE, finalPaise: 0 })
+      expect((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).redemptionCount).toBe(1)
+    })
+
+    it("should treat a coupon leaving under ₹1 as free, and say so in the preview", async () => {
+      forbidCashfree()
+      const user = await createUser()
+      // ₹799 minus ₹798.50 leaves 50 paise — not worth a payment page.
+      const coupon = await givenCoupon({ discountType: "FIXED", discountValue: PRO_MONTHLY_PAISE - 50 })
+
+      const preview = await request(app)
+        .post("/api/billing/validate-coupon")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ code: coupon.code, planName: "PRO", billingCycle: "monthly" })
+      expect(preview.status).toBe(200)
+      expect(preview.body.data).toMatchObject({ finalPaise: 0, discountPaise: PRO_MONTHLY_PAISE, isFree: true })
+
+      const res = await request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly", couponCode: coupon.code })
+      expect(res.body.data.free).toBe(true)
+    })
+
+    it("should not let a second use by the same customer extend the plan again", async () => {
+      forbidCashfree()
+      const user = await createUser()
+      const coupon = await givenCoupon({ discountValue: 100 })
+      const order = () => request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly", couponCode: coupon.code })
+
+      expect((await order()).status).toBe(200)
+      const again = await order()
+      expect(again.status).toBe(422)
+      expect(await prisma.invoice.count({ where: { userId: user.id } })).toBe(1)
+    })
+
+    it("should grant the last use to exactly one of two customers checking out at once", async () => {
+      forbidCashfree()
+      const [a, b] = [await createUser(), await createUser()]
+      const coupon = await givenCoupon({ discountValue: 100, maxRedemptions: 1 })
+      const order = (u: TestUser) => request(app)
+        .post("/api/billing/create-order")
+        .set("Authorization", `Bearer ${u.token}`)
+        .send({ planName: "PRO", billingCycle: "monthly", couponCode: coupon.code })
+
+      const results = await Promise.all([order(a), order(b)])
+      const granted = results.filter((r) => r.status === 200)
+      expect(granted).toHaveLength(1)
+      expect(results.find((r) => r.status !== 200)?.status).toBe(422)
+      expect((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).redemptionCount).toBe(1)
+      expect(await prisma.couponRedemption.count({ where: { couponId: coupon.id } })).toBe(1)
+    })
+  })
   })
 })
