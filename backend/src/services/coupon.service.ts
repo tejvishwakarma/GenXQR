@@ -30,8 +30,10 @@ export interface CouponQuote {
   originalPaise: number
   /** How much comes off, in paise. Never exceeds originalPaise. */
   discountPaise: number
-  /** What the customer actually pays, in paise. */
+  /** What the customer actually pays, in paise. 0 = the coupon makes it free. */
   finalPaise: number
+  /** True when nothing is left to pay: the plan is granted without a payment. */
+  isFree: boolean
 }
 
 // Coupon.description is deliberately NOT part of this quote. It is an internal
@@ -48,9 +50,14 @@ export class CouponError extends AppError {
 }
 
 /**
- * Cashfree will not accept an order for nothing, and a 100%-off subscription
- * should be granted by an admin plan change rather than a zero-value payment.
- * Anything that would fall below this is clamped and reported.
+ * The smallest amount sent to Cashfree, which does not take orders for nothing.
+ *
+ * A coupon that leaves less than this to pay makes the purchase FREE: no payment
+ * order is created and the plan is granted directly (billing.service
+ * grantFreePeriodWithCoupon). Until 21 Oct 2026 such coupons were refused, and
+ * a 100%-off code could only be honoured by an admin changing the plan by hand.
+ * Rounding a sub-₹1 remainder down to free gives away under a rupee; charging
+ * it would mean a payment page for 50 paise.
  */
 export const MINIMUM_CHARGEABLE_PAISE = 100 // ₹1
 
@@ -106,12 +113,12 @@ export async function quoteCoupon(params: {
     )
   }
 
-  const discountPaise = computeDiscountPaise(coupon, originalPaise)
-  const finalPaise = originalPaise - discountPaise
-
+  let discountPaise = computeDiscountPaise(coupon, originalPaise)
+  let finalPaise = originalPaise - discountPaise
   if (finalPaise < MINIMUM_CHARGEABLE_PAISE) {
-    // Rather than silently charging ₹1 more than the coupon promises.
-    throw new CouponError("This coupon cannot be applied to this plan. Please contact support.")
+    // Nothing chargeable is left: the coupon makes this purchase free.
+    discountPaise = originalPaise
+    finalPaise = 0
   }
 
   return {
@@ -120,6 +127,7 @@ export async function quoteCoupon(params: {
     originalPaise,
     discountPaise,
     finalPaise,
+    isFree: finalPaise === 0,
   }
 }
 
@@ -162,6 +170,10 @@ export function computeDiscountPaise(
  * been taken — leaving the customer charged and unsubscribed — the redemption is
  * recorded and the overage logged for an admin to see. Slightly overshooting a
  * marketing limit is a far better failure than a charged customer with no plan.
+ *
+ * `strict` is for FREE redemptions, where no money has been taken and so there
+ * is nothing to honour: the limits are re-checked inside the transaction, and a
+ * redemption that would go over either one throws, rolling the grant back.
  */
 export async function recordRedemption(
   tx: Pick<typeof prisma, "coupon" | "couponRedemption">,
@@ -175,7 +187,45 @@ export async function recordRedemption(
     planName: PlanName
     billingCycle: string
   },
+  options: { strict?: boolean } = {},
 ): Promise<void> {
+  if (options.strict) {
+    const coupon = await tx.coupon.findUniqueOrThrow({
+      where: { id: params.couponId },
+      select: { maxRedemptions: true, maxRedemptionsPerUser: true },
+    })
+    const usedByThisUser = await tx.couponRedemption.count({
+      where: { couponId: params.couponId, userId: params.userId },
+    })
+    if (usedByThisUser >= coupon.maxRedemptionsPerUser) {
+      throw new CouponError("You have already used this coupon.")
+    }
+    if (coupon.maxRedemptions !== null) {
+      // Conditional increment: only succeeds while a use is left, so two
+      // concurrent free redemptions cannot both take the last one.
+      const claimed = await tx.coupon.updateMany({
+        where: { id: params.couponId, redemptionCount: { lt: coupon.maxRedemptions } },
+        data: { redemptionCount: { increment: 1 } },
+      })
+      if (claimed.count === 0) throw new CouponError("This coupon has reached its redemption limit.")
+    } else {
+      await tx.coupon.update({ where: { id: params.couponId }, data: { redemptionCount: { increment: 1 } } })
+    }
+    await tx.couponRedemption.create({
+      data: {
+        couponId: params.couponId,
+        userId: params.userId,
+        cashfreeOrderId: params.cashfreeOrderId,
+        originalPaise: params.originalPaise,
+        discountPaise: params.discountPaise,
+        finalPaise: params.finalPaise,
+        planName: params.planName,
+        billingCycle: params.billingCycle,
+      },
+    })
+    return
+  }
+
   await tx.couponRedemption.create({
     data: {
       couponId: params.couponId,

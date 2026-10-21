@@ -1711,7 +1711,20 @@ export interface BillingUsage {
  * What the backend returns to start a Cashfree checkout. The amount is priced
  * server-side and echoed here for display only — it is never sent back.
  */
+/** A coupon left nothing to pay: the plan was granted, there is no payment step. */
+export interface FreeCheckout {
+  free: true
+  orderId: string
+  planName: PlanName
+  billingCycle: "monthly" | "yearly"
+  amount: 0
+  currency: "INR"
+}
+
+export type CheckoutResult = CheckoutSession | FreeCheckout
+
 export interface CheckoutSession {
+  free?: false
   paymentSessionId: string   // handed to the Cashfree JS SDK
   orderId: string            // our order id; used to verify on return
   mode: "sandbox" | "production"
@@ -1788,7 +1801,7 @@ export function createPaymentOrder(
   phone?: string,
   couponCode?: string,
 ) {
-  return apiFetch<{ success: boolean; data: CheckoutSession }>("/api/billing/create-order", {
+  return apiFetch<{ success: boolean; data: CheckoutResult }>("/api/billing/create-order", {
     method: "POST",
     headers: authHeader(),
     // Only the code travels. The server prices it — sending an amount here would
@@ -1826,7 +1839,10 @@ export interface CouponQuote {
   couponId: string
   originalPaise: number
   discountPaise: number
+  /** 0 when the coupon leaves nothing to pay. */
   finalPaise: number
+  /** True when the plan is granted without a payment. */
+  isFree: boolean
 }
 
 /**

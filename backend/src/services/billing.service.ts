@@ -30,7 +30,7 @@ import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js
 import { expireSubscription, isLapsed, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
 import { invalidateScanQuota } from "./scan-quota.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
-import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE } from "./coupon.service.js"
+import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE, type CouponQuote } from "./coupon.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -441,7 +441,24 @@ export function webhookUrl(): string | null {
   return `${base}${WEBHOOK_PATH}`
 }
 
+/**
+ * What checkout returns: a Cashfree session to pay, or — when a coupon leaves
+ * nothing to pay — confirmation that the plan was granted outright.
+ */
+export type CheckoutResult = CheckoutSession | FreeCheckout
+
+export interface FreeCheckout {
+  free: true
+  /** The synthetic order id the grant was recorded under (invoice, redemption). */
+  orderId: string
+  planName: PlanName
+  billingCycle: "monthly" | "yearly"
+  amount: 0
+  currency: "INR"
+}
+
 export interface CheckoutSession {
+  free?: false
   /** Handed to the Cashfree JS SDK to open checkout. */
   paymentSessionId: string
   /** Our own order id — echoed back on return so we know what to verify. */
@@ -479,7 +496,7 @@ export async function createPaymentOrder(
   billingCycle: "monthly" | "yearly",
   phone?: string,
   couponCode?: string,
-): Promise<CheckoutSession> {
+): Promise<CheckoutResult> {
   if (planName === "FREE") {
     throw new AppError(400, "Cannot create a payment order for the free plan")
   }
@@ -494,6 +511,14 @@ export async function createPaymentOrder(
     where: { id: userId },
     select: { name: true, email: true, phone: true },
   })
+
+  // The client sends only a CODE. What it is worth is decided here, against the
+  // coupon record and the price table — never taken from the request.
+  const quote = couponCode ? await quoteCoupon({ code: couponCode, userId, planName, billingCycle }) : null
+
+  // Nothing to pay: grant the plan without a payment order. Before the phone
+  // check on purpose — the number is only needed by Cashfree.
+  if (quote?.isFree) return grantFreePeriodWithCoupon(userId, planName, billingCycle, quote)
 
   // Cashfree requires a 10-digit mobile on every order. Prefer one supplied now,
   // otherwise reuse what the user gave last time. A placeholder is NOT
@@ -514,9 +539,6 @@ export async function createPaymentOrder(
   const prices = PLAN_PRICES_INR[planName]
   const listPaise = Math.round((billingCycle === "yearly" ? prices.yearly : prices.monthly) * 100)
 
-  // The client sends only a CODE. What it is worth is decided here, against the
-  // coupon record and the price table — never taken from the request.
-  const quote = couponCode ? await quoteCoupon({ code: couponCode, userId, planName, billingCycle }) : null
   const chargePaise = quote ? quote.finalPaise : listPaise
   const amountINR = chargePaise / 100
 
@@ -586,6 +608,37 @@ export async function createPaymentOrder(
     planName,
     billingCycle,
   }
+}
+
+/**
+ * Grants a plan bought with a coupon that leaves nothing to pay (see
+ * MINIMUM_CHARGEABLE_PAISE in coupon.service). No Cashfree order exists, so the
+ * grant is recorded under a synthetic id with the same prefix as real orders —
+ * a ₹0 invoice and the redemption, through the same applyPurchasedPeriod as a
+ * paid activation. With no payment to honour, the coupon's limits are enforced
+ * strictly inside the transaction: a code that ran out between quote and grant
+ * is refused rather than over-redeemed.
+ */
+async function grantFreePeriodWithCoupon(
+  userId: string,
+  planName: PurchasablePlan,
+  billingCycle: "monthly" | "yearly",
+  quote: CouponQuote,
+): Promise<FreeCheckout> {
+  const orderId = `${ORDER_ID_PREFIX}free_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+  await applyPurchasedPeriod({
+    userId,
+    planName,
+    billingCycle,
+    orderId,
+    paymentId: null,
+    amountPaise: 0,
+    currency: "INR",
+    listPaise: quote.originalPaise,
+    coupon: { couponId: quote.couponId, couponCode: quote.code },
+    strictCoupon: true,
+  })
+  return { free: true, orderId, planName, billingCycle, amount: 0, currency: "INR" }
 }
 
 // ─── Payment verification ──────────────────────────────────────────────────────
@@ -694,6 +747,46 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
     throw new AppError(422, "This payment was made in an unsupported currency. Please contact support.")
   }
 
+  return applyPurchasedPeriod({
+    userId,
+    planName,
+    billingCycle,
+    orderId,
+    paymentId: order.cf_order_id ?? null,
+    amountPaise: expectedPaise,
+    currency: paidCurrency,
+    listPaise,
+    coupon: couponId ? { couponId, couponCode } : null,
+  })
+}
+
+/**
+ * Grants one billing period of a plan and records what paid for it: the
+ * subscription change, the invoice, and the coupon redemption if any, in one
+ * transaction keyed on `orderId`; then the after-effects (webhook, scan quota,
+ * resuming codes the lapse paused).
+ *
+ * The single place a plan is granted for a purchase — a Cashfree payment
+ * (activateSubscriptionForOrder) or a coupon that makes it free
+ * (grantFreePeriodWithCoupon) — so the period rules cannot drift between them.
+ */
+async function applyPurchasedPeriod(p: {
+  userId: string
+  planName: PurchasablePlan
+  billingCycle: "monthly" | "yearly"
+  /** Idempotency key: Invoice.cashfreeOrderId and CouponRedemption.cashfreeOrderId. */
+  orderId: string
+  /** Cashfree's own id for the order; null when no payment was taken. */
+  paymentId: string | null
+  /** What was collected, in paise (0 for a free coupon). */
+  amountPaise: number
+  currency: string
+  listPaise: number
+  coupon: { couponId: string; couponCode: string | null } | null
+  /** Enforce coupon limits inside the transaction — for free grants (see recordRedemption). */
+  strictCoupon?: boolean
+}): Promise<ActivationResult> {
+  const { userId, planName, billingCycle, orderId } = p
   const plan = await prisma.plan.findUniqueOrThrow({ where: { name: planName } })
 
   const now = new Date()
@@ -756,10 +849,10 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
         data: {
           userId,
           subscriptionId: sub.id,
-          cashfreePaymentId: order.cf_order_id,
+          cashfreePaymentId: p.paymentId,
           cashfreeOrderId: orderId,
-          amount: expectedPaise,
-          currency: paidCurrency,
+          amount: p.amountPaise,
+          currency: p.currency,
           status: "paid",
           planName,
           billingCycle,
@@ -774,30 +867,36 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
       // never exist without the payment that earned it — and the unique
       // constraint on cashfreeOrderId means a replayed webhook cannot count the
       // same redemption twice against the coupon's limit.
-      if (couponId) {
-        await recordRedemption(tx, {
-          couponId,
-          userId,
-          cashfreeOrderId: orderId,
-          originalPaise: listPaise,
-          discountPaise: listPaise - expectedPaise,
-          finalPaise: expectedPaise,
-          planName,
-          billingCycle,
-        })
+      if (p.coupon) {
+        await recordRedemption(
+          tx,
+          {
+            couponId: p.coupon.couponId,
+            userId,
+            cashfreeOrderId: orderId,
+            originalPaise: p.listPaise,
+            discountPaise: p.listPaise - p.amountPaise,
+            finalPaise: p.amountPaise,
+            planName,
+            billingCycle,
+          },
+          { strict: p.strictCoupon },
+        )
       }
     })
   } catch (err) {
     // P2002 = unique violation on cashfreeOrderId: the other path won the race
     // and already activated this order. That is a success, not a failure.
     if (typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002") {
-      logger.info("Cashfree activation lost the race — already processed", { orderId, userId })
+      logger.info("Activation lost the race — already processed", { orderId, userId })
       return { status: "already_processed" }
     }
     throw err
   }
 
-  logger.info("Subscription activated via Cashfree", { userId, planName, billingCycle, orderId, couponCode, discountPaise: listPaise - expectedPaise })
+  logger.info(p.paymentId ? "Subscription activated via Cashfree" : "Subscription granted by a free coupon", {
+    userId, planName, billingCycle, orderId, couponCode: p.coupon?.couponCode ?? null, discountPaise: p.listPaise - p.amountPaise,
+  })
   void deliverWebhookEvent(userId, "subscription.activated", { planName, billingCycle })
 
   // Switch back on the codes that lapsing paused. Best-effort: the payment is
@@ -810,6 +909,7 @@ export async function activateSubscriptionForOrder(orderId: string): Promise<Act
 
   return { status: "activated", planName, billingCycle }
 }
+
 
 /**
  * Verifies an order on behalf of a signed-in user returning from checkout.

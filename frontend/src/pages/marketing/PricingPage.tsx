@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { Check, X, Minus, ChevronRight, ChevronDown } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
@@ -6,6 +6,7 @@ import { PageHero } from "@/components/marketing/PageHero"
 import { MktContainer, SectionHead, MktButton, MktCard, Reveal } from "@/components/marketing/ui"
 import { FaqAccordion } from "@/components/marketing/FaqAccordion"
 import { cn } from "@/lib/utils"
+import { getPendingCoupon } from "@/lib/couponLink"
 
 // ─── JSON-LD schema ────────────────────────────────────────────────────────────
 // Deliverable 8: SoftwareApplication + FAQPage combined
@@ -304,6 +305,10 @@ export default function PricingPage() {
   const navigate = useNavigate()
   const [yearly, setYearly] = useState(false)
   const [showComparison, setShowComparison] = useState(false)
+  // Read after hydration, not during render: this page is prerendered, and the
+  // stored code only exists in the visitor's browser.
+  const [linkCoupon, setLinkCoupon] = useState<string | null>(null)
+  useEffect(() => setLinkCoupon(getPendingCoupon()), [])
 
   function handlePlanCTA(plan: typeof plans[0]) {
     const planKey = plan.name.toLowerCase()
@@ -379,6 +384,12 @@ export default function PricingPage() {
       </PageHero>
 
       <MktContainer>
+
+        {linkCoupon && (
+          <p className="mb-6 rounded-2xl border border-accent/30 bg-accent-soft px-5 py-3 text-center text-sm text-ink">
+            Your code <span className="font-mono font-semibold">{linkCoupon}</span> will be applied at checkout.
+          </p>
+        )}
 
         {/* ── Plan cards ── */}
         <Reveal>

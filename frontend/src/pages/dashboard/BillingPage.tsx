@@ -7,6 +7,7 @@ import {
   AlertTriangle, ChevronDown, ChevronUp, Crown, Rocket, Building2,
   CheckCircle, XCircle, FileText,
 } from "lucide-react"
+import { clearPendingCoupon, getPendingCoupon } from "@/lib/couponLink"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -282,7 +283,10 @@ export default function BillingPage() {
   useEffect(() => {
     if (!paymentResult) return
     // Invalidate subscription data so the plan badge updates immediately on success
-    if (paymentResult === "success") {
+    if (paymentResult === "success" || paymentResult === "free") {
+      // The coupon link has done its job.
+      clearPendingCoupon()
+      setLinkCoupon(null)
       void qc.invalidateQueries({ queryKey: ["subscription"] })
       void qc.invalidateQueries({ queryKey: ["billing-usage"] })
       void qc.invalidateQueries({ queryKey: ["invoices"] })
@@ -332,6 +336,32 @@ export default function BillingPage() {
   const [couponChecking, setCouponChecking] = useState(false)
   /** The server's quote once a code is accepted. Null means no discount applied. */
   const [appliedCoupon, setAppliedCoupon] = useState<CouponQuote | null>(null)
+  /** A code from a coupon link (lib/couponLink), applied when checkout opens. */
+  const [linkCoupon, setLinkCoupon] = useState<string | null>(() => getPendingCoupon())
+
+  /** Prices a code against a plan; shared by the Apply button and coupon links. */
+  const priceCoupon = useCallback(async (
+    code: string,
+    purchase: { planName: PlanName; cycle: "monthly" | "yearly" },
+  ) => {
+    setCouponChecking(true)
+    setCouponError("")
+    try {
+      const res = await validateCoupon({ code, planName: purchase.planName, billingCycle: purchase.cycle })
+      if (res.success && res.data) {
+        setAppliedCoupon(res.data)
+      } else {
+        setAppliedCoupon(null)
+        // The server explains why — expired, already used, wrong plan.
+        setCouponError(res.error ?? "That coupon code is not valid.")
+      }
+    } catch (err) {
+      setAppliedCoupon(null)
+      setCouponError(err instanceof Error ? err.message : "Could not check that code.")
+    } finally {
+      setCouponChecking(false)
+    }
+  }, [])
 
   const { data: subData, isLoading: subLoading } = useQuery({
     queryKey: ["subscription"],
@@ -406,19 +436,23 @@ export default function BillingPage() {
             : plans.find((p) => p.name === planName)!.priceMonthlyINR)
         : 0) * 100
 
-      setCouponInput("")
+      // A code from a coupon link is filled in and priced straight away; if it
+      // does not apply to this plan the reason shows and checkout carries on.
+      const fromLink = getPendingCoupon()
+      setCouponInput(fromLink ?? "")
       setCouponError("")
       setAppliedCoupon(null)
       setPhoneInput("")
       setPhoneError("")
       setPendingPurchase({ planName, cycle, listPaise })
       setCheckoutLoading(false)
+      if (fromLink) void priceCoupon(fromLink, { planName, cycle })
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to process request"
       setCheckoutError(msg)
       setCheckoutLoading(false)
     }
-  }, [subData?.data?.planName, qc, plans])
+  }, [subData?.data?.planName, qc, plans, priceCoupon])
 
   // Modal behaviours a hand-rolled dialog does not get for free: Escape closes
   // it, and the page behind stops scrolling while it is open (a fixed overlay
@@ -443,37 +477,19 @@ export default function BillingPage() {
       setCouponError("Enter a coupon code.")
       return
     }
-    setCouponChecking(true)
-    setCouponError("")
-    try {
-      const res = await validateCoupon({
-        code,
-        planName: pendingPurchase.planName,
-        billingCycle: pendingPurchase.cycle,
-      })
-      if (res.success && res.data) {
-        setAppliedCoupon(res.data)
-      } else {
-        setAppliedCoupon(null)
-        // The server explains why — expired, already used, wrong plan.
-        setCouponError(res.error ?? "That coupon code is not valid.")
-      }
-    } catch (err) {
-      setAppliedCoupon(null)
-      setCouponError(err instanceof Error ? err.message : "Could not check that code.")
-    } finally {
-      setCouponChecking(false)
-    }
-  }, [couponInput, pendingPurchase])
+    await priceCoupon(code, pendingPurchase)
+  }, [couponInput, pendingPurchase, priceCoupon])
 
   /** Creates the order and hands off to Cashfree. */
   const handleConfirmPurchase = useCallback(async () => {
     if (!pendingPurchase) return
 
-    // A number is required on every order. Use the stored one, or validate what
-    // was just typed — mirroring the server rule so nobody meets a raw 422.
+    // A number is required on every paid order. Use the stored one, or validate
+    // what was just typed — mirroring the server rule so nobody meets a raw 422.
+    // A free (fully discounted) purchase never reaches the payment provider,
+    // which is the only thing that needs it.
     let phone = storedPhone
-    if (!phone) {
+    if (!phone && !appliedCoupon?.isFree) {
       const digits = phoneInput.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "")
       if (!/^[6-9]\d{9}$/.test(digits)) {
         setPhoneError("Enter a valid 10-digit Indian mobile number.")
@@ -489,19 +505,30 @@ export default function BillingPage() {
       const orderRes = await createPaymentOrder(
         pendingPurchase.planName,
         pendingPurchase.cycle,
-        phone,
+        phone ?? undefined,
         // Only the code is sent; the server prices it again and is the authority
         // on what is charged.
         appliedCoupon?.code,
       )
       setPendingPurchase(null)
+      if (orderRes.data.free) {
+        // Granted outright: no payment step. Same refresh as a returning payment.
+        clearPendingCoupon()
+        setLinkCoupon(null)
+        setCheckoutLoading(false)
+        setSearchParams((prev) => {
+          prev.set("payment", "free")
+          return prev
+        }, { replace: true })
+        return
+      }
       await launchCashfreeCheckout(orderRes.data)
       // The tab navigates to Cashfree — loading stays true until unload.
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : "Failed to start payment")
       setCheckoutLoading(false)
     }
-  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon])
+  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon, setSearchParams])
 
   const handleCancel = useCallback(() => {
     if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period. After that your account moves to the Free plan and your active dynamic QR codes are paused until you pay again. Scan history is kept for 3 months after that, then deleted.")) return
@@ -596,7 +623,11 @@ export default function BillingPage() {
               {appliedCoupon ? (
                 <Button
                   variant="ghost"
-                  onClick={() => { setAppliedCoupon(null); setCouponInput(""); setCouponError("") }}
+                  onClick={() => {
+                    setAppliedCoupon(null); setCouponInput(""); setCouponError("")
+                    // Removing it here also forgets a code that came from a link.
+                    clearPendingCoupon(); setLinkCoupon(null)
+                  }}
                 >
                   Remove
                 </Button>
@@ -631,13 +662,15 @@ export default function BillingPage() {
               </div>
               {appliedCoupon && (
                 <p className="text-zinc-500 text-xs pt-1">
-                  The discount applies to this payment. Renewals are charged at the standard rate.
+                  {appliedCoupon.isFree
+                    ? "No payment needed — your plan starts as soon as you confirm. Renewals are charged at the standard rate."
+                    : "The discount applies to this payment. Renewals are charged at the standard rate."}
                 </p>
               )}
             </div>
 
-            {/* Phone — only when none is on file */}
-            {!storedPhone && (
+            {/* Phone — only when none is on file, and only for a real payment */}
+            {!storedPhone && !appliedCoupon?.isFree && (
               <div className="mt-5">
                 <label htmlFor="checkout-phone" className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5 block">
                   Mobile number
@@ -676,7 +709,7 @@ export default function BillingPage() {
                 onClick={() => void handleConfirmPurchase()}
                 disabled={checkoutLoading}
               >
-                {checkoutLoading ? "Starting…" : "Continue to payment"}
+                {checkoutLoading ? "Starting…" : appliedCoupon?.isFree ? "Activate plan" : "Continue to payment"}
               </Button>
             </div>
           </Card>
@@ -699,6 +732,28 @@ export default function BillingPage() {
           <span className="text-zinc-700 dark:text-zinc-300">
             Payment successful! Your subscription has been activated.
           </span>
+        </div>
+      )}
+      {paymentResult === "free" && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-sm">
+          <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+          <span className="text-zinc-700 dark:text-zinc-300">
+            Coupon applied — your plan is active. No payment was needed.
+          </span>
+        </div>
+      )}
+      {linkCoupon && !paymentResult && !verifying && (
+        <div className="flex items-center justify-between gap-3 p-4 rounded-xl bg-violet-500/10 border border-violet-500/30 text-sm">
+          <span className="text-zinc-700 dark:text-zinc-300">
+            Coupon <span className="font-mono font-semibold">{linkCoupon}</span> will be applied when you choose a plan.
+          </span>
+          <button
+            type="button"
+            onClick={() => { clearPendingCoupon(); setLinkCoupon(null) }}
+            className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 shrink-0"
+          >
+            Remove
+          </button>
         </div>
       )}
       {paymentResult === "failure" && (

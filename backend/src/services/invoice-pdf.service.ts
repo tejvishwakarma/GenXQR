@@ -309,7 +309,9 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     const cells: Array<[string, string]> = []
     if (data.cashfreeOrderId) cells.push(["ORDER ID", data.cashfreeOrderId])
     if (data.cashfreePaymentId) cells.push(["CASHFREE REF", data.cashfreePaymentId])
-    cells.push(["METHOD", "Cashfree Payments"])
+    // A ₹0 invoice from a coupon that made the purchase free (billing.service
+    // grantFreePeriodWithCoupon) involved no payment at all.
+    cells.push(["METHOD", data.amount === 0 && !data.cashfreePaymentId ? "Coupon — no payment" : "Cashfree Payments"])
     cells.push(["CURRENCY", data.currency])
 
     const cellWidth = CONTENT_WIDTH / 2 - 6
