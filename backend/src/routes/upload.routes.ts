@@ -14,6 +14,7 @@ import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 import { verifyMagicBytes, type MagicByteRule } from "../utils/verifyMagicBytes.js"
 import { recordPendingUpload, removeUnreferencedFiles, storageUsedBytes } from "../services/uploads.service.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 const uid = (req: Request): string => (req.user as unknown as AccessTokenPayload).sub
 
@@ -116,7 +117,7 @@ function makeUploader(config: UploadConfig) {
     cb(null, true)
   }
 
-  return multer({ storage, fileFilter, limits: { fileSize: config.maxBytes } })
+  return multer({ storage, fileFilter, limits: { ...MULTIPART_FIELD_LIMITS, fileSize: config.maxBytes } })
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────

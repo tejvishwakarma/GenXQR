@@ -11,6 +11,7 @@ import {
   streamResultsZip,
   streamCsvTemplate,
 } from "../services/bulk.service.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 const router: IRouter = Router()
 const uid = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
@@ -18,7 +19,7 @@ const uid = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
 // Store uploaded CSV in memory (max 5 MB)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { ...MULTIPART_FIELD_LIMITS, fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === "text/csv" || file.originalname.endsWith(".csv")) {
       cb(null, true)

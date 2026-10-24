@@ -20,6 +20,7 @@ import { careersApplyLimiter } from "../middleware/rateLimit.middleware.js"
 import { sendEmail, buildJobApplicationEmail } from "../services/email.service.js"
 import { prisma } from "../db/prisma.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 const router: IRouter = Router()
 
@@ -55,7 +56,7 @@ const cvStorage = multer.diskStorage({
 
 const upload = multer({
   storage: cvStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { ...MULTIPART_FIELD_LIMITS, fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase()
     if (CV_ALLOWED_MIME.has(file.mimetype) && CV_ALLOWED_EXT.has(ext)) {

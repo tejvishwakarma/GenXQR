@@ -27,6 +27,7 @@ import { logAudit } from "../services/audit.service.js"
 import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 import { parseAttributionParam } from "../utils/attribution.util.js"
 import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.util.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -448,7 +449,7 @@ const avatarUpload = multer({
       cb(null, `${randomBytes(12).toString("hex")}${ext}`) // unguessable, like uploads
     },
   }),
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: { ...MULTIPART_FIELD_LIMITS, fileSize: 2 * 1024 * 1024 },
   fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
     const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     const allowedExt = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"])

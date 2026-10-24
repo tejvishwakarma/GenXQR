@@ -1356,3 +1356,10 @@ pnpm preview               # vite preview (serves dist/)
       payments/plan changes, password change and account deletion are refused
       (`forbidWhileImpersonating`). Coupon uses store `inboxHash` and survive account deletion.
     - The Cashfree webhook has NO timestamp age check, on purpose — see cashfree.service.ts.
+    - (24 Oct, dependency advisories) One unauthenticated request could kill a worker. body-parser
+      must stay ≥ 1.20.9: with a `verify` (ours keeps the webhook raw body) 1.20.x left the
+      decoder piped after a 415, and our error handler — unlike Express's default — does not
+      unpipe, so bad gzip bytes threw. multer must stay ≥ 2.5.0 AND every instance must spread
+      `MULTIPART_FIELD_LIMITS` (utils/multipart-limits.util.ts): its nesting/array-index limits
+      are opt-in, and `a[4294967294]` + `a[b]` blocked the event loop > 30 s on the public CV
+      upload. Both proven in `tests/integration/request-crash.test.ts`.
