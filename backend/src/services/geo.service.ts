@@ -108,11 +108,17 @@ function maxmindFetch(suffix: string, timeoutMs: number): Promise<Response> {
   })
 }
 
-/** Downloads, verifies and installs the current GeoLite2-City release. */
-export async function downloadGeoDatabase(): Promise<void> {
+/**
+ * Downloads, verifies and installs the current GeoLite2-City release.
+ *
+ * `target` exists for the tests: deploy.sh runs them inside the production
+ * checkout, where the default path IS the live database, and re-installing it
+ * there would stamp it fresh on every deploy so the weekly refresh never ran.
+ */
+export async function downloadGeoDatabase(target: string = DB_PATH): Promise<void> {
   if (!maxmindConfigured()) throw new Error("MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY are not set")
   const { mkdir, mkdtemp, readdir, rename, rm } = fs.promises
-  const dataDir = path.dirname(DB_PATH)
+  const dataDir = path.dirname(target)
   await mkdir(dataDir, { recursive: true })
   const work = await mkdtemp(path.join(dataDir, ".geo-"))
   try {
@@ -141,13 +147,13 @@ export async function downloadGeoDatabase(): Promise<void> {
     await maxmind.open(mmdb) // refuse a file the reader cannot load
 
     // Replacing the file deletes the previous release, as the licence requires.
-    await rename(mmdb, DB_PATH)
+    await rename(mmdb, target)
     // tar keeps MaxMind's build time on the file. The age check above is "time
     // since WE downloaded", so stamp it now — otherwise a gap of over a week
     // between MaxMind releases would re-download every 10 minutes and run into
     // the 30-a-day limit.
     const now = new Date()
-    await fs.promises.utimes(DB_PATH, now, now)
+    await fs.promises.utimes(target, now, now)
     logger.info("GeoIP database updated from MaxMind", { release: folder!.name })
   } finally {
     await rm(work, { recursive: true, force: true })

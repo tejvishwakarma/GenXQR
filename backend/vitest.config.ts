@@ -31,6 +31,19 @@ function loadTestEnv(): Record<string, string> {
     )
   }
 
+  // Credentials for real outside services are blanked unless .env.test sets
+  // them. deploy.sh sources the PRODUCTION env file before running this suite,
+  // and anything .env.test leaves out is inherited — so tests on the server ran
+  // with the live Resend key (real emails to test addresses, some of them real
+  // Gmail inboxes) and the live MaxMind key. Locally and in CI none of these are
+  // set, so blanking them makes the server run match what was tested.
+  const EXTERNAL_CREDENTIALS = [
+    "RESEND_API_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASS",
+    "MAXMIND_ACCOUNT_ID", "MAXMIND_LICENSE_KEY",
+    "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALLBACK_URL", "GOOGLE_DRIVE_REDIRECT_URI",
+  ]
+  for (const key of EXTERNAL_CREDENTIALS) parsed[key] ??= ""
+
   return parsed
 }
 

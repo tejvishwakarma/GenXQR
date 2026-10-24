@@ -1169,6 +1169,15 @@ pnpm typecheck:tests       # tsc on tests/ (vitest strips types without checking
 TRUNCATE deadlocked/stalled against fire-and-forget writes from the previous test (1–2
 random timeouts per full run, also on the pre-change code). Full run ≈ 2 min.
 
+**The suite also runs ON THE PRODUCTION SERVER** (deploy.sh), in the live checkout, after
+sourcing the production env file. Two consequences (found 24 Oct 2026):
+- Anything `.env.test` leaves out is inherited from production. `vitest.config.ts` therefore
+  blanks external-service credentials (Resend, SMTP, MaxMind, Google) — before that, tests
+  on the server ran with the live Resend key. A new outside service's key goes in that list.
+- `process.cwd()/data` and `/uploads` there are the LIVE files. Tests must never write to
+  them: `downloadGeoDatabase(target)` takes a path so its test installs into a temp folder
+  (installing over the live database re-stamped it fresh each deploy, so it never refreshed).
+
 **macOS dev:** `pnpm db:up/down/logs` go through `scripts/compose.mjs`, which uses WSL on
 Windows and plain `docker compose` elsewhere. On a Mac, Docker runs in Colima: `colima start`
 first (and register the compose plugin: `ln -sfn $(brew --prefix)/opt/docker-compose/bin/docker-compose ~/.docker/cli-plugins/docker-compose`).
