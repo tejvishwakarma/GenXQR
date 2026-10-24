@@ -1148,6 +1148,13 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - `Permissions-Policy` is `camera=(self)`: `camera=()` denied the camera to `/scanner` itself.
 - `/uploads/` → served directly from disk
 - HTML routing (no blanket SPA fallback any more — see gotcha 16): app routes (`/app`, `/admin`, auth screens, `/invite`, `/l`) → `app-shell.html`; `/` → the prerendered `index.html`; public pages → their prerendered `<route>/index.html`; anything else → a real **404** with `404.html`; a trailing slash 301s to the bare path
+- **Production Postgres runs with `TimeZone = Asia/Kolkata`, but every Prisma `DateTime` is stored as UTC in
+  `timestamp without time zone`.** Hand-written SQL comparing a column with `now()` is therefore off by 5½ hours
+  (a "last 3 hours" query on 24 Oct 2026 found nothing that was there). Compare with
+  `now() AT TIME ZONE 'UTC'`, or skip time filters.
+- **CloudPanel's Vhost Editor strips anything that looks like an HTML tag — and the rest of the file after a
+  `<script>`** — so a vhost with `<…>` in a comment is rejected as "unexpected end of file". Keep `<` and `>`
+  out of `deploy/*.conf` entirely, comments included.
 - Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
 
 **PM2 config** (`ecosystem.config.cjs`):
