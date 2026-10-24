@@ -152,6 +152,7 @@ const plans = [
       "All 16 QR types — URL, PDF, menu, vCard, WiFi & more",
       "PNG + SVG download — print or digital ready",
       "86 print-ready QR frames — colourful shapes, premium & occasion designs",
+      "Your logo at the top of your scan pages",
       "5,000 scans/month",
       "Scheduled activation & auto-expiry",
       "No ads",
@@ -190,6 +191,7 @@ const plans = [
       "5 team seats (incl. yours) — admin, editor & viewer roles",
       "All download formats — PNG, SVG, PDF",
       "86 print-ready QR frames — colourful shapes, premium & occasion designs",
+      "Your logo at the top of your scan pages",
       "Email support",
     ],
     missing: [
@@ -237,6 +239,7 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
   { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,           business: true },
   { feature: "Custom design & logo",      free: "Colours, no logo", starter: true,         pro: true,           business: true },
   { feature: "QR frames (86 designs)",    free: false,    starter: true,         pro: true,           business: true },
+  { feature: "Your logo on scan pages",   free: false,    starter: true,         pro: true,           business: true },
   { feature: "A/B testing",               free: false,    starter: false,        pro: true,           business: true },
   { feature: "Smart routing",             free: false,    starter: false,        pro: true,           business: true },
   { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "5,000 QRs" },

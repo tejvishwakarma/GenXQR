@@ -60,6 +60,20 @@ model User {
   signupLandingPath       String?
   /// When the attributed first visit happened (client clock, clamped to the past).
   firstTouchAt            DateTime?
+  /// Where the account was created and last signed in from (admin panel, decided
+  /// 24 Oct 2026; see user-location.service.ts). Country code "ZZ" = looked up,
+  /// unknown. null = not looked up yet (the expiry worker fills it). The IP is
+  /// never a Cloudflare or private address; the admin API shows it to SUPER_ADMIN only.
+  signupIp                String?
+  signupCountryCode       String?
+  signupCountry           String?
+  signupRegion            String?
+  signupCity              String?
+  lastLoginIp             String?
+  lastLoginCountryCode    String?
+  lastLoginCountry        String?
+  lastLoginRegion         String?
+  lastLoginCity           String?
   apiKeys                 ApiKey[]
   auditLogs               AuditLog[]
   emailVerificationTokens EmailVerificationToken[]
@@ -86,6 +100,8 @@ model User {
 
   @@index([normalizedEmail])
   @@index([createdAt, signupSource])
+  @@index([signupCountryCode])
+  @@index([lastLoginCountryCode])
   // No explicit @@index([email]) — the @unique on the email field above
   // already creates a backing index; a second one just duplicates write cost.
   @@map("users")
@@ -152,6 +168,10 @@ model QRCode {
   /// the owner turned off themselves stays off. Also blocks the owner from
   /// toggling it on while unpaid.
   pausedForBilling    Boolean            @default(false)
+  /// Set when an ADMIN took the code down (Admin → QR codes → Force deactivate).
+  /// Only an admin can switch it back on: the owner's toggle, a renewed plan and
+  /// the scan path (reason "blocked", no fallback) all respect it.
+  disabledByAdminAt DateTime?
   /// Every scan, repeats included. This is the number the per-QR scanLimit is
   /// measured against.
   scanCount           Int                @default(0)
@@ -413,6 +433,10 @@ model RefreshToken {
   tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
+  /// Set when the token was revoked BY ROTATION (exchanged for a new one), as
+  /// opposed to logout or a password change. A rotated token presented again
+  /// after a short grace is a stolen copy (refreshTokens).
+  rotatedAt DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -526,7 +550,12 @@ model Coupon {
 model CouponRedemption {
   id       String @id @default(cuid())
   couponId String
-  userId   String
+  /// Null once the account is deleted — the row stays so the use still counts.
+  userId   String?
+  /// inboxHash of the redeeming account's email (utils/inbox-hash.util.ts), so
+  /// "once per customer" survives deleting and re-creating the account
+  /// (audit, 24 Oct 2026). Null on rows written before it existed.
+  inboxHash String?
 
   /// The Cashfree order this discount was applied to. UNIQUE, so a replayed
   /// webhook or a raced browser-return cannot record the same redemption twice
@@ -544,10 +573,11 @@ model CouponRedemption {
   redeemedAt   DateTime @default(now())
 
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([couponId])
   @@index([userId])
+  @@index([couponId, inboxHash])
   @@map("coupon_redemptions")
 }
 
@@ -955,6 +985,39 @@ model Referral {
   @@unique([referrerId, refereeEmailHash])
   @@index([referrerId, createdAt])
   @@map("referrals")
+}
+
+/// An inbox that has had its free trial (billing.service createTrialSubscription).
+/// Keyed by inboxHash, with no link to the account, so deleting the account and
+/// signing up again does not grant another trial (security audit, 23 Oct 2026).
+model TrialUsage {
+  emailHash String   @id
+  usedAt    DateTime @default(now())
+
+  @@map("trial_usages")
+}
+
+/// A file uploaded but not (yet) attached to a QR code (uploads.service.ts).
+/// Written at upload time with the size and type the SERVER measured, so the
+/// storage quota counts it and attaching cannot under-report it. Deleted on
+/// attach; a sweep removes files still unattached after 24 hours. No foreign
+/// keys on purpose: the row must outlive its owner so the sweep can still
+/// delete the bytes.
+model PendingUpload {
+  /// /uploads/<subdir>/<file>
+  path       String   @id
+  /// Workspace owner the bytes count against.
+  ownerId    String
+  /// Who uploaded it (a team member, or the owner).
+  uploaderId String
+  sizeBytes  BigInt
+  mimeType   String
+  fileType   FileType
+  createdAt  DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([createdAt])
+  @@map("pending_uploads")
 }
 
 enum CreditKind {

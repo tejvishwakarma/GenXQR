@@ -55,25 +55,14 @@ const pwaConfig = VitePWA({
     // The QR frame library (~2.6 MB of SVGs and fonts, public/frames) is
     // fetched on demand in the dashboard — never precached for every visitor.
     globIgnores: ['frames/**'],
-    runtimeCaching: [
-      {
-        // Pentest finding #11: this used to be /^\/api\/(?!admin).+/, which
-        // cached EVERY non-admin API GET — including authenticated, per-user
-        // responses — in one URL-keyed cache. The cache is not partitioned by
-        // user and logout does not clear it, so on a shared browser the
-        // NetworkFirst fallback could serve one account's cached JSON to the
-        // next. Restricted to the genuinely public, non-personalised endpoints
-        // only. Anything authenticated now always hits the network and is never
-        // written to Cache Storage.
-        urlPattern: /^\/api\/public\//,
-        handler: 'NetworkFirst',
-        options: {
-          cacheName: 'public-api-cache',
-          networkTimeoutSeconds: 10,
-          expiration: { maxEntries: 30, maxAgeSeconds: 60 * 5 },
-        },
-      },
-    ],
+    // No runtime caching of API responses. The rule that was here
+    // (/^\/api\/public\//) never matched — Workbox tests a RegExp against the
+    // full URL (https://…), not the path — so nothing was ever cached, and the
+    // docs that said "/api network-first, 5 min" were wrong (audit, 23 Oct 2026).
+    // It is not "fixed" on purpose: /api/public/qr now serves the content of a
+    // password-protected code once unlocked, which must not sit in Cache Storage
+    // on a shared device. (Before that, pentest finding #11 had already narrowed
+    // it from every non-admin GET, which cached one account's JSON for the next.)
   },
   devOptions: {
     // Disable SW in dev to avoid stale cache confusion

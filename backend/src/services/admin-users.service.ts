@@ -1,4 +1,8 @@
+import { isLapsed, pauseCodesForBilling, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
 import { z } from "zod"
+import type { Prisma } from "@prisma/client"
+import { countryFilter, effectiveCountry } from "./user-location.service.js"
+import { STATE_FIELDS, subscriptionState } from "./subscription-state.js"
 import { prisma } from "../db/prisma.js"
 import { deleteUserAndData } from "./account-erasure.service.js"
 import { invalidateScanQuota } from "./scan-quota.service.js"
@@ -19,17 +23,23 @@ export interface PaginationParams {
 
 // ─── GET /admin-api/users ──────────────────────────────────────────────────────
 
-export async function listUsers({ page, limit, q }: PaginationParams) {
+export async function listUsers({ page, limit, q, country }: PaginationParams & { country?: string }) {
   const skip = (page - 1) * limit
 
-  const where = q
+  // Phones are stored as 10 bare digits (normalisePhone), so "+91 98765-43210"
+  // is matched on its digits; under 4 digits a phone match would be noise.
+  const phoneDigits = q?.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, "") ?? ""
+  const search: Prisma.UserWhereInput = q
     ? {
       OR: [
         { email: { contains: q, mode: "insensitive" as const } },
         { name: { contains: q, mode: "insensitive" as const } },
+        ...(phoneDigits.length >= 4 ? [{ phone: { contains: phoneDigits } }] : []),
       ],
     }
     : {}
+  // Effective country: where they signed up, else where they last signed in.
+  const where: Prisma.UserWhereInput = country ? { AND: [search, countryFilter(country)] } : search
 
   const [total, users] = await prisma.$transaction([
     prisma.user.count({ where }),
@@ -41,32 +51,55 @@ export async function listUsers({ page, limit, q }: PaginationParams) {
       select: {
         id: true, name: true, email: true, role: true,
         emailVerified: true, createdAt: true, lastLoginAt: true,
-        subscription: {
-          select: { status: true, plan: { select: { name: true } } },
-        },
+        signupCountryCode: true, signupCountry: true, lastLoginCountryCode: true, lastLoginCountry: true,
+        subscription: { select: STATE_FIELDS },
         _count: { select: { qrCodes: true } },
       },
     }),
   ])
+  const now = new Date()
 
-  return { users, total, page, limit, pages: Math.ceil(total / limit) }
+  return {
+    users: users.map(({ signupCountryCode, signupCountry, lastLoginCountryCode, lastLoginCountry, subscription, ...u }) => ({
+      ...u,
+      subscription: subscription
+        ? { status: subscription.status, plan: subscription.plan, state: subscriptionState(subscription, now) }
+        : null,
+      country: effectiveCountry({ signupCountryCode, signupCountry, lastLoginCountryCode, lastLoginCountry }),
+    })),
+    total, page, limit, pages: Math.ceil(total / limit),
+  }
 }
 
 // ─── GET /admin-api/users/:id ───────────────────────────────────────────────────
 
-export async function getUserDetail(userId: string) {
+/** One place a user was located (sign-up or last sign-in). `ip` only for SUPER_ADMIN. */
+export interface UserPlace {
+  ip?: string | null
+  countryCode: string | null
+  country: string | null
+  region: string | null
+  city: string | null
+}
+
+export async function getUserDetail(userId: string, callerRole: AdminRole) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true, name: true, email: true, role: true,
       emailVerified: true, createdAt: true, updatedAt: true, lastLoginAt: true,
       avatarUrl: true, googleId: true,
+      // The mobile number given at checkout (or in Settings) — every admin may
+      // see it, e.g. to call a customer about a payment (decided 24 Oct 2026).
+      phone: true,
       signupSource: true, signupMedium: true, signupCampaign: true, signupContent: true,
       signupTerm: true, signupReferrer: true, signupLandingPath: true, firstTouchAt: true,
+      signupIp: true, signupCountryCode: true, signupCountry: true, signupRegion: true, signupCity: true,
+      lastLoginIp: true, lastLoginCountryCode: true, lastLoginCountry: true, lastLoginRegion: true, lastLoginCity: true,
       subscription: {
         select: {
           status: true, trialEndsAt: true, currentPeriodStart: true,
-          currentPeriodEnd: true, cancelAtPeriodEnd: true,
+          currentPeriodEnd: true, cancelAtPeriodEnd: true, codesPauseAt: true, lapsedAt: true,
           plan: { select: { name: true, displayName: true } },
         },
       },
@@ -80,26 +113,41 @@ export async function getUserDetail(userId: string) {
 
   if (!user) throw new AppError(404, "User not found")
 
-  // Lazily apply trial-expiry downgrade (same logic as getUserPlanLimits) so
-  // the admin view is consistent with what the user sees on their billing page.
+  // A lapsed plan or trial is expired right here, as any request by the user
+  // would do (getUserPlanLimits), rather than shown as still running until the
+  // 10-minute worker gets to it.
   let freshSubscription = user.subscription
-  if (
-    user.subscription?.status === "TRIALING" &&
-    user.subscription.trialEndsAt &&
-    user.subscription.trialEndsAt < new Date()
-  ) {
-    await getUserPlanLimits(user.id) // triggers the lazy FREE downgrade in the DB
+  if (user.subscription && isLapsed(user.subscription)) {
+    await getUserPlanLimits(user.id) // triggers the expiry in the DB
     freshSubscription = await prisma.subscription.findUnique({
       where: { userId: user.id },
       select: {
         status: true, trialEndsAt: true, currentPeriodStart: true,
-        currentPeriodEnd: true, cancelAtPeriodEnd: true,
+        currentPeriodEnd: true, cancelAtPeriodEnd: true, codesPauseAt: true, lapsedAt: true,
         plan: { select: { name: true, displayName: true } },
       },
     })
   }
 
-  return { ...user, subscription: freshSubscription }
+  // Locations for every admin; the IP address itself only for SUPER_ADMIN
+  // (decided 24 Oct 2026) — stripped here, not just hidden in the UI.
+  const showIp = callerRole === "SUPER_ADMIN"
+  const {
+    signupIp, signupCountryCode, signupCountry, signupRegion, signupCity,
+    lastLoginIp, lastLoginCountryCode, lastLoginCountry, lastLoginRegion, lastLoginCity,
+    ...rest
+  } = user
+  const place = (ip: string | null, countryCode: string | null, country: string | null, region: string | null, city: string | null): UserPlace =>
+    ({ ...(showIp ? { ip } : {}), countryCode, country, region, city })
+
+  return {
+    ...rest,
+    subscription: freshSubscription ? { ...freshSubscription, state: subscriptionState(freshSubscription) } : null,
+    location: {
+      signup: place(signupIp, signupCountryCode, signupCountry, signupRegion, signupCity),
+      lastLogin: place(lastLoginIp, lastLoginCountryCode, lastLoginCountry, lastLoginRegion, lastLoginCity),
+    },
+  }
 }
 
 // ─── PATCH /admin-api/users/:id ─────────────────────────────────────────────────
@@ -206,6 +254,11 @@ export async function changePlan(
     },
   })
   await invalidateScanQuota(targetUser.id)
+  // FREE is never "lapsed" and has no enforced scan quota, so without this an
+  // account an admin moved to FREE kept every code live forever. A paid plan
+  // switches back on what a previous move to FREE (or a lapse) paused.
+  if (planName === "FREE") await pauseCodesForBilling(targetUser.id)
+  else await resumeCodesPausedForBilling(targetUser.id)
 
   await prisma.auditLog.create({
     data: {
@@ -316,6 +369,9 @@ export async function impersonateUser(adminId: string, adminRole: AdminRole, tar
     sub: target.id,
     email: target.email,
     role: target.role as AdminRole,
+    // Marks the session: audit rows name this admin, and actions that outlive
+    // the session (API keys, webhooks, payments…) are refused.
+    act: adminId,
   })
 
   await prisma.auditLog.create({
@@ -370,9 +426,17 @@ export async function forceSetPassword(callerRole: AdminRole, callerId: string, 
     select: { id: true, email: true, role: true },
   })
   if (!target) throw new AppError(404, "User not found")
+  // Customer accounts only, like impersonation: setting another admin's
+  // password is signing in as them. Admins change their own in Settings.
+  if (target.role !== "USER") throw new AppError(403, "Admin passwords cannot be set here. They change their own in Settings.")
 
   const passwordHash = await hashPassword(password)
-  await prisma.user.update({ where: { id: targetId }, data: { passwordHash } })
+  // Revoke every session too — this is how a compromised account is locked
+  // down, and the attacker's 30-day refresh cookie must not outlive it.
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: targetId }, data: { passwordHash } }),
+    prisma.refreshToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ])
 
   await prisma.auditLog.create({
     data: {

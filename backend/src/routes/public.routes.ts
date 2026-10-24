@@ -1,6 +1,8 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { prisma } from "../db/prisma.js"
-import { resolveBrandingForSlug, resolveBrandingForUser } from "../services/branding.service.js"
+import { resolveBrandingForSlug, GENXQR_BRANDING, resolveBrandingForUser } from "../services/branding.service.js"
+import { contentHasBlockedLink, scanAvailability } from "../services/scan.service.js"
+import { verifyQRUnlock } from "../utils/jwt.js"
 
 const router: IRouter = Router()
 
@@ -68,8 +70,22 @@ router.get(
       // endpoint. Content is only released after a successful password check via
       // POST /r/:slug/password. Returning 404 here avoids leaking the protected
       // destination/credentials to anyone who knows the slug.
-      if (!qr || !qr.isActive || qr.isPasswordProtected) {
+      // …unless the visitor carries the short-lived proof of having entered the
+      // password (POST /r/:slug/password → /l/<slug>?access=…).
+      const access = typeof req.query["access"] === "string" ? req.query["access"] : ""
+      const unlocked = qr?.isPasswordProtected === true && access !== "" && verifyQRUnlock(access, slug)
+      if (!qr || (qr.isPasswordProtected && !unlocked)) {
         res.status(404).json({ success: false, error: "QR code not found" })
+        return
+      }
+
+      // The same gate as a scan (scan.service unavailableFor): switched off,
+      // outside its dates, over its scan limit or the owner's quota, or the owner
+      // blocked — and links in the content on the destination blocklist. The
+      // reason, never the content, so the page can show the expired notice.
+      const reason = (await scanAvailability(slug)) ?? ((await contentHasBlockedLink(qr.content?.data)) ? "blocked" : null)
+      if (reason) {
+        res.json({ success: true, data: { slug: qr.slug, isActive: false, unavailableReason: reason } })
         return
       }
 
@@ -136,7 +152,7 @@ router.get(
     try {
       const slug = String(req.params["slug"] ?? "")
       if (!slug || !/^[a-zA-Z0-9_-]{4,32}$/.test(slug)) {
-        res.json({ success: true, data: { mode: "genxqr", name: null, logoUrl: null } })
+        res.json({ success: true, data: GENXQR_BRANDING })
         return
       }
       res.json({ success: true, data: await resolveBrandingForSlug(slug) })

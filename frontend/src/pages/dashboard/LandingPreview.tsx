@@ -33,6 +33,8 @@ export interface LandingPreviewProps {
   menuCurrency?: string
   businessHoursMap?: Record<string, string>
   businessSocialLinks?: Array<{ platform: string; url: string }>
+  /** The account's scan-page logo (paid plans), shown above the content as on the real page. */
+  pageLogoUrl?: string | null
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1019,6 +1021,7 @@ export default function LandingPreview({
   menuCurrency = "₹",
   businessHoursMap = {},
   businessSocialLinks = [],
+  pageLogoUrl = null,
 }: LandingPreviewProps) {
   // useWatch subscribes only to this component, not the parent — efficient re-renders
   const v = useWatch({ control }) as Record<string, string>
@@ -1138,6 +1141,12 @@ export default function LandingPreview({
 
   return (
     <PhoneShell>
+      {pageLogoUrl && (
+        // ScanPageLogoBar (components/ScanBranding.tsx) at this mockup's ~half scale.
+        <div className="flex w-full justify-center border-b border-black/5 bg-white px-2 py-1.5">
+          <img src={pageLogoUrl} alt="Logo" className="max-h-6 w-auto max-w-[70%] object-contain" />
+        </div>
+      )}
       {renderContent()}
     </PhoneShell>
   )

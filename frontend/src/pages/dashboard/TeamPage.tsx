@@ -303,6 +303,14 @@ export default function TeamPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-900 dark:text-white text-sm font-medium truncate">{member.name}</span>
                     {isMe && <span className="text-zinc-500 text-xs">(you)</span>}
+                    {member.suspended && (
+                      <span
+                        className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400"
+                        title="Your plan has fewer seats than members. Upgrade or remove someone to restore access."
+                      >
+                        No seat
+                      </span>
+                    )}
                   </div>
                   <div className="text-zinc-500 text-xs truncate">{member.email}</div>
                 </div>

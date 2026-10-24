@@ -18,6 +18,10 @@ const envSchema = z.object({
   GOOGLE_DRIVE_REDIRECT_URI: z.string().optional(),
   FRONTEND_URL: z.string().default("http://localhost:5173"),
   RESEND_API_KEY: z.string().optional(),
+  // MaxMind GeoLite2 (scan geolocation). Downloaded from MaxMind with these;
+  // without them there is no geo data (geo.service.ts). Free account.
+  MAXMIND_ACCOUNT_ID: z.string().trim().optional(),
+  MAXMIND_LICENSE_KEY: z.string().trim().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z
     .string()
@@ -49,7 +53,22 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
-const _parsed = envSchema.safeParse(process.env)
+const _parsed = envSchema
+  .superRefine((e, ctx) => {
+    // The example env's placeholder is 47 characters, so min(32) let a copied
+    // .env.example boot production with a public signing key — anyone could
+    // then mint admin tokens.
+    if (e.NODE_ENV !== "production") return
+    for (const key of ["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET"] as const) {
+      if (/CHANGE_ME|changeme|your[-_]?secret|placeholder/i.test(e[key])) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is still the example placeholder` })
+      }
+    }
+    if (e.JWT_ACCESS_SECRET === e.JWT_REFRESH_SECRET) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["JWT_REFRESH_SECRET"], message: "JWT_REFRESH_SECRET must differ from JWT_ACCESS_SECRET" })
+    }
+  })
+  .safeParse(process.env)
 
 if (!_parsed.success) {
   console.error("❌ Invalid environment variables:")

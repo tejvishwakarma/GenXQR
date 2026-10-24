@@ -54,13 +54,19 @@ export function isLapsed(sub: LapseCheckable, now = new Date()): boolean {
 }
 
 /**
- * Switches off the owner's active dynamic codes and marks them as paused by us.
- * Returns how many were paused. Static codes are untouched: their content is in
- * the printed image itself, so there is nothing to pause.
+ * Switches off the owner's active codes and marks them as paused by us.
+ * Returns how many were paused.
+ *
+ * Every category, STATIC included. A stored code's printed image always
+ * encodes /r/<slug> (frontend lib/qrDownload.ts), whatever its category, so a
+ * "STATIC" code is redirected — and editable — exactly like a DYNAMIC one.
+ * Exempting it let anyone create codes as STATIC through the API during a
+ * trial and keep live, editable codes forever after the plan lapsed. Truly
+ * static codes (/api/static/generate) are never stored, so they are untouched.
  */
 export async function pauseCodesForBilling(userId: string): Promise<number> {
   const codes = await prisma.qRCode.findMany({
-    where: { userId, category: "DYNAMIC", isActive: true },
+    where: { userId, isActive: true },
     select: { id: true, slug: true },
   })
   if (codes.length === 0) return 0
@@ -80,13 +86,18 @@ export async function pauseCodesForBilling(userId: string): Promise<number> {
 export async function resumeCodesPausedForBilling(userId: string): Promise<number> {
   const codes = await prisma.qRCode.findMany({
     where: { userId, pausedForBilling: true },
-    select: { id: true, slug: true },
+    select: { id: true, slug: true, disabledByAdminAt: true },
   })
   if (codes.length === 0) return 0
 
+  // A code an admin took down stays off; it is only no longer "paused for billing".
   await prisma.qRCode.updateMany({
-    where: { id: { in: codes.map((c) => c.id) } },
+    where: { id: { in: codes.filter((c) => !c.disabledByAdminAt).map((c) => c.id) } },
     data: { isActive: true, pausedForBilling: false },
+  })
+  await prisma.qRCode.updateMany({
+    where: { id: { in: codes.filter((c) => c.disabledByAdminAt).map((c) => c.id) } },
+    data: { pausedForBilling: false },
   })
   await Promise.all(codes.map((c) => invalidateQRCache(c.slug)))
   logger.info("Resumed QR codes paused for billing", { userId, count: codes.length })
@@ -266,7 +277,7 @@ export async function enforceSubscriptionExpiry(): Promise<void> {
   })
   for (const sub of noticed) {
     const activeCodes = await prisma.qRCode.count({
-      where: { userId: sub.userId, category: "DYNAMIC", isActive: true },
+      where: { userId: sub.userId, isActive: true },
     })
     if (activeCodes === 0) continue // nothing will pause; no reason to email
     await sendOnce({

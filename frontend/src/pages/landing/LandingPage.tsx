@@ -1,6 +1,6 @@
-import { useParams, Navigate } from "react-router-dom"
+import { useParams, useSearchParams, Navigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { ScanBrandFooter } from "@/components/ScanBranding"
+import { ScanBrandFooter, ScanPageLogoBar } from "@/components/ScanBranding"
 import { getPublicQR, GENXQR_BRANDING } from "@/lib/api"
 
 // Landing page templates
@@ -21,10 +21,12 @@ import URLLandingPage from "./templates/URLLandingPage"
 
 export default function LandingPage() {
   const { slug } = useParams<{ slug: string }>()
+  // Proof of a correct QR password (POST /r/:slug/password), for protected codes.
+  const access = useSearchParams()[0].get("access")
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["public-qr", slug],
-    queryFn: () => getPublicQR(slug!),
+    queryKey: ["public-qr", slug, access],
+    queryFn: () => getPublicQR(slug!, access),
     enabled: !!slug,
     retry: 1,
     staleTime: 60_000,
@@ -48,7 +50,8 @@ export default function LandingPage() {
   const qr = data.data
 
   if (!qr.isActive) {
-    return <Navigate to={`/r/${slug}/expired`} replace />
+    // The same notice a scan would show, with the reason (expired, limit…).
+    return <Navigate to={`/r/${slug}/expired${qr.unavailableReason ? `?reason=${qr.unavailableReason}` : ""}`} replace />
   }
 
   const props = {
@@ -95,6 +98,7 @@ export default function LandingPage() {
 
   return (
     <>
+      <ScanPageLogoBar branding={branding} />
       {template}
       <ScanBrandFooter branding={branding} />
     </>

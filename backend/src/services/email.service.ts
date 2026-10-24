@@ -43,6 +43,8 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail(opts: SendEmailOptions): Promise<void> {
+  // Subjects carry user text (names, ticket subjects, QR names). One line only.
+  opts = { ...opts, subject: opts.subject.replace(/[\r\n]+/g, " ") }
   if (resendClient) {
     const { error } = await resendClient.emails.send({
       from:        env.EMAIL_FROM,
@@ -96,7 +98,10 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
  * Wraps inner HTML content in the GenXQR branded email shell.
  * All transactional and broadcast emails use this shell for visual consistency.
  */
-function buildEmailShell(subject: string, innerHtml: string): string {
+function buildEmailShell(rawSubject: string, innerHtml: string): string {
+  // Escaped HERE, once: subjects carry user text (names, ticket subjects, QR
+  // names) and land in <title> and the hidden preheader. Callers pass it raw.
+  const subject = escapeHtml(rawSubject)
   // Must be absolute and publicly reachable — a relative path resolves against
   // the mail client, not our site. In development FRONTEND_URL points at
   // localhost, so the image simply will not load there and the alt text shows.
@@ -294,7 +299,7 @@ function buildEmailShell(subject: string, innerHtml: string): string {
  * into the support inbox. Escaping happens inside the builders so every caller is
  * covered rather than each one having to remember.
  */
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -309,7 +314,7 @@ export function buildVerificationEmail(name: string, verifyUrl: string): string 
       Verify your email address
     </h1>
     <p style="margin:0 0 8px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name},
+      Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 28px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       Thanks for signing up! Click the button below to confirm your email address and activate your GenXQR account.
@@ -343,7 +348,7 @@ export function buildPasswordResetEmail(name: string, resetUrl: string): string 
       Reset your password
     </h1>
     <p style="margin:0 0 8px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name},
+      Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 28px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       We received a request to reset the password for your GenXQR account. Click the button below to choose a new password.
@@ -387,7 +392,7 @@ export function buildPasswordChangedEmail(name: string): string {
       Your password was changed
     </h1>
     <p style="margin:0 0 8px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name},
+      Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       The password on your GenXQR account was just changed from the account settings page. You have also been signed out everywhere else, so any other browser or device will need the new password.
@@ -439,7 +444,7 @@ export function buildRenewalReminderEmail(
       Your plan expires ${urgency}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. If it is not renewed by then, your account moves to the Free plan and your dynamic QR codes are paused: people who scan them will see a "deactivated" page (or your fallback URL, if you set one) until you renew.
+      Hi ${escapeHtml(name)}, your <strong style="color:#18181b">${planName}</strong> plan on GenXQR is set to expire on <strong style="color:#18181b">${expiryDate}</strong>. If it is not renewed by then, your account moves to the Free plan and your dynamic QR codes are paused: people who scan them will see a "deactivated" page (or your fallback URL, if you set one) until you renew.
     </p>
 
     <!-- Usage warning box -->
@@ -504,7 +509,7 @@ export function buildExpiredNoticeEmail(
       Your ${planName} ${ended}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your <strong style="color:#18181b">${planName}</strong> ${ended}, and your account has moved to the Free plan. ${pausedSentence}
+      Hi ${escapeHtml(name)}, your <strong style="color:#18181b">${planName}</strong> ${ended}, and your account has moved to the Free plan. ${pausedSentence}
     </p>
 
     <!-- Expired box -->
@@ -563,7 +568,7 @@ export function buildCodesPauseNoticeEmail(
       Your QR codes will pause on ${pauseDate}
     </h1>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      Hi ${name}, your GenXQR plan or trial has ended, but your ${codes} kept working. From <strong style="color:#18181b">${pauseDate}</strong>, dynamic QR codes need an active plan. If you have not renewed by then, people who scan your codes will see a "deactivated" page, or your fallback URL if you set one.
+      Hi ${escapeHtml(name)}, your GenXQR plan or trial has ended, but your ${codes} kept working. From <strong style="color:#18181b">${pauseDate}</strong>, dynamic QR codes need an active plan. If you have not renewed by then, people who scan your codes will see a "deactivated" page, or your fallback URL if you set one.
     </p>
     <p style="margin:0 0 12px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       Renew any plan before that date and nothing changes for the people scanning your codes. If they do pause, renewing switches them back on with the same links and designs. Your scan history is kept until <strong style="color:#18181b">${historyKeptUntil}</strong>, then deleted unless you renew.
@@ -697,7 +702,7 @@ export function buildSupportTicketAdminEmail(opts: {
       This notification was sent because a user submitted a support ticket on GenXQR.
     </p>`
 
-  return buildEmailShell(`[Support] ${safe.subject} — GenXQR`, inner)
+  return buildEmailShell(`[Support] ${opts.subject} — GenXQR`, inner)
 }
 
 /**
@@ -743,6 +748,29 @@ export function buildSupportTicketConfirmationEmail(opts: {
     </p>`
 
   return buildEmailShell(`We've received your message — GenXQR`, inner)
+}
+
+/**
+ * Confirmation for the PUBLIC contact form. Fixed text — nothing the visitor
+ * typed, only our own reference. The form is anonymous, so whoever fills it in
+ * chooses the recipient: echoing their name and subject let anyone send a
+ * GenXQR-branded email with their own words to any address (security audit,
+ * 24 Oct 2026). Signed-in support tickets keep buildSupportTicketConfirmationEmail,
+ * which goes to the account's own verified address.
+ */
+export function buildContactConfirmationEmail(reference: string): string {
+  const inner = `
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      We've received your message
+    </h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Thanks for contacting GenXQR. Our team will reply to this address, usually within 1–2 business days.
+      Your reference is <strong>${escapeHtml(reference.slice(0, 8).toUpperCase())}</strong>.
+    </p>
+    <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      If you did not send a message to GenXQR, you can ignore this email.
+    </p>`
+  return buildEmailShell("We've received your message — GenXQR", inner)
 }
 
 // ─── Job Application email ────────────────────────────────────────────────────
@@ -834,7 +862,8 @@ export function buildJobApplicationEmail(opts: {
     // when it is an https URL — otherwise show the raw (escaped) text, never a
     // clickable javascript:/http: link.
     mailtoEmail: encodeURIComponent(opts.candidateEmail),
-    linkedInHref: opts.linkedIn && /^https:\/\//i.test(opts.linkedIn) ? opts.linkedIn : null,
+    // Escaped too: z.string().url() accepts a `"`, which would close the href.
+    linkedInHref: opts.linkedIn && /^https:\/\//i.test(opts.linkedIn) ? escapeHtml(opts.linkedIn) : null,
     linkedInText: opts.linkedIn ? escapeHtml(opts.linkedIn) : "",
   }
 
@@ -884,7 +913,7 @@ export function buildJobApplicationEmail(opts: {
 const P = `margin:0 0 16px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
 const H1 = `margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
 const SMALL = `margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
-const escHtml = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!)
+const escHtml = escapeHtml
 
 function ctaButton(href: string, label: string): string {
   return `<table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px"><tr>

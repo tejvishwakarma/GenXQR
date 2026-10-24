@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { createQR, updateQR, getQR, uploadFile, getSubscription, getBillingUsage, ApiError, type CreateQRPayload, type UploadedFileInfo, type QRCode, type QRFile } from "@/lib/api"
 import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } from "./VCardEditor"
 import LandingPreview from "./LandingPreview"
+import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashboard/ScanPageLogoSetting"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -739,6 +740,9 @@ export default function CreateQRPage() {
     enabled: isEdit,
     staleTime: Infinity,
   })
+
+  // The account's scan-page logo, so the Scan Result preview matches the real page.
+  const scanPageLogoUrl = useScanPageLogoPreview(existingQR?.data?.slug)
 
   // Pre-populate form once existing data is loaded
   useEffect(() => {
@@ -2033,6 +2037,9 @@ export default function CreateQRPage() {
                     </div>
                   </div>
 
+                  {/* ── Logo on the scan page (account-wide; also in Settings) ── */}
+                  <ScanPageLogoSetting />
+
                   {/* Dot Style */}
                   <div>
                     <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3">Dot Style</h3>
@@ -2079,7 +2086,7 @@ export default function CreateQRPage() {
 
                   {/* Logo */}
                   <div>
-                    <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3">Logo (optional)</h3>
+                    <h3 className="text-zinc-700 dark:text-zinc-300 font-medium text-sm mb-3">Logo in the QR code (optional)</h3>
                     {/* Must match the `image` config in backend/src/routes/upload.routes.ts.
                         SVG is deliberately NOT accepted there — it can carry executable
                         script — so offering it here only produced a silent failure. */}
@@ -2265,6 +2272,7 @@ export default function CreateQRPage() {
                 menuCurrency={menuCurrency}
                 businessHoursMap={businessHoursMap}
                 businessSocialLinks={businessSocialLinks}
+                pageLogoUrl={scanPageLogoUrl}
               />
             </div>
 

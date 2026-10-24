@@ -1,6 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { requireAuth } from "../middleware/auth.middleware.js"
-import { requirePlanFeature } from "../middleware/plan-gate.middleware.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { logAudit } from "../services/audit.service.js"
 import * as BrandingService from "../services/branding.service.js"
@@ -38,7 +37,8 @@ router.get(
 router.patch(
   "/",
   requireAuth,
-  requirePlanFeature("whiteLabel"),
+  // Gated per field in BrandingService.updateBranding: the logo is any paid
+  // plan, the brand name is white-label (Business+).
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = BrandingService.brandingSchema.parse(req.body)

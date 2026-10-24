@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import bcrypt from "bcryptjs"
 import { z } from "zod"
@@ -5,8 +6,9 @@ import { prisma } from "../db/prisma.js"
 import { resolveQRScan, buildDestinationFromContent } from "../services/scan.service.js"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
-import { authLimiter } from "../middleware/rateLimit.middleware.js"
-import { safeRedirectTarget } from "../utils/safe-url.js"
+import { qrPasswordLimiter } from "../middleware/rateLimit.middleware.js"
+import { isSafeHttpUrl, safeRedirectTarget } from "../utils/safe-url.js"
+import { signQRUnlock } from "../utils/jwt.js"
 
 const router: IRouter = Router()
 
@@ -20,12 +22,30 @@ function escapeForJS(s: string): string {
   )
 }
 
+function escapeForHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))
+}
+
+/** CSP for the pixel trampoline: its own nonced scripts and the tracker hosts, nothing else. */
+export function pixelPageCsp(nonce: string): string {
+  return [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}' https://www.googletagmanager.com https://connect.facebook.net`,
+    "connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net",
+    "img-src https: data:",
+    "frame-src https://www.googletagmanager.com",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join("; ")
+}
+
 // ─── Helper: extract real client IP ───────────────────────────────────────────
 
 function getClientIP(req: Request): string {
-  // trust proxy=1 is set in app.ts, so Express correctly resolves req.ip from
-  // the last untrusted X-Forwarded-For entry. Reading the header directly would
-  // allow client IP spoofing by prepending arbitrary values to the header.
+  // app.ts trusts only loopback (nginx) and Cloudflare's ranges, so req.ip is
+  // the last X-Forwarded-For entry that is neither — the real visitor. Reading
+  // the header directly would allow spoofing by prepending arbitrary values.
   return req.ip ?? "0.0.0.0"
 }
 
@@ -63,7 +83,7 @@ router.get(
       switch (resolution.action) {
         case "redirect":
           // Validate destination is a safe URL before redirecting
-          if (!resolution.url.startsWith("http://") && !resolution.url.startsWith("https://")) {
+          if (!isSafeHttpUrl(resolution.url)) {
             res.status(400).send("Invalid destination URL")
             return
           }
@@ -74,7 +94,7 @@ router.get(
           // Serve a small HTML trampoline that fires tracking pixels,
           // then redirects immediately via window.location.
           const { url, fbPixelId, gaId, gtmId } = resolution
-          if (!url.startsWith("http://") && !url.startsWith("https://")) {
+          if (!isSafeHttpUrl(url)) {
             res.status(400).send("Invalid destination URL")
             return
           }
@@ -86,21 +106,35 @@ router.get(
           const safeGaId   = gaId       ? escapeForJS(gaId)       : null
           const safeGtmId  = gtmId      ? escapeForJS(gtmId)      : null
           const safeFbId   = fbPixelId  ? escapeForJS(fbPixelId)  : null
+          // Every inline script carries a per-response nonce, and this response
+          // sends its own CSP allowing exactly those scripts plus the tracker
+          // hosts. The site-wide CSP (nginx, script-src 'self') blocks inline
+          // scripts, so without this the redirect never ran: a code with a pixel
+          // showed scanners a blank page. nginx's /r/<slug> location deliberately
+          // sets no CSP of its own so this one is the only one in force.
+          const nonce = randomBytes(16).toString("base64")
+          const n = `nonce="${nonce}"`
           const gaSnippet = safeGaId
-            ? `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(safeGaId)}"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${safeGaId}');</script>`
+            ? `<script ${n} async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(safeGaId)}"></script>
+<script ${n}>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${safeGaId}');</script>`
             : ""
           const gtmSnippet = safeGtmId
-            ? `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${safeGtmId}');</script>`
+            ? `<script ${n}>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.nonce='${nonce}';j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${safeGtmId}');</script>`
             : ""
           const fbSnippet = safeFbId
-            ? `<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${safeFbId}');fbq('track','PageView');</script>`
+            ? `<script ${n}>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${safeFbId}');fbq('track','PageView');</script>`
             : ""
+          // If scripts are blocked anyway (extensions, strict browsers), the meta
+          // refresh and the link still get the scanner to the destination.
+          const htmlUrl = escapeForHtml(url)
+          res.setHeader("Content-Security-Policy", pixelPageCsp(nonce))
           res.setHeader("Content-Type", "text/html; charset=utf-8")
           res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta http-equiv="refresh" content="2;url=${htmlUrl}">
 ${gaSnippet}${gtmSnippet}${fbSnippet}
-<script>setTimeout(function(){window.location.replace('${escapedUrl}');},150);</script>
-</head><body></body></html>`)
+<script ${n}>setTimeout(function(){window.location.replace('${escapedUrl}');},150);</script>
+</head><body><noscript><a href="${htmlUrl}">Continue</a></noscript></body></html>`)
           break
         }
 
@@ -115,7 +149,7 @@ ${gaSnippet}${gtmSnippet}${fbSnippet}
 
         case "expired": {
           const fallback = resolution.fallbackUrl
-          if (fallback && (fallback.startsWith("http://") || fallback.startsWith("https://"))) {
+          if (fallback && isSafeHttpUrl(fallback)) {
             res.redirect(302, fallback)
           } else {
             res.redirect(302, `${env.FRONTEND_URL}/r/${slug}/expired?reason=${resolution.reason}`)
@@ -140,7 +174,7 @@ const PasswordSchema = z.object({
 
 router.post(
   "/:slug/password",
-  authLimiter,
+  qrPasswordLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const slug = String(req.params["slug"] ?? "")
@@ -209,8 +243,12 @@ router.post(
           // that: the point of this change is to make smart routing and the A/B
           // split apply, not to relocate where existing codes land. The two paths
           // disagreeing about URL is a pre-existing inconsistency, left alone.
+          // Types with no destination to redirect to (PDF, vCard, menu, WiFi…)
+          // render at /l/<slug>, whose content endpoint refuses protected codes —
+          // so the visitor carries a short-lived proof of the password with them.
+          // Without it the correct password led to the homepage.
           destination = buildDestinationFromContent(resolution.type, resolution.content)
-            ?? `${env.FRONTEND_URL}/l/${slug}`
+            ?? `${env.FRONTEND_URL}/l/${slug}?access=${encodeURIComponent(signQRUnlock(slug))}`
           break
         case "expired":
           // Became unavailable between the prompt being shown and the password

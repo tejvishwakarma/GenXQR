@@ -18,12 +18,13 @@
  * sum of unvoided entries already available. Nothing here pays cash out — bank
  * payouts would need Cashfree Payouts and TDS handling, and are not built.
  */
-import { createHash, randomInt } from "node:crypto"
+import { randomInt } from "node:crypto"
 import { Prisma, type CreditKind } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
+import { inboxHash } from "../utils/inbox-hash.util.js"
 
 export const REFERRAL_REWARD_PERCENT = 20
 export const REFERRAL_HOLD_DAYS = 15
@@ -36,8 +37,7 @@ type Tx = Prisma.TransactionClient
  * the row can outlive the account without keeping the address itself.
  */
 export function refereeEmailHash(email: string): string {
-  const key = normalizeEmail(email) ?? email.trim().toLowerCase()
-  return createHash("sha256").update(key).digest("hex")
+  return inboxHash(email)
 }
 
 // ─── Codes ────────────────────────────────────────────────────────────────────
@@ -158,11 +158,32 @@ export async function lockCredit(tx: Tx, userId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`credit:${userId}`}))`
 }
 
-/** Records credit spent on an order. Unique per order, so a replay spends nothing extra. */
+/**
+ * Records credit spent on an order (unique per order). A paid order normally
+ * already holds its credit — the REDEMPTION was written when the order was
+ * created (billing.service holdCheckout) — so this confirms that entry,
+ * reinstating it if the hold had been released as stale before a late payment.
+ */
 export async function recordCreditSpend(tx: Tx, userId: string, orderId: string, amountPaise: number): Promise<void> {
   if (amountPaise <= 0) return
+  const held = await tx.creditEntry.findUnique({
+    where: { orderId_kind: { orderId, kind: "REDEMPTION" } },
+    select: { id: true, voidedAt: true },
+  })
+  if (held) {
+    if (held.voidedAt) await tx.creditEntry.update({ where: { id: held.id }, data: { voidedAt: null } })
+    return
+  }
   await tx.creditEntry.create({
     data: { userId, amountPaise: -amountPaise, kind: "REDEMPTION" satisfies CreditKind, orderId },
+  })
+}
+
+/** Returns credit held for an order that will not be paid. No-op if nothing is held. */
+export async function releaseCreditHold(tx: Tx, orderId: string, now = new Date()): Promise<void> {
+  await tx.creditEntry.updateMany({
+    where: { orderId, kind: "REDEMPTION", voidedAt: null },
+    data: { voidedAt: now, note: "Checkout not completed — credit returned" },
   })
 }
 
@@ -197,8 +218,9 @@ export async function qualifyReferralInTx(
   if (rewardPaise <= 0) return
   const availableAt = new Date(params.now.getTime() + REFERRAL_HOLD_DAYS * 24 * 60 * 60 * 1000)
 
-  await tx.referral.update({
-    where: { id: referral.id },
+  // Conditional, so a referral can qualify once even if two purchases race.
+  const claimed = await tx.referral.updateMany({
+    where: { id: referral.id, qualifyingOrderId: null, cancelledAt: null },
     data: {
       qualifyingOrderId: params.orderId,
       qualifyingAmountPaise: params.amountPaise,
@@ -207,6 +229,8 @@ export async function qualifyReferralInTx(
       availableAt,
     },
   })
+  if (claimed.count === 0) return
+
   await tx.creditEntry.createMany({
     data: [
       { userId: referral.referrerId, amountPaise: rewardPaise, kind: "REFERRAL_REWARD", availableAt, referralId: referral.id, note: "Friend's first purchase" },

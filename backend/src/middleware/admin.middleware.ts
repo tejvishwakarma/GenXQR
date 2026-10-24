@@ -1,3 +1,4 @@
+import { isAccountBlocked } from "../services/blocklist.service.js"
 import type { Request, Response, NextFunction } from "express"
 import { prisma } from "../db/prisma.js"
 import { verifyAccessToken } from "../utils/jwt.js"
@@ -21,11 +22,14 @@ export async function requireAdmin(req: Request, _res: Response, next: NextFunct
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true }
+      select: { id: true, role: true, email: true }
     })
 
     if (!user) {
       throw new AppError(401, "Account no longer exists")
+    }
+    if (await isAccountBlocked(user.id, user.email)) {
+      throw new AppError(403, "This account has been suspended.")
     }
 
     if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") {

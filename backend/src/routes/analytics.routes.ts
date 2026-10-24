@@ -4,6 +4,8 @@ import { requireAuth } from "../middleware/auth.middleware.js"
 import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { getQRAnalytics, getGlobalAnalytics } from "../services/analytics.service.js"
+import { csvCell } from "../utils/csv-cell.util.js"
+import { maskIp } from "../utils/mask-ip.util.js"
 
 const router: IRouter = Router()
 
@@ -72,20 +74,14 @@ router.get(
         },
       })
 
-      const escapeCSV = (v: string) => `"${v.replace(/"/g, '""')}"`
+      // Every cell through csvCell: referrer, OS and browser come from the
+      // scanner's own request headers.
       const header = "scannedAt,ip,country,city,deviceType,os,browser,referrer\n"
       const rows = scans
         .map((s) =>
-          [
-            s.scannedAt.toISOString(),
-            s.ip,
-            s.country ?? "",
-            s.city ?? "",
-            s.deviceType,
-            s.os ?? "",
-            s.browser ?? "",
-            escapeCSV(s.referrer ?? ""),
-          ].join(","),
+          [s.scannedAt.toISOString(), maskIp(s.ip), s.country, s.city, s.deviceType, s.os, s.browser, s.referrer]
+            .map(csvCell)
+            .join(","),
         )
         .join("\n")
 

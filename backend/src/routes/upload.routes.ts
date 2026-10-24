@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import path from "path"
 import fs from "fs"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
@@ -8,11 +9,12 @@ import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middlewar
 import { AppError } from "../middleware/error.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
-import { redis } from "../redis/client.js"
 import { type FileType } from "@prisma/client"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 import { verifyMagicBytes, type MagicByteRule } from "../utils/verifyMagicBytes.js"
+import { recordPendingUpload, removeUnreferencedFiles, storageUsedBytes } from "../services/uploads.service.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 const uid = (req: Request): string => (req.user as unknown as AccessTokenPayload).sub
 
@@ -93,7 +95,9 @@ function makeUploader(config: UploadConfig) {
       }
       // Sanitize the base name: keep only alphanumeric, hyphen, underscore
       const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100)
-      const unique = `${Date.now()}_${base}${ext}`
+      // Random, not a timestamp: files are served publicly from /uploads, so a
+      // guessable name exposed files behind password-protected or paused codes.
+      const unique = `${randomBytes(12).toString("hex")}_${base}${ext}`
       cb(null, unique)
     },
   })
@@ -113,7 +117,7 @@ function makeUploader(config: UploadConfig) {
     cb(null, true)
   }
 
-  return multer({ storage, fileFilter, limits: { fileSize: config.maxBytes } })
+  return multer({ storage, fileFilter, limits: { ...MULTIPART_FIELD_LIMITS, fileSize: config.maxBytes } })
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -171,26 +175,26 @@ function uploadHandler(type: keyof typeof CONFIGS) {
           throw new AppError(403, "Your plan does not include file storage. Upgrade to upload files.")
         }
 
-        const agg = await prisma.qRFile.aggregate({
-          where: { qrCode: { userId } },
-          _sum: { sizeBytes: true },
-        })
-        const usedBytes = Number(agg._sum.sizeBytes ?? 0)
+        // Attached files AND uploads not yet attached, at the sizes the server
+        // measured (uploads.service.ts).
+        const usedBytes = await storageUsedBytes(userId)
         if (usedBytes + req.file.size > limitBytes) {
           fs.unlink(req.file.path, () => undefined)
           throw new AppError(413, "This upload would exceed your plan's storage limit.")
         }
 
-        // Bind this file to its uploader (finding #1, provenance). QR
-        // create/update accepts a client-supplied tempUrl; without a record of
-        // who uploaded a path, a tenant could attach — and then delete — a path
-        // aliasing another tenant's file. 24h is comfortably longer than the
-        // create-a-QR flow. Redis-only; a miss just means the stricter re-attach
-        // fallback (an existing QRFile the user already owns) must apply.
-        // The uploader (the person, not the workspace owner): QR create/update
-        // accepts a file uploaded by either.
-        void redis.setex(`upload:owner:${relativePath}`, 24 * 60 * 60, uid(req))
-          .catch((err) => logger.warn("Upload ownership record failed", { userId, error: String(err) }))
+        // Record the upload: who may attach it (finding #1, provenance — QR
+        // create/update takes a client-supplied tempUrl), and its REAL size and
+        // type, which count against storage until it is attached and are what
+        // the attached QRFile gets. Unattached after a day, the sweep deletes it.
+        await recordPendingUpload({
+          path: relativePath,
+          ownerId: userId,
+          uploaderId: uid(req),
+          sizeBytes: req.file.size,
+          mimeType: req.file.mimetype,
+          fileType: config.fileType,
+        })
 
         res.status(201).json({
           success: true,
@@ -234,6 +238,9 @@ router.post("/image", ...uploadHandler("image"))
  */
 router.delete(
   "/:fileId",
+  // Deleting a file is a delete, like deleting a code: owner and team admins
+  // only. Editors could remove files before (only qr:edit was required).
+  requireWorkspacePermission("qr:delete"),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const fileId = req.params["fileId"] as string

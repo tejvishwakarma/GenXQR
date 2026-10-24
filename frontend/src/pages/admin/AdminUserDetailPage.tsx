@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft, Loader2, Shield, Trash2, UserCheck,
-  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle, Globe,
+  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle, Globe, MapPin, Phone,
 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -19,15 +19,9 @@ import {
   type AdminPlanName,
   type AuthUser,
 } from "@/lib/api"
-
-const statusBadge: Record<string, string> = {
-  ACTIVE:    "bg-emerald-500/20 text-emerald-400",
-  TRIALING:  "bg-blue-500/20 text-blue-400",
-  EXPIRED:   "bg-orange-500/20 text-orange-400",
-  CANCELLED: "bg-zinc-700 text-zinc-400",
-  PAST_DUE:  "bg-red-500/20 text-red-400",
-  PAUSED:    "bg-amber-500/20 text-amber-400",
-}
+import { CountryLabel, countryFlag, countryName, UNKNOWN_COUNTRY } from "@/components/admin/CountryLabel"
+import { SubscriptionStateBadge } from "@/components/admin/SubscriptionStateBadge"
+import { GeoAttribution } from "@/components/GeoAttribution"
 
 export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -144,14 +138,6 @@ export default function AdminUserDetailPage() {
   }
 
   const u = data.data
-  const sub = u.subscription
-  const now = new Date()
-  // Mirror the getUserPlanLimits trial-expiry logic so admin view matches user billing view
-  const trialExpired = sub?.status === "TRIALING" && !!sub.trialEndsAt && new Date(sub.trialEndsAt) < now
-  const displayStatus    = !sub ? "" : trialExpired ? "EXPIRED" : sub.status
-  const displayPlanName  = !sub ? "" : trialExpired ? "Free" : sub.plan.displayName
-  const periodLabel      = sub?.status === "TRIALING" ? (trialExpired ? "Trial ended" : "Trial ends") : "Period end"
-  const periodDate       = sub?.status === "TRIALING" ? sub.trialEndsAt : sub?.currentPeriodEnd ?? null
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -185,6 +171,16 @@ export default function AdminUserDetailPage() {
                   </button>
                 )
               }
+            </div>
+            <div className="flex items-center gap-2 text-zinc-400">
+              <Phone size={14} />
+              {u.phone ? (
+                <a href={`tel:+91${u.phone}`} className="text-zinc-200 hover:underline underline-offset-2 tabular-nums">
+                  +91 {u.phone.slice(0, 5)} {u.phone.slice(5)}
+                </a>
+              ) : (
+                <span>No phone number yet <span className="text-zinc-600">(asked at first checkout)</span></span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-zinc-400">
               <Shield size={14} /> Role: <span className="text-zinc-200">{u.role}</span>
@@ -224,6 +220,48 @@ export default function AdminUserDetailPage() {
           </div>
         </div>
 
+        {/* Location — IPs reach this page for SUPER_ADMIN only (the API strips them otherwise). */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 md:order-last">
+          <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-widest">Location</h2>
+          <div className="space-y-3 text-sm">
+            {([
+              ["Signed up from", u.location.signup, true],
+              ["Last sign-in from", u.location.lastLogin, !!u.lastLoginAt],
+            ] as const).map(([label, place, happened]) => (
+              <div key={label} className="flex items-start gap-2 text-zinc-400">
+                <MapPin size={14} className="mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <span>{label} </span>
+                  {!happened ? (
+                    <span className="text-zinc-500">— never signed in</span>
+                  ) : (
+                    <>
+                      {place.countryCode && place.countryCode !== UNKNOWN_COUNTRY ? (
+                        <span className="text-zinc-200">
+                          <span className="mr-1.5" aria-hidden="true">{countryFlag(place.countryCode)}</span>
+                          {[place.city, place.region, countryName(place.countryCode, place.country)].filter(Boolean).join(", ")}
+                        </span>
+                      ) : (
+                        <CountryLabel code={place.countryCode} name={place.country} />
+                      )}
+                      {"ip" in place && (
+                        <span className="block text-xs text-zinc-500 font-mono mt-0.5">
+                          IP {place.ip ?? "not recorded"}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            &ldquo;Unknown&rdquo; for older accounts whose only recorded address was Cloudflare&apos;s;
+            the last sign-in fills in the next time they sign in.
+          </p>
+          <GeoAttribution />
+        </div>
+
         {/* Subscription */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <h2 className="text-sm font-semibold text-zinc-300 uppercase tracking-widest">Subscription</h2>
@@ -231,17 +269,12 @@ export default function AdminUserDetailPage() {
             <div className="space-y-2 text-sm text-zinc-400">
               <div className="flex items-center justify-between">
                 <span>Plan</span>
-                <span className="text-white font-medium">{displayPlanName}</span>
+                <span className="text-white font-medium">{u.subscription.plan.displayName}</span>
               </div>
-              <div className="flex items-center justify-between">
+              {/* What it is doing (server-computed) — the raw status is ACTIVE even for free and lapsed accounts. */}
+              <div className="flex items-center justify-between gap-3">
                 <span>Status</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs ${statusBadge[displayStatus] ?? ""}`}>
-                  {displayStatus}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>{periodLabel}</span>
-                <span>{periodDate ? new Date(periodDate).toLocaleDateString() : "—"}</span>
+                <SubscriptionStateBadge state={u.subscription.state} rawStatus={u.subscription.status} />
               </div>
 
               {isSuperAdmin && (

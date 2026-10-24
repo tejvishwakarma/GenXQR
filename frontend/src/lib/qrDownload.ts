@@ -267,12 +267,20 @@ async function renderClassicRaster(
  * The QR code paths are inlined directly as a nested <svg> element so every
  * dot/corner is an editable vector shape in Illustrator, Inkscape, etc.
  */
+function escapeXml(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!)
+}
+
 async function renderClassicSvg(
   qrInst: QRCodeStyling,
   frameStyle: string,
-  frameBgColor: string,
-  frameText: string,
+  rawFrameBgColor: string,
+  rawFrameText: string,
 ): Promise<Blob | null> {
+  // Both go into SVG markup: "Tom & Jerry" made the file invalid XML (and the
+  // PDF export fail), and the colour field accepts free text after "rgb(".
+  const frameBgColor = escapeXml(rawFrameBgColor)
+  const frameText = escapeXml(rawFrameText)
   const rawBlob = await qrInst.getRawData("svg")
   if (!rawBlob) return null
 
@@ -398,9 +406,13 @@ async function renderClassicSvg(
 async function renderClassicPdf(
   qrInst: QRCodeStyling,
   frameStyle: string,
-  frameBgColor: string,
-  frameText: string,
+  rawFrameBgColor: string,
+  rawFrameText: string,
 ): Promise<Blob | null> {
+  // Both go into SVG markup: "Tom & Jerry" made the file invalid XML (and the
+  // PDF export fail), and the colour field accepts free text after "rgb(".
+  const frameBgColor = escapeXml(rawFrameBgColor)
+  const frameText = escapeXml(rawFrameText)
   const rawBlob = await qrInst.getRawData("svg")
   if (!rawBlob) return null
 

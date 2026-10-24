@@ -61,6 +61,8 @@ type CachedQR = {
   category: string
   slug: string
   isActive: boolean
+  /** Taken down by an admin. Optional: blobs cached before it existed self-heal within the TTL. */
+  disabledByAdmin?: boolean
   isPasswordProtected: boolean
   activeFrom: string | null
   activeUntil: string | null
@@ -172,6 +174,7 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
       category: true,
       slug: true,
       isActive: true,
+      disabledByAdminAt: true,
       isPasswordProtected: true,
       activeFrom: true,
       activeUntil: true,
@@ -233,6 +236,7 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
     category: qr.category,
     slug: qr.slug,
     isActive: qr.isActive,
+    disabledByAdmin: qr.disabledByAdminAt !== null,
     isPasswordProtected: qr.isPasswordProtected,
     activeFrom: qr.activeFrom?.toISOString() ?? null,
     activeUntil: qr.activeUntil?.toISOString() ?? null,
@@ -373,6 +377,94 @@ export function buildDestinationFromContent(type: string, content: Record<string
  * @param ua    - User-Agent header
  * @param ref   - Referer header
  */
+/**
+ * Why a code cannot be served right now, or null if it can. Steps 1b–4b of
+ * resolveQRScan, shared with GET /api/public/qr/:slug (scanAvailability): that
+ * endpoint used to check only isActive and the password, so opening /l/<slug>
+ * directly still showed an expired, used-up or blocked code's content —
+ * coupon codes, WiFi passwords, files — without the scan being counted.
+ *
+ * The fallbackUrl is the customer's to set, so it is screened against the
+ * destination blocklist too (it used to be followed unchecked).
+ */
+async function unavailableFor(qr: CachedQR, now: Date): Promise<{ reason: ExpiredReason; fallbackUrl: string | null } | null> {
+  // Owner blocklisted — takes every code they own down at once. fallbackUrl is
+  // dropped: honouring it would let whoever earned the block carry on.
+  if (await isOwnerBlocked(qr.userId)) return { reason: "blocked", fallbackUrl: null }
+  // Taken down by an admin: same treatment — no owner-controlled fallback.
+  if (qr.disabledByAdmin) return { reason: "blocked", fallbackUrl: null }
+
+  const fallbackUrl = await screenedFallback(qr)
+
+  if (!qr.isActive) return { reason: "deactivated", fallbackUrl }
+  if (qr.activeFrom && new Date(qr.activeFrom) > now) return { reason: "expired", fallbackUrl }
+  if (qr.activeUntil && new Date(qr.activeUntil) < now) return { reason: "expired", fallbackUrl }
+
+  // Scan limit — against the live Redis counter, not the cached blob's
+  // scanCount, which can be up to CACHE_TTL_SECONDS stale.
+  if (qr.scanLimit !== null) {
+    const liveScanCount = await getLiveScanCount(qr.slug, qr.scanCount)
+    if (liveScanCount >= qr.scanLimit) return { reason: "limit", fallbackUrl }
+  }
+
+  // The owner's monthly scan quota (scan-quota.service.ts).
+  if (qr.userId && (await isOverScanQuota(qr.userId))) return { reason: "limit", fallbackUrl }
+
+  return null
+}
+
+/** The code's fallbackUrl, unless it points at a blocked destination. */
+async function screenedFallback(qr: CachedQR): Promise<string | null> {
+  return qr.fallbackUrl && !(await isDestinationBlocked(qr.fallbackUrl)) ? qr.fallbackUrl : null
+}
+
+/**
+ * Takes one of a code's scanLimit slots atomically: increment, and give it back
+ * if that went over. Checking first and counting later (in queueScan) let N
+ * simultaneous scans of a "1 scan only" code all through (audit, 24 Oct 2026).
+ * Fails open on a Redis error, like the other scan checks — then the slot is
+ * counted later by queueScan as before.
+ */
+async function reserveScanSlot(qr: CachedQR, limit: number): Promise<"reserved" | "full" | "unreserved"> {
+  try {
+    const key = scanCountKey(qr.slug)
+    await redis.set(key, String(qr.scanCount), "NX") // seed if missing
+    const n = await redis.incr(key)
+    if (n > limit) {
+      await redis.decr(key)
+      return "full"
+    }
+    return "reserved"
+  } catch (err) {
+    logger.warn("Scan slot reservation failed — allowing the scan", { slug: qr.slug, error: String(err) })
+    return "unreserved"
+  }
+}
+
+/** Whether a code's landing content may be served now; the reason if not. */
+export async function scanAvailability(slug: string): Promise<ExpiredReason | null> {
+  let qr = await getCachedQR(slug)
+  if (!qr) {
+    qr = await fetchQRFromDB(slug)
+    if (!qr) return "expired"
+    await setCachedQR(slug, qr)
+  }
+  return (await unavailableFor(qr, new Date()))?.reason ?? null
+}
+
+/**
+ * True if any http(s) link inside a code's content is on the destination
+ * blocklist. URL/FACEBOOK codes and link pages are shown as landing pages, so
+ * their links never went through the redirect's blocklist check.
+ */
+export async function contentHasBlockedLink(content: unknown): Promise<boolean> {
+  const urls = new Set(JSON.stringify(content ?? {}).match(/https?:\/\/[^\s"'<>\\]+/gi) ?? [])
+  for (const url of [...urls].slice(0, 100)) {
+    if (await isDestinationBlocked(url)) return true
+  }
+  return false
+}
+
 export async function resolveQRScan(
   slug: string,
   ip: string,
@@ -394,78 +486,75 @@ export async function resolveQRScan(
       return { action: "expired", slug, fallbackUrl: null, reason: "expired" }
     }
     await setCachedQR(slug, qr)
-    // Rebuilding the metadata cache from Postgres — resync the live scan
-    // counter to the authoritative value at the same time.
-    await redis.set(scanCountKey(slug), String(qr.scanCount)).catch((err: unknown) => {
+    // Seed the live scan counter from Postgres.
+    // NX: only when the counter is missing. The live counter runs AHEAD of
+    // the database (the worker writes scanCount moments later), so overwriting
+    // it on every cache rebuild undid scans just counted — and let a burst of
+    // scans of a "1 scan only" code through (audit, 24 Oct 2026). Anything
+    // that really resets the count (purge, edits) deletes the key via
+    // invalidateQRCache, so seeding from Postgres then is correct.
+    await redis.set(scanCountKey(slug), String(qr.scanCount), "NX").catch((err: unknown) => {
       logger.warn("Failed to seed live scan count", { slug, error: String(err) })
     })
   }
 
-  // 1b. Owner blocklisted — takes every code they own down at once, and applies
-  // to landing pages as well as redirects, so it sits ahead of everything else.
-  //
-  // fallbackUrl is deliberately dropped for a block: it is customer-controlled,
-  // so honouring it would let whoever earned the block point the fallback at the
-  // same destination and carry on.
-  if (await isOwnerBlocked(qr.userId)) {
-    return { action: "expired", slug, fallbackUrl: null, reason: "blocked" }
-  }
-
-  // 2. Check isActive flag
-  if (!qr.isActive) {
-    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "deactivated" }
-  }
-
-  // 3. Check date window
+  // 1b–4b. Blocked owner, switched off, outside its dates, scan limit, monthly
+  // quota — shared with the landing-page content endpoint (scanAvailability).
   const now = new Date()
-  if (qr.activeFrom && new Date(qr.activeFrom) > now) {
-    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "expired" }
-  }
-  if (qr.activeUntil && new Date(qr.activeUntil) < now) {
-    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "expired" }
-  }
-
-  // 4. Check scan limit — against the live Redis counter, not the cached
-  // blob's scanCount field, which can be up to CACHE_TTL_SECONDS stale.
-  if (qr.scanLimit !== null) {
-    const liveScanCount = await getLiveScanCount(slug, qr.scanCount)
-    if (liveScanCount >= qr.scanLimit) {
-      return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "limit" }
-    }
-  }
-
-  // 4b. The owner's monthly scan quota (scan-quota.service.ts). Same page as a
-  // per-code limit — the scanner's experience is identical either way.
-  if (qr.userId && (await isOverScanQuota(qr.userId))) {
-    return { action: "expired", slug, fallbackUrl: qr.fallbackUrl, reason: "limit" }
-  }
+  const unavailable = await unavailableFor(qr, now)
+  if (unavailable) return { action: "expired", slug, ...unavailable }
 
   // 5. Password protection check
   if (qr.isPasswordProtected && !opts?.passwordVerified) {
     return { action: "password", slug }
   }
 
+  // 5b. Whether this scan counts at all (one address hammering one code does
+  // not — see withinScanRate), and if the code has a scanLimit, take the slot
+  // now, atomically. After the password gate so a prompt costs nothing.
+  const counted = await withinScanRate(qr.id, ip)
+  let liveCountDone = false
+  if (counted && qr.scanLimit !== null) {
+    const slot = await reserveScanSlot(qr, qr.scanLimit)
+    if (slot === "full") return { action: "expired", slug, reason: "limit", fallbackUrl: await screenedFallback(qr) }
+    liveCountDone = slot === "reserved"
+  }
+  const logScan = (abVariantId?: string) => {
+    if (counted) void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref, abVariantId, { liveCountDone })
+  }
+
+  // Smart routing and A/B tests are Pro features. Saved rules used to keep
+  // routing after a downgrade (indefinitely, for a lapsed Pro trial); now they
+  // apply only while the owner's plan includes them. Looked up only for codes
+  // that have either, so ordinary scans pay nothing.
+  const hasRouting = qr.smartRoutes.length > 0
+  const hasAB = qr.abTestEnabled && qr.abVariants.length > 0
+  // Dynamic import: billing.service reaches this module through subscription-expiry.
+  const features = (hasRouting || hasAB) && qr.userId
+    ? await import("./billing.service.js").then((m) => m.getPlanLimitsReadOnly(qr.userId!)).catch(() => null)
+    : null
+
   // 6. Smart routing evaluation
   const deviceType = ua ? parseDeviceType(ua) : "desktop"
   const hour = now.getUTCHours()
   const countryCode = await getCountryCode(ip)
-  const smartUrl = evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode })
+  const smartUrl = features?.smartRouting ? evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode }) : null
   if (smartUrl) {
-    void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref)
+    logScan()
     return await wrapRedirect(smartUrl, qr)
   }
 
   // 7. A/B test
-  if (qr.abTestEnabled && qr.abVariants.length > 0) {
+  if (hasAB && features?.abTesting) {
     const variant = pickABVariant(qr.abVariants, qr.abTestSplitPct)
     if (variant) {
-      void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref, variant.variantId)
+      logScan(variant.variantId)
       return await wrapRedirect(variant.url, qr)
     }
   }
 
   // 8. Log scan asynchronously
-  void queueScan(qr.id, qr.userId, qr.slug, ip, ua, ref)
+  logScan()
 
   // 9. Determine destination
   if (REDIRECT_TYPES.has(qr.type) && qr.content) {
@@ -511,6 +600,29 @@ async function wrapRedirect(url: string, qr: CachedQR): Promise<QRResolution> {
 
 const DEDUP_TTL_SECONDS = 4 * 60 * 60 // 4 hours
 
+/** Scans of ONE code from ONE address that are counted, per minute / per day. */
+export const SCAN_RATE_PER_MINUTE = 10
+export const SCAN_RATE_PER_DAY = 100
+
+/**
+ * True while this address is within the counted-scan rate for this code.
+ * Relies on req.ip being the real visitor (config/trusted-proxies.ts). Fails
+ * open: if Redis cannot answer, the scan is counted as before.
+ */
+async function withinScanRate(qrId: string, ip: string): Promise<boolean> {
+  try {
+    const now = Date.now()
+    const minuteKey = `scan:rate:m:${qrId}:${ip}:${Math.floor(now / 60_000)}`
+    const dayKey = `scan:rate:d:${qrId}:${ip}:${Math.floor(now / 86_400_000)}`
+    const res = await redis.multi().incr(minuteKey).expire(minuteKey, 120).incr(dayKey).expire(dayKey, 2 * 86_400).exec()
+    const perMinute = Number(res?.[0]?.[1] ?? 0)
+    const perDay = Number(res?.[2]?.[1] ?? 0)
+    return perMinute <= SCAN_RATE_PER_MINUTE && perDay <= SCAN_RATE_PER_DAY
+  } catch {
+    return true
+  }
+}
+
 async function queueScan(
   qrId: string,
   ownerId: string | null,
@@ -519,8 +631,14 @@ async function queueScan(
   userAgent: string | undefined,
   referrer: string | undefined,
   abVariantId?: string,
+  /** The live scanLimit counter was already incremented (reserveScanSlot). */
+  opts: { liveCountDone?: boolean } = {},
 ): Promise<void> {
   try {
+    // Only called for scans that count: one address hammering one code is
+    // still redirected but not counted, logged or sent to webhooks — checked by
+    // the caller (resolveQRScan step 5b, withinScanRate).
+
     // Deduplicate: suppress repeat scans from the same device within 4 hours.
     // The key combines qrId + IP + a short UA fingerprint so that two different
     // devices sharing the same LAN IP (e.g. two phones on the same WiFi) are
@@ -539,8 +657,9 @@ async function queueScan(
     // Every scan counts toward scanLimit, matching the total now shown as the
     // headline figure. Previously only unique scans did, so a limit of 100 could
     // absorb far more than 100 actual opens.
-    await incrementLiveScanCount(slug)
-    if (ownerId) await recordAccountScan(ownerId)
+    if (!opts.liveCountDone) await incrementLiveScanCount(slug)
+    // The monthly quota counts unique scans only (scan-quota.service.ts).
+    if (ownerId && isUnique) await recordAccountScan(ownerId)
 
     await scanQueue.add("log-scan" as string, {
       qrId,

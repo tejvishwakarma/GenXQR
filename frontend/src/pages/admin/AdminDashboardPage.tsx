@@ -265,7 +265,7 @@ export default function AdminDashboardPage() {
         <KPICard
           label="Active Subscriptions"
           value={d?.activeSubscriptions.toLocaleString() ?? "—"}
-          sub="paid plans"
+          sub={d ? `paid plans in force · ${d.trialSubscriptions.toLocaleString()} on trial` : "paid plans in force"}
           icon={<Crown size={18} className="text-amber-400" />}
           gradient="bg-amber-500"
           iconBg="bg-amber-500/10 border border-amber-500/20"

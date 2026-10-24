@@ -2,11 +2,13 @@ import { parse as parseCSV } from "csv-parse/sync"
 import archiver from "archiver"
 import type { Response } from "express"
 import { prisma } from "../db/prisma.js"
+import { createWithinQRLimit } from "./qr.service.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { getUserPlanLimits } from "./billing.service.js"
 import { getQR } from "./qr.service.js"
 import { deliverWebhookEvent, hasWebhookSubscribers } from "./webhook.service.js"
 import { logger } from "../logger/index.js"
+import { csvCell } from "../utils/csv-cell.util.js"
 
 // Max rows allowed per plan
 const BULK_LIMITS: Record<string, number> = {
@@ -166,7 +168,7 @@ export async function processBulkCsv(
     }
 
     try {
-      const qr = await prisma.qRCode.create({
+      const qr = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
         data: {
           userId,
           name: row.name.trim().slice(0, 200),
@@ -182,11 +184,14 @@ export async function processBulkCsv(
           design: { create: {} }, // default design
         },
         select: { id: true, slug: true },
-      })
+      }))
       results.push({ row: rowNum, name: row.name, url: row.url, status: "created", qrId: qr.id, slug: qr.slug })
       created++
-    } catch {
-      results.push({ row: rowNum, name: row.name, url: row.url, status: "error", error: "Database error creating QR code" })
+    } catch (err) {
+      // Over the plan limit (two batches at once, or a create alongside one) is
+      // reported as such; anything else is a database error.
+      const error = err instanceof AppError && err.statusCode === 403 ? "Plan QR code limit reached" : "Database error creating QR code"
+      results.push({ row: rowNum, name: row.name, url: row.url, status: "error", error })
       failed++
     }
   }
@@ -205,7 +210,7 @@ export async function processBulkCsv(
           logger.warn("Bulk qr.created webhook failed", { qrId: id, error: String(err) })
         }
       }
-    })()
+    })().catch((err: unknown) => logger.warn("Bulk qr.created webhooks failed", { userId, error: String(err) }))
   }
 
   return { results, created, failed }
@@ -245,7 +250,7 @@ export async function streamResultsZip(
     ...qrs.map((q) => {
       const scanUrl = `${FRONTEND_URL}/r/${q.slug}`
       const qrUrl = `${FRONTEND_URL}/api/qr/${q.id}/image`
-      return `"${q.name.replace(/"/g, '""')}",${q.slug},${qrUrl},${scanUrl},${q.createdAt.toISOString()}`
+      return [q.name, q.slug, qrUrl, scanUrl, q.createdAt.toISOString()].map(csvCell).join(",")
     }),
   ]
   archive.append(csvLines.join("\n"), { name: "qr_codes.csv" })

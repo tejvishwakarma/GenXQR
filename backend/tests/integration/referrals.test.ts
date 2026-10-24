@@ -244,6 +244,28 @@ describe("referrals", () => {
       expect(await prisma.creditEntry.count({ where: { referralId: referral.id } })).toBe(0)
     })
 
+    it("should qualify once, and extend the plan for both payments, when two purchases land together", async () => {
+      const referrer = await createUser()
+      const friend = await signUp(`race.${Date.now()}@test.local`, await codeFor(referrer))
+      const orders = [1, 2].map((n) => `genxqr_ref_race_${Date.now()}_${n}`)
+      vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+        const orderId = decodeURIComponent(String(input).split("/orders/")[1] ?? "")
+        return new Response(JSON.stringify({
+          cf_order_id: `cf_${orderId}`, order_id: orderId, order_status: "PAID", order_amount: PRO_MONTHLY_PAISE / 100, order_currency: "INR",
+          order_tags: { userId: friend.id, planName: "PRO", billingCycle: "monthly", expectedPaise: String(PRO_MONTHLY_PAISE) },
+        }), { status: 200, headers: { "Content-Type": "application/json" } })
+      })
+      await Promise.all(orders.map((o) => signedWebhook(o)))
+      vi.unstubAllGlobals()
+
+      expect(await prisma.invoice.count({ where: { cashfreeOrderId: { in: orders } } })).toBe(2)
+      expect(await prisma.creditEntry.count({ where: { kind: "REFERRAL_REWARD", userId: { in: [referrer.id, friend.id] } } })).toBe(2)
+      // Two months paid for, two months granted (the second payment extends the first).
+      const sub = await prisma.subscription.findUniqueOrThrow({ where: { userId: friend.id } })
+      const days = (sub.currentPeriodEnd.getTime() - Date.now()) / 86_400_000
+      expect(days).toBeGreaterThan(55)
+    })
+
     it("should not count a replayed payment notification twice", async () => {
       const referrer = await createUser()
       const friend = await signUp(`replay.${Date.now()}@test.local`, await codeFor(referrer))

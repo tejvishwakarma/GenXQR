@@ -53,8 +53,10 @@ export const brandingSchema = z.object({
 export interface BrandingSettings {
   brandName: string | null
   brandLogoUrl: string | null
-  /** Whether the account's plan actually lets any of this take effect. */
+  /** Whether the plan lets the brand NAME replace GenXQR's (Business+). */
   whiteLabelEnabled: boolean
+  /** Whether the plan shows the logo at the top of scan pages (any paid plan). */
+  scanPageLogoEnabled: boolean
 }
 
 /** The account owner's saved branding, plus whether their plan honours it. */
@@ -72,11 +74,13 @@ export async function getBranding(userId: string): Promise<BrandingSettings> {
     brandName: user.brandName,
     brandLogoUrl: user.brandLogoUrl,
     whiteLabelEnabled: limits.whiteLabel,
+    scanPageLogoEnabled: limits.scanPageLogo || limits.whiteLabel,
   }
 }
 
 /**
- * Saves branding. The route gates this on the whiteLabel plan feature.
+ * Saves branding. Each field is gated on its own feature: the logo on
+ * scanPageLogo (any paid plan), the brand name on whiteLabel (Business+).
  *
  * Storage is deliberately not gated: a downgrade stops branding being USED (see
  * resolveBranding) but leaves what the customer typed intact, so re-subscribing
@@ -86,6 +90,13 @@ export async function updateBranding(
   userId: string,
   input: z.infer<typeof brandingSchema>,
 ): Promise<BrandingSettings> {
+  const { limits } = await getUserPlanLimits(userId)
+  if (input.brandName !== undefined && input.brandName !== null && !limits.whiteLabel) {
+    throw new AppError(403, "Replacing GenXQR's name with your own is part of white-label, on the Business plan.")
+  }
+  if (input.brandLogoUrl !== undefined && input.brandLogoUrl !== null && !(limits.scanPageLogo || limits.whiteLabel)) {
+    throw new AppError(403, "Adding your logo to scan pages needs a paid plan.")
+  }
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -115,9 +126,15 @@ export interface ResolvedBranding {
   mode: "genxqr" | "custom"
   name: string | null
   logoUrl: string | null
+  /**
+   * The owner's logo for the TOP of the scan landing page — any paid plan
+   * (scanPageLogo), independent of `mode`: a Starter account shows its logo
+   * there while the page is still attributed to GenXQR in the footer.
+   */
+  pageLogoUrl: string | null
 }
 
-export const GENXQR_BRANDING: ResolvedBranding = { mode: "genxqr", name: null, logoUrl: null }
+export const GENXQR_BRANDING: ResolvedBranding = { mode: "genxqr", name: null, logoUrl: null, pageLogoUrl: null }
 
 /**
  * Resolves branding for a QR code's owner, for public pages.
@@ -141,12 +158,14 @@ export async function resolveBrandingForUser(
       getPlanLimitsReadOnly(userId),
     ])
 
-    if (!user || !limits.whiteLabel) return GENXQR_BRANDING
+    if (!user) return GENXQR_BRANDING
+    const pageLogoUrl = (limits.scanPageLogo || limits.whiteLabel) ? user.brandLogoUrl : null
 
-    // A logo alone is not an identity — a nameless image could be anyone's.
-    if (!user.brandName) return GENXQR_BRANDING
+    // A logo alone is not an identity — a nameless image could be anyone's — so
+    // without white-label AND a brand name the page stays attributed to GenXQR.
+    if (!limits.whiteLabel || !user.brandName) return { ...GENXQR_BRANDING, pageLogoUrl }
 
-    return { mode: "custom", name: user.brandName, logoUrl: user.brandLogoUrl }
+    return { mode: "custom", name: user.brandName, logoUrl: user.brandLogoUrl, pageLogoUrl }
   } catch {
     return GENXQR_BRANDING
   }

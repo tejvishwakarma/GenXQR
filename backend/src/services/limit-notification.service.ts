@@ -11,7 +11,7 @@
  */
 
 import { prisma } from "../db/prisma.js"
-import { sendEmail } from "./email.service.js"
+import { escapeHtml, sendEmail } from "./email.service.js"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 
@@ -194,7 +194,7 @@ function buildLimitEmail(opts: {
 
               <!-- Headline -->
               <h1 class="card-heading" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:22px;font-weight:700;color:#0f0f11;margin:0 0 12px;line-height:1.35;letter-spacing:-0.4px">
-                Hi ${name},
+                Hi ${escapeHtml(name)},
               </h1>
               <p class="card-body" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;color:#3f3f46;line-height:1.75;margin:0 0 24px">
                 ${bodyText}

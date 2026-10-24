@@ -43,3 +43,20 @@ export function logAudit(params: AuditParams): void {
       })
     })
 }
+
+/**
+ * The audit log is kept for this long and then deleted (decided 24 Oct 2026),
+ * including entries of deleted accounts — long enough to investigate fraud,
+ * abuse or a security incident, bounded so the IPs and emails it holds are not
+ * kept forever. Stated in the Privacy policy (§6) and on the GDPR page.
+ */
+export const AUDIT_LOG_RETENTION_YEARS = 3
+
+/** Deletes entries older than AUDIT_LOG_RETENTION_YEARS. Run from the expiry worker. */
+export async function purgeExpiredAuditLogs(now = new Date()): Promise<number> {
+  const cutoff = new Date(now)
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - AUDIT_LOG_RETENTION_YEARS)
+  const { count } = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoff } } })
+  if (count > 0) logger.info("Deleted audit log entries past retention", { count, olderThan: cutoff.toISOString() })
+  return count
+}

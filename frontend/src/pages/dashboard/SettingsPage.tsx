@@ -160,10 +160,14 @@ export default function SettingsPage() {
     }
   }, [])
 
-  const { data: sessionUserData } = useQuery({
+  const { data: sessionUserData, isFetchedAfterMount: sessionUserFresh } = useQuery({
     queryKey: ["session-user"],
     queryFn: getCurrentUser,
     staleTime: 30_000,
+    // Always re-read on opening Settings: the profile form is seeded once (so a
+    // background refetch cannot overwrite typing), and seeding from an older
+    // cached copy showed no phone after it was entered at checkout.
+    refetchOnMount: "always",
   })
 
   // ─── Profile form ───────────────────────────────────────────────────────────
@@ -178,7 +182,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const u = sessionUserData?.data
-    if (!u || seededProfile.current) return
+    if (!u || !sessionUserFresh || seededProfile.current) return
     seededProfile.current = true
     const parts = (u.name ?? "").split(" ")
     setProfileForm({
@@ -186,7 +190,7 @@ export default function SettingsPage() {
       lastName: parts.slice(1).join(" "),
       phone: u.phone ?? "",
     })
-  }, [sessionUserData])
+  }, [sessionUserData, sessionUserFresh])
 
   const profileMut = useMutation({
     mutationFn: () => {

@@ -1,3 +1,4 @@
+import { forbidWhileImpersonating } from "../middleware/impersonation.middleware.js"
 import { Router, type IRouter } from "express"
 import { z } from "zod"
 import type { Request } from "express"
@@ -37,7 +38,7 @@ const createSchema = z.object({
  * POST /api/apikeys
  * Create a new API key. Raw key is returned ONCE in this response.
  */
-router.post("/", requireAuth, requirePlanFeature("apiAccess"), async (req, res, next) => {
+router.post("/", requireAuth, forbidWhileImpersonating, requirePlanFeature("apiAccess"), async (req, res, next) => {
   try {
     const { name, expiresInDays } = createSchema.parse(req.body)
     const { key, rawKey } = await createApiKey(uid(req), name, expiresInDays)
@@ -51,7 +52,7 @@ router.post("/", requireAuth, requirePlanFeature("apiAccess"), async (req, res, 
  * PATCH /api/apikeys/:id/revoke
  * Disable (revoke) an existing API key.
  */
-router.patch("/:id/revoke", requireAuth, async (req, res, next) => {
+router.patch("/:id/revoke", requireAuth, forbidWhileImpersonating, async (req, res, next) => {
   try {
     const { id } = req.params as { id: string }
     if (!id) throw new AppError(400, "Key ID required")
@@ -66,7 +67,7 @@ router.patch("/:id/revoke", requireAuth, async (req, res, next) => {
  * DELETE /api/apikeys/:id
  * Permanently delete an API key.
  */
-router.delete("/:id", requireAuth, async (req, res, next) => {
+router.delete("/:id", requireAuth, forbidWhileImpersonating, async (req, res, next) => {
   try {
     const { id } = req.params as { id: string }
     if (!id) throw new AppError(400, "Key ID required")

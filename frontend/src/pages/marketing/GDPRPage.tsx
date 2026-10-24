@@ -5,7 +5,7 @@ import { LegalPage, LegalHero, LegalStats, LegalBody, LegalCard } from "@/compon
 const rights = [
   { title: "Right of access", desc: "Request a copy of the personal data we hold about you and understand how it is processed." },
   { title: "Right to rectification", desc: "Correct inaccurate or incomplete personal data directly through account settings or support." },
-  { title: "Right to erasure", desc: "Delete your account from Settings to erase your account, QR codes, uploaded files and scan data — or ask us to." },
+  { title: "Right to erasure", desc: "Delete your account from Settings to erase your account, QR codes, uploaded files and scan data — or ask us to. Our activity log of account actions is kept for 3 years for security investigations; see the Privacy Policy." },
   { title: "Right to restrict processing", desc: "Ask us to limit processing in specific circumstances." },
   { title: "Right to data portability", desc: "Request export of your account data in a structured, machine-readable format." },
   { title: "Right to object", desc: "Object to certain processing activities based on legitimate interest." },

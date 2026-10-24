@@ -57,7 +57,7 @@ export async function resolveWorkspace(actorId: string, requestedOwnerId?: strin
 
   const membership = await prisma.teamMember.findFirst({
     where: { userId: actorId, team: { ownerId: requestedOwnerId } },
-    select: { role: true },
+    select: { id: true, role: true, joinedAt: true, teamId: true },
   })
   // Same answer whether the workspace does not exist or the caller is not in
   // it, so the header cannot be used to probe for account ids.
@@ -67,10 +67,32 @@ export async function resolveWorkspace(actorId: string, requestedOwnerId?: strin
   if (ownerLimits.teamSeatsLimit <= 1) {
     throw new AppError(403, "This team's plan no longer includes team access. Ask the owner to upgrade.")
   }
+  if (!(await withinSeats(membership, ownerLimits.teamSeatsLimit))) {
+    throw new AppError(403, "This team has more members than its plan has seats. Ask the owner to upgrade or free a seat.")
+  }
 
   // OWNER is never stored on a member row; treat a stray one as ADMIN.
   const role: WorkspaceRole = membership.role === "OWNER" ? "ADMIN" : membership.role
   return { ownerId: requestedOwnerId, actorId, role }
+}
+
+/**
+ * Members who fit the plan's seats: the earliest to join, the owner taking one
+ * seat. After a downgrade (Business 20 → Pro 5) the members beyond that are
+ * suspended — kept on the roster, no access — until the owner upgrades or
+ * removes someone. Before this every member kept access (audit, 24 Oct 2026).
+ */
+export async function withinSeats(
+  member: { id: string; joinedAt: Date; teamId: string },
+  teamSeatsLimit: number,
+): Promise<boolean> {
+  const ahead = await prisma.teamMember.count({
+    where: {
+      teamId: member.teamId,
+      OR: [{ joinedAt: { lt: member.joinedAt } }, { joinedAt: member.joinedAt, id: { lt: member.id } }],
+    },
+  })
+  return ahead < Math.max(0, teamSeatsLimit - 1)
 }
 
 /** Every workspace the user can switch to: their own first, then teams they belong to. */
@@ -80,6 +102,9 @@ export async function listWorkspaces(userId: string) {
     prisma.teamMember.findMany({
       where: { userId },
       select: {
+        id: true,
+        joinedAt: true,
+        teamId: true,
         role: true,
         team: { select: { name: true, owner: { select: { id: true, name: true } } } },
       },
@@ -95,8 +120,8 @@ export async function listWorkspaces(userId: string) {
         name: m.team.name || `${m.team.owner.name}'s team`,
         ownerName: m.team.owner.name,
         role: (m.role === "OWNER" ? "ADMIN" : m.role) as WorkspaceRole,
-        /** False when the owner's plan no longer includes team seats. */
-        available: limits.teamSeatsLimit > 1,
+        /** False when the owner's plan no longer includes team seats, or this member is beyond them. */
+        available: limits.teamSeatsLimit > 1 && (await withinSeats(m, limits.teamSeatsLimit)),
       }
     }),
   )

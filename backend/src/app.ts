@@ -6,6 +6,7 @@ import morgan from "morgan"
 import passport from "passport"
 import path from "path"
 import { env } from "./config/env.js"
+import { TRUSTED_PROXIES } from "./config/trusted-proxies.js"
 import { logger } from "./logger/index.js"
 import { errorHandler } from "./middleware/error.middleware.js"
 import { apiLimiter } from "./middleware/rateLimit.middleware.js"
@@ -23,7 +24,8 @@ import { UPLOAD_BASE } from "./routes/upload.routes.js"
 const app: Application = express()
 
 // ─── Trust proxy (for correct IP behind Nginx) ────────────────────────────────
-app.set("trust proxy", 1)
+// nginx on loopback and Cloudflare in front of it — see config/trusted-proxies.ts.
+app.set("trust proxy", TRUSTED_PROXIES)
 
 // ─── Security headers ─────────────────────────────────────────────────────────
 app.use(

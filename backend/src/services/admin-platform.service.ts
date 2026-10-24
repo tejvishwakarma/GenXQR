@@ -2,8 +2,11 @@ import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { redis } from "../redis/client.js"
 import { env } from "../config/env.js"
-import { scanQueue } from "./scan.service.js"
+import { invalidateQRCache, scanQueue } from "./scan.service.js"
 import { sendManualReminders } from "./renewal-reminder.service.js"
+import { effectiveCountry, UNKNOWN_COUNTRY } from "./user-location.service.js"
+import { subscriptionState, subscriptionStateWhere, type SubscriptionStateKey } from "./subscription-state.js"
+import type { PlanName, Prisma } from "@prisma/client"
 
 type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN"
 
@@ -30,6 +33,7 @@ export async function getDashboardMetrics() {
   const [
     totalUsers,
     activeSubscriptions,
+    trialSubscriptions,
     totalQRCodes,
     scansToday,
     totalScans,
@@ -37,9 +41,12 @@ export async function getDashboardMetrics() {
     storageResult,
   ] = await prisma.$transaction([
     prisma.user.count(),
+    // Paid plans in force (incl. cancelled-at-period-end). Was status ACTIVE or
+    // TRIALING, which counted every free account and every lapsed one too.
     prisma.subscription.count({
-      where: { status: { in: ["ACTIVE", "TRIALING"] } },
+      where: { OR: [subscriptionStateWhere("paid"), subscriptionStateWhere("cancelling")] },
     }),
+    prisma.subscription.count({ where: subscriptionStateWhere("trial") }),
     prisma.qRCode.count(),
     prisma.qRScan.count({ where: { scannedAt: { gte: todayStart } } }),
     prisma.qRScan.count(),
@@ -68,7 +75,7 @@ export async function getDashboardMetrics() {
     },
   })
 
-  return { totalUsers, activeSubscriptions, totalQRCodes, scansToday, totalScans, mrr, storageGB, recentSignups }
+  return { totalUsers, activeSubscriptions, trialSubscriptions, totalQRCodes, scansToday, totalScans, mrr, storageGB, recentSignups }
 }
 
 // ─── System health ─────────────────────────────────────────────────────────────
@@ -166,7 +173,7 @@ export async function listQRCodes({ page, limit, q }: PaginationParams) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, name: true, slug: true, type: true, category: true,
-        isActive: true, scanCount: true, createdAt: true,
+        isActive: true, disabledByAdminAt: true, scanCount: true, createdAt: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),
@@ -176,10 +183,14 @@ export async function listQRCodes({ page, limit, q }: PaginationParams) {
 }
 
 export async function deactivateQRCode(adminId: string, qrId: string): Promise<void> {
-  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
   if (!qr) throw new AppError(404, "QR code not found")
 
-  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: false } })
+  // disabledByAdminAt, not just isActive=false: the owner's own switch used to
+  // turn a takedown straight back on. And the cache is dropped so it stops
+  // redirecting now, not up to 10 minutes later.
+  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: false, disabledByAdminAt: new Date() } })
+  await invalidateQRCache(qr.slug)
 
   await prisma.auditLog.create({
     data: {
@@ -192,11 +203,25 @@ export async function deactivateQRCode(adminId: string, qrId: string): Promise<v
   })
 }
 
+/** Undoes deactivateQRCode: clears the takedown and switches the code back on. */
+export async function reactivateQRCode(adminId: string, qrId: string): Promise<void> {
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
+  if (!qr) throw new AppError(404, "QR code not found")
+
+  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: true, disabledByAdminAt: null } })
+  await invalidateQRCache(qr.slug)
+
+  await prisma.auditLog.create({
+    data: { userId: adminId, action: "admin.qr.reactivate", category: "admin", entityId: qrId, entityType: "QRCode" },
+  })
+}
+
 export async function deleteQRCode(adminId: string, qrId: string): Promise<void> {
-  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
   if (!qr) throw new AppError(404, "QR code not found")
 
   await prisma.qRCode.delete({ where: { id: qrId } })
+  await invalidateQRCache(qr.slug)
 
   await prisma.auditLog.create({
     data: {
@@ -285,6 +310,127 @@ export async function getSignupSources(rawDays: unknown, rawGroupBy: unknown) {
     rows: [...rows.values()]
       .sort((a, b) => b.signups - a.signups)
       .map((r) => ({ key: r.key, signups: r.signups, paidUsers: r.paidUsers, revenue: Math.round(r.revenuePaise / 100) })),
+  }
+}
+
+/**
+ * Users per country — where customers come from (decided 24 Oct 2026).
+ *
+ * Country = where the account signed up, else where it last signed in
+ * (effectiveCountry); "ZZ" = unknown, which includes every older account whose
+ * only recorded IPs were Cloudflare's. `days` = accounts created in the window,
+ * or "all". "Paid" = at least one paid invoice, as in getSignupSources;
+ * "trialing" = on a trial that has not ended.
+ */
+export async function getUserCountries(rawDays: unknown) {
+  const all = rawDays === "all"
+  const { days, since } = sinceDaysAgo(all ? undefined : rawDays, 30)
+  const now = new Date()
+
+  const users = await prisma.user.findMany({
+    where: all ? {} : { createdAt: { gte: since } },
+    select: {
+      id: true,
+      signupCountryCode: true, signupCountry: true, signupRegion: true, signupCity: true,
+      lastLoginCountryCode: true, lastLoginCountry: true, lastLoginRegion: true, lastLoginCity: true,
+      subscription: { select: { status: true, trialEndsAt: true } },
+    },
+  })
+
+  const paid = await prisma.invoice.groupBy({
+    by: ["userId"],
+    where: { status: "paid", ...(all ? {} : { userId: { in: users.map((u) => u.id) } }) },
+    _sum: { amount: true },
+  })
+  const paidByUser = new Map(paid.map((p) => [p.userId, p._sum.amount ?? 0]))
+
+  type Row = { countryCode: string; country: string | null; users: number; trialing: number; paidUsers: number; revenuePaise: number }
+  const rows = new Map<string, Row>()
+  const cities = new Map<string, { city: string; region: string | null; countryCode: string; country: string | null; users: number }>()
+
+  for (const u of users) {
+    const { code, name } = effectiveCountry(u)
+    const row = rows.get(code) ?? { countryCode: code, country: name, users: 0, trialing: 0, paidUsers: 0, revenuePaise: 0 }
+    row.users++
+    if (u.subscription?.status === "TRIALING" && u.subscription.trialEndsAt && u.subscription.trialEndsAt > now) row.trialing++
+    const paise = paidByUser.get(u.id)
+    if (paise !== undefined) {
+      row.paidUsers++
+      row.revenuePaise += paise
+    }
+    rows.set(code, row)
+
+    // The city that goes with the country used above.
+    const fromSignup = u.signupCountryCode === code
+    const city = fromSignup ? u.signupCity : u.lastLoginCity
+    if (code !== UNKNOWN_COUNTRY && city) {
+      const region = fromSignup ? u.signupRegion : u.lastLoginRegion
+      const key = `${code}|${region ?? ""}|${city}`
+      const c = cities.get(key) ?? { city, region, countryCode: code, country: name, users: 0 }
+      c.users++
+      cities.set(key, c)
+    }
+  }
+
+  return {
+    days: all ? "all" as const : days,
+    totalUsers: users.length,
+    rows: [...rows.values()]
+      .sort((a, b) => b.users - a.users)
+      .map(({ revenuePaise, ...r }) => ({ ...r, revenue: Math.round(revenuePaise / 100) })),
+    cities: [...cities.values()].sort((a, b) => b.users - a.users).slice(0, 15),
+  }
+}
+
+/** Number of countries named in the sign-ups-by-country trend; the rest is "Other". */
+const TREND_TOP_COUNTRIES = 5
+
+/**
+ * Daily sign-ups split by the top countries, plus "OTHER" and "ZZ" (unknown).
+ * Every day in the window is present, zeros included, so the stacked chart's
+ * time axis is continuous.
+ *
+ * The named countries are the ALL-TIME top ones, not the window's: the chart
+ * gives each country a fixed colour, and a per-window ranking would repaint a
+ * country whenever the range changes.
+ */
+export async function getSignupsByCountry(rawDays: unknown) {
+  const { days, since } = sinceDaysAgo(rawDays, 30)
+
+  const locationFields = { signupCountryCode: true, signupCountry: true, lastLoginCountryCode: true, lastLoginCountry: true } as const
+  const [everyone, users] = await Promise.all([
+    prisma.user.findMany({ select: locationFields }),
+    prisma.user.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true, ...locationFields } }),
+  ])
+
+  const totals = new Map<string, { code: string; name: string | null; count: number }>()
+  for (const u of everyone) {
+    const { code, name } = effectiveCountry(u)
+    if (code === UNKNOWN_COUNTRY) continue
+    const t = totals.get(code) ?? { code, name, count: 0 }
+    t.count++
+    totals.set(code, t)
+  }
+  const top = [...totals.values()].sort((a, b) => b.count - a.count).slice(0, TREND_TOP_COUNTRIES)
+  const topCodes = new Set(top.map((t) => t.code))
+  const keys = [...top.map((t) => t.code), "OTHER", UNKNOWN_COUNTRY]
+
+  const series = new Map<string, Record<string, number | string>>()
+  for (let t = new Date(since.toISOString().slice(0, 10)).getTime(); t <= Date.now(); t += MS_PER_DAY) {
+    const date = new Date(t).toISOString().slice(0, 10)
+    series.set(date, Object.fromEntries([["date", date], ...keys.map((k) => [k, 0])]))
+  }
+  for (const u of users) {
+    const { code } = effectiveCountry(u)
+    const key = code === UNKNOWN_COUNTRY ? UNKNOWN_COUNTRY : topCodes.has(code) ? code : "OTHER"
+    const day = series.get(u.createdAt.toISOString().slice(0, 10))
+    if (day) day[key] = (day[key] as number) + 1
+  }
+
+  return {
+    days,
+    countries: top.map(({ code, name }) => ({ code, name })),
+    series: [...series.values()],
   }
 }
 
@@ -491,9 +637,16 @@ export interface AuditLogFilters {
   ip?: string | undefined
 }
 
-export async function getAuditLog(filters: AuditLogFilters) {
+export async function getAuditLog(filters: AuditLogFilters, callerRole: AdminRole) {
   const { page, limit, q, category, userId, userEmail, dateFrom, dateTo, ip } = filters
   const skip = (page - 1) * limit
+
+  // Users' IP addresses are for SUPER_ADMIN only (decided 24 Oct 2026). Every
+  // entry keeps its IP — the log is kept in full for investigations — but an
+  // ADMIN gets entries without it, and cannot search by it either: a search is
+  // a way of reading the value.
+  const showIp = callerRole === "SUPER_ADMIN"
+  if (ip && !showIp) throw new AppError(403, "Only super-admins can search the audit log by IP address.")
 
   // Build dynamic where clause
   const where: Record<string, unknown> = {}
@@ -533,7 +686,7 @@ export async function getAuditLog(filters: AuditLogFilters) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, action: true, category: true, entityId: true, entityType: true,
-        metadata: true, ip: true, userAgent: true, createdAt: true,
+        metadata: true, ip: showIp, userAgent: true, createdAt: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),
@@ -546,14 +699,17 @@ export async function getAuditLog(filters: AuditLogFilters) {
 
 export async function listSubscriptions(
   { page, limit }: PaginationParams,
-  status?: string,
+  state?: SubscriptionStateKey,
   plan?: string,
 ) {
   const skip = (page - 1) * limit
+  const now = new Date()
 
-  const where: Record<string, unknown> = {}
-  if (status) where["status"] = status
-  if (plan) where["plan"] = { name: plan }
+  // Filtered by what the subscription is doing (subscription-state.ts), not the
+  // raw status column, which is ACTIVE for paying, lapsed and free alike.
+  const where: Prisma.SubscriptionWhereInput = {
+    AND: [state ? subscriptionStateWhere(state, now) : {}, plan ? { plan: { name: plan as PlanName } } : {}],
+  }
 
   const [total, subs] = await prisma.$transaction([
     prisma.subscription.count({ where }),
@@ -565,7 +721,7 @@ export async function listSubscriptions(
       select: {
         id: true, status: true, trialEndsAt: true,
         currentPeriodStart: true, currentPeriodEnd: true,
-        cancelAtPeriodEnd: true,
+        cancelAtPeriodEnd: true, codesPauseAt: true, lapsedAt: true,
         createdAt: true, updatedAt: true,
         plan: { select: { name: true, displayName: true, priceMonthlyINR: true } },
         user: { select: { id: true, name: true, email: true } },
@@ -591,6 +747,7 @@ export async function listSubscriptions(
 
   const data = subs.map((s) => ({
     ...s,
+    state: subscriptionState(s, now),
     lastReminder: lastReminderMap.get(s.id) ?? null,
   }))
 

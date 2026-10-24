@@ -112,3 +112,25 @@ export function ScanBrandFooter({
     </div>
   )
 }
+
+/**
+ * The owner's logo across the top of the scan landing page — any paid plan
+ * (scanPageLogo), white-label or not. A plain white bar rather than a mark over
+ * the template, because the 14 templates each paint their own background and
+ * most logos are drawn for a light one. Renders nothing when no logo is set.
+ */
+export function ScanPageLogoBar({ branding }: { branding: ResolvedBranding }) {
+  if (!branding.pageLogoUrl) return null
+  return (
+    <header className="flex w-full justify-center border-b border-black/5 bg-white px-4 py-3">
+      <img
+        src={branding.pageLogoUrl}
+        // The brand name when there is one (white-label); otherwise a neutral
+        // label — the page is still attributed to GenXQR in the footer.
+        alt={branding.name ?? "Logo"}
+        className="max-h-12 w-auto max-w-[70%] select-none object-contain"
+        loading="eager"
+      />
+    </header>
+  )
+}

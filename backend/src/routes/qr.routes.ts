@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
+import { AppError } from "../middleware/error.middleware.js"
 import QRCode from "qrcode"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
@@ -200,7 +201,9 @@ async function requireQROwnerId(qrId: string, userId: string): Promise<string> {
     where: { id: qrId, userId },
     select: { slug: true },
   })
-  if (!qr) throw Object.assign(new Error("QR code not found"), { status: 404 })
+  // AppError, not a plain Error with .status: the error middleware maps only
+  // AppError, so this used to answer 500 for every missing or foreign code.
+  if (!qr) throw new AppError(404, "QR code not found")
   return qr.slug
 }
 
@@ -292,7 +295,7 @@ router.put(
 router.delete(
   "/:id/smart-routes/:ruleId",
   canEdit,
-  smartRoutingGuard,
+  // No plan gate: a downgraded owner must still be able to remove these.
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string
@@ -425,7 +428,7 @@ router.put(
 router.delete(
   "/:id/ab-variants/:variantId",
   canEdit,
-  abTestingGuard,
+  // No plan gate: a downgraded owner must still be able to remove these.
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const qrId = req.params["id"] as string

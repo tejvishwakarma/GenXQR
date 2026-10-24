@@ -514,6 +514,15 @@ export default function BillingPage() {
 
     setCheckoutError("")
     setCheckoutLoading(true)
+    // The server saves a newly typed number to the profile before creating the
+    // order, so it is saved even if checkout then fails or the tab comes back
+    // from the payment page (back button): refresh both cached copies of the
+    // user, or Settings and the next checkout keep showing no number.
+    const refreshUser = () => {
+      if (phone === storedPhone) return
+      void qc.invalidateQueries({ queryKey: ["current-user"] })
+      void qc.invalidateQueries({ queryKey: ["session-user"] })
+    }
     try {
       const orderRes = await createPaymentOrder(
         pendingPurchase.planName,
@@ -524,6 +533,7 @@ export default function BillingPage() {
         appliedCoupon?.code,
       )
       setPendingPurchase(null)
+      refreshUser()
       if (orderRes.data.free) {
         // Granted outright: no payment step. Same refresh as a returning payment.
         clearPendingCoupon()
@@ -538,10 +548,11 @@ export default function BillingPage() {
       await launchCashfreeCheckout(orderRes.data)
       // The tab navigates to Cashfree — loading stays true until unload.
     } catch (err) {
+      refreshUser()
       setCheckoutError(err instanceof Error ? err.message : "Failed to start payment")
       setCheckoutLoading(false)
     }
-  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon, pricing, setSearchParams])
+  }, [pendingPurchase, storedPhone, phoneInput, appliedCoupon, pricing, setSearchParams, qc])
 
   const handleCancel = useCallback(() => {
     if (!window.confirm("Cancel your subscription? You'll keep access until the end of the current period. After that your account moves to the Free plan and your active dynamic QR codes are paused until you pay again. Scan history is kept for 3 months after that, then deleted.")) return

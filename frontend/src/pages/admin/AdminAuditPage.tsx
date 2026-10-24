@@ -5,7 +5,7 @@ import {
   Loader2, Search, Filter, X, Shield, QrCode, CreditCard, Users, Key, Activity,
   ChevronDown, ExternalLink,
 } from "lucide-react"
-import { fetchAdminAudit, type AuditEntry, type AuditFilters } from "@/lib/api"
+import { fetchAdminAudit, getTokenRole, type AuditEntry, type AuditFilters } from "@/lib/api"
 import AdminPagination from "@/components/admin/AdminPagination"
 
 // ─── Category config ──────────────────────────────────────────────────────────
@@ -74,6 +74,9 @@ export default function AdminAuditPage() {
   const [draftDateFrom,  setDraftDateFrom]  = useState("")
   const [draftDateTo,    setDraftDateTo]    = useState("")
   const [draftIP,        setDraftIP]        = useState("")
+  // Users' IPs are for SUPER_ADMIN only; the API leaves them out (and refuses an
+  // IP search) for anyone else, so the IP search and value are not offered here.
+  const showIp = getTokenRole() === "SUPER_ADMIN"
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "audit", page, filters],
@@ -231,7 +234,7 @@ export default function AdminAuditPage() {
           </div>
 
           {/* IP address */}
-          <div>
+          {showIp && <div>
             <label className="text-xs text-zinc-500 mb-1 block">IP address</label>
             <input
               value={draftIP}
@@ -240,7 +243,7 @@ export default function AdminAuditPage() {
               placeholder="192.168.1.1"
               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500"
             />
-          </div>
+          </div>}
 
           {/* Apply */}
           <div className="sm:col-span-2 lg:col-span-3 flex items-end gap-2">
@@ -276,7 +279,7 @@ export default function AdminAuditPage() {
                   <th className="text-left text-zinc-500 font-medium px-4 py-3 text-xs">Actor</th>
                   <th className="text-left text-zinc-500 font-medium px-4 py-3 text-xs">Entity</th>
                   <th className="text-left text-zinc-500 font-medium px-4 py-3 text-xs">Details</th>
-                  <th className="text-left text-zinc-500 font-medium px-4 py-3 text-xs">IP</th>
+                  <th className="text-left text-zinc-500 font-medium px-4 py-3 text-xs">{showIp ? "IP" : "Browser"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -339,7 +342,7 @@ export default function AdminAuditPage() {
 
                     {/* IP + UA */}
                     <td className="px-4 py-3">
-                      <div className="text-zinc-500 text-xs font-mono">{entry.ip ?? "—"}</div>
+                      {showIp && <div className="text-zinc-500 text-xs font-mono">{entry.ip ?? "—"}</div>}
                       {entry.userAgent && (
                         <div className="text-zinc-700 text-[10px] truncate max-w-28" title={entry.userAgent}>
                           {entry.userAgent.slice(0, 24)}…

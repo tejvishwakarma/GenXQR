@@ -27,6 +27,10 @@ import {
 import { logger } from "../logger/index.js"
 import { redis } from "../redis/client.js"
 import { createTrialSubscription } from "./billing.service.js"
+import { isAccountBlocked } from "./blocklist.service.js"
+import fs from "node:fs"
+import { toDiskPath } from "./uploads.service.js"
+import { locationData } from "./user-location.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -225,9 +229,11 @@ export async function loginUser(
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() }
+    data: { lastLoginAt: new Date(), ...(await locationData(ip, ["lastLogin"])) }
   })
 
+  // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
+  if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
   await prisma.auditLog.create({
     data: {
       userId: user.id,
@@ -246,6 +252,9 @@ export async function loginUser(
 /**
  * Rotate refresh token pair (silent re-auth).
  */
+/** How long a just-rotated refresh token is still honoured (concurrent tabs). */
+const REFRESH_REUSE_GRACE_MS = 30_000
+
 export async function refreshTokens(
   rawRefreshToken: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
@@ -260,22 +269,42 @@ export async function refreshTokens(
     where: { id: payload.jti }
   })
 
-  if (!stored || stored.revokedAt !== null || stored.expiresAt < new Date()) {
+  const now = new Date()
+  if (!stored || stored.expiresAt < now) {
     throw new AppError(401, "Refresh token is revoked or expired")
   }
 
   if (stored.tokenHash !== hashToken(rawRefreshToken)) {
     await prisma.refreshToken.updateMany({
       where: { userId: stored.userId, revokedAt: null },
-      data: { revokedAt: new Date() }
+      data: { revokedAt: now }
     })
     throw new AppError(401, "Refresh token mismatch — all sessions revoked")
   }
 
-  await prisma.refreshToken.update({
-    where: { id: payload.jti },
-    data: { revokedAt: new Date() }
-  })
+  if (stored.revokedAt !== null) {
+    // Revoked by logout or a password change: simply refused.
+    if (!stored.rotatedAt) throw new AppError(401, "Refresh token is revoked or expired")
+    // Rotated. Within the grace this is two tabs refreshing with the same
+    // cookie at once — normal, and refusing it would log the user out. Later
+    // than that, the token was already exchanged and is being replayed: a
+    // stolen copy. End every session so the thief's new one dies too.
+    if (now.getTime() - stored.rotatedAt.getTime() > REFRESH_REUSE_GRACE_MS) {
+      await prisma.refreshToken.updateMany({
+        where: { userId: stored.userId, revokedAt: null },
+        data: { revokedAt: now },
+      })
+      logger.warn("Refresh token reused after rotation — all sessions revoked", { userId: stored.userId })
+      throw new AppError(401, "Your session ended. Please sign in again.")
+    }
+  } else {
+    // Conditional: of two concurrent refreshes, exactly one rotates the token;
+    // the other sees it rotated (within the grace) on its next attempt.
+    await prisma.refreshToken.updateMany({
+      where: { id: payload.jti, revokedAt: null },
+      data: { revokedAt: now, rotatedAt: now },
+    })
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
@@ -283,6 +312,8 @@ export async function refreshTokens(
   })
 
   if (!user) throw new AppError(401, "User not found")
+  // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
+  if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
 
   const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)
   const refreshToken = await persistRefreshToken(user.id, jti, refreshExpiresAt)
@@ -310,8 +341,18 @@ export async function logoutUser(rawRefreshToken: string): Promise<void> {
  * Always returns success to prevent email enumeration.
  */
 export async function forgotPassword(input: z.infer<typeof forgotPasswordSchema>): Promise<void> {
+  // Answer at once, whether or not the account exists, and do the work after
+  // the response. It used to return immediately for unknown emails but wait for
+  // the token writes and the email send for real ones — the response time told
+  // anyone which addresses have accounts (security audit, 24 Oct 2026).
+  void sendPasswordReset(input.email).catch((err: unknown) =>
+    logger.error("Password reset email failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+}
+
+async function sendPasswordReset(email: string): Promise<void> {
   const user = await prisma.user.findUnique({
-    where: { email: input.email },
+    where: { email },
     select: { id: true, email: true, name: true }
   })
 
@@ -516,13 +557,32 @@ export async function handleGoogleOAuth(
       }
     })
   } else if (!user.googleId) {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        googleId: profile.id,
-        avatarUrl: profile.avatarUrl ?? user.avatarUrl
+    // Linking Google to an account found by EMAIL. Google has just proved this
+    // person owns the inbox. If the account never proved it, whoever registered
+    // it did not — so its password, sessions and pending verification/reset
+    // links are theirs, not the inbox owner's. Without dropping them, someone
+    // could register a victim's address, wait for the victim to sign in with
+    // Google and use the account, get the victim to click a (genuine) GenXQR
+    // verification email, and then log in with their own password.
+    const takeOver = !user.emailVerified
+    const existingId = user.id
+    user = await prisma.$transaction(async (tx) => {
+      if (takeOver) {
+        const now = new Date()
+        await tx.refreshToken.updateMany({ where: { userId: existingId, revokedAt: null }, data: { revokedAt: now } })
+        await tx.emailVerificationToken.deleteMany({ where: { userId: existingId } })
+        await tx.passwordResetToken.deleteMany({ where: { userId: existingId } })
       }
+      return tx.user.update({
+        where: { id: existingId },
+        data: {
+          googleId: profile.id,
+          avatarUrl: profile.avatarUrl ?? user!.avatarUrl,
+          ...(takeOver ? { passwordHash: null, emailVerified: true } : {}),
+        },
+      })
     })
+    if (takeOver) logger.info("Google sign-in took over an unverified account", { userId: existingId })
   }
 
   if (createdUser) await attachReferralAtSignup(user.id, referralCode)
@@ -533,8 +593,11 @@ export async function handleGoogleOAuth(
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() }
+    // A Google sign-in that just created the account is also where it signed up.
+    data: { lastLoginAt: new Date(), ...(await locationData(ip, createdUser ? ["signup", "lastLogin"] : ["lastLogin"])) }
   })
+  // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
+  if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
   await prisma.auditLog.create({
     data: {
       userId: user.id,
@@ -694,10 +757,22 @@ export async function getSessionUserById(userId: string) {
 }
 
 export async function updateUserAvatar(userId: string, avatarUrl: string | null): Promise<void> {
+  const previous = await prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } })
   await prisma.user.update({
     where: { id: userId },
     data: { avatarUrl }
   })
+  // Replacing an avatar used to leave the old file on disk, unbounded and
+  // outside any quota — 2 MB per request on any account, FREE included.
+  const old = previous?.avatarUrl
+  if (old && old !== avatarUrl && old.startsWith("/uploads/avatars/")) {
+    const disk = toDiskPath(old)
+    if (disk) {
+      await fs.promises.unlink(disk).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== "ENOENT") logger.warn("Failed to delete old avatar", { userId, error: err.message })
+      })
+    }
+  }
 }
 
 export async function updateNotificationPrefs(userId: string, prefs: NotificationPrefs): Promise<void> {

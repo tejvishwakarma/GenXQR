@@ -15,7 +15,7 @@ import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // a deleted or deactivated QR kept resolving. DEL is idempotent, so the existing
 // explicit calls in qr.routes.ts remain harmless.
 import { invalidateQRCache } from "./scan.service.js"
-import { redis } from "../redis/client.js"
+import { markAttached, removeUnreferencedFiles, resolveAttachments } from "./uploads.service.js"
 
 /** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
 const LIBRARY_FRAME_PREFIX = /^(shape|premium|occasion):/
@@ -358,46 +358,36 @@ function frameFieldsValue(v: Record<string, string> | null | undefined) {
  * Create a new QR code with optional content, design, and files.
  */
 /**
- * Verifies the caller actually owns every uploaded file it is attaching
- * (finding #1). tempUrl is client-supplied, so without this a tenant could
- * attach a path aliasing another tenant's file. A path is accepted only if the
- * uploader-ownership record (set at upload time) names this user, OR an existing
- * QRFile with that path already belongs to them (legitimate re-attach on update,
- * after the upload record's TTL). Anything else is refused.
+ * Runs a code-creating write under the owner's QR limit, serialised per owner.
+ *
+ * requireQRSlot (middleware) counts and the handler creates later, so parallel
+ * requests all passed the count: with 49 of 50 codes, twenty concurrent creates
+ * made ~69 (security audit, 23 Oct 2026). Here the count and the insert share a
+ * transaction behind a per-owner advisory lock, so only the slots that exist
+ * can be taken. The middleware stays for its friendlier early message and the
+ * usage emails.
  */
-async function assertUploadsOwned(
-  userId: string,
-  files: { tempUrl: string }[],
-  /**
-   * Who is attaching the files. In a team workspace a member uploads (so the
-   * upload is recorded as theirs) into a code owned by the workspace owner, so
-   * an upload by either is accepted. Defaults to the owner.
-   */
-  actorId: string = userId,
-): Promise<void> {
-  for (const f of files) {
-    let owner: string | null = null
-    try {
-      owner = await redis.get(`upload:owner:${f.tempUrl}`)
-    } catch {
-      owner = null // Redis miss/outage falls through to the DB ownership check
+export async function createWithinQRLimit<T>(ownerId: string, create: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  const { limits, planName } = await getUserPlanLimits(ownerId)
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`qrslot:${ownerId}`}))`
+    if (limits.dynamicQRLimit !== -1) {
+      if (limits.dynamicQRLimit === 0) throw new AppError(403, "trial_expired_subscribe_required")
+      const count = await tx.qRCode.count({ where: { userId: ownerId } })
+      if (count >= limits.dynamicQRLimit) {
+        throw new AppError(403, `Your ${planName} plan allows up to ${limits.dynamicQRLimit} dynamic QR codes. Please upgrade to create more.`)
+      }
     }
-    if (owner === userId || owner === actorId) continue
-
-    const alreadyOwned = await prisma.qRFile.findFirst({
-      where: { fileUrl: f.tempUrl, qrCode: { userId } },
-      select: { id: true },
-    })
-    if (alreadyOwned) continue
-
-    throw new AppError(403, "One or more uploaded files could not be attached to your account.")
-  }
+    return create(tx)
+  })
 }
 
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
-  const { design, settings, content, uploadedFiles, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, ...qrData } = input
 
-  if (uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
+  // tempUrl is client-supplied: only the caller's own uploads (finding #1), and
+  // with the size/type the SERVER recorded, never the request's (uploads.service).
+  const uploadedFiles = requestedFiles.length > 0 ? await resolveAttachments(userId, requestedFiles, actorId) : []
 
   await validateExpiryDate(userId, settings.activeUntil ?? null)
   await assertFrameAllowed(userId, design, null)
@@ -405,7 +395,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
   const slug = await uniqueSlug()
   const passwordHash = settings.password ? await bcrypt.hash(settings.password, 12) : undefined
 
-  const qr = await prisma.qRCode.create({
+  const qr = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
     data: {
       ...qrData,
       userId,
@@ -435,8 +425,9 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
           : undefined,
     },
     select: qrSelect,
-  })
+  }))
 
+  await markAttached(uploadedFiles.map((f) => f.tempUrl))
   logger.info("QR code created", { qrId: qr.id, userId, type: qr.type, slug })
   return serializeQR(qr)
 }
@@ -509,11 +500,13 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
-  const { design, settings, content, uploadedFiles, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, ...qrData } = input
 
   await assertFrameAllowed(userId, design, existing.design)
 
-  if (uploadedFiles && uploadedFiles.length > 0) await assertUploadsOwned(userId, uploadedFiles, actorId)
+  const uploadedFiles = requestedFiles && requestedFiles.length > 0
+    ? await resolveAttachments(userId, requestedFiles, actorId)
+    : undefined
 
   // Validate expiry only when the caller explicitly provides a new activeUntil value
   if (settings?.activeUntil !== undefined) {
@@ -580,6 +573,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
     select: qrSelect,
   })
 
+  if (uploadedFiles) await markAttached(uploadedFiles.map((f) => f.tempUrl))
   await invalidateQRCache(qr.slug)
   logger.info("QR code updated", { qrId: id, userId })
   return serializeQR(qr)
@@ -591,10 +585,17 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
 export async function deleteQR(id: string, userId: string) {
   // slug is selected so the cache entry can be dropped after the row is gone —
   // without it a deleted QR keeps redirecting until the cache expires.
-  const existing = await prisma.qRCode.findFirst({ where: { id, userId }, select: { id: true, slug: true } })
+  const existing = await prisma.qRCode.findFirst({
+    where: { id, userId },
+    select: { id: true, slug: true, files: { select: { fileUrl: true, thumbnailUrl: true } } },
+  })
   if (!existing) throw new AppError(404, "QR code not found")
   await prisma.qRCode.delete({ where: { id } })
   await invalidateQRCache(existing.slug)
+  // The rows cascade; the bytes did not, so a deleted code's files stayed on
+  // disk forever. Kept if another code still uses the same file.
+  await removeUnreferencedFiles(existing.files.flatMap((f) => [f.fileUrl, ...(f.thumbnailUrl ? [f.thumbnailUrl] : [])]))
+    .catch((err) => logger.warn("Deleting a code's files failed", { qrId: id, error: String(err) }))
   logger.info("QR code deleted", { qrId: id, userId })
 }
 
@@ -604,12 +605,16 @@ export async function deleteQR(id: string, userId: string) {
 export async function toggleQR(id: string, userId: string) {
   const qr = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, isActive: true, slug: true, pausedForBilling: true },
+    select: { id: true, isActive: true, slug: true, pausedForBilling: true, disabledByAdminAt: true },
   })
   if (!qr) throw new AppError(404, "QR code not found")
   // Paused because the plan lapsed: only payment switches it back on
   // (subscription-expiry.service.ts). Otherwise the pause is one click away
   // from meaningless, for the dashboard and the /v1 API alike.
+  // Taken down by an admin: only an admin can switch it back on.
+  if (qr.disabledByAdminAt) {
+    throw new AppError(403, "This QR code was disabled by GenXQR. Contact support if you think this is a mistake.")
+  }
   if (qr.pausedForBilling) {
     throw new AppError(403, "This QR code was paused because your plan ended. Renew your plan to switch it back on.")
   }
@@ -635,7 +640,7 @@ export async function duplicateQR(id: string, userId: string) {
 
   const slug = await uniqueSlug()
 
-  const newQR = await prisma.qRCode.create({
+  const newQR = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
     data: {
       userId,
       type: qr.type,
@@ -673,7 +678,7 @@ export async function duplicateQR(id: string, userId: string) {
         : undefined,
     },
     select: qrSelect,
-  })
+  }))
 
   logger.info("QR code duplicated", { originalId: id, newId: newQR.id, userId })
   return serializeQR(newQR)

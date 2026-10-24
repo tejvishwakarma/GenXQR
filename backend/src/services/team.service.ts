@@ -3,7 +3,7 @@ import { env } from "../config/env.js"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { getUserPlanLimits } from "./billing.service.js"
-import { sendEmail } from "./email.service.js"
+import { escapeHtml, sendEmail } from "./email.service.js"
 import { generateSecureToken, hashToken } from "../utils/crypto.js"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -163,8 +163,8 @@ async function sendTeamInviteEmail(ownerName: string, inviteEmail: string, role:
     html: `
       <div style="font-family:sans-serif;max-width:620px;margin:0 auto;padding:24px;line-height:1.5">
         <h2 style="margin:0 0 8px;color:#7c3aed">You're invited to GenXQR</h2>
-        <p style="margin:0 0 12px;color:#333">${ownerName} invited you to join their GenXQR team as <strong>${roleLabel}</strong>.</p>
-        <p style="margin:0 0 12px;color:#555">Use the secure invite link below. After you sign up or sign in with <strong>${inviteEmail}</strong>, you'll be able to join the team.</p>
+        <p style="margin:0 0 12px;color:#333">${escapeHtml(ownerName)} invited you to join their GenXQR team as <strong>${roleLabel}</strong>.</p>
+        <p style="margin:0 0 12px;color:#555">Use the secure invite link below. After you sign up or sign in with <strong>${escapeHtml(inviteEmail)}</strong>, you'll be able to join the team.</p>
         <a href="${inviteUrl}"
            style="display:inline-block;padding:10px 18px;background:#7c3aed;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
           Accept Team Invite
@@ -235,7 +235,8 @@ export async function getTeamOverview(ownerUserId: string) {
         role: true,
         user: { select: { id: true, name: true, email: true, lastLoginAt: true } },
       },
-      orderBy: { joinedAt: "asc" },
+      // Same order as workspace.service withinSeats, which decides who is suspended.
+      orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
     }),
     prisma.teamInvite.findMany({
       where: { teamId, acceptedAt: null },
@@ -257,13 +258,15 @@ export async function getTeamOverview(ownerUserId: string) {
     },
     ...memberRows
       .filter((row) => row.user.id !== owner.id)
-      .map((row) => ({
+      .map((row, index) => ({
         id: row.user.id,
         name: row.user.name,
         email: row.user.email,
         role: apiRoleFromDb(row.role),
         joined: row.joinedAt.toISOString(),
         lastActive: row.user.lastLoginAt?.toISOString() ?? null,
+        /** Beyond the plan's seats (e.g. after a downgrade): on the roster, no access. */
+        suspended: index >= Math.max(0, planInfo.limits.teamSeatsLimit - 1),
       })),
   ]
 
@@ -305,7 +308,7 @@ export async function getInvitePreview(rawToken: string) {
   }
 }
 
-export async function createInvite(userId: string, email: string, role: TeamRole) {
+export async function createInvite(userId: string, email: string, role: TeamRole, actorId: string = userId) {
   const [owner, team] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, email: true } }),
     getOrCreateOwnedTeam(userId),
@@ -366,7 +369,8 @@ export async function createInvite(userId: string, email: string, role: TeamRole
 
   await prisma.auditLog.create({
     data: {
-      userId,
+      // The person who acted (a team ADMIN, or the owner) — not always the owner.
+      userId: actorId,
       action: "team.invite.create",
       category: "team",
       entityType: "TeamInvite",
@@ -385,7 +389,7 @@ export async function createInvite(userId: string, email: string, role: TeamRole
   }
 }
 
-export async function resendInvite(userId: string, inviteId: string) {
+export async function resendInvite(userId: string, inviteId: string, actorId: string = userId) {
   const [owner, team] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
     getOrCreateOwnedTeam(userId),
@@ -419,7 +423,8 @@ export async function resendInvite(userId: string, inviteId: string) {
 
   await prisma.auditLog.create({
     data: {
-      userId,
+      // The person who acted (a team ADMIN, or the owner) — not always the owner.
+      userId: actorId,
       action: "team.invite.resend",
       category: "team",
       entityType: "TeamInvite",
@@ -438,7 +443,7 @@ export async function resendInvite(userId: string, inviteId: string) {
   }
 }
 
-export async function cancelInvite(userId: string, inviteId: string): Promise<void> {
+export async function cancelInvite(userId: string, inviteId: string, actorId: string = userId): Promise<void> {
   const team = await getOrCreateOwnedTeam(userId)
   if (team.ownerId !== userId) throw new AppError(403, "Only the team owner can cancel invites")
 
@@ -453,7 +458,8 @@ export async function cancelInvite(userId: string, inviteId: string): Promise<vo
 
   await prisma.auditLog.create({
     data: {
-      userId,
+      // The person who acted (a team ADMIN, or the owner) — not always the owner.
+      userId: actorId,
       action: "team.invite.cancel",
       category: "team",
       entityType: "TeamInvite",

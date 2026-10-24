@@ -67,7 +67,7 @@ router.get("/invites/token/:token", async (req: Request, res: Response, next: Ne
 router.post("/invites", ...manageTeam, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const parsed = CreateInviteSchema.parse(req.body)
-    const data = await TeamService.createInvite(wsOwner(req), parsed.email, parsed.role)
+    const data = await TeamService.createInvite(wsOwner(req), parsed.email, parsed.role, uid(req))
     res.status(201).json({ success: true, message: "Invite sent", data })
   } catch (err) {
     next(err)
@@ -77,7 +77,7 @@ router.post("/invites", ...manageTeam, async (req: Request, res: Response, next:
 router.post("/invites/:id/resend", ...manageTeam, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const inviteId = req.params["id"] as string
-    const data = await TeamService.resendInvite(wsOwner(req), inviteId)
+    const data = await TeamService.resendInvite(wsOwner(req), inviteId, uid(req))
     res.json({ success: true, message: "Invite resent", data })
   } catch (err) {
     next(err)
@@ -87,7 +87,7 @@ router.post("/invites/:id/resend", ...manageTeam, async (req: Request, res: Resp
 router.delete("/invites/:id", ...manageTeam, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const inviteId = req.params["id"] as string
-    await TeamService.cancelInvite(wsOwner(req), inviteId)
+    await TeamService.cancelInvite(wsOwner(req), inviteId, uid(req))
     res.json({ success: true, message: "Invite cancelled" })
   } catch (err) {
     next(err)

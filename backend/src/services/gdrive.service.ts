@@ -97,9 +97,12 @@ async function getDriveClient(userId: string) {
   })
 
   // Persist refreshed tokens if they changed
-  oauth2.on("tokens", async (tokens) => {
-    if (tokens.access_token) {
-      await prisma.user.update({
+  // An event handler: nothing awaits it, so a failed write must be caught here —
+  // an unhandled rejection exits the process (index.ts).
+  oauth2.on("tokens", (tokens) => {
+    if (!tokens.access_token) return
+    prisma.user
+      .update({
         where: { id: userId },
         data: {
           driveAccessToken: tokens.access_token,
@@ -107,7 +110,7 @@ async function getDriveClient(userId: string) {
           driveTokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         },
       })
-    }
+      .catch((err: unknown) => logger.warn("Could not save refreshed Drive tokens", { userId, error: String(err) }))
   })
 
   return google.drive({ version: "v3", auth: oauth2 })

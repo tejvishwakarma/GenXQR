@@ -30,6 +30,7 @@ type GtagArgs =
   | [command: "js", value: Date]
   | [command: "config", targetId: string, config?: Record<string, unknown>]
   | [command: "event", eventName: string, params?: Record<string, unknown>]
+  | [command: "set", params: Record<string, unknown>]
 
 declare global {
   interface Window {
@@ -126,6 +127,7 @@ const REDACTED_QUERY_PARAMS = new Set([
   "api_key",
   "email",
   "cf_order_id",    // payment order identifier
+  "access",         // proof a QR password was entered (/l/<slug>?access=…)
 ])
 
 /**
@@ -188,9 +190,14 @@ export function sanitisePath(rawPath: string): string {
 export function trackPageView(path: string, title?: string): void {
   if (!initialised || !window.gtag) return
   const safePath = sanitisePath(path)
+  const safeLocation = `${window.location.origin}${safePath}`
+  // Set as the default for EVERY later event, not just this page_view: GA4's
+  // Enhanced Measurement events (form_start, scroll, outbound clicks) otherwise
+  // read document.location themselves — reset tokens included.
+  window.gtag("set", { page_location: safeLocation, page_path: safePath })
   window.gtag("event", "page_view", {
     page_path: safePath,
-    page_location: `${window.location.origin}${safePath}`,
+    page_location: safeLocation,
     page_title: title ?? document.title,
   })
 }
