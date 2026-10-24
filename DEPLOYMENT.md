@@ -118,6 +118,7 @@ Fill in, at minimum:
 - `RESEND_API_KEY` (or the `SMTP_*` block).
 - `CASHFREE_APP_ID` / `CASHFREE_SECRET_KEY` — start with `CASHFREE_API_BASE=https://sandbox.cashfree.com/pg` and do a full sandbox checkout before flipping to `https://api.cashfree.com/pg`. Sandbox and live have separate key pairs. Also register the webhook `https://genxqr.com/api/billing/cashfree-webhook` in the Cashfree dashboard, subscribed to `PAYMENT_SUCCESS_WEBHOOK` — without it, subscriptions only activate when the user's browser makes it back to the site.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — leave blank to disable Google login entirely.
+- `MAXMIND_ACCOUNT_ID` / `MAXMIND_LICENSE_KEY` — free MaxMind GeoLite account (Manage License Keys). Without them scans are recorded with no location. The GeoLite licence requires the MaxMind credit (shown under the analytics location charts) and using new releases promptly (the server refreshes weekly).
 
 **The deploy runs the test suite first.** `deploy.sh` executes the backend tests
 before it migrates, builds or reloads, so a failure leaves production untouched.
@@ -189,9 +190,10 @@ npx prisma generate
 # exported above from genxqr.env — make sure both are set in that file)
 node prisma/seed.mjs
 
-# Geo database for scan analytics — downloads from a public GeoLite2 mirror,
-# no MaxMind account or license key needed (see backend/scripts/update-geo-db.mjs)
-pnpm geo:update
+# Geo database for scan analytics — GeoLite2-City from MaxMind, using
+# MAXMIND_ACCOUNT_ID / MAXMIND_LICENSE_KEY from genxqr.env (the server also
+# refreshes it weekly by itself; this just fetches it now)
+pnpm exec tsx --env-file=/home/genxqr/genxqr.env scripts/update-geo-db.ts
 
 cd ..
 pnpm build:backend    # tsc → backend/dist

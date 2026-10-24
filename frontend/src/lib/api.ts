@@ -5,6 +5,7 @@
 import { getAttribution } from "@/lib/attribution"
 import { getPendingReferral } from "@/lib/referralLink"
 import { setWorkspaceOwnerId, workspaceHeader } from "@/lib/workspace"
+import { queryClient } from "@/lib/queryClient"
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
 
@@ -51,6 +52,8 @@ export function clearClientSession(): void {
   localStorage.removeItem("user")
   localStorage.removeItem(IMPERSONATION_STORAGE_KEY)
   setWorkspaceOwnerId(null)
+  // Cached server data is not per-user — drop it with the session.
+  queryClient.clear()
 }
 
 export function startImpersonationSession(params: {
@@ -658,6 +661,8 @@ export const verifyAdminUserEmail = (id: string) =>
 export interface AdminQRCode {
   id: string; name: string; slug: string; type: string; category: string
   isActive: boolean; scanCount: number; createdAt: string
+  /** Set when an admin force-deactivated it — only an admin can switch it back on. */
+  disabledByAdminAt: string | null
   user: { id: string; name: string; email: string } | null
 }
 export const fetchAdminQRCodes = (page = 1, limit = 20, q = "") =>
@@ -666,6 +671,8 @@ export const fetchAdminQRCodes = (page = 1, limit = 20, q = "") =>
   )
 export const deactivateAdminQR = (id: string) =>
   adminFetch<{ success: boolean; message: string }>(`/admin-api/qr-codes/${id}/deactivate`, { method: "PATCH" })
+export const reactivateAdminQR = (id: string) =>
+  adminFetch<{ success: boolean; message: string }>(`/admin-api/qr-codes/${id}/reactivate`, { method: "PATCH" })
 export const deleteAdminQR = (id: string) =>
   adminFetch<{ success: boolean; message: string }>(`/admin-api/qr-codes/${id}`, { method: "DELETE" })
 
@@ -1283,6 +1290,8 @@ export interface PublicQRData {
   files: PublicQRFile[]
   /** Whose name this page carries. Optional so an older cached response renders. */
   branding?: ResolvedBranding
+  /** Set (with isActive false, and no content) when the code cannot be served now. */
+  unavailableReason?: "deactivated" | "expired" | "limit" | "blocked"
 }
 
 /**
@@ -1301,9 +1310,11 @@ export interface ResolvedBranding {
   mode: "genxqr" | "custom"
   name: string | null
   logoUrl: string | null
+  /** The owner's logo for the top of the scan landing page (any paid plan), whatever the mode. */
+  pageLogoUrl?: string | null
 }
 
-export const GENXQR_BRANDING: ResolvedBranding = { mode: "genxqr", name: null, logoUrl: null }
+export const GENXQR_BRANDING: ResolvedBranding = { mode: "genxqr", name: null, logoUrl: null, pageLogoUrl: null }
 
 /**
  * Branding for the pages that must not receive QR content — the password gate
@@ -1325,8 +1336,10 @@ export async function getPublicBranding(slug: string): Promise<ResolvedBranding>
 export interface BrandingSettings {
   brandName: string | null
   brandLogoUrl: string | null
-  /** Whether the account's plan actually lets the branding take effect. */
+  /** Whether the plan lets the brand NAME replace GenXQR's (white-label, Business+). */
   whiteLabelEnabled: boolean
+  /** Whether the plan shows the logo at the top of scan pages (any paid plan). */
+  scanPageLogoEnabled: boolean
 }
 
 export function getBrandingSettings() {
@@ -1343,8 +1356,10 @@ export function updateBrandingSettings(input: { brandName?: string | null; brand
   })
 }
 
-export function getPublicQR(slug: string) {
-  return apiFetch<{ success: boolean; data: PublicQRData }>(`/api/public/qr/${slug}`)
+/** `access`: the short-lived token a correct QR password hands over (/l/<slug>?access=…). */
+export function getPublicQR(slug: string, access?: string | null) {
+  const qs = access ? `?access=${encodeURIComponent(access)}` : ""
+  return apiFetch<{ success: boolean; data: PublicQRData }>(`/api/public/qr/${slug}${qs}`)
 }
 
 export interface PublicChangelogEntry {
@@ -1648,6 +1663,7 @@ export interface PlanLimits {
   smartRouting: boolean
   qrExpiry: boolean
   premiumFrames: boolean
+  scanPageLogo: boolean
 }
 
 export interface Plan {
@@ -2036,6 +2052,8 @@ export interface TeamMember {
   role: TeamRole
   joined: string
   lastActive: string | null
+  /** Beyond the plan's seats (e.g. after a downgrade): kept on the team, no access until a seat frees up. */
+  suspended?: boolean
 }
 
 export interface TeamPendingInvite {

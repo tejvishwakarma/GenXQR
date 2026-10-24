@@ -25,7 +25,7 @@ const sections = [
   },
   {
     title: "6. Data Retention",
-    content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files, all scan data and any GenXQR credit. If you joined through a referral link, we keep a one-way hash of your email address (not the address itself) linked to the account that referred you, so the same person cannot be referred again. You can export your data at any time before account deletion.",
+    content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files, all scan data and any GenXQR credit. We keep a one-way hash of your email address (not the address itself) after you delete your account, so the same person cannot receive another free trial or reuse a once-per-customer coupon, and, if you joined through a referral link, cannot be referred again by the same person. You can export your data at any time before account deletion.",
   },
 ]
 
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />
-      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 22, 2026" />
+      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 24, 2026" />
       <LegalBody>
         <LegalStats
           items={[

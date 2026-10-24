@@ -10,7 +10,7 @@
 import type { CouponDiscountType, PlanName, Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
-import { normaliseCouponCode, computeDiscountPaise } from "./coupon.service.js"
+import { normaliseCouponCode, computeDiscountPaise, MINIMUM_CHARGEABLE_PAISE } from "./coupon.service.js"
 import { PLAN_PRICES_INR } from "./billing.service.js"
 
 export interface CouponInput {
@@ -131,8 +131,44 @@ export async function getCoupon(id: string) {
   return decorate(coupon)
 }
 
-export async function createCoupon(input: CouponInput, createdById: string) {
+/**
+ * True if, on any plan and cycle the coupon applies to, it would leave less
+ * than ₹1 to pay — i.e. it grants the plan free (coupon.service quoteCoupon).
+ */
+export function couponCanMakePurchaseFree(input: CouponInput): boolean {
+  const plans = (input.applicablePlans?.length ? input.applicablePlans : ["STARTER", "PRO", "BUSINESS"]) as PlanName[]
+  const cycles = (input.applicableCycles?.length ? input.applicableCycles : ["monthly", "yearly"]) as Array<"monthly" | "yearly">
+  for (const plan of plans) {
+    const prices = PLAN_PRICES_INR[plan]
+    if (!prices) continue
+    for (const cycle of cycles) {
+      const price = Math.round(prices[cycle] * 100)
+      if (price <= 0) continue
+      if (input.minOrderPaise != null && price < input.minOrderPaise) continue
+      const discount = computeDiscountPaise(
+        { discountType: input.discountType, discountValue: input.discountValue, maxDiscountPaise: input.maxDiscountPaise ?? null },
+        price,
+      )
+      if (price - discount < MINIMUM_CHARGEABLE_PAISE) return true
+    }
+  }
+  return false
+}
+
+/**
+ * A coupon that makes a plan free is, in effect, a plan grant — and granting a
+ * plan (admin "change plan") is SUPER_ADMIN only. Without this any ADMIN could
+ * hand out free Business plans via a 100% code (security audit, 23 Oct 2026).
+ */
+function assertMayIssue(input: CouponInput, callerRole: string): void {
+  if (callerRole !== "SUPER_ADMIN" && couponCanMakePurchaseFree(input)) {
+    throw new AppError(403, "Only a super admin can create or change a coupon that makes a plan free.")
+  }
+}
+
+export async function createCoupon(input: CouponInput, createdById: string, callerRole: string) {
   assertValid(input)
+  assertMayIssue(input, callerRole)
   const code = normaliseCouponCode(input.code)
   if (!code) throw new AppError(422, "A coupon code is required.")
 
@@ -159,8 +195,9 @@ export async function createCoupon(input: CouponInput, createdById: string) {
   })
 }
 
-export async function updateCoupon(id: string, input: CouponInput) {
+export async function updateCoupon(id: string, input: CouponInput, callerRole: string) {
   assertValid(input)
+  assertMayIssue(input, callerRole)
   const existing = await prisma.coupon.findUnique({ where: { id } })
   if (!existing) throw new AppError(404, "Coupon not found")
 

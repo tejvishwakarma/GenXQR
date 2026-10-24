@@ -2,6 +2,9 @@ import { Queue, Worker, Job } from "bullmq"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 import { enforceSubscriptionExpiry } from "../services/subscription-expiry.service.js"
+import { releaseStaleCheckoutHolds } from "../services/billing.service.js"
+import { sweepPendingUploads } from "../services/uploads.service.js"
+import { refreshGeoDatabase } from "../services/geo.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -29,6 +32,20 @@ let worker: Worker | null = null
 
 async function processExpiryJob(_job: Job): Promise<void> {
   await enforceSubscriptionExpiry()
+  // Abandoned checkouts give back the coupon use and credit they held. Its own
+  // failure must not fail (and retry) the expiry sweep above.
+  await releaseStaleCheckoutHolds().catch((err) =>
+    logger.error("Releasing stale checkout holds failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // GeoLite2 from MaxMind, weekly (the licence: new releases promptly, old
+  // ones gone within 30 days). Cheap when fresh: one file stat.
+  await refreshGeoDatabase().catch((err) =>
+    logger.error("GeoIP refresh failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Uploads never attached within a day are deleted, so they cannot pile up.
+  await sweepPendingUploads().catch((err) =>
+    logger.error("Sweeping unattached uploads failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
 }
 
 export async function startSubscriptionExpiryWorker(): Promise<void> {

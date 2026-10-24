@@ -31,21 +31,60 @@ export const staticQRLimiter = rateLimit({
 })
 
 /**
- * Auth routes: 10 attempts per 15 minutes per IP.
- * Applies to login, register, forgot-password, reset-password.
+ * Auth limiters: per IP, 15-minute windows, ONE COUNTER PER ACTION.
+ *
+ * These used to share a single 10-per-15-min counter across login, register,
+ * password reset, verification resends, change-password, account deletion,
+ * QR-password attempts — and /refresh, which every open tab calls about every
+ * 15 minutes. A shared office or mobile-carrier IP ran it dry, and a failed
+ * /refresh logs the user out (security audit, 23 Oct 2026). Each action now
+ * has its own budget, and /refresh a much larger one.
+ *
+ * req.ip is the real visitor behind Cloudflare (config/trusted-proxies.ts).
  */
-export const authLimiter = rateLimit({
+function makeAuthLimiter(name: string, max: number, message = "Too many attempts. Please try again in 15 minutes.") {
+  return rateLimit({
+    windowMs: 15 * 60 * 1_000,
+    max,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip ?? "unknown",
+    store: makeRedisStore(`rl:auth:${name}:`),
+    handler: (_req, res) => {
+      res.status(429).json({ success: false, error: message })
+    },
+  })
+}
+
+export const loginLimiter = makeAuthLimiter("login", 10, "Too many sign-in attempts. Please try again in 15 minutes.")
+export const registerLimiter = makeAuthLimiter("register", 10)
+export const recoveryLimiter = makeAuthLimiter("recovery", 10)
+export const qrPasswordLimiter = makeAuthLimiter("qr-password", 10)
+/** Change password, account deletion and Google re-auth: signed-in, sensitive. */
+export const authLimiter = makeAuthLimiter("account", 10)
+/**
+ * The refresh cookie is a 256-bit credential, so this is not about guessing —
+ * only a ceiling against abuse. Sized for many tabs and many people per IP.
+ */
+export const refreshLimiter = makeAuthLimiter("refresh", 300)
+
+/**
+ * Per ACCOUNT (the email in the body), not per IP: password guessing spread
+ * across many addresses was not slowed at all. Shared by login and
+ * forgot-password; unknown emails are counted too, so it reveals nothing.
+ */
+export const accountAttemptLimiter = rateLimit({
   windowMs: 15 * 60 * 1_000,
   max: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? "unknown",
-  store: makeRedisStore("rl:auth:"),
+  keyGenerator: (req) => {
+    const email = (req.body as { email?: unknown } | undefined)?.email
+    return typeof email === "string" && email.trim() ? `e:${email.trim().toLowerCase()}` : `ip:${req.ip ?? "unknown"}`
+  },
+  store: makeRedisStore("rl:auth:account-email:"),
   handler: (_req, res) => {
-    res.status(429).json({
-      success: false,
-      error: "Too many authentication attempts. Please try again in 15 minutes.",
-    })
+    res.status(429).json({ success: false, error: "Too many attempts for this account. Please try again in 15 minutes." })
   },
 })
 

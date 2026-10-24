@@ -1,3 +1,4 @@
+import { forbidWhileImpersonating } from "../middleware/impersonation.middleware.js"
 import { Router, type IRouter } from "express"
 import { z } from "zod"
 import type { Request } from "express"
@@ -50,7 +51,7 @@ const createSchema = z.object({
 /**
  * POST /api/webhooks
  */
-router.post("/", requireAuth, planGuard, async (req, res, next) => {
+router.post("/", requireAuth, forbidWhileImpersonating, planGuard, async (req, res, next) => {
   try {
     const { name, url, events } = createSchema.parse(req.body)
     const hook = await createWebhook(uid(req), name, url, events)
@@ -70,7 +71,7 @@ const updateSchema = z.object({
 /**
  * PATCH /api/webhooks/:id
  */
-router.patch("/:id", requireAuth, planGuard, async (req, res, next) => {
+router.patch("/:id", requireAuth, forbidWhileImpersonating, planGuard, async (req, res, next) => {
   try {
     const { id } = req.params as { id: string }
     const patch = updateSchema.parse(req.body)
@@ -84,7 +85,7 @@ router.patch("/:id", requireAuth, planGuard, async (req, res, next) => {
 /**
  * DELETE /api/webhooks/:id
  */
-router.delete("/:id", requireAuth, planGuard, async (req, res, next) => {
+router.delete("/:id", requireAuth, forbidWhileImpersonating, planGuard, async (req, res, next) => {
   try {
     const { id } = req.params as { id: string }
     await deleteWebhook(uid(req), id)

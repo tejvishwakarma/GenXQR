@@ -26,12 +26,13 @@ import { env } from "../config/env.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
-import { createOrder, getOrder, type CashfreeOrder } from "./cashfree.service.js"
+import { createOrder, getOrder, terminateOrder, type CashfreeOrder } from "./cashfree.service.js"
 import { expireSubscription, isLapsed, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
 import { invalidateScanQuota } from "./scan-quota.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
-import { quoteCoupon, recordRedemption, MINIMUM_CHARGEABLE_PAISE, type CouponQuote } from "./coupon.service.js"
-import { getCreditBalance, lockCredit, recordCreditSpend, qualifyReferralInTx } from "./referral.service.js"
+import { inboxHash } from "../utils/inbox-hash.util.js"
+import { quoteCoupon, recordRedemption, releaseCouponHold, MINIMUM_CHARGEABLE_PAISE, type CouponQuote } from "./coupon.service.js"
+import { getCreditBalance, lockCredit, recordCreditSpend, releaseCreditHold, qualifyReferralInTx } from "./referral.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
 
@@ -51,6 +52,8 @@ export interface PlanLimits {
   qrExpiry: boolean
   /** The QR frame library (shapes, premium, occasions) in the dashboard — any paid plan (decided 20 Oct 2026). */
   premiumFrames: boolean
+  /** The account's logo at the top of the scan landing page — any paid plan (decided 23 Oct 2026). White-label (brand NAME replacing GenXQR) stays whiteLabel. */
+  scanPageLogo: boolean
 }
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
@@ -69,6 +72,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     smartRouting: false,
     qrExpiry: false,
     premiumFrames: false,
+    scanPageLogo: false,
   },
   STARTER: {
     dynamicQRLimit: 50,
@@ -85,6 +89,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     smartRouting: false,
     qrExpiry: true,
     premiumFrames: true,
+    scanPageLogo: true,
   },
   PRO: {
     dynamicQRLimit: 250,
@@ -101,6 +106,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     smartRouting: true,
     qrExpiry: true,
     premiumFrames: true,
+    scanPageLogo: true,
   },
   BUSINESS: {
     dynamicQRLimit: 2000,
@@ -117,6 +123,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     smartRouting: true,
     qrExpiry: true,
     premiumFrames: true,
+    scanPageLogo: true,
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
@@ -133,6 +140,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     smartRouting: true,
     qrExpiry: true,
     premiumFrames: true,
+    scanPageLogo: true,
   },
 }
 
@@ -300,6 +308,13 @@ async function isEligibleForTrial(userId: string, email: string): Promise<boolea
   if (!normalized) return true
 
   try {
+    // An inbox that already had a trial — including on an account since
+    // deleted, which the account check below cannot see.
+    if (await prisma.trialUsage.findUnique({ where: { emailHash: inboxHash(email) }, select: { emailHash: true } })) {
+      logger.info("Trial withheld: this inbox has had one before", { userId })
+      return false
+    }
+
     // Has any OTHER account on this inbox ever held a subscription? A trial that
     // has since lapsed to FREE still counts — the subscription row persists, so
     // the evaluation period was already used.
@@ -392,6 +407,10 @@ export async function createTrialSubscription(userId: string): Promise<void> {
       currentPeriodEnd: trialEnd,
     },
   })
+  // Remember the inbox, not the account: it outlives deletion.
+  await prisma.trialUsage
+    .upsert({ where: { emailHash: inboxHash(user.email) }, create: { emailHash: inboxHash(user.email) }, update: {} })
+    .catch((err) => logger.warn("Could not record trial usage", { userId, error: String(err) }))
 }
 
 // ─── Cashfree order creation ──────────────────────────────────────────────────
@@ -507,16 +526,31 @@ export async function priceCheckout(params: {
   planName: PurchasablePlan
   billingCycle: "monthly" | "yearly"
   couponCode?: string
+  /**
+   * Preview only: price as if these unpaid orders' holds were already released
+   * — which a new checkout does first (settleOwnOpenHolds). Real orders are
+   * priced without it, after the release has actually happened.
+   */
+  assumeReleased?: string[]
 }): Promise<CheckoutPricing> {
   const prices = PLAN_PRICES_INR[params.planName]
   const listPaise = Math.round((params.billingCycle === "yearly" ? prices.yearly : prices.monthly) * 100)
   const coupon = params.couponCode
-    ? await quoteCoupon({ code: params.couponCode, userId: params.userId, planName: params.planName, billingCycle: params.billingCycle })
+    ? await quoteCoupon({
+        code: params.couponCode, userId: params.userId, planName: params.planName, billingCycle: params.billingCycle,
+        ignoreOrderIds: params.assumeReleased,
+      })
     : null
   const afterCoupon = coupon ? coupon.finalPaise : listPaise
 
   const { availablePaise } = await getCreditBalance(params.userId)
-  const creditAvailablePaise = Math.max(0, availablePaise)
+  const heldBack = params.assumeReleased?.length
+    ? -((await prisma.creditEntry.aggregate({
+        where: { userId: params.userId, kind: "REDEMPTION", voidedAt: null, orderId: { in: params.assumeReleased } },
+        _sum: { amountPaise: true },
+      }))._sum.amountPaise ?? 0)
+    : 0
+  const creditAvailablePaise = Math.max(0, availablePaise + heldBack)
   const creditAppliedPaise = Math.min(creditAvailablePaise, afterCoupon)
   let finalPaise = afterCoupon - creditAppliedPaise
   if (finalPaise < MINIMUM_CHARGEABLE_PAISE) finalPaise = 0
@@ -556,6 +590,12 @@ export async function createPaymentOrder(
     select: { name: true, email: true, phone: true },
   })
 
+  // A coupon use or credit held by this user's earlier unpaid checkout is
+  // released first if Cashfree confirms that order can no longer be paid —
+  // otherwise starting again after closing the payment page would find them
+  // "already used".
+  await settleOwnOpenHolds(userId)
+
   // The client sends only a CODE. What it is worth — and how much credit is
   // spent — is decided here, never taken from the request.
   const pricing = await priceCheckout({ userId, planName, billingCycle, couponCode })
@@ -590,6 +630,11 @@ export async function createPaymentOrder(
   // as ours on a shared merchant account (see ORDER_ID_PREFIX).
   const orderId = `${ORDER_ID_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
+  // Hold the coupon use and credit NOW, not when the order is paid. Holding
+  // them only at payment let one single-use coupon, or one credit balance, be
+  // priced into any number of open orders, each of which could then be paid.
+  await holdCheckout(userId, orderId, planName, billingCycle, pricing)
+
   const notifyUrl = webhookUrl()
   if (!notifyUrl) {
     // Not fatal — the browser-return verification still activates the plan — but
@@ -602,42 +647,51 @@ export async function createPaymentOrder(
     )
   }
 
-  const order = await createOrder({
-    orderId,
-    amount: amountINR,
-    currency: "INR",
-    customer: {
-      // Cashfree requires an alphanumeric customer id; cuids qualify.
-      id: userId,
-      name: user.name || user.email.split("@")[0] || "Customer",
-      email: user.email,
-      phone: customerPhone,
-    },
-    // The browser lands back here; the SPA reads cf_order_id and asks the
-    // backend to verify it. Carries no proof of payment by itself.
-    returnUrl: `${env.FRONTEND_URL}/app/billing?cf_order_id=${orderId}`,
-    // Registered per order rather than as a fixed dashboard endpoint, which is
-    // what lets several sites share one Cashfree merchant account without their
-    // webhooks crossing over. Null in local dev (see webhookUrl()).
-    ...(notifyUrl ? { notifyUrl } : {}),
-    tags: {
-      userId,
-      planName,
-      billingCycle,
-      // What we intend to collect. Activation verifies the payment against THIS
-      // rather than the list price, which is what makes a discounted order
-      // acceptable without loosening the amount check. Bounded on the way back
-      // in: it must not exceed the list price.
-      expectedPaise: String(chargePaise),
-      ...(quote ? { couponCode: quote.code, couponId: quote.couponId } : {}),
-      // Credit to spend when this order is paid (recorded at activation).
-      ...(pricing.creditAppliedPaise > 0 ? { creditPaise: String(pricing.creditAppliedPaise) } : {}),
-    },
-    expiryMinutes: ORDER_EXPIRY_MINUTES,
-  })
+  let order: Awaited<ReturnType<typeof createOrder>>
+  try {
+    order = await createOrder({
+      orderId,
+      amount: amountINR,
+      currency: "INR",
+      customer: {
+        // Cashfree requires an alphanumeric customer id; cuids qualify.
+        id: userId,
+        name: user.name || user.email.split("@")[0] || "Customer",
+        email: user.email,
+        phone: customerPhone,
+      },
+      // The browser lands back here; the SPA reads cf_order_id and asks the
+      // backend to verify it. Carries no proof of payment by itself.
+      returnUrl: `${env.FRONTEND_URL}/app/billing?cf_order_id=${orderId}`,
+      // Registered per order rather than as a fixed dashboard endpoint, which is
+      // what lets several sites share one Cashfree merchant account without their
+      // webhooks crossing over. Null in local dev (see webhookUrl()).
+      ...(notifyUrl ? { notifyUrl } : {}),
+      tags: {
+        userId,
+        planName,
+        billingCycle,
+        // What we intend to collect. Activation verifies the payment against THIS
+        // rather than the list price, which is what makes a discounted order
+        // acceptable without loosening the amount check. Bounded on the way back
+        // in: it must not exceed the list price.
+        expectedPaise: String(chargePaise),
+        ...(quote ? { couponCode: quote.code, couponId: quote.couponId } : {}),
+        // Credit to spend when this order is paid (recorded at activation).
+        ...(pricing.creditAppliedPaise > 0 ? { creditPaise: String(pricing.creditAppliedPaise) } : {}),
+      },
+      expiryMinutes: ORDER_EXPIRY_MINUTES,
+    })
+  } catch (err) {
+    await releaseCheckoutHold(orderId)
+    throw err
+  }
 
   if (!order.payment_session_id) {
     logger.error("Cashfree created an order without a payment_session_id", { orderId, status: order.order_status })
+    // The session is unusable, so the order cannot be paid: stop it and free the hold.
+    await terminateOrder(orderId).catch(() => undefined)
+    await releaseCheckoutHold(orderId)
     throw new AppError(502, "The payment gateway did not return a usable checkout session.")
   }
 
@@ -651,6 +705,139 @@ export async function createPaymentOrder(
     currency: "INR",
     planName,
     billingCycle,
+  }
+}
+
+// ─── Checkout holds ───────────────────────────────────────────────────────────
+//
+// A paid order's coupon use (a CouponRedemption row) and credit (a REDEMPTION
+// CreditEntry) are written when the order is CREATED, under the same strict
+// checks as a free grant, and confirmed when it is paid (recordRedemption /
+// recordCreditSpend find the held rows). An order that is never paid has no
+// Invoice; its hold is released once Cashfree confirms the order is expired or
+// terminated — by the user's next checkout (settleOwnOpenHolds) or by the
+// sweep (releaseStaleCheckoutHolds). A hold is never released on a guess: if
+// Cashfree cannot be asked, it stays.
+
+async function holdCheckout(
+  userId: string,
+  orderId: string,
+  planName: PurchasablePlan,
+  billingCycle: "monthly" | "yearly",
+  pricing: CheckoutPricing,
+): Promise<void> {
+  if (!pricing.coupon && pricing.creditAppliedPaise <= 0) return
+  await prisma.$transaction(async (tx) => {
+    if (pricing.creditAppliedPaise > 0) {
+      await lockCredit(tx, userId)
+      const { availablePaise } = await getCreditBalance(userId, tx)
+      if (availablePaise < pricing.creditAppliedPaise) {
+        throw new AppError(409, "Your credit balance changed. Please review the total and try again.")
+      }
+      await recordCreditSpend(tx, userId, orderId, pricing.creditAppliedPaise)
+    }
+    if (pricing.coupon) {
+      await recordRedemption(
+        tx,
+        {
+          couponId: pricing.coupon.couponId,
+          userId,
+          cashfreeOrderId: orderId,
+          originalPaise: pricing.listPaise,
+          discountPaise: pricing.listPaise - pricing.finalPaise - pricing.creditAppliedPaise,
+          finalPaise: pricing.finalPaise,
+          planName,
+          billingCycle,
+        },
+        { strict: true },
+      )
+    }
+  })
+}
+
+async function releaseCheckoutHold(orderId: string): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await releaseCouponHold(tx, orderId)
+    await releaseCreditHold(tx, orderId)
+  })
+}
+
+/** Unpaid orders (no invoice) still holding a coupon use or credit, oldest first. */
+async function openHolds(where: { userId?: string; heldBefore?: Date }): Promise<Array<{ orderId: string; heldAt: Date }>> {
+  const userId = where.userId ?? null
+  const before = where.heldBefore ?? new Date("9999-12-31T00:00:00Z")
+  return prisma.$queryRaw<Array<{ orderId: string; heldAt: Date }>>`
+    SELECT h."orderId", MIN(h."heldAt") AS "heldAt" FROM (
+      SELECT ce."orderId" AS "orderId", ce."createdAt" AS "heldAt"
+        FROM credit_entries ce
+       WHERE ce.kind = 'REDEMPTION' AND ce."voidedAt" IS NULL AND ce."orderId" IS NOT NULL
+         AND (${userId}::text IS NULL OR ce."userId" = ${userId})
+      UNION ALL
+      SELECT cr."cashfreeOrderId", cr."redeemedAt"
+        FROM coupon_redemptions cr
+       WHERE (${userId}::text IS NULL OR cr."userId" = ${userId})
+    ) h
+    WHERE NOT EXISTS (SELECT 1 FROM invoices i WHERE i."cashfreeOrderId" = h."orderId")
+    GROUP BY h."orderId"
+    HAVING MIN(h."heldAt") < ${before}
+    ORDER BY 2
+    LIMIT 200`
+}
+
+/**
+ * Asks Cashfree about one held order and acts on the answer: released if the
+ * order can no longer be paid, activated if it was paid (a missed webhook),
+ * kept otherwise. `terminate` first asks Cashfree to stop the order — used when
+ * the same user starts a new checkout, i.e. has abandoned this one.
+ */
+async function settleHold(orderId: string, heldAt: Date, opts: { terminate: boolean }): Promise<void> {
+  let status: string
+  try {
+    status = (opts.terminate ? await terminateOrder(orderId) : await getOrder(orderId)).order_status
+  } catch (err) {
+    // Cashfree unreachable, or no such order. An order that was never created
+    // (the process died between the hold and createOrder) can never be paid:
+    // after a day, release it; until then, keep the hold.
+    if (Date.now() - heldAt.getTime() > 24 * 60 * 60 * 1000) {
+      logger.warn("Releasing a day-old checkout hold Cashfree could not report on", { orderId, error: String(err) })
+      await releaseCheckoutHold(orderId)
+    }
+    return
+  }
+  if (status === "EXPIRED" || status === "TERMINATED") {
+    await releaseCheckoutHold(orderId)
+    logger.info("Released checkout hold", { orderId, status })
+  } else if (status === "PAID") {
+    await activateSubscriptionForOrder(orderId).catch((err) =>
+      logger.error("Activating a paid order found by the hold sweep failed", { orderId, error: String(err) }),
+    )
+  }
+  // ACTIVE / TERMINATION_REQUESTED: still payable or settling — keep the hold.
+}
+
+/** Releases this user's holds on orders they have abandoned (see createPaymentOrder). */
+async function settleOwnOpenHolds(userId: string): Promise<void> {
+  for (const hold of await openHolds({ userId })) {
+    if (hold.orderId.startsWith(`${ORDER_ID_PREFIX}free_`)) continue
+    await settleHold(hold.orderId, hold.heldAt, { terminate: true })
+  }
+}
+
+/** Order ids whose holds a new checkout by this user would try to release (price previews). */
+export async function ownReleasableHoldIds(userId: string): Promise<string[]> {
+  return (await openHolds({ userId })).map((h) => h.orderId).filter((id) => !id.startsWith(`${ORDER_ID_PREFIX}free_`))
+}
+
+/**
+ * Sweep (subscription-expiry worker, every 10 minutes): settles holds on orders
+ * old enough to have expired at Cashfree, so an abandoned checkout returns its
+ * coupon use and credit even if the user never comes back.
+ */
+export async function releaseStaleCheckoutHolds(now = new Date()): Promise<void> {
+  const heldBefore = new Date(now.getTime() - (ORDER_EXPIRY_MINUTES + 5) * 60 * 1000)
+  for (const hold of await openHolds({ heldBefore })) {
+    if (hold.orderId.startsWith(`${ORDER_ID_PREFIX}free_`)) continue
+    await settleHold(hold.orderId, hold.heldAt, { terminate: false })
   }
 }
 
@@ -871,6 +1058,11 @@ async function applyPurchasedPeriod(p: {
   // extension, so the user cannot be granted two periods for one payment.
   try {
     await prisma.$transaction(async (tx) => {
+      // One purchase per user at a time. Two different orders for the same user
+      // activating together (webhook + browser return, or two payments) used to
+      // both read the same currentPeriodEnd — two payments, one extension — and
+      // both see "first purchase", doubling the referral rewards.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`purchase:${userId}`}))`
       const creditPaise = p.creditPaise ?? 0
       if (creditPaise > 0) {
         if (p.strictCredit) {
@@ -1008,10 +1200,14 @@ export async function verifyPaymentForUser(
   userId: string,
   orderId: string,
 ): Promise<ActivationResult> {
+  // Only our own orders, and only with an owner tag that is this user. On a
+  // shared merchant account any order id could be looked up through here
+  // (two Cashfree API calls each, and the foreign order's status leaked back).
+  if (!isOwnOrderId(orderId)) throw new AppError(404, "Order not found")
   const order = await getOrder(orderId)
   const ownerId = order.order_tags?.["userId"]
 
-  if (ownerId && ownerId !== userId) {
+  if (ownerId !== userId) {
     logger.warn("User attempted to verify an order belonging to someone else", { userId, ownerId, orderId })
     throw new AppError(403, "This payment belongs to a different account.")
   }

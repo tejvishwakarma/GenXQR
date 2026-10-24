@@ -19,6 +19,7 @@ import {
   sendEmail,
   buildSupportTicketAdminEmail,
   buildSupportTicketConfirmationEmail,
+  buildContactConfirmationEmail,
 } from "../services/email.service.js"
 import { getUserPlanLimits } from "../services/billing.service.js"
 
@@ -158,12 +159,9 @@ router.post(
       void sendEmail({
         to:      input.email,
         subject: "We've received your message — GenXQR",
-        html:    buildSupportTicketConfirmationEmail({
-          userName: input.firstName,
-          ticketId: reference,
-          subject,
-          category: label,
-        }),
+        // Fixed text: the form is anonymous, so the recipient is whoever the
+        // visitor typed — nothing they wrote goes into the email.
+        html:    buildContactConfirmationEmail(reference),
       }).catch((err: unknown) => {
         logger.warn("Contact confirmation email failed", { error: String(err) })
       })

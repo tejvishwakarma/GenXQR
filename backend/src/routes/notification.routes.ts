@@ -89,6 +89,23 @@ router.patch(
   },
 )
 
+// ─── DELETE /api/notifications/clear-read — bulk delete all read ──────────────
+// Registered BEFORE /:id, which would otherwise match "clear-read" as an id
+// (it did: the button never worked — it 404ed as an unknown notification).
+
+router.delete(
+  "/clear-read",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const count = await clearReadNotifications(uid(req))
+      res.json({ success: true, data: { deleted: count } })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 // ─── DELETE /api/notifications/:id — delete a single notification ─────────────
 
 router.delete(
@@ -102,21 +119,6 @@ router.delete(
         return
       }
       res.json({ success: true, message: "Notification deleted" })
-    } catch (err) {
-      next(err)
-    }
-  },
-)
-
-// ─── DELETE /api/notifications/clear-read — bulk delete all read ──────────────
-
-router.delete(
-  "/clear-read",
-  requireAuth,
-  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const count = await clearReadNotifications(uid(req))
-      res.json({ success: true, data: { deleted: count } })
     } catch (err) {
       next(err)
     }

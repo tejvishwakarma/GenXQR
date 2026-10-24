@@ -67,7 +67,7 @@ function parseUA(ua: string | undefined): UAInfo {
 
 // ─── Worker process function ───────────────────────────────────────────────────
 
-async function processScanJob(job: Job<ScanJobData>): Promise<void> {
+export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promise<void> {
   const { qrId, ip, userAgent, referrer, scannedAt, abVariantId } = job.data
   // Jobs queued before this field existed are treated as unique, which is what
   // they were: the old pipeline only ever enqueued unique scans.
@@ -77,37 +77,66 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
   const { country, countryCode, city, region, lat, lng } = await lookupGeo(ip)
   const scannedAtDate = new Date(scannedAt)
 
-  // Insert scan record
-  await prisma.qRScan.create({
-    data: {
-      qrId,
-      ip,
-      deviceType,
-      os,
-      browser,
-      userAgent: userAgent ?? null,
-      referrer: referrer ?? null,
-      scannedAt: scannedAtDate,
-      isUnique,
-      abVariantId: abVariantId ?? null,
-      country,
-      countryCode,
-      city,
-      region,
-      lat,
-      lng,
-    },
-  })
+  // Every count for this scan in ONE transaction. They used to be separate
+  // writes with attempts: 3 on the job, so a late failure (e.g. the A/B variant
+  // deleted meanwhile — no foreign key, so the update threw) replayed the job
+  // and counted the scan, the totals and the webhook again. Now a retry either
+  // finds nothing written or redoes it all once.
+  const dateOnly = new Date(
+    Date.UTC(scannedAtDate.getUTCFullYear(), scannedAtDate.getUTCMonth(), scannedAtDate.getUTCDate()),
+  )
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.qRScan.create({
+      data: {
+        qrId,
+        ip,
+        deviceType,
+        os,
+        browser,
+        userAgent: userAgent ?? null,
+        referrer: referrer ?? null,
+        scannedAt: scannedAtDate,
+        isUnique,
+        abVariantId: abVariantId ?? null,
+        country,
+        countryCode,
+        city,
+        region,
+        lat,
+        lng,
+      },
+    })
 
-  // Increment global scan counter + set lastScannedAt
-  const updated = await prisma.qRCode.update({
-    where: { id: qrId },
-    data: {
-      scanCount: { increment: 1 },
-      ...(isUnique && { uniqueScanCount: { increment: 1 } }),
-      lastScannedAt: scannedAtDate,
-    },
-    select: { userId: true, name: true, slug: true, scanCount: true },
+    // Global scan counter + lastScannedAt
+    const row = await tx.qRCode.update({
+      where: { id: qrId },
+      data: {
+        scanCount: { increment: 1 },
+        ...(isUnique && { uniqueScanCount: { increment: 1 } }),
+        lastScannedAt: scannedAtDate,
+      },
+      select: { userId: true, name: true, slug: true, scanCount: true },
+    })
+
+    // Daily aggregate — for every code, owned or not (an early return for
+    // ownerless codes used to skip it).
+    await tx.qRScanDaily.upsert({
+      where: { qrId_date: { qrId, date: dateOnly } },
+      create: { qrId, date: dateOnly, count: 1, uniqueCount: isUnique ? 1 : 0 },
+      update: {
+        count: { increment: 1 },
+        ...(isUnique && { uniqueCount: { increment: 1 } }),
+      },
+    })
+
+    // A/B variant counter; updateMany, so a variant deleted since the scan is a no-op.
+    if (abVariantId) {
+      await tx.aBTestVariant.updateMany({
+        where: { id: abVariantId },
+        data: { scanCount: { increment: 1 } },
+      })
+    }
+    return row
   })
 
   // 100 / 1,000 / 10,000-scan milestone email (fire-and-forget, deduped).
@@ -143,27 +172,6 @@ async function processScanJob(job: Job<ScanJobData>): Promise<void> {
         logger.warn("Scan limit check failed", { userId: updated.userId, error: String(err) })
       }
     })()
-  }
-
-  // Upsert daily aggregate
-  const dateOnly = new Date(
-    Date.UTC(scannedAtDate.getUTCFullYear(), scannedAtDate.getUTCMonth(), scannedAtDate.getUTCDate()),
-  )
-  await prisma.qRScanDaily.upsert({
-    where: { qrId_date: { qrId, date: dateOnly } },
-    create: { qrId, date: dateOnly, count: 1, uniqueCount: isUnique ? 1 : 0 },
-    update: {
-      count: { increment: 1 },
-      ...(isUnique && { uniqueCount: { increment: 1 } }),
-    },
-  })
-
-  // Increment A/B variant counter if applicable
-  if (abVariantId) {
-    await prisma.aBTestVariant.update({
-      where: { id: abVariantId },
-      data: { scanCount: { increment: 1 } },
-    })
   }
 
   logger.debug("Scan logged", { qrId, deviceType, os, browser })

@@ -1,3 +1,4 @@
+import { MulterError } from "multer"
 import type { Request, Response, NextFunction } from "express"
 import { ZodError } from "zod"
 import { logger } from "../logger/index.js"
@@ -44,6 +45,20 @@ export function errorHandler(
       success: false,
       error: err.message,
     })
+    return
+  }
+
+  // Client errors raised by middleware that does not use AppError: body-parser
+  // (malformed JSON 400, body too large 413) and multer (file too large, too
+  // many files…). They are the request's fault, not ours, so they get their own
+  // 4xx — not a 500 that is also logged as a server error.
+  if (err instanceof MulterError) {
+    res.status(err.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ success: false, error: err.message })
+    return
+  }
+  const status = (err as { status?: unknown; statusCode?: unknown } | null)?.status ?? (err as { statusCode?: unknown } | null)?.statusCode
+  if (typeof status === "number" && status >= 400 && status < 500 && (err as { expose?: unknown }).expose !== false) {
+    res.status(status).json({ success: false, error: status === 413 ? "Request too large" : "Invalid request" })
     return
   }
 

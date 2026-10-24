@@ -235,7 +235,17 @@ export async function updateApplication(applicationId: string, status?: string, 
 }
 
 export async function deleteApplication(applicationId: string): Promise<void> {
-  await prisma.jobApplication.delete({ where: { id: applicationId } })
+  const application = await prisma.jobApplication.delete({ where: { id: applicationId }, select: { cvPath: true } })
+  // The CV is personal data: it goes with the application (it used to stay on disk).
+  if (application.cvPath) {
+    const UPLOAD_BASE = path.join(process.cwd(), "uploads")
+    const resolved = path.resolve(application.cvPath)
+    if (resolved.startsWith(UPLOAD_BASE + path.sep)) {
+      await fs.promises.unlink(resolved).catch((err: NodeJS.ErrnoException) => {
+        if (err.code !== "ENOENT") throw err
+      })
+    }
+  }
 }
 
 /**

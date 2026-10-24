@@ -1,3 +1,4 @@
+import { pauseCodesForBilling, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
 import { deleteUserAndData } from "./account-erasure.service.js"
@@ -206,6 +207,11 @@ export async function changePlan(
     },
   })
   await invalidateScanQuota(targetUser.id)
+  // FREE is never "lapsed" and has no enforced scan quota, so without this an
+  // account an admin moved to FREE kept every code live forever. A paid plan
+  // switches back on what a previous move to FREE (or a lapse) paused.
+  if (planName === "FREE") await pauseCodesForBilling(targetUser.id)
+  else await resumeCodesPausedForBilling(targetUser.id)
 
   await prisma.auditLog.create({
     data: {
@@ -316,6 +322,9 @@ export async function impersonateUser(adminId: string, adminRole: AdminRole, tar
     sub: target.id,
     email: target.email,
     role: target.role as AdminRole,
+    // Marks the session: audit rows name this admin, and actions that outlive
+    // the session (API keys, webhooks, payments…) are refused.
+    act: adminId,
   })
 
   await prisma.auditLog.create({
@@ -370,9 +379,17 @@ export async function forceSetPassword(callerRole: AdminRole, callerId: string, 
     select: { id: true, email: true, role: true },
   })
   if (!target) throw new AppError(404, "User not found")
+  // Customer accounts only, like impersonation: setting another admin's
+  // password is signing in as them. Admins change their own in Settings.
+  if (target.role !== "USER") throw new AppError(403, "Admin passwords cannot be set here. They change their own in Settings.")
 
   const passwordHash = await hashPassword(password)
-  await prisma.user.update({ where: { id: targetId }, data: { passwordHash } })
+  // Revoke every session too — this is how a compromised account is locked
+  // down, and the attacker's 30-day refresh cookie must not outlive it.
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: targetId }, data: { passwordHash } }),
+    prisma.refreshToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ])
 
   await prisma.auditLog.create({
     data: {

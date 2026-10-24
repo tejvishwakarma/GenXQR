@@ -1,6 +1,9 @@
 import { createHmac, randomBytes } from "node:crypto"
 import { lookup } from "node:dns/promises"
+import http from "node:http"
+import https from "node:https"
 import net from "node:net"
+import { isNonPublicAddress } from "../utils/ip-classify.util.js"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
@@ -50,63 +53,90 @@ function validateWebhookUrl(urlStr: string): void {
     throw new AppError(400, "Webhook URL must use http or https")
   }
 
-  // Block private/reserved IP ranges (SSRF prevention) — only in production
+  // Block private/reserved addresses (SSRF prevention) — only in production.
+  // A hostname is checked again, by what it resolves to, at delivery time.
   if (env.NODE_ENV === "production") {
-    const host = parsed.hostname.toLowerCase()
-    const privatePattern = /^(localhost|::1|0\.0\.0\.0|127(\.\d+){3}|10(\.\d+){3}|172\.(1[6-9]|2\d|3[01])(\.\d+){2}|192\.168(\.\d+){2}|169\.254(\.\d+){2}|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])(\.\d+){2})$/
-    if (privatePattern.test(host)) {
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "")
+    if (host === "localhost" || host.endsWith(".localhost") || (net.isIP(host) && isNonPublicAddress(host))) {
       throw new AppError(400, "Webhook URL must not target a private or loopback address")
     }
   }
 }
 
 /**
- * Returns true if the given IP literal is loopback, link-local, private (RFC 1918),
- * CGNAT, or IPv6 ULA/link-local. Handles IPv4-mapped IPv6 addresses.
+ * Resolves the URL's host ONCE, refuses if any address is non-public, and
+ * returns the address the request must connect to. Pinning matters: checking
+ * one lookup and then letting the HTTP client resolve again allowed DNS
+ * rebinding (a 0-TTL record answering public, then internal). Production only,
+ * to keep local receivers testable in development (returns null: no pinning).
  */
-function isPrivateIp(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number)
-    if (a === 0 || a === 127 || a === 10) return true
-    if (a === 169 && b === 254) return true
-    if (a === 172 && b >= 16 && b <= 31) return true
-    if (a === 192 && b === 168) return true
-    if (a === 100 && b >= 64 && b <= 127) return true // CGNAT (RFC 6598)
-    return false
+export async function resolvePinnedAddress(parsed: URL): Promise<{ address: string; family: 4 | 6 } | null> {
+  if (env.NODE_ENV !== "production") return null
+  const host = parsed.hostname.replace(/^\[|\]$/g, "")
+  const addresses = net.isIP(host)
+    ? [{ address: host, family: net.isIP(host) as 4 | 6 }]
+    : (await lookup(host, { all: true })).map((e) => ({ address: e.address, family: e.family as 4 | 6 }))
+  if (addresses.length === 0) throw new AppError(400, "Webhook URL host could not be resolved")
+  if (addresses.some((a) => isNonPublicAddress(a.address))) {
+    throw new AppError(400, "Webhook URL must not resolve to a private, loopback, or link-local address")
   }
-  const lower = ip.toLowerCase()
-  if (lower === "::1" || lower === "::") return true
-  if (lower.startsWith("fe80")) return true // link-local
-  if (lower.startsWith("fc") || lower.startsWith("fd")) return true // unique local
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(lower)
-  if (mapped?.[1]) return isPrivateIp(mapped[1])
-  return false
+  return addresses[0]!
 }
 
+/** Largest response body kept (and read) from a webhook endpoint. */
+const MAX_RESPONSE_BYTES = 1000
+
 /**
- * Resolves the URL's host at delivery time and rejects if ANY resolved address is
- * internal. This defeats DNS-rebinding and public-hostname-pointing-at-internal-IP
- * bypasses that a hostname-string check (validateWebhookUrl) cannot catch. Applied
- * in production only, to keep local-receiver testing possible in development.
+ * POSTs a webhook. Connects to `pinned` when given (never re-resolving the
+ * host), follows no redirects, and stops reading after MAX_RESPONSE_BYTES —
+ * `await res.text()` used to buffer whatever a hostile endpoint streamed in
+ * the 10 s window before truncating it.
  */
-async function assertPublicHost(parsed: URL): Promise<void> {
-  if (env.NODE_ENV !== "production") return
-  const host = parsed.hostname.replace(/^\[|\]$/g, "") // strip IPv6 brackets
-  let addresses: string[]
-  if (net.isIP(host)) {
-    addresses = [host]
-  } else {
-    const resolved = await lookup(host, { all: true })
-    addresses = resolved.map((entry) => entry.address)
-  }
-  if (addresses.length === 0) {
-    throw new AppError(400, "Webhook URL host could not be resolved")
-  }
-  for (const address of addresses) {
-    if (isPrivateIp(address)) {
-      throw new AppError(400, "Webhook URL must not resolve to a private, loopback, or link-local address")
-    }
-  }
+export function postWebhook(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  pinned: { address: string; family: 4 | 6 } | null,
+  timeoutMs: number,
+): Promise<{ status: number; text: string }> {
+  const mod = url.protocol === "https:" ? https : http
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (fn: () => void) => { if (!settled) { settled = true; fn() } }
+    const req = mod.request(
+      url,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Length": String(Buffer.byteLength(body)) },
+        timeout: timeoutMs,
+        ...(pinned
+          ? {
+              // TLS still verifies the certificate against the URL's hostname.
+              lookup: ((_host: string, opts: { all?: boolean }, cb: (...args: unknown[]) => void) => {
+                if (opts?.all) cb(null, [{ address: pinned.address, family: pinned.family }])
+                else cb(null, pinned.address, pinned.family)
+              }) as unknown as net.LookupFunction,
+            }
+          : {}),
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        let size = 0
+        const done = () => finish(() => resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8").slice(0, MAX_RESPONSE_BYTES) }))
+        res.on("data", (chunk: Buffer) => {
+          if (size < MAX_RESPONSE_BYTES) chunks.push(chunk)
+          size += chunk.length
+          if (size >= MAX_RESPONSE_BYTES) { done(); res.destroy() }
+        })
+        res.on("end", done)
+        res.on("close", done)
+        res.on("error", done)
+      },
+    )
+    req.on("timeout", () => req.destroy(new Error("This operation was aborted")))
+    req.on("error", (err) => finish(() => reject(err)))
+    req.end(body)
+  })
 }
 
 export interface WebhookRecord {
@@ -264,6 +294,21 @@ export async function deliverWebhookEvent(
   event: WebhookEvent,
   payload: Record<string, unknown>,
 ): Promise<void> {
+  // Never rejects. Callers fire this and forget it (`void deliverWebhookEvent`),
+  // and an unhandled rejection exits the process (index.ts) — so one database
+  // timeout here used to take the whole API down.
+  try {
+    await deliverWebhookEventUnsafe(userId, event, payload)
+  } catch (err) {
+    logger.error("Webhook event delivery failed", { userId, event, error: err instanceof Error ? err.message : String(err) })
+  }
+}
+
+async function deliverWebhookEventUnsafe(
+  userId: string,
+  event: WebhookEvent,
+  payload: Record<string, unknown>,
+): Promise<void> {
   const hooks = await prisma.webhook.findMany({
     where: { userId, isActive: true, events: { has: event } },
     select: { id: true, url: true, secret: true },
@@ -349,33 +394,28 @@ export async function attemptDelivery(input: AttemptDeliveryInput): Promise<void
   let errorMessage: string | null = null
 
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS)
-    try {
-      // Re-validate the resolved host at delivery time (defeats DNS-rebinding),
-      // and refuse to follow redirects so a public endpoint cannot bounce us to
-      // an internal target.
-      await assertPublicHost(new URL(url))
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-GenXQR-Signature": `sha256=${signature}`,
-          "X-GenXQR-Event": event,
-          "X-GenXQR-Attempt": String(attemptNumber),
-          "User-Agent": "GenXQR-Webhooks/1.0",
-        },
-        body,
-        redirect: "manual",
-        signal: controller.signal,
-      })
-      statusCode = res.status
-      responseBody = (await res.text()).slice(0, 1000) // cap stored response body
-      success = res.ok
-      if (!success) errorMessage = `HTTP ${res.status}`
-    } finally {
-      clearTimeout(timeoutId)
-    }
+    // Resolve and check the host now, then connect to exactly that address
+    // (defeats DNS rebinding). No redirects are followed, so a public endpoint
+    // cannot bounce the request to an internal target.
+    const parsed = new URL(url)
+    const pinned = await resolvePinnedAddress(parsed)
+    const res = await postWebhook(
+      parsed,
+      {
+        "Content-Type": "application/json",
+        "X-GenXQR-Signature": `sha256=${signature}`,
+        "X-GenXQR-Event": event,
+        "X-GenXQR-Attempt": String(attemptNumber),
+        "User-Agent": "GenXQR-Webhooks/1.0",
+      },
+      body,
+      pinned,
+      DELIVERY_TIMEOUT_MS,
+    )
+    statusCode = res.status
+    responseBody = res.text
+    success = res.status >= 200 && res.status < 300
+    if (!success) errorMessage = `HTTP ${res.status}`
   } catch (err) {
     errorMessage = err instanceof Error ? err.message : "Unknown error"
     responseBody = errorMessage

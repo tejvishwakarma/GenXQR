@@ -6,7 +6,7 @@ import {
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
-import { fetchUnresolvedAbuseCount, fetchOpenSupportTicketCount, fetchNewApplicationCount } from "@/lib/api"
+import { apiFetch, clearClientSession, fetchUnresolvedAbuseCount, fetchOpenSupportTicketCount, fetchNewApplicationCount } from "@/lib/api"
 
 const navItems = [
   { label: "Dashboard",     href: "/admin",               icon: <LayoutDashboard size={18} /> },
@@ -71,9 +71,16 @@ export function AdminLayout() {
   const isActive = (href: string) =>
     href === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(href)
 
-  function handleLogout() {
-    localStorage.removeItem("access_token")
-    localStorage.removeItem("user")
+  // Ends the session on the server too. Clearing only localStorage left the
+  // 30-day refresh cookie valid, so the next person on the machine could call
+  // /api/auth/refresh (or open any page that does) and get an admin token back.
+  async function handleLogout() {
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" })
+    } catch {
+      // Clear client state regardless.
+    }
+    clearClientSession()
     navigate("/admin/login", { replace: true })
   }
 

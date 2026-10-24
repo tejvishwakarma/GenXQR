@@ -1,12 +1,12 @@
 import { useState, useCallback, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
-  Search, Loader2, Trash2, PowerOff, QrCode,
+  Search, Loader2, Trash2, Power, PowerOff, QrCode,
   Activity, CheckCircle2, XCircle, X, ChevronDown,
   Link2,
 } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
-import { fetchAdminQRCodes, deactivateAdminQR, deleteAdminQR, type AdminQRCode } from "@/lib/api"
+import { fetchAdminQRCodes, deactivateAdminQR, reactivateAdminQR, deleteAdminQR, type AdminQRCode } from "@/lib/api"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -123,6 +123,11 @@ export default function AdminQRCodesPage() {
 
   const deactivateMut = useMutation({
     mutationFn: deactivateAdminQR,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "qr-codes"] }),
+  })
+
+  const reactivateMut = useMutation({
+    mutationFn: reactivateAdminQR,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "qr-codes"] }),
   })
 
@@ -382,6 +387,19 @@ export default function AdminQRCodesPage() {
                               {deactivateMut.isPending
                                 ? <Loader2 size={13} className="animate-spin" />
                                 : <PowerOff size={14} />}
+                            </button>
+                          )}
+                          {/* Only an admin can undo a takedown; the owner's switch is locked. */}
+                          {qr.disabledByAdminAt && (
+                            <button
+                              onClick={() => reactivateMut.mutate(qr.id)}
+                              disabled={reactivateMut.isPending}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition disabled:opacity-40"
+                              title="Reactivate (undo admin takedown)"
+                            >
+                              {reactivateMut.isPending
+                                ? <Loader2 size={13} className="animate-spin" />
+                                : <Power size={14} />}
                             </button>
                           )}
                           <button

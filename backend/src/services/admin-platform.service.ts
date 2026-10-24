@@ -2,7 +2,7 @@ import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { redis } from "../redis/client.js"
 import { env } from "../config/env.js"
-import { scanQueue } from "./scan.service.js"
+import { invalidateQRCache, scanQueue } from "./scan.service.js"
 import { sendManualReminders } from "./renewal-reminder.service.js"
 
 type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN"
@@ -166,7 +166,7 @@ export async function listQRCodes({ page, limit, q }: PaginationParams) {
       orderBy: { createdAt: "desc" },
       select: {
         id: true, name: true, slug: true, type: true, category: true,
-        isActive: true, scanCount: true, createdAt: true,
+        isActive: true, disabledByAdminAt: true, scanCount: true, createdAt: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),
@@ -176,10 +176,14 @@ export async function listQRCodes({ page, limit, q }: PaginationParams) {
 }
 
 export async function deactivateQRCode(adminId: string, qrId: string): Promise<void> {
-  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
   if (!qr) throw new AppError(404, "QR code not found")
 
-  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: false } })
+  // disabledByAdminAt, not just isActive=false: the owner's own switch used to
+  // turn a takedown straight back on. And the cache is dropped so it stops
+  // redirecting now, not up to 10 minutes later.
+  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: false, disabledByAdminAt: new Date() } })
+  await invalidateQRCache(qr.slug)
 
   await prisma.auditLog.create({
     data: {
@@ -192,11 +196,25 @@ export async function deactivateQRCode(adminId: string, qrId: string): Promise<v
   })
 }
 
+/** Undoes deactivateQRCode: clears the takedown and switches the code back on. */
+export async function reactivateQRCode(adminId: string, qrId: string): Promise<void> {
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
+  if (!qr) throw new AppError(404, "QR code not found")
+
+  await prisma.qRCode.update({ where: { id: qrId }, data: { isActive: true, disabledByAdminAt: null } })
+  await invalidateQRCache(qr.slug)
+
+  await prisma.auditLog.create({
+    data: { userId: adminId, action: "admin.qr.reactivate", category: "admin", entityId: qrId, entityType: "QRCode" },
+  })
+}
+
 export async function deleteQRCode(adminId: string, qrId: string): Promise<void> {
-  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true } })
+  const qr = await prisma.qRCode.findUnique({ where: { id: qrId }, select: { id: true, slug: true } })
   if (!qr) throw new AppError(404, "QR code not found")
 
   await prisma.qRCode.delete({ where: { id: qrId } })
+  await invalidateQRCache(qr.slug)
 
   await prisma.auditLog.create({
     data: {

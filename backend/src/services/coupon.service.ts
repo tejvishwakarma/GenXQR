@@ -12,8 +12,9 @@
  * Validating a code does not reserve it — see the note on races below.
  */
 
-import type { PlanName, Coupon } from "@prisma/client"
+import type { PlanName, Coupon, Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
+import { inboxHash } from "../utils/inbox-hash.util.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { PLAN_PRICES_INR } from "./billing.service.js"
@@ -62,6 +63,17 @@ export class CouponError extends AppError {
 export const MINIMUM_CHARGEABLE_PAISE = 100 // ₹1
 
 /**
+ * The rows that count as THIS customer's uses of a coupon: by account, or by
+ * inbox (inboxHash) so deleting and re-creating the account does not reset a
+ * "once per customer" code (audit, 24 Oct 2026).
+ */
+async function customerUseFilter(db: Pick<typeof prisma, "user">, userId: string) {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { email: true } })
+  const hash = user ? inboxHash(user.email) : null
+  return { userHash: hash, where: hash ? { OR: [{ userId }, { inboxHash: hash }] } : { userId } }
+}
+
+/**
  * Prices a plan with a coupon applied, or throws a CouponError explaining why the
  * code cannot be used.
  *
@@ -74,6 +86,13 @@ export async function quoteCoupon(params: {
   userId: string
   planName: PlanName
   billingCycle: "monthly" | "yearly"
+  /**
+   * This user's unpaid orders whose holds a new checkout will release first
+   * (billing.service settleOwnOpenHolds). Their held uses are not counted, so a
+   * preview matches what that checkout will charge. Never pass this when
+   * pricing a real order — only after the holds are actually released.
+   */
+  ignoreOrderIds?: string[]
 }): Promise<CouponQuote> {
   const code = normaliseCouponCode(params.code)
   if (!code) throw new CouponError("Enter a coupon code.")
@@ -95,13 +114,20 @@ export async function quoteCoupon(params: {
     throw new CouponError(`This coupon only applies to ${coupon.applicableCycles.join(" or ")} billing.`)
   }
 
-  if (coupon.maxRedemptions !== null && coupon.redemptionCount >= coupon.maxRedemptions) {
+  const { where: mine } = await customerUseFilter(prisma, params.userId)
+  const ignored = params.ignoreOrderIds?.length
+    ? await prisma.couponRedemption.count({
+        where: { couponId: coupon.id, ...mine, cashfreeOrderId: { in: params.ignoreOrderIds } },
+      })
+    : 0
+
+  if (coupon.maxRedemptions !== null && coupon.redemptionCount - ignored >= coupon.maxRedemptions) {
     throw new CouponError("This coupon has reached its redemption limit.")
   }
 
-  const usedByThisUser = await prisma.couponRedemption.count({
-    where: { couponId: coupon.id, userId: params.userId },
-  })
+  const usedByThisUser = (await prisma.couponRedemption.count({
+    where: { couponId: coupon.id, ...mine },
+  })) - ignored
   if (usedByThisUser >= coupon.maxRedemptionsPerUser) {
     throw new CouponError("You have already used this coupon.")
   }
@@ -171,12 +197,16 @@ export function computeDiscountPaise(
  * recorded and the overage logged for an admin to see. Slightly overshooting a
  * marketing limit is a far better failure than a charged customer with no plan.
  *
- * `strict` is for FREE redemptions, where no money has been taken and so there
- * is nothing to honour: the limits are re-checked inside the transaction, and a
- * redemption that would go over either one throws, rolling the grant back.
+ * `strict` is for redemptions made BEFORE money is taken — a free grant, or the
+ * hold placed when a paid order is created (holdCheckout in billing.service):
+ * the limits are re-checked inside the transaction, under a per-user lock, and
+ * a redemption that would go over either one throws, rolling it back.
+ *
+ * A paid activation whose order already holds a redemption (the normal case
+ * since holds exist) confirms that row instead of counting a second use.
  */
 export async function recordRedemption(
-  tx: Pick<typeof prisma, "coupon" | "couponRedemption">,
+  tx: Prisma.TransactionClient,
   params: {
     couponId: string
     userId: string
@@ -190,12 +220,16 @@ export async function recordRedemption(
   options: { strict?: boolean } = {},
 ): Promise<void> {
   if (options.strict) {
+    // Serialises one user's redemptions of one coupon, so two checkouts started
+    // together cannot both see "not used yet". Released at commit/rollback.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`coupon:${params.couponId}:${params.userId}`}))`
     const coupon = await tx.coupon.findUniqueOrThrow({
       where: { id: params.couponId },
       select: { maxRedemptions: true, maxRedemptionsPerUser: true },
     })
+    const { where: mine, userHash } = await customerUseFilter(tx, params.userId)
     const usedByThisUser = await tx.couponRedemption.count({
-      where: { couponId: params.couponId, userId: params.userId },
+      where: { couponId: params.couponId, ...mine },
     })
     if (usedByThisUser >= coupon.maxRedemptionsPerUser) {
       throw new CouponError("You have already used this coupon.")
@@ -215,6 +249,7 @@ export async function recordRedemption(
       data: {
         couponId: params.couponId,
         userId: params.userId,
+        inboxHash: userHash,
         cashfreeOrderId: params.cashfreeOrderId,
         originalPaise: params.originalPaise,
         discountPaise: params.discountPaise,
@@ -226,10 +261,28 @@ export async function recordRedemption(
     return
   }
 
+  // Held when the order was created: this payment confirms that use. Only the
+  // amounts are brought up to date — the use was already counted.
+  const held = await tx.couponRedemption.findUnique({
+    where: { cashfreeOrderId: params.cashfreeOrderId },
+    select: { id: true },
+  })
+  if (held) {
+    await tx.couponRedemption.update({
+      where: { id: held.id },
+      data: { originalPaise: params.originalPaise, discountPaise: params.discountPaise, finalPaise: params.finalPaise },
+    })
+    return
+  }
+
+  // No hold: an order created before holds existed, or one whose hold was
+  // released as stale before the (late) payment arrived. Honour the payment.
+  const { userHash } = await customerUseFilter(tx, params.userId)
   await tx.couponRedemption.create({
     data: {
       couponId: params.couponId,
       userId: params.userId,
+      inboxHash: userHash,
       cashfreeOrderId: params.cashfreeOrderId,
       originalPaise: params.originalPaise,
       discountPaise: params.discountPaise,
@@ -254,4 +307,15 @@ export async function recordRedemption(
       maxRedemptions: updated.maxRedemptions,
     })
   }
+}
+
+/**
+ * Releases the coupon use held for an order that will not be paid: the row goes
+ * and the coupon's counter comes back down. No-op if nothing is held.
+ */
+export async function releaseCouponHold(tx: Prisma.TransactionClient, orderId: string): Promise<void> {
+  const held = await tx.couponRedemption.findUnique({ where: { cashfreeOrderId: orderId }, select: { id: true, couponId: true } })
+  if (!held) return
+  await tx.couponRedemption.delete({ where: { id: held.id } })
+  await tx.coupon.updateMany({ where: { id: held.couponId, redemptionCount: { gt: 0 } }, data: { redemptionCount: { decrement: 1 } } })
 }

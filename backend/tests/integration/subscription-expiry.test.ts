@@ -68,7 +68,7 @@ describe("subscription expiry", () => {
   })
 
   describe("enforceSubscriptionExpiry", () => {
-    it("should downgrade a lapsed paid plan, pause active dynamic codes, and leave the rest alone", async () => {
+    it("should downgrade a lapsed paid plan, pause every active stored code, and leave owner-disabled ones alone", async () => {
       const user = await lapsedPaidUser()
       const live = await createQRCode(user.id)
       const ownerOff = await createQRCode(user.id, { isActive: false })
@@ -82,7 +82,9 @@ describe("subscription expiry", () => {
       expect(await codeState(live.id)).toEqual({ isActive: false, pausedForBilling: true })
       // Turned off by the owner: off, but NOT marked as ours to resume.
       expect(await codeState(ownerOff.id)).toEqual({ isActive: false, pausedForBilling: false })
-      expect(await codeState(staticCode.id)).toEqual({ isActive: true, pausedForBilling: false })
+      // A stored STATIC code still prints as /r/<slug> and stays editable, so it
+      // must pause too — otherwise it is a free, permanent dynamic code.
+      expect(await codeState(staticCode.id)).toEqual({ isActive: false, pausedForBilling: true })
 
       const emails = await prisma.renewalReminder.count({ where: { userId: user.id, reminderType: "expired" } })
       expect(emails).toBe(1)

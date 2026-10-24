@@ -275,11 +275,13 @@ describe("security remediation", () => {
     })
 
     it("attaches a file this user did upload (ownership recorded)", async () => {
-      const { redis } = await import("../../src/redis/client.js")
       const user = await createUser()
       await giveSubscription(user.id, "PRO")
       const tempUrl = `/uploads/qr-files/mine-${Date.now()}.pdf`
-      await redis.set(`upload:owner:${tempUrl}`, user.id)
+      // The upload record written at upload time (uploads.service.ts).
+      await prisma.pendingUpload.create({
+        data: { path: tempUrl, ownerId: user.id, uploaderId: user.id, sizeBytes: BigInt(100), mimeType: "application/pdf", fileType: "PDF" },
+      })
 
       const res = await request(app)
         .post("/api/qr")
@@ -291,6 +293,29 @@ describe("security remediation", () => {
           uploadedFiles: [{ tempUrl, fileName: "x.pdf", mimeType: "application/pdf", sizeBytes: 100, fileType: "PDF" }],
         })
       expect(res.status).toBe(201)
+    })
+
+    it("attaches a file uploaded before upload records existed, sized from disk", async () => {
+      const { redis } = await import("../../src/redis/client.js")
+      const user = await createUser()
+      await giveSubscription(user.id, "PRO")
+      const filename = `legacy-${Date.now()}.png`
+      fs.writeFileSync(path.join(QR_FILES_DIR, filename), PNG_1PX)
+      const tempUrl = `/uploads/qr-files/${filename}`
+      await redis.set(`upload:owner:${tempUrl}`, user.id)
+
+      const res = await request(app)
+        .post("/api/qr")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({
+          name: "legacy",
+          type: "IMAGE_GALLERY",
+          content: { data: {} },
+          uploadedFiles: [{ tempUrl, fileName: "x.png", mimeType: "image/png", sizeBytes: 0, fileType: "IMAGE" }],
+        })
+      expect(res.status).toBe(201)
+      const file = await prisma.qRFile.findFirstOrThrow({ where: { fileUrl: tempUrl } })
+      expect(Number(file.sizeBytes)).toBe(PNG_1PX.length)
     })
   })
 

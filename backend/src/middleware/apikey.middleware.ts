@@ -1,3 +1,5 @@
+import { isAccountBlocked } from "../services/blocklist.service.js"
+import { prisma } from "../db/prisma.js"
 import type { Request, Response, NextFunction } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { verifyApiKey, isApiKeyFormat, meterApiCall } from "../services/apikeys.service.js"
@@ -26,6 +28,11 @@ export async function requireApiKey(
     }
 
     const { userId, keyId, apiCallsLimit } = await verifyApiKey(rawKey)
+    // A blocked account's keys stop working with it.
+    const owner = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } })
+    if (!owner || (await isAccountBlocked(userId, owner.email))) {
+      throw new AppError(403, "This account has been suspended.")
+    }
 
     const payload: AccessTokenPayload = { sub: userId, email: "", role: "USER" }
     req.user = payload as unknown as Express.User

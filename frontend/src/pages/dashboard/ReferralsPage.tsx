@@ -177,8 +177,11 @@ export default function ReferralsPage() {
               {summary.history.map((h) => (
                 <li key={h.id} className="flex items-center justify-between gap-3 py-2.5">
                   <span>
-                    <span className="text-zinc-800 dark:text-zinc-200">{HISTORY_LABEL[h.kind]}</span>
-                    {h.voidedAt && <span className="ml-2 text-xs text-red-500">cancelled</span>}
+                    <span className="text-zinc-800 dark:text-zinc-200">
+                      {/* Credit is held when a checkout starts; an unpaid checkout gives it back. */}
+                      {h.kind === "REDEMPTION" && h.voidedAt ? "Checkout not completed — credit returned" : HISTORY_LABEL[h.kind]}
+                    </span>
+                    {h.voidedAt && h.kind !== "REDEMPTION" && <span className="ml-2 text-xs text-red-500">cancelled</span>}
                     <span className="block text-xs text-zinc-500">{formatDate(h.createdAt)}</span>
                   </span>
                   <span className={h.voidedAt ? "text-zinc-400 line-through" : h.amountPaise < 0 ? "text-zinc-700 dark:text-zinc-300" : "text-emerald-600 dark:text-emerald-400"}>

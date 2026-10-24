@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react"
+import { GeoAttribution } from "@/components/GeoAttribution"
 import { Link, useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -486,6 +487,7 @@ export default function GlobalAnalyticsPage() {
                 ) : (
                   <div className="flex items-center justify-center h-48 text-zinc-600 text-sm">No geo data yet</div>
                 )}
+                <GeoAttribution />
               </CardContent>
             </Card>
           </div>

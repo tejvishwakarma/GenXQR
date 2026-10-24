@@ -1,3 +1,4 @@
+import { maskIp } from "../utils/mask-ip.util.js"
 import { prisma } from "../db/prisma.js"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ export async function getQRAnalytics(
     recentScans: recentScanRows.map((s) => ({
       id: s.id,
       scannedAt: s.scannedAt.toISOString(),
-      ip: s.ip,
+      ip: maskIp(s.ip), // shown to every viewer — never the full address
       country: s.country,
       city: s.city,
       region: s.region,

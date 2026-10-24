@@ -10,6 +10,7 @@
  *   • Rate-limited: 5 submissions / hour per IP
  */
 
+import { randomBytes } from "node:crypto"
 import path from "path"
 import fs   from "fs"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
@@ -48,7 +49,7 @@ const cvStorage = multer.diskStorage({
     const base = path.basename(file.originalname, ext)
       .replace(/[^a-zA-Z0-9_-]/g, "_")
       .slice(0, 80)
-    cb(null, `${Date.now()}_${base}${ext}`)
+    cb(null, `${randomBytes(12).toString("hex")}_${base}${ext}`)
   },
 })
 

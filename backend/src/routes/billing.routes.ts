@@ -1,3 +1,4 @@
+import { forbidWhileImpersonating } from "../middleware/impersonation.middleware.js"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import type { PlanName } from "@prisma/client"
@@ -16,6 +17,7 @@ import {
   PLAN_LIMITS,
   PLAN_PRICES_INR,
   priceCheckout,
+  ownReleasableHoldIds,
 } from "../services/billing.service.js"
 import { getCreditBalance } from "../services/referral.service.js"
 import { verifyWebhookSignature } from "../services/cashfree.service.js"
@@ -23,6 +25,7 @@ import { countCodesPausedForBilling } from "../services/subscription-expiry.serv
 import { getScanQuota, getScanUsage, invalidateScanQuota } from "../services/scan-quota.service.js"
 import { quoteCoupon } from "../services/coupon.service.js"
 import { generateInvoicePDF } from "../services/invoice-pdf.service.js"
+import { storageUsedBytes } from "../services/uploads.service.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
@@ -107,6 +110,7 @@ const CreateOrderSchema = z.object({
 router.post(
   "/create-order",
   requireAuth,
+  forbidWhileImpersonating,
   apiLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -128,6 +132,7 @@ const DowngradeSchema = z.object({
 router.post(
   "/downgrade",
   requireAuth,
+  forbidWhileImpersonating,
   apiLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -189,6 +194,8 @@ router.post(
         userId: uid(req),
         planName: body.planName as PlanName,
         billingCycle: body.billingCycle,
+        // A preview: a new checkout releases this user's abandoned holds first.
+        ignoreOrderIds: await ownReleasableHoldIds(uid(req)),
       })
       res.json({ success: true, data: quote })
     } catch (err) {
@@ -223,7 +230,12 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const body = QuoteSchema.parse(req.body)
-      const base = { userId: uid(req), planName: body.planName, billingCycle: body.billingCycle }
+      // A preview of what create-order will charge: it first releases this
+      // user's holds on abandoned checkouts, so price as if that had happened.
+      const base = {
+        userId: uid(req), planName: body.planName, billingCycle: body.billingCycle,
+        assumeReleased: await ownReleasableHoldIds(uid(req)),
+      }
       try {
         res.json({ success: true, data: await priceCheckout({ ...base, couponCode: body.couponCode }) })
       } catch (err) {
@@ -376,6 +388,7 @@ router.post(
 router.post(
   "/cancel",
   requireAuth,
+  forbidWhileImpersonating,
   apiLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -513,17 +526,15 @@ router.get(
 
       const [qrCount, storage, scansThisMonth, apiCallsThisMonth] = await Promise.all([
         prisma.qRCode.count({ where: { userId } }),
-        prisma.qRFile.aggregate({
-          where: { qrCode: { userId } },
-          _sum: { sizeBytes: true },
-        }),
+        // The same figure uploads are refused at (attached + not-yet-attached).
+        storageUsedBytes(userId),
         getScanUsage(userId, quota),
         // The same Redis counter the API-key middleware enforces (finding #8),
         // so what a customer sees here matches what actually gets rejected.
         getMonthlyApiCallCount(userId),
       ])
 
-      const storageBytesUsed = Number(storage._sum.sizeBytes ?? 0)
+      const storageBytesUsed = storage
       const storageGBUsed    = storageBytesUsed / (1024 ** 3)
 
       res.json({

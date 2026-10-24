@@ -45,7 +45,7 @@ describe("monthly scan quota", () => {
     expect(ok.headers["location"] ?? "").not.toContain("reason=limit")
 
     const quota = await getScanQuota(user.id)
-    const key = `scanquota:count:${user.id}:${quota.windowStart.getTime()}`
+    const key = `scanquota:v2:count:${user.id}:${quota.windowStart.getTime()}`
     // The first scan is counted in the background after its redirect; wait for
     // it so it cannot land on top of the value set below.
     for (let i = 0; i < 50 && (await redis.get(key)) !== "1"; i++) await new Promise((r) => setTimeout(r, 50))

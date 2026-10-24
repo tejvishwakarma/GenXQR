@@ -34,6 +34,7 @@ export type GatedFeature = {
 const REQUIRED_PLAN: Record<GatedFeature, string> = {
   qrExpiry: "Starter",
   premiumFrames: "Starter",
+  scanPageLogo: "Starter",
   abTesting: "Pro",
   smartRouting: "Pro",
   bulkGeneration: "Pro",

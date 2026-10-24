@@ -1,3 +1,5 @@
+import { requestContext } from "../utils/request-context.js"
+import { isAccountBlocked } from "../services/blocklist.service.js"
 import type { Request, Response, NextFunction } from "express"
 import { prisma } from "../db/prisma.js"
 import { verifyAccessToken } from "../utils/jwt.js"
@@ -18,15 +20,22 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const payload = verifyAccessToken(token)
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true }
+      select: { id: true, email: true }
     })
 
     if (!user) {
       throw new AppError(401, "Account no longer exists")
     }
+    // Takes effect on the next request, not when the 15-minute token expires.
+    if (await isAccountBlocked(user.id, user.email)) {
+      throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
+    }
 
     req.user = payload
-    next()
+    // An impersonation session: everything this request writes to the audit
+    // log names the admin as well (db/prisma.ts).
+    if (payload.act) requestContext.run({ impersonatedBy: payload.act }, next)
+    else next()
   } catch (err) {
     if (err instanceof AppError) {
       next(err)

@@ -104,8 +104,22 @@ export function DashboardLayout() {
 
       // Exchange the one-time code for an access token, then strip it from the URL
       exchangeOAuthCode(oauthCode)
-        .then((accessToken) => {
+        .then(async (accessToken) => {
           localStorage.setItem("access_token", accessToken)
+          // Where the sign-in started (e.g. /invite/<token>). The server always
+          // returns to the dashboard because only this page exchanges the code.
+          const next = params.get("next")
+          if (next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\")) {
+            // Pages outside the dashboard read the signed-in user from storage.
+            try {
+              const me = await getCurrentUser()
+              localStorage.setItem("user", JSON.stringify(me.data))
+            } catch {
+              // The page will ask the user to sign in again; nothing worse.
+            }
+            navigate(next, { replace: true })
+            return
+          }
           // Remove oauth_code from URL without adding a history entry
           params.delete("oauth_code")
           const cleanSearch = params.toString()

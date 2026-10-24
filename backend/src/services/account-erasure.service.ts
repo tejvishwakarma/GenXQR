@@ -18,6 +18,7 @@ import path from "node:path"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { invalidateQRCache } from "./scan.service.js"
+import { removeUnreferencedFiles } from "./uploads.service.js"
 
 // Same root as upload.routes.ts (uploads land under the backend's cwd).
 const UPLOAD_BASE = path.join(process.cwd(), "uploads")
@@ -72,6 +73,17 @@ export async function deleteUserAndData(userId: string): Promise<void> {
     await fs.unlink(disk).catch((err: NodeJS.ErrnoException) => {
       if (err.code !== "ENOENT") logger.warn("Failed to delete uploaded file", { path: disk, error: err.message })
     })
+  }
+
+  // Uploads never attached to a code: the records have no foreign key (so the
+  // sweep can still find them), so they and their bytes go here explicitly.
+  const pending = await prisma.pendingUpload.findMany({
+    where: { OR: [{ ownerId: userId }, { uploaderId: userId }] },
+    select: { path: true },
+  })
+  if (pending.length > 0) {
+    await prisma.pendingUpload.deleteMany({ where: { path: { in: pending.map((p) => p.path) } } })
+    await removeUnreferencedFiles(pending.map((p) => p.path))
   }
 
   if (user?.avatarUrl) {

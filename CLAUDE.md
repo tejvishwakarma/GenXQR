@@ -226,6 +226,10 @@ CASHFREE_APP_ID=""
 CASHFREE_SECRET_KEY=""                    # also the webhook signing key
 CASHFREE_API_BASE="https://sandbox.cashfree.com/pg"   # api.cashfree.com/pg for live
 CASHFREE_API_VERSION="2026-01-01"
+
+# MaxMind GeoLite2 (scan geolocation) — free account; without these, no locations
+MAXMIND_ACCOUNT_ID=""
+MAXMIND_LICENSE_KEY=""
 ```
 
 ### Frontend `.env.local`
@@ -250,7 +254,11 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 ### 5.2 Express App Configuration
 
 **`backend/src/app.ts`**:
-- `trust proxy 1` — correct IPs behind Nginx
+- `trust proxy` = loopback + Cloudflare's published ranges (`config/trusted-proxies.ts`) — the site is
+  behind Cloudflare (orange-cloud `genxqr.com`/`www`), and with `trust proxy 1` every `req.ip` was a
+  Cloudflare edge, so per-IP limits and scan geo/dedup were shared across visitors. Correct whether
+  or not nginx restores the real IP; a forged X-Forwarded-For sent to the origin IP is ignored.
+  Refresh the ranges from cloudflare.com/ips-v4 and /ips-v6 if Cloudflare changes them.
 - Helmet (CSP disabled in dev)
 - CORS — allows `FRONTEND_URL` (both http/https variants) + any `localhost`/private-IP in dev
 - `express.json` (1 MB limit) — raw body saved for `/billing/webhook` HMAC verification
@@ -419,9 +427,9 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 | `admin.middleware.ts` | Requires `req.user.role === ADMIN or SUPER_ADMIN` |
 | `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer gxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
-| `rateLimit.middleware.ts` | `apiLimiter` (global 60 req/min via Redis store) |
+| `rateLimit.middleware.ts` | `apiLimiter` (general /api). Auth limiters are ONE COUNTER PER ACTION per IP (login, register, recovery, qr-password, account, refresh=300) plus `accountAttemptLimiter` per EMAIL on login/forgot — they used to share one 10/15-min counter incl. /refresh, which logged out shared-IP offices (23 Oct 2026). |
 | `workspace.middleware.ts` | `withWorkspace` resolves `X-Workspace-Id` → `req.workspace = { ownerId, actorId, role }`; `requireWorkspacePermission(action)`; scope data with `wsOwner(req)`. See §13. |
-| `error.middleware.ts` | Global error handler; maps Zod errors → **422**, JWT errors → 401, Prisma unique → 409, etc. Hand-thrown validation failures should use 422 too, so one class of error has one status. |
+| `error.middleware.ts` | Global error handler: Zod → **422**, `AppError` → its status, MulterError → 413/400, any other error carrying a 4xx `status` (body-parser: bad JSON 400, too large 413) → that status; everything else 500. It does NOT map JWT or Prisma errors — throw `AppError` (a plain Error with `.status` used to 500). Hand-thrown validation failures should use 422. |
 
 ### 5.5 Services Layer
 
@@ -437,7 +445,7 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 | `cashfree.service.ts` | Cashfree REST client: create order, get order, webhook signature verification |
 | `email.service.ts` | HTML email templates, Resend SDK / Nodemailer fallback, EmailLog writes |
 | `bulk.service.ts` | CSV parsing → batch QR generation → ZIP archive |
-| `geo.service.ts` | IP-to-geo lookup using MaxMind mmdb |
+| `geo.service.ts` | IP-to-geo lookup using MaxMind mmdb. Downloads GeoLite2-City from MaxMind itself (basic auth with `MAXMIND_ACCOUNT_ID`/`MAXMIND_LICENSE_KEY`, SHA-256 verified) — no mirror; refreshed weekly by the expiry worker under a Redis lock (30 downloads/day limit), readers reload when the file changes. GeoLite licence: keep the MaxMind credit (`GeoAttribution`, under location charts) and stop using old releases within 30 days. |
 | `apikeys.service.ts` | Create/list/revoke API keys; hash storage |
 | `webhook.service.ts` | Deliver webhook payloads (HMAC signed) + log deliveries |
 | `gdrive.service.ts` | OAuth flow, folder creation, file upload to Drive |
@@ -456,7 +464,7 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 |---|---|---|---|
 | `scan.worker.ts` | `scan-processing` | Every QR scan | Records `QRScan`, upserts `QRScanDaily`, increments `QRCode.scanCount`, fires webhooks, checks scan limits, fires limit notifications |
 | `renewal-reminder.worker.ts` | Cron-based | Daily at midnight | Queries subscriptions expiring in 7/3/1 days → sends reminder emails; deduped by `RenewalReminder` table |
-| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses dynamic codes; sends notice/expired emails; resumes codes for accounts entitled again. See §8 "Expiry". |
+| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses stored codes; sends notice/expired emails; resumes codes for accounts entitled again (§8 "Expiry"). Also settles stale checkout holds (§8) and deletes uploads unattached for 24 h (§9). |
 | `weekly-digest.worker.ts` | `weekly-digest` | Mondays 09:00 IST (BullMQ scheduler, tz Asia/Kolkata) | Sends last week's analytics digest to opted-in owners with scans (`engagement-email.service.ts`) |
 | `webhook-retry.worker.ts` | `setInterval` (60s) | Failed deliveries | Scans `WebhookDelivery` rows where `success=false` and `nextRetryAt <= now`; retries with exponential backoff (30s → 2m → 8m → 32m), max 5 attempts |
 
@@ -543,6 +551,12 @@ Standalone tables:
 5. Refresh fails → `clearClientSession()` + redirect to `/login`
 
 **Google OAuth:**
+- Only Google-verified emails are accepted (`googleProfileToUser`). Linking Google to an existing
+  account found by email that was never verified strips its password, sessions and pending
+  verification/reset tokens — otherwise anyone could pre-register a victim's address (22 Oct 2026).
+- Drive's OAuth `state` is signed with a key derived from the access secret, and
+  `verifyAccessToken` requires the sub/email/role claims: the state used to work as a login token.
+
 1. User clicks "Login with Google" → `GET /api/auth/google` → Passport redirect
 2. Google callback → backend generates a **one-time Redis code** (60s TTL)
 3. Backend redirects to frontend: `http://localhost:5173/app/dashboard?oauth_code=<code>`
@@ -604,7 +618,9 @@ grant two billing periods.
 no auto-debit, so renewing means paying again. Until this existed, nothing acted on
 `currentPeriodEnd` — one payment bought a plan forever. Now:
 - **No grace period.** When a paid period or trial ends, the account drops to FREE
-  and its active DYNAMIC codes are paused (`isActive=false`, `pausedForBilling=true`).
+  and ALL its active stored codes are paused (`isActive=false`, `pausedForBilling=true`) —
+  STATIC included since 22 Oct 2026: a stored code always prints as `/r/<slug>` whatever
+  its category, so exempting STATIC gave API users permanent editable codes for free.
   Scanners get the "deactivated" page or the code's `fallbackUrl`.
 - Paying again (or an admin granting a plan) resumes exactly the `pausedForBilling`
   codes. A code the owner turned off stays off. `toggleQR` refuses (403) to switch a
@@ -631,6 +647,21 @@ limits that. Since 21 Oct 2026:
   enforced strictly in the transaction (`recordRedemption(…, { strict: true })`).
 - **Coupon links:** `?coupon=CODE` on any page is kept 30 days (`lib/couponLink.ts`, latest
   link wins) and applied when checkout opens on `/app/billing`; admins copy links per code.
+
+**Checkout holds** (security audit, 22 Oct 2026 — `billing.service.ts` "Checkout holds"). A paid
+order's coupon use (`CouponRedemption` row) and credit (REDEMPTION `CreditEntry`) are written
+when the order is CREATED, strictly (per-user advisory locks), and confirmed at activation.
+Before this they were recorded only on payment, so one single-use coupon or one credit balance
+could be priced into any number of open orders and every one paid (12 months of PRO for 12 × ₹1).
+- A hold = such a row whose order has no `Invoice`. It is released (row deleted + coupon
+  counter decremented / credit entry voided) only when Cashfree says the order is EXPIRED or
+  TERMINATED — never on a guess. PAID → the order is activated (catches missed webhooks).
+- A new checkout first TERMINATES the user's own held orders (`terminateOrder`, Cashfree
+  PATCH; termination can be refused, so the returned status decides). `/quote` and
+  `/validate-coupon` preview as if that release will succeed (`assumeReleased`/`ignoreOrderIds`).
+- `releaseStaleCheckoutHolds` runs in the 10-minute expiry worker for holds older than
+  `ORDER_EXPIRY_MINUTES` + 5. A late payment after release is still honoured (re-recorded).
+- A coupon with a held redemption counts as redeemed, so it can't be hard-deleted mid-checkout.
 
 **Referral programme + credit** (`services/referral.service.ts`, decided 21 Oct 2026).
 - Every user has a code (`User.referralCode`, made on first visit to `/app/referrals`).
@@ -661,7 +692,12 @@ limits that. Since 21 Oct 2026:
 `reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.
 The window is a month anchored on `currentPeriodStart` (yearly plans get the monthly
 allowance month by month). Counted in Redis per account per window (seeded from Postgres),
-every scan incl. repeats. FREE (limit 0) is not enforced — expiry handles those accounts.
+UNIQUE scans only — one per device (IP + UA) per code per 4 h (decided 23 Oct 2026; counting
+repeats let a script reload one printed code and switch off a customer's codes for the month).
+Key `scanquota:v2:count:*`. Also one IP is counted at most `SCAN_RATE_PER_MINUTE` (10) /
+`SCAN_RATE_PER_DAY` (100) times per code (`withinScanRate`, scan.service): beyond that the scan
+still REDIRECTS but is not counted, logged or webhooked — never refuse a scan, a venue's Wi-Fi
+shares one IP. Per-code `scanLimit` still counts every scan (within that rate). FREE (limit 0) is not enforced — expiry handles those accounts.
 Fails open on Redis/DB errors. The billing usage figure and the 80%/100% emails use the
 same window. Invalidate with `invalidateScanQuota(userId)` on any plan/period change.
 
@@ -683,6 +719,13 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 - `QRFile` model tracks DB reference (fileUrl, mimeType, sizeBytes as BigInt, thumbnailUrl, driveFileId)
 - BigInt serialized to Number via `(BigInt.prototype as any).toJSON = () => Number(this)` in `app.ts`
 - Optional Google Drive backup: `POST /api/gdrive/backup/:qrFileId`
+- **Storage accounting** (`services/uploads.service.ts`, security audit 22 Oct 2026). Every upload
+  writes a `PendingUpload` row with the size/MIME the SERVER measured. The quota
+  (`storageUsedBytes`) = attached `QRFile` bytes + pending bytes; attaching (`resolveAttachments`)
+  takes size/type from that row or the owner's existing QRFile — never from the request (it used
+  to: `sizeBytes: 0` made any upload free) — then deletes the row. Unattached after 24 h, the
+  expiry worker's `sweepPendingUploads` deletes the file. Deleting a code, replacing an avatar and
+  erasing an account now unlink the bytes too (reference-counted: `removeUnreferencedFiles`).
 
 ---
 
@@ -691,7 +734,9 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 **Static QR codes:**
 - Content is encoded directly into the QR matrix at creation time
 - No backend redirect; `/api/static/generate` returns PNG buffer for immediate use
-- Stored as `category: STATIC` in DB but redirect still works at `/r/:slug` → direct redirect 301
+- Stored as `category: STATIC` in DB but redirect still works at `/r/:slug` → direct redirect 301.
+  The category is only a label: every stored code's image encodes `/r/<slug>` (`lib/qrDownload.ts`),
+  so stored STATIC codes are paused on lapse like any other. Truly static = `/api/static/generate`.
 
 **Dynamic QR codes:**
 - QR encodes the URL `https://genxqr.com/r/<slug>`
@@ -711,6 +756,14 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 - `logoUrl` + sizing + margin
 - `frameStyle` + `frameText` + `frameColor`
 - Client-side rendering uses `qr-code-styling` library in `CreateQRPage.tsx`
+
+**Logo on scan pages** (decided 23 Oct 2026). `PLAN_LIMITS.scanPageLogo` — every PAID plan —
+shows the account's logo (`User.brandLogoUrl`, Settings → "Branding on scan pages") in a white
+bar at the top of the `/l/:slug` landing page (`ScanPageLogoBar`, rendered once in
+`LandingPage.tsx`, not per template). Separate from white-label (`whiteLabel`, Business+), which
+replaces GenXQR's NAME (`brandName`) there and on the password/expired pages. Public branding
+carries it as `pageLogoUrl`, independent of `mode`. `updateBranding` gates each field on its own
+feature (logo: scanPageLogo; name: whiteLabel); the route no longer gates on whiteLabel.
 
 **Frame library** (built 20 Oct 2026) — 86 SVG frames: 64 recolourable single-colour
 shapes, 6 premium, 16 occasions. Paid feature: `PLAN_LIMITS.premiumFrames` (every plan
@@ -1021,9 +1074,9 @@ Uploads record the uploader; attaching accepts files uploaded by the owner or th
 Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - `registerType: 'autoUpdate'` — SW updates in background
 - Offline cache:
-  - All static assets (JS, CSS, HTML, images, fonts) — precached
-  - `/locales/*.json` — stale-while-revalidate (i18n)
-  - `/api/**` — network-first with 10s timeout, 5-min expiry
+  - Static assets matching `**/*.{js,css,html,svg,png,ico,woff2}` — precached (`frames/**` excluded)
+  - `/locales/*.json` is not precached or runtime-cached (no such rule exists); nginx serves it with stale-while-revalidate
+  - NO API responses are cached. The old `/^\/api\/public\//` rule never matched (Workbox tests the full URL) and was removed on purpose: `/api/public/qr` can return unlocked password-protected content (23 Oct 2026).
 - Excluded from SW: `/api/`, `/admin-api/`, `/r/`, `/uploads/`
 - `navigateFallback` is `/app-shell.html`, not `/index.html` — `index.html` is the prerendered homepage, and serving it for every offline navigation would flash the homepage before React swaps routes
 - SW disabled in dev (`devOptions.enabled: false`) to avoid stale cache issues
@@ -1049,7 +1102,12 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - Logs: `<repo-root>/logs/`
 
 **Nginx** is edited via CloudPanel's per-site Vhost Editor, not a standalone `nginx.conf` — see [`deploy/cloudpanel-vhost-nodejs.conf`](./deploy/cloudpanel-vhost-nodejs.conf) for the exact block that replaces CloudPanel's default `location /` proxy-everything block:
-- `/api/`, `/admin-api/`, `/r/:slug` (exact match) → `127.0.0.1:3001`
+- `/api/`, `/admin-api/`, `/r/:slug` (exact match) → `127.0.0.1:3001`. The `/r/:slug` location
+  declares its OWN security headers and deliberately NO CSP: the tracking-pixel page (codes with a
+  GA/GTM/FB ID) is inline scripts, and the server-level CSP (`script-src 'self'`) blocked them —
+  scanners got a blank page. `scan.routes.ts` sends a per-response nonce CSP (`pixelPageCsp`) plus a
+  meta-refresh fallback. Remember nginx drops ALL inherited add_headers once a location has one.
+- `Permissions-Policy` is `camera=(self)`: `camera=()` denied the camera to `/scanner` itself.
 - `/uploads/` → served directly from disk
 - HTML routing (no blanket SPA fallback any more — see gotcha 16): app routes (`/app`, `/admin`, auth screens, `/invite`, `/l`) → `app-shell.html`; `/` → the prerendered `index.html`; public pages → their prerendered `<route>/index.html`; anything else → a real **404** with `404.html`; a trailing slash 301s to the bare path
 - Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
@@ -1089,7 +1147,7 @@ pnpm db:studio             # Prisma Studio GUI
 ### Backend-specific (run from `backend/`)
 ```bash
 pnpm db:seed               # Seed plans and super-admin user
-pnpm geo:update            # Download/update MaxMind GeoLite2 database
+pnpm geo:update            # Fetch GeoLite2 from MaxMind now (tsx scripts/update-geo-db.ts; needs MAXMIND_* in .env)
 pnpm dev                   # tsx watch --env-file=.env src/index.ts
 pnpm build                 # tsc
 pnpm start                 # node --env-file=.env dist/index.js
@@ -1138,7 +1196,7 @@ pnpm preview               # vite preview (serves dist/)
 - **Service layer isolation**: Routes only call services; no Prisma queries in routes directly. Services throw `AppError(status, message)` rather than writing responses — `error.middleware.ts` turns that into the same `{success:false, error}` JSON shape. Fully enforced in `admin.routes.ts`, `team.routes.ts`, `auth.routes.ts`, `qr.routes.ts`'s core CRUD, `apikeys`, `webhooks`, `bulk`, `gdrive`, `notifications`. Still partly violated in the smaller route files (`analytics`, `billing`, `careers`, `public`, `report`, `scan`, `static`, `support`, `upload`, `v1`, `widget`) — 2–8 direct calls each, worth cleaning up opportunistically when touching them.
 - **Audit logging**: Sensitive actions written to `AuditLog` via `audit.service.ts`
 - **Soft BigInt fix**: `(BigInt.prototype as any).toJSON = () => Number(this)` in `app.ts` handles `QRFile.sizeBytes`
-- **Plan gating**: Feature access checked via `plan-gate.middleware.ts` — never scattered ad-hoc in routes
+- **Plan gating**: Feature access checked via `plan-gate.middleware.ts` — never scattered ad-hoc in routes. The QR-count limit is ALSO enforced inside the create transaction (`createWithinQRLimit`, per-owner advisory lock) for create/duplicate/bulk: the middleware's count-then-create let parallel requests overshoot.
 
 ### Frontend
 - **Single API file**: All API calls + TypeScript interfaces live in `lib/api.ts`; never use `fetch` directly in components
@@ -1242,3 +1300,42 @@ pnpm preview               # vite preview (serves dist/)
 21. **Blog and careers are `noindex` while empty**, and `/blog` drops out of the sitemap
     until a post is published (`sitemap: BLOG_ROUTES.length > 0` in `public-routes.mjs`).
     Both flip automatically: publishing a post or listing a job removes the noindex.
+
+22. **Security audit (22–24 Oct 2026) — rules to keep.** Each has a test that fails without it.
+    - Scan pages: `/api/public/qr` applies the same gate as a scan (`scanAvailability`: blocked
+      owner, `disabledByAdminAt`, inactive, dates, scan limit, quota) and screens content links and
+      `fallbackUrl` against the blocklist. Password-protected landing codes open via a 10-minute
+      `?access=` token (`signQRUnlock`), never by relaxing the 404.
+    - Admin "Force deactivate" sets `QRCode.disabledByAdminAt`: the owner's toggle, a renewed plan
+      and scans all respect it; only an admin reactivates. Admin delete/deactivate clear the cache.
+    - Smart routing / A/B apply at scan time only while the owner's plan has them; deleting rules
+      and variants needs no plan.
+    - Sessions: a rotated refresh token replayed > 30 s later ends ALL sessions (`rotatedAt`);
+      within 30 s it is two tabs and is honoured. Admin set-password revokes sessions and refuses
+      admin targets. Admin logout calls /api/auth/logout; `clearClientSession` clears the query cache.
+    - Google sign-in requires Google-verified email; linking to an UNVERIFIED account strips its
+      password/sessions/tokens. Drive OAuth `state` uses its own key; `verifyAccessToken` requires
+      sub/email/role.
+    - Billing: purchases are serialised per user (`purchase:<id>` advisory lock) and referral
+      qualification is conditional. Trials are remembered per inbox in `TrialUsage` (survives
+      deletion). Coupons that can make a plan free need SUPER_ADMIN (`couponCanMakePurchaseFree`).
+      `verify-payment` accepts only `genxqr_` orders tagged with the caller.
+    - Webhooks: `isNonPublicAddress` (utils/ip-classify) for every IP form; the resolved address is
+      PINNED for the request (`postWebhook`), responses are read ≤ 1000 bytes, retries are claimed
+      (`claimDelivery`) so one PM2 process sends each, `deliverWebhookEvent` never rejects.
+    - Emails: `buildEmailShell` escapes the subject; every builder escapes names. Pass subjects raw.
+    - CSV cells go through `csvCell` (quotes + neutralises leading = + - @). Upload/avatar/CV file
+      names are random. Scan jobs write in one transaction. Production refuses placeholder or
+      identical JWT secrets. `disabledByAdminAt`, `TrialUsage`, `rotatedAt` came with migrations.
+    - (24 Oct, decided with the user) A blocklisted account — "user" id or "email" — cannot sign
+      in, refresh, use its current session, the admin panel or its API keys (`isAccountBlocked`).
+      The public contact form's confirmation is fixed text (`buildContactConfirmationEmail`).
+      forgot-password answers before doing the work (equal timing). Team members beyond the
+      owner's seats — latest joiners — are suspended (`withinSeats`, "No seat" badge). Scanner IPs
+      are shown masked everywhere (`maskIp`, 203.0.113.x). Deleting an attached file needs
+      `qr:delete` (owner/admin). A code's `scanLimit` slot is reserved atomically after the
+      password gate (`reserveScanSlot`). Impersonation tokens carry `act`: audit rows get
+      `metadata.impersonatedBy` (Prisma `$use` + `requestContext`), and API keys, webhooks,
+      payments/plan changes, password change and account deletion are refused
+      (`forbidWhileImpersonating`). Coupon uses store `inboxHash` and survive account deletion.
+    - The Cashfree webhook has NO timestamp age check, on purpose — see cashfree.service.ts.

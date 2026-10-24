@@ -103,7 +103,7 @@ export function isCashfreeConfigured(): boolean {
  * to the client — it can contain merchant-account detail.
  */
 async function cashfreeRequest<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PATCH",
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -251,6 +251,17 @@ export async function getOrder(orderId: string): Promise<CashfreeOrder> {
 }
 
 /**
+ * Asks Cashfree to terminate an unpaid order so it can no longer be paid.
+ * Returns the order as Cashfree reports it afterwards — which may NOT be
+ * TERMINATED: per Cashfree's docs termination can be refused (e.g. a payment
+ * that already succeeded) or still be in progress (TERMINATION_REQUESTED), so
+ * callers must act on the returned status, never assume.
+ */
+export async function terminateOrder(orderId: string): Promise<CashfreeOrder> {
+  return cashfreeRequest<CashfreeOrder>("PATCH", `/orders/${encodeURIComponent(orderId)}`, { order_status: "TERMINATED" })
+}
+
+/**
  * Verifies a webhook's authenticity.
  *
  * Cashfree signs `timestamp + rawBody` with the merchant secret key, so this
@@ -258,6 +269,13 @@ export async function getOrder(orderId: string): Promise<CashfreeOrder> {
  * key order and whitespace and the signature will never match.
  *
  * Returns false rather than throwing so the caller decides the HTTP response.
+ *
+ * Deliberately NO age check on the timestamp (audit, 24 Oct 2026). Cashfree's
+ * docs do not state its unit (their example, 1617695238078, looks like ms) nor
+ * whether retried deliveries carry a fresh one — and rejecting a late retry
+ * would drop a real payment, since the webhook is the path that works when the
+ * browser never returns. A replay buys nothing: activation re-reads the order
+ * from Cashfree and is idempotent on Invoice.cashfreeOrderId.
  */
 export function verifyWebhookSignature(
   rawBody: string,

@@ -92,7 +92,18 @@ export async function addToBlocklist(
   type: "domain" | "ip" | "email" | "user",
   value: string,
   reason?: string,
+  callerRole: AdminRole = "ADMIN",
 ) {
+  // Blocking an account takes all its codes dark. An ADMIN may not do that to
+  // another admin (or a super admin) — the same line as deleting or
+  // impersonating one.
+  if (callerRole !== "SUPER_ADMIN" && (type === "user" || type === "email")) {
+    const target = await prisma.user.findFirst({
+      where: type === "user" ? { id: value } : { email: { equals: value, mode: "insensitive" } },
+      select: { role: true },
+    })
+    if (target && target.role !== "USER") throw new AppError(403, "Only a super admin can block an admin account.")
+  }
   const entry = await prisma.blocklist.upsert({
     where: { type_value: { type, value } },
     update: { isActive: true, reason, addedBy: adminId },

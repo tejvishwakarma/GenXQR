@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
-import { createUser, seedPlans, type TestUser } from "../helpers/factories.js"
+import { createUser, giveSubscription, seedPlans, type TestUser } from "../helpers/factories.js"
 
 /**
  * Coupons — discount codes issued by an admin and redeemed at checkout.
@@ -191,11 +191,21 @@ describe("coupons", () => {
     it("should refuse a second use by the same customer", async () => {
       const user = await createUser()
       const coupon = await givenCoupon({ maxRedemptionsPerUser: 1 })
+      // A completed use: the redemption AND the invoice of the order that paid
+      // for it. (A redemption with no invoice is an unpaid checkout's hold.)
+      const orderId = `genxqr_used_${Date.now()}`
       await prisma.couponRedemption.create({
         data: {
-          couponId: coupon.id, userId: user.id, cashfreeOrderId: `genxqr_used_${Date.now()}`,
+          couponId: coupon.id, userId: user.id, cashfreeOrderId: orderId,
           originalPaise: PRO_MONTHLY_PAISE, discountPaise: 100, finalPaise: PRO_MONTHLY_PAISE - 100,
           planName: "PRO", billingCycle: "monthly",
+        },
+      })
+      const sub = await giveSubscription(user.id, "PRO")
+      await prisma.invoice.create({
+        data: {
+          userId: user.id, subscriptionId: sub.id, cashfreeOrderId: orderId, amount: PRO_MONTHLY_PAISE - 100,
+          status: "paid", planName: "PRO", billingCycle: "monthly", periodStart: new Date(), periodEnd: new Date(),
         },
       })
       expect(await expectRejected(user, coupon.code)).toMatch(/already used/i)

@@ -9,8 +9,12 @@
  *   - The window is a MONTH ANCHORED ON THE PLAN'S START (currentPeriodStart):
  *     a plan that started on the 17th resets on the 17th of each month. Yearly
  *     plans therefore still get the monthly allowance, month by month.
- *   - Every scan counts, repeats included — the same rule as the per-code
- *     scanLimit and the figure on the billing page.
+ *   - UNIQUE scans count: one per device (IP + browser) per code per 4 hours —
+ *     the same "unique" as analytics (scan.service queueScan). Decided 23 Oct
+ *     2026 (security audit): counting repeats let anyone reload a printed code
+ *     thousands of times and switch off all of a customer's codes for the
+ *     month. Repeats are still shown in analytics; they just don't use quota.
+ *     The per-code scanLimit an owner sets still counts every scan.
  *
  * A limit of 0 (FREE) is NOT enforced here. FREE accounts cannot have live
  * codes except during the one-time pause notice (subscription-expiry.service),
@@ -58,7 +62,9 @@ export interface ScanQuota {
 
 const QUOTA_CACHE_TTL = 300 // s — plan changes also invalidate explicitly
 const quotaKey = (userId: string) => `scanquota:plan:${userId}`
-const countKey = (userId: string, windowStart: Date) => `scanquota:count:${userId}:${windowStart.getTime()}`
+// v2: unique scans only (23 Oct 2026). The version makes counters written under
+// the old every-scan rule miss once, so each account re-seeds from Postgres.
+const countKey = (userId: string, windowStart: Date) => `scanquota:v2:count:${userId}:${windowStart.getTime()}`
 
 /**
  * The account's limit and current window. Read-only (no lapse writes), so it
@@ -109,7 +115,7 @@ export async function getScanUsage(userId: string, quota?: ScanQuota): Promise<n
   if (live !== null) return Number(live)
 
   const counted = await prisma.qRScan.count({
-    where: { qrCode: { userId }, scannedAt: { gte: q.windowStart, lt: q.windowEnd } },
+    where: { qrCode: { userId }, isUnique: true, scannedAt: { gte: q.windowStart, lt: q.windowEnd } },
   })
   // NX: if a concurrent request seeded it first, keep theirs. Expires a day
   // after the window so old windows clean themselves up.

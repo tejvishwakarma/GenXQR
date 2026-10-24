@@ -203,7 +203,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "What scan data does GenXQR collect?",
-        a: "For each scan we record: timestamp, IP address, country, region, city, and approximate coordinates (all looked up from the IP address, not GPS), device type (mobile/tablet/desktop), operating system (iOS/Android/Windows/macOS), browser, the full user-agent string, and the referring page if the browser sends one. We do not collect GPS location, names, email addresses, or phone numbers from the person scanning. Scan data is stored on servers we operate and secure.",
+        a: "For each scan we record: timestamp, IP address, country, region, city, and approximate coordinates (all looked up from the IP address, not GPS), device type (mobile/tablet/desktop), operating system (iOS/Android/Windows/macOS), browser, the full user-agent string, and the referring page if the browser sends one. We do not collect GPS location, names, email addresses, or phone numbers from the person scanning. In your dashboard, API and CSV exports, IP addresses are shown with the last part hidden (for example 203.0.113.x). Scan data is stored on servers we operate and secure.",
       },
       {
         q: "How long is analytics data retained?",
@@ -222,7 +222,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "What happens if I use up my monthly scans?",
-        a: "Your QR codes stop redirecting until your scan count resets or you upgrade — people who scan them see a \"scan limit reached\" page, or the code's fallback URL if you set one. Every scan counts, repeats included. The month runs from your plan's start date (a plan that started on the 17th resets on the 17th), and yearly plans get the monthly allowance each month. We email you at 80% and 100% of your allowance.",
+        a: "Your QR codes stop redirecting until your scan count resets or you upgrade — people who scan them see a \"scan limit reached\" page, or the code's fallback URL if you set one. Each device counts once per code every 4 hours, so people re-opening your code do not use up your allowance (they still appear in your analytics). The month runs from your plan's start date (a plan that started on the 17th resets on the 17th), and yearly plans get the monthly allowance each month. We email you at 80% and 100% of your allowance.",
       },
       {
         q: "Can my team work on the same QR codes?",
@@ -265,7 +265,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "What data does GenXQR collect from people who scan QR codes?",
-        a: "When someone scans a GenXQR dynamic QR code, we record: the timestamp, the IP address, city, region, country, and approximate coordinates (derived from the IP address), device type, OS, browser, the full user-agent string, and the referring page if one is sent. We do not record the scanner's name, email, phone number, or exact GPS location.",
+        a: "When someone scans a GenXQR dynamic QR code, we record: the timestamp, the IP address, city, region, country, and approximate coordinates (derived from the IP address), device type, OS, browser, the full user-agent string, and the referring page if one is sent. We do not record the scanner's name, email, phone number, or exact GPS location. IP addresses are shown to you with the last part hidden.",
       },
     ],
   },

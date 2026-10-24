@@ -298,6 +298,22 @@ router.patch(
 )
 
 /**
+ * PATCH /admin-api/qr-codes/:id/reactivate
+ * Undo a force-deactivate (only an admin can).
+ */
+router.patch(
+  "/qr-codes/:id/reactivate",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      await AdminPlatformService.reactivateQRCode(uid(req), req.params["id"] as string)
+      res.json({ success: true, message: "QR code reactivated" })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
  * DELETE /admin-api/qr-codes/:id
  * Permanently delete a QR code.
  */
@@ -599,6 +615,12 @@ router.post(
         req.params["id"] as string,
         adminNotes,
       )
+      logAudit({
+        userId: uid(req), action: "admin.abuse.resolve", category: "admin",
+        entityId: req.params["id"] as string, entityType: "AbuseReport",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -639,7 +661,13 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { type, value, reason } = BlocklistSchema.parse(req.body)
-      const entry = await AdminModerationService.addToBlocklist(uid(req), type, value, reason)
+      const entry = await AdminModerationService.addToBlocklist(uid(req), type, value, reason, (req.user as AccessTokenPayload).role)
+      logAudit({
+        userId: uid(req), action: "admin.blocklist.add", category: "admin",
+        entityId: entry.id, entityType: "Blocklist", metadata: { type, value, reason: reason ?? null },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.status(201).json({ success: true, data: entry })
     } catch (err) {
       next(err)
@@ -658,6 +686,12 @@ router.delete(
     try {
       const adminPayload = req.user as unknown as AccessTokenPayload
       await AdminModerationService.removeFromBlocklist(adminPayload.role, req.params["id"] as string)
+      logAudit({
+        userId: uid(req), action: "admin.blocklist.remove", category: "admin",
+        entityId: req.params["id"] as string, entityType: "Blocklist",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.json({ success: true })
     } catch (err) {
       next(err)
@@ -705,6 +739,12 @@ router.post(
       const callerPayload = req.user as unknown as AccessTokenPayload
       const input = BroadcastSchema.parse(req.body)
       const result = await AdminModerationService.sendBroadcast(callerPayload.role, input)
+      logAudit({
+        userId: uid(req), action: "admin.email.broadcast", category: "admin",
+        metadata: { subject: input.subject, segment: (input as { segment?: string }).segment ?? null },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.json({ success: true, ...result })
     } catch (err) {
       next(err)
@@ -739,6 +779,12 @@ router.patch(
       const callerPayload = req.user as unknown as AccessTokenPayload
       const updates = z.record(z.string(), z.string()).parse(req.body)
       const data = await AdminModerationService.updateSettings(callerPayload.role, updates)
+      logAudit({
+        userId: uid(req), action: "admin.settings.update", category: "admin",
+        metadata: { keys: Object.keys(updates) },
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.json({ success: true, data })
     } catch (err) {
       next(err)
@@ -881,6 +927,12 @@ router.post(
     try {
       const callerPayload = req.user as unknown as AccessTokenPayload
       const { message } = await AdminUsersService.sendManualReminder(callerPayload.role, req.params["id"] as string)
+      logAudit({
+        userId: uid(req), action: "admin.user.send_reminder", category: "admin",
+        entityId: req.params["id"] as string, entityType: "User",
+        ip: req.ip,
+        userAgent: req.headers["user-agent"],
+      })
       res.json({ success: true, message })
     } catch (err) {
       next(err)
@@ -1154,7 +1206,7 @@ router.post(
     try {
       const body = CouponBodySchema.parse(req.body)
       const adminId = (req.user as AccessTokenPayload).sub
-      const coupon = await AdminCouponsService.createCoupon(body, adminId)
+      const coupon = await AdminCouponsService.createCoupon(body, adminId, (req.user as AccessTokenPayload).role)
 
       logAudit({
         userId: adminId,
@@ -1181,7 +1233,7 @@ router.put(
     try {
       const body = CouponBodySchema.parse(req.body)
       const id = String(req.params["id"])
-      const coupon = await AdminCouponsService.updateCoupon(id, body)
+      const coupon = await AdminCouponsService.updateCoupon(id, body, (req.user as AccessTokenPayload).role)
       const adminId = (req.user as AccessTokenPayload).sub
 
       logAudit({

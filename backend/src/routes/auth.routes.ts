@@ -1,3 +1,4 @@
+import { forbidWhileImpersonating } from "../middleware/impersonation.middleware.js"
 import path from "path"
 import fs from "fs"
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
@@ -9,7 +10,14 @@ import multer, { type FileFilterCallback } from "multer"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 import { AppError } from "../middleware/error.middleware.js"
-import { authLimiter } from "../middleware/rateLimit.middleware.js"
+import {
+  accountAttemptLimiter,
+  authLimiter,
+  loginLimiter,
+  recoveryLimiter,
+  refreshLimiter,
+  registerLimiter,
+} from "../middleware/rateLimit.middleware.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import * as AuthService from "../services/auth.service.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
@@ -22,6 +30,25 @@ import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
+/**
+ * The fields we use from a Google profile. Refuses an address Google has not
+ * verified: an unverified Google address proves nothing about the inbox, and
+ * the address is what links this sign-in to an existing GenXQR account
+ * (handleGoogleOAuth) — so it must be proven.
+ */
+export function googleProfileToUser(profile: Pick<Profile, "id" | "displayName" | "emails" | "photos">) {
+  const email = profile.emails?.[0]?.value
+  if (!email) throw new Error("Google did not return an email address")
+  const verified = profile.emails?.[0]?.verified as unknown
+  if (verified !== true && verified !== "true") throw new Error("Google has not verified this email address")
+  return {
+    id: profile.id,
+    email,
+    name: profile.displayName ?? email,
+    avatarUrl: profile.photos?.[0]?.value,
+  }
+}
+
 if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CALLBACK_URL) {
   passport.use(
     new GoogleStrategy(
@@ -31,17 +58,11 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CALLBACK_URL)
         callbackURL: env.GOOGLE_CALLBACK_URL,
       },
       (_accessToken: string, _refreshToken: string, profile: Profile, done) => {
-        const email = profile.emails?.[0]?.value
-        if (!email) {
-          done(new Error("Google did not return an email address"))
-          return
+        try {
+          done(null, googleProfileToUser(profile))
+        } catch (err) {
+          done(err as Error)
         }
-        done(null, {
-          id: profile.id,
-          email,
-          name: profile.displayName ?? email,
-          avatarUrl: profile.photos?.[0]?.value,
-        })
       },
     ),
   )
@@ -61,6 +82,17 @@ const REFRESH_COOKIE_OPTIONS = {
 
 const router: IRouter = Router()
 
+/**
+ * Where Google sign-in lands: always the dashboard (the page that exchanges the
+ * one-time code), with the page the sign-in started from as `next`.
+ */
+export function oauthLandingUrl(frontendUrl: string, code: string, nextPath: string): string {
+  const target = new URL("/app/dashboard", frontendUrl)
+  target.searchParams.set("oauth_code", code)
+  if (nextPath !== "/app/dashboard") target.searchParams.set("next", nextPath)
+  return target.toString()
+}
+
 function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
   if (typeof input !== "string" || !input.startsWith("/") || input.startsWith("//")) {
     return fallback
@@ -73,7 +105,7 @@ function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
  */
 router.post(
   "/register",
-  authLimiter,
+  registerLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.registerSchema.parse(req.body)
@@ -95,7 +127,8 @@ router.post(
  */
 router.post(
   "/login",
-  authLimiter,
+  loginLimiter,
+  accountAttemptLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.loginSchema.parse(req.body)
@@ -118,7 +151,7 @@ router.post(
  */
 router.post(
   "/refresh",
-  authLimiter,
+  refreshLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const rawToken = (req.cookies as Record<string, string | undefined>)["refresh_token"]
@@ -160,7 +193,8 @@ router.post(
  */
 router.post(
   "/forgot-password",
-  authLimiter,
+  recoveryLimiter,
+  accountAttemptLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.forgotPasswordSchema.parse(req.body)
@@ -182,7 +216,7 @@ router.post(
  */
 router.post(
   "/resend-verification",
-  authLimiter,
+  recoveryLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { email } = z.object({ email: z.string().email() }).parse(req.body)
@@ -200,7 +234,7 @@ router.post(
  */
 router.post(
   "/reset-password",
-  authLimiter,
+  recoveryLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.resetPasswordSchema.parse(req.body)
@@ -225,6 +259,7 @@ router.post(
   "/change-password",
   authLimiter,
   requireAuth,
+  forbidWhileImpersonating,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = (req.user as unknown as AccessTokenPayload).sub
@@ -280,6 +315,7 @@ const DeleteAccountSchema = z.object({
 router.delete(
   "/me",
   requireAuth,
+  forbidWhileImpersonating,
   authLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -409,7 +445,7 @@ const avatarUpload = multer({
     destination: (_req, _file, cb) => cb(null, AVATAR_DIR),
     filename: (_req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase()
-      cb(null, `${Date.now()}${ext}`)
+      cb(null, `${randomBytes(12).toString("hex")}${ext}`) // unguessable, like uploads
     },
   }),
   limits: { fileSize: 2 * 1024 * 1024 },
@@ -512,7 +548,7 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
   // the same browser. The path is NEVER carried in state itself.
   const nextPath = safeFrontendPath(req.query["next"], "/app/dashboard")
   const state = randomBytes(32).toString("hex")
-  void redis.setex(`oauth:state:${state}`, 600, nextPath) // 10 min to finish the flow
+  void redis.setex(`oauth:state:${state}`, 600, nextPath).catch((err: unknown) => logger.warn("OAuth state write failed", { error: String(err) })) // 10 min to finish the flow
   // First-touch attribution for a Google SIGN-UP rides alongside the state under
   // its own key (not inside the state value, so in-flight logins survive a
   // deploy). Only used if the callback creates a new account.
@@ -520,13 +556,13 @@ router.get("/google", (req: Request, res: Response, next: NextFunction): void =>
   // callback, so there is one input format, not two.
   const rawAttribution = req.query["attribution"]
   if (typeof rawAttribution === "string" && parseAttributionParam(rawAttribution)) {
-    void redis.setex(`oauth:attr:${state}`, 600, rawAttribution)
+    void redis.setex(`oauth:attr:${state}`, 600, rawAttribution).catch((err: unknown) => logger.warn("OAuth state write failed", { error: String(err) }))
   }
   // Referral code from the sign-up link, kept the same way. Only used if the
   // callback creates a new account (referral.service attachReferralAtSignup).
   const rawRef = req.query["ref"]
   if (typeof rawRef === "string" && /^[A-Za-z0-9]{4,20}$/.test(rawRef)) {
-    void redis.setex(`oauth:ref:${state}`, 600, rawRef)
+    void redis.setex(`oauth:ref:${state}`, 600, rawRef).catch((err: unknown) => logger.warn("OAuth state write failed", { error: String(err) }))
   }
 
   res.cookie("oauth_state", state, {
@@ -569,7 +605,7 @@ router.post(
     const state = randomBytes(32).toString("hex")
     // Namespaced apart from login state so the callback can tell the two flows
     // apart; stores the user this reauth must match.
-    void redis.setex(`oauth:reauth:${state}`, 600, userId)
+    void redis.setex(`oauth:reauth:${state}`, 600, userId).catch((err: unknown) => logger.warn("OAuth state write failed", { error: String(err) }))
 
     res.cookie("oauth_state", state, {
       httpOnly: true,
@@ -685,9 +721,14 @@ router.get(
       const code = randomBytes(32).toString("hex")
       await redis.setex(`oauth:code:${code}`, 60, accessToken)
 
+      // Always to the dashboard, which is the page that exchanges the code; the
+      // page the sign-in started from rides along as `next`. Sending the code to
+      // `nextPath` itself (e.g. /invite/<token>) left it unexchanged — accepting
+      // a team invite with Google looped back to "sign in to accept" — and a
+      // `next` with its own "?" broke the URL.
       res
         .cookie("refresh_token", refreshToken, REFRESH_COOKIE_OPTIONS)
-        .redirect(`${env.FRONTEND_URL}${nextPath}?oauth_code=${code}`)
+        .redirect(oauthLandingUrl(env.FRONTEND_URL, code, nextPath))
     } catch (err) {
       logger.error("Google OAuth callback error", {
         error: err instanceof Error ? err.message : String(err),
