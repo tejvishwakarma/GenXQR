@@ -614,6 +614,14 @@ is the idempotency key: if the webhook and the browser-return verification race,
 the loser hits P2002 and its whole transaction rolls back, so one payment can never
 grant two billing periods.
 
+A P2002 counts as "already processed" ONLY if that order's Invoice exists; anything else is
+rethrown so the webhook answers 500 and Cashfree retries (24 Oct 2026). Activation used to
+read "no subscription" and then create one, while subscription rows are also created OUTSIDE
+the purchase lock (sign-up trial in the background, `getOrCreateSubscription`): the create hit
+P2002, was taken for "already processed", and the payment was acknowledged but never applied.
+Rows are now inserted with `createMany({ skipDuplicates: true })` (ON CONFLICT DO NOTHING) and
+then updated. Covered by `tests/integration/activation-race.test.ts`.
+
 **Expiry** (`services/subscription-expiry.service.ts`, decided 17 Oct 2026). There is
 no auto-debit, so renewing means paying again. Until this existed, nothing acted on
 `currentPeriodEnd` — one payment bought a plan forever. Now:

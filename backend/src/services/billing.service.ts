@@ -200,16 +200,19 @@ export async function getOrCreateSubscription(userId: string) {
   if (!sub) {
     const freePlan = await prisma.plan.findUniqueOrThrow({ where: { name: "FREE" } })
     const now = new Date()
-    sub = await prisma.subscription.create({
-      data: {
+    // ON CONFLICT DO NOTHING: a trial or a payment may create the row at the
+    // same moment, and theirs wins rather than this request failing on P2002.
+    await prisma.subscription.createMany({
+      data: [{
         userId,
         planId: freePlan.id,
         status: "ACTIVE",
         currentPeriodStart: now,
         currentPeriodEnd: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
-      },
-      include: { plan: true },
+      }],
+      skipDuplicates: true,
     })
+    sub = await prisma.subscription.findUniqueOrThrow({ where: { userId }, include: { plan: true } })
   }
 
   return sub
@@ -1075,7 +1078,22 @@ async function applyPurchasedPeriod(p: {
         await recordCreditSpend(tx, userId, orderId, creditPaise)
       }
 
-      const existingSub = await tx.subscription.findUnique({
+      // A subscription row can also be created OUTSIDE this lock: a new account's
+      // trial starts in the background at sign-up, and getOrCreateSubscription
+      // runs on ordinary requests. Reading "none" and then creating raced them —
+      // the create hit P2002, the handler below took that for "already
+      // processed", and the payment was acknowledged but never applied.
+      // createMany + skipDuplicates is INSERT … ON CONFLICT DO NOTHING: it waits
+      // for such a row instead of failing, and the period is then worked out
+      // from whichever row is there. The placeholder's period ends now, so it
+      // never counts as a renewal.
+      if (!(await tx.subscription.findUnique({ where: { userId }, select: { id: true } }))) {
+        await tx.subscription.createMany({
+          data: [{ userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: now }],
+          skipDuplicates: true,
+        })
+      }
+      const existingSub = await tx.subscription.findUniqueOrThrow({
         where: { userId },
         include: { plan: true },
       })
@@ -1090,7 +1108,6 @@ async function applyPurchasedPeriod(p: {
       // fresh period from now, because carrying a cheaper plan's remaining days
       // onto a more expensive one would hand out unpaid time.
       const isRenewalOfSamePlan =
-        existingSub !== null &&
         existingSub.status === "ACTIVE" &&
         existingSub.plan.name === planName &&
         existingSub.currentPeriodEnd > now
@@ -1098,23 +1115,19 @@ async function applyPurchasedPeriod(p: {
       const periodStart = isRenewalOfSamePlan ? existingSub.currentPeriodEnd : now
       const periodEnd = addPeriod(periodStart)
 
-      const sub = existingSub
-        ? await tx.subscription.update({
-            where: { userId },
-            data: {
-              planId: plan.id, status: "ACTIVE", trialEndsAt: null,
-              // currentPeriodStart stays put on a renewal so the running period
-              // is extended rather than restarted.
-              currentPeriodStart: isRenewalOfSamePlan ? existingSub.currentPeriodStart : now,
-              currentPeriodEnd: periodEnd,
-              cancelAtPeriodEnd: false,
-              codesPauseAt: null,
-              lapsedAt: null,
-            },
-          })
-        : await tx.subscription.create({
-            data: { userId, planId: plan.id, status: "ACTIVE", currentPeriodStart: now, currentPeriodEnd: periodEnd },
-          })
+      const sub = await tx.subscription.update({
+        where: { userId },
+        data: {
+          planId: plan.id, status: "ACTIVE", trialEndsAt: null,
+          // currentPeriodStart stays put on a renewal so the running period
+          // is extended rather than restarted.
+          currentPeriodStart: isRenewalOfSamePlan ? existingSub.currentPeriodStart : now,
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd: false,
+          codesPauseAt: null,
+          lapsedAt: null,
+        },
+      })
 
       await tx.invoice.create({
         data: {
@@ -1162,11 +1175,20 @@ async function applyPurchasedPeriod(p: {
       await qualifyReferralInTx(tx, { userId, orderId, amountPaise: p.amountPaise, now })
     })
   } catch (err) {
-    // P2002 = unique violation on cashfreeOrderId: the other path won the race
-    // and already activated this order. That is a success, not a failure.
+    // P2002 on cashfreeOrderId: the other path won the race and already
+    // activated this order — a success, not a failure. But only if that order's
+    // invoice really exists: any OTHER unique violation used to be taken for this
+    // too, so a payment that failed to apply was acknowledged as processed and
+    // Cashfree never retried it. Rethrown, the webhook answers 500 and it retries.
     if (typeof err === "object" && err !== null && (err as { code?: string }).code === "P2002") {
-      logger.info("Activation lost the race — already processed", { orderId, userId })
-      return { status: "already_processed" }
+      const processed = await prisma.invoice.findUnique({ where: { cashfreeOrderId: orderId }, select: { id: true } })
+      if (processed) {
+        logger.info("Activation lost the race — already processed", { orderId, userId })
+        return { status: "already_processed" }
+      }
+      logger.error("Activation hit a unique constraint, but the order was not processed", {
+        orderId, userId, target: (err as { meta?: { target?: unknown } }).meta?.target,
+      })
     }
     throw err
   }
