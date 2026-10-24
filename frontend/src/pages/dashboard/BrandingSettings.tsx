@@ -147,7 +147,9 @@ export function BrandingSettings() {
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                  // Must match the `image` upload config in backend/src/routes/upload.routes.ts,
+                  // which refuses SVG (it can carry script).
+                  accept="image/png,image/jpeg,image/webp,image/gif"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
@@ -179,7 +181,7 @@ export function BrandingSettings() {
                 )}
               </div>
               <p className="mt-1 text-[11px] text-zinc-500">
-                PNG, JPG, SVG or WebP, up to 2&nbsp;MB. Shown on a white bar at the
+                PNG, JPG, WebP or GIF, up to 2&nbsp;MB. Shown on a white bar at the
                 top of the scan page{whiteLabel ? ", and on a dark background on the password and expired pages" : ""}.
               </p>
             </div>
