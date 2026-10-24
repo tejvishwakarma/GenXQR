@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, onTestFailed, vi } from "vitest"
 import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
@@ -124,10 +124,14 @@ describe("checkout holds", () => {
     it("should not let a capped coupon go over its limit through open orders", async () => {
       stubCashfree()
       const coupon = await givenCoupon({ maxRedemptions: 1 })
-      await createOrder(await createUser(), { couponCode: coupon.code }).expect(200)
+      // This failed once in a full run (23 Oct 2026) and never again; the
+      // messages say which kind of failure it was if it recurs.
+      const first = await createOrder(await createUser(), { couponCode: coupon.code })
+      expect(first.status, `TEST SETUP, not the coupon limit: the first order failed: ${JSON.stringify(first.body)}`).toBe(200)
       const other = await createOrder(await createUser(), { couponCode: coupon.code })
-      expect(other.status).toBe(422)
-      expect(other.body.error).toMatch(/redemption limit/i)
+      const uses = await prisma.couponRedemption.count({ where: { couponId: coupon.id } })
+      expect(other.status, `REAL BUG if 200: a 1-use coupon went into a second open order (${uses} uses recorded): ${JSON.stringify(other.body)}`).toBe(422)
+      expect(other.body.error, "refused, but for a reason other than the coupon limit").toMatch(/redemption limit/i)
     })
 
     it("should release the coupon when the abandoned order is terminated, so the customer can start again", async () => {
@@ -192,15 +196,22 @@ describe("checkout holds", () => {
 
   describe("releasing", () => {
     it("should release holds when Cashfree refuses to create the order", async () => {
+      // Timed out once under heavy CPU load (24 Oct 2026). A timeout doesn't
+      // say where it stalled, so report the last step reached.
+      let step = "setup"
+      onTestFailed(() => { console.error(`[checkout-holds] failed during step: ${step}`) })
       const cf = stubCashfree()
       cf.failCreate = true
       const user = await userWithCredit(30000)
       const coupon = await givenCoupon({ maxRedemptions: 5 })
 
-      expect((await createOrder(user, { couponCode: coupon.code })).status).toBe(502)
-      expect(await availableCredit(user.id)).toBe(30000)
-      expect(await prisma.couponRedemption.count({ where: { couponId: coupon.id } })).toBe(0)
-      expect((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).redemptionCount).toBe(0)
+      step = "create-order (Cashfree refuses)"
+      const res = await createOrder(user, { couponCode: coupon.code })
+      expect(res.status, `expected the gateway failure to surface as 502: ${JSON.stringify(res.body)}`).toBe(502)
+      step = "checking the holds were released"
+      expect(await availableCredit(user.id), "REAL BUG: credit stayed held after the order was never created").toBe(30000)
+      expect(await prisma.couponRedemption.count({ where: { couponId: coupon.id } }), "REAL BUG: coupon use stayed held after the order was never created").toBe(0)
+      expect((await prisma.coupon.findUniqueOrThrow({ where: { id: coupon.id } })).redemptionCount, "REAL BUG: coupon counter not decremented").toBe(0)
     })
 
     it("should release an expired order's holds in the sweep, and keep a still-payable one", async () => {

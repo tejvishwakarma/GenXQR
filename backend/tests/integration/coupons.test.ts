@@ -252,11 +252,18 @@ describe("coupons", () => {
 
       const captured: any[] = []
       stubCashfreeCreate(captured)
-      await createOrder(user, { couponCode: coupon.code })
+      const order = await createOrder(user, { couponCode: coupon.code })
+
+      // This failed once in a full run (24 Oct 2026) and never again; the
+      // messages say which kind of failure it was if it recurs.
+      expect(preview.status, `TEST SETUP: the preview request failed: ${JSON.stringify(preview.body)}`).toBe(200)
+      expect(order.status, `TEST SETUP: create-order failed: ${JSON.stringify(order.body)}`).toBe(200)
+      expect(captured[0]?.url, `TEST SETUP: the first Cashfree call wasn't the order creation. Calls: ${JSON.stringify(captured.map((c) => c.url))}`).toMatch(/\/orders$/)
 
       // The previewed figure and the charged figure come from one function, and
       // this proves they have not diverged.
-      expect(preview.body.data.finalPaise).toBe(Math.round(captured[0].body.order_amount * 100))
+      const chargedPaise = Math.round(captured[0].body.order_amount * 100)
+      expect(preview.body.data.finalPaise, `REAL BUG: the preview showed ${preview.body.data.finalPaise} paise but checkout charged ${chargedPaise}`).toBe(chargedPaise)
     })
   })
 
