@@ -260,6 +260,15 @@ export async function lookupGeo(ip: string): Promise<GeoInfo> {
 }
 
 /**
+ * Whether lookups can answer at all. An empty lookupGeo result means either
+ * "this IP has no location" or "no database yet"; callers that store the
+ * result (user-location.service) must not record the second as the first.
+ */
+export async function isGeoReady(): Promise<boolean> {
+  return (await getReader()) !== null
+}
+
+/**
  * Country code only — used by the smart-routing evaluator.
  */
 export async function getCountryCode(ip: string): Promise<string | null> {

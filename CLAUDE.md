@@ -464,7 +464,7 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 |---|---|---|---|
 | `scan.worker.ts` | `scan-processing` | Every QR scan | Records `QRScan`, upserts `QRScanDaily`, increments `QRCode.scanCount`, fires webhooks, checks scan limits, fires limit notifications |
 | `renewal-reminder.worker.ts` | Cron-based | Daily at midnight | Queries subscriptions expiring in 7/3/1 days → sends reminder emails; deduped by `RenewalReminder` table |
-| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses stored codes; sends notice/expired emails; resumes codes for accounts entitled again (§8 "Expiry"). Also settles stale checkout holds (§8) and deletes uploads unattached for 24 h (§9). |
+| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses stored codes; sends notice/expired emails; resumes codes for accounts entitled again (§8 "Expiry"). Also settles stale checkout holds (§8), deletes uploads unattached for 24 h (§9), refreshes GeoLite weekly and fills missing user locations (§12). |
 | `weekly-digest.worker.ts` | `weekly-digest` | Mondays 09:00 IST (BullMQ scheduler, tz Asia/Kolkata) | Sends last week's analytics digest to opted-in owners with scans (`engagement-email.service.ts`) |
 | `webhook-retry.worker.ts` | `setInterval` (60s) | Failed deliveries | Scans `WebhookDelivery` rows where `success=false` and `nextRetryAt <= now`; retries with exponential backoff (30s → 2m → 8m → 32m), max 5 attempts |
 
@@ -641,6 +641,12 @@ no auto-debit, so renewing means paying again. Until this existed, nothing acted
 - The "expired" email is sent by the expiry service, not the renewal-reminder job,
   so it can say what actually happened.
 - Admin plan changes set a 1-month period, so admin-granted plans now expire too.
+- **`Subscription.status` is not the state** (24 Oct 2026). Only ACTIVE and TRIALING are ever written;
+  CANCELLED / PAST_DUE / PAUSED never are (cancelling = `cancelAtPeriodEnd`), and an expired plan becomes FREE
+  with status ACTIVE. The admin panel shows `subscriptionState()` (services/subscription-state.ts): trial, paid,
+  cancelling, notice, ending, free — same rules as `isLapsed`, with a matching `subscriptionStateWhere` for list
+  filters (kept in step by tests/integration/subscription-state.test.ts). Never show or filter on raw status.
+  The dashboard's "Active subscriptions" = paid + cancelling (it used to count every free account).
 
 **Coupons** (`services/coupon.service.ts`, admin CRUD in `admin-coupons.service.ts` +
 `/admin/coupons`). The client only ever sends a CODE; `quoteCoupon` prices it from the
@@ -772,6 +778,11 @@ bar at the top of the `/l/:slug` landing page (`ScanPageLogoBar`, rendered once 
 replaces GenXQR's NAME (`brandName`) there and on the password/expired pages. Public branding
 carries it as `pageLogoUrl`, independent of `mode`. `updateBranding` gates each field on its own
 feature (logo: scanPageLogo; name: whiteLabel); the route no longer gates on whiteLabel.
+Still ONE logo per account (decided again 24 Oct 2026), but also editable in the QR designer
+(`components/dashboard/ScanPageLogoSetting.tsx`, under Page / Landing Colors — saves immediately
+to the account setting, copy says it applies to all codes) and shown in the Scan Result preview
+(`LandingPreview` `pageLogoUrl`). In someone else's workspace it shows the owner's logo (public
+branding by slug when editing) and offers no editor. The designer's other "Logo" is the QR centre logo.
 
 **Frame library** (built 20 Oct 2026) — 86 SVG frames: 64 recolourable single-colour
 shapes, 6 premium, 16 occasions. Paid feature: `PLAN_LIMITS.premiumFrames` (every plan
@@ -1005,6 +1016,25 @@ Access: `/admin/*` — requires JWT with `ADMIN` or `SUPER_ADMIN` role.
 - **Support tickets**: view/update/resolve user support tickets
 - **Coupons**: create/edit codes, copy a coupon link per code
 - **Referrals**: review referrals; cancel one (e.g. its purchase was refunded) to void both rewards
+- **User locations** (decided 24 Oct 2026, `services/user-location.service.ts`): sign-up and last sign-in IP +
+  country/region/city on User (`signup*`, `lastLogin*`), recorded in `registerUser`'s route, `loginUser` and
+  `handleGoogleOAuth`. Shown on the user page (IP: SUPER_ADMIN only — stripped in `getUserDetail`, not the UI),
+  as a Country column + `?country=` filter on Users, and in Analytics (users/trials/paid/revenue per country,
+  top cities, daily sign-ups by the all-time top 5 countries). Country = sign-up, else last sign-in; "ZZ" =
+  unknown, null = not looked up yet (geo database missing — never stored as unknown). A Cloudflare or private
+  address is never stored or located: every IP recorded before the trust-proxy fix is a Cloudflare edge, so
+  the backfill (`fillMissingUserLocations`, expiry worker) skips those and most older accounts read "Unknown".
+- **Users' IPs are SUPER_ADMIN only, everywhere** (decided 24 Oct 2026): user detail and the Audit Log
+  (`getAuditLog` drops `ip` and refuses `?ip=` search for ADMIN — a search reveals the value). Scan IPs are
+  masked for everyone (`maskIp`). Blocklist IP entries stay visible to ADMIN: they are values admins enter to ban.
+- **The audit log is kept 3 years** (decided 24 Oct 2026, for investigations): rows survive account deletion
+  (`userId` → SetNull) with their IP, user agent and metadata (the sign-up row holds the email), and
+  `purgeExpiredAuditLogs` (audit.service, expiry worker) deletes entries older than `AUDIT_LOG_RETENTION_YEARS`.
+  The Privacy policy (§1, §2, §6) and the GDPR page state this — keep them in step if it changes.
+- **Phone numbers** (`User.phone`, 10 digits, saved by create-order before the Cashfree call, or in Settings) are
+  shown to every admin on the user page and searchable in the Users list (decided 24 Oct 2026). Billing refreshes
+  the cached user after a checkout attempt and Settings seeds its form only from a fetch made on opening —
+  before that, a number entered at checkout did not appear in Settings until a full reload.
 
 ---
 

@@ -568,7 +568,10 @@ export interface AdminRecentSignup {
 }
 export interface AdminMetrics {
   totalUsers: number
+  /** Paid plans in force (incl. cancelled at period end). */
   activeSubscriptions: number
+  /** Trials that have not ended. */
+  trialSubscriptions: number
   totalQRCodes: number
   scansToday: number
   totalScans: number
@@ -601,15 +604,26 @@ export const fetchAdminSystemHealth = () =>
 export interface AdminUser {
   id: string; name: string; email: string; role: string
   emailVerified: boolean; createdAt: string; lastLoginAt: string | null
-  subscription: { status: string; plan: { name: string } } | null
+  subscription: { status: string; plan: { name: string }; state: SubscriptionState } | null
   _count: { qrCodes: number }
+  /** Sign-up country, else last sign-in country; code "ZZ" = unknown. */
+  country: { code: string; name: string | null }
 }
-export interface AdminUserDetail extends AdminUser {
+/** Where a user was located. `ip` is present only for SUPER_ADMIN; countryCode null = not looked up yet, "ZZ" = unknown. */
+export interface AdminUserPlace {
+  ip?: string | null
+  countryCode: string | null; country: string | null; region: string | null; city: string | null
+}
+export interface AdminUserDetail extends Omit<AdminUser, "country"> {
   avatarUrl: string | null; googleId: string | null; updatedAt: string
+  /** Mobile number given at checkout or in Settings (10 digits, India). */
+  phone: string | null
   subscription: {
     status: string; trialEndsAt: string | null
     currentPeriodStart: string; currentPeriodEnd: string; cancelAtPeriodEnd: boolean
+    codesPauseAt: string | null; lapsedAt: string | null
     plan: { name: string; displayName: string }
+    state: SubscriptionState
   } | null
   invoices: { id: string; amount: number; currency: string; status: string; planName: string; createdAt: string }[]
   _count: { qrCodes: number; apiKeys: number }
@@ -617,13 +631,14 @@ export interface AdminUserDetail extends AdminUser {
   signupSource: string | null; signupMedium: string | null; signupCampaign: string | null
   signupContent: string | null; signupTerm: string | null; signupReferrer: string | null
   signupLandingPath: string | null; firstTouchAt: string | null
+  location: { signup: AdminUserPlace; lastLogin: AdminUserPlace }
 }
 export type AdminMeta = { total: number; page: number; limit: number; pages: number }
 export type AdminPlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE"
 
-export const fetchAdminUsers = (page = 1, limit = 20, q = "") =>
+export const fetchAdminUsers = (page = 1, limit = 20, q = "", country = "") =>
   adminFetch<{ success: boolean; data: AdminUser[]; meta: AdminMeta }>(
-    `/admin-api/users?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+    `/admin-api/users?page=${page}&limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}${country ? `&country=${country}` : ""}`,
   )
 export const fetchAdminUser = (id: string) =>
   adminFetch<{ success: boolean; data: AdminUserDetail }>(`/admin-api/users/${id}`)
@@ -691,6 +706,19 @@ export const fetchAdminSignupSources = (days = 30, groupBy: "source" | "campaign
   adminFetch<{ success: boolean; data: SignupSources }>(
     `/admin-api/analytics/signup-sources?days=${days}&groupBy=${groupBy}`,
   )
+export interface UserCountryRow {
+  countryCode: string; country: string | null
+  users: number; trialing: number; paidUsers: number; revenue: number
+}
+export interface UserCityRow { city: string; region: string | null; countryCode: string; country: string | null; users: number }
+export interface UserCountries { days: number | "all"; totalUsers: number; rows: UserCountryRow[]; cities: UserCityRow[] }
+export const fetchAdminUserCountries = (days: number | "all" = 30) =>
+  adminFetch<{ success: boolean; data: UserCountries }>(`/admin-api/analytics/user-countries?days=${days}`)
+/** One row per day: `date` plus a count per country code, "OTHER" and "ZZ" (unknown). */
+export type SignupsByCountryPoint = { date: string } & Record<string, number | string>
+export interface SignupsByCountry { days: number; countries: { code: string; name: string | null }[]; series: SignupsByCountryPoint[] }
+export const fetchAdminSignupsByCountry = (days = 30) =>
+  adminFetch<{ success: boolean; data: SignupsByCountry }>(`/admin-api/analytics/signups-by-country?days=${days}`)
 export const fetchAdminScans = (days = 30) =>
   adminFetch<{ success: boolean; data: TrendPoint[] }>(`/admin-api/analytics/scans?days=${days}`)
 export const fetchAdminStaticQRStats = (days = 30) =>
@@ -730,7 +758,8 @@ export interface AuditEntry {
   entityId: string | null
   entityType: string | null
   metadata: unknown
-  ip: string | null
+  /** Absent unless the caller is SUPER_ADMIN (users' IPs are super-admin only). */
+  ip?: string | null
   userAgent: string | null
   createdAt: string
   user: { id: string; name: string; email: string } | null
@@ -761,17 +790,22 @@ export const fetchAdminAudit = (page = 1, limit = 20, filters: AuditFilters = {}
 }
 
 // Admin — Subscriptions
+/** What a subscription is doing (backend subscription-state.ts) — show this, not the raw status. */
+export type SubscriptionStateKey = "trial" | "paid" | "cancelling" | "notice" | "ending" | "free" | "other"
+export interface SubscriptionState { key: SubscriptionStateKey; date: string | null; wasTrial: boolean }
 export interface AdminSubscription {
   id: string; status: string; trialEndsAt: string | null
   currentPeriodStart: string; currentPeriodEnd: string; cancelAtPeriodEnd: boolean
+  codesPauseAt: string | null; lapsedAt: string | null
+  state: SubscriptionState
   createdAt: string; updatedAt: string
   plan: { name: string; displayName: string; priceMonthlyINR: number }
   user: { id: string; name: string; email: string }
   lastReminder: { reminderType: string; sentAt: string; status: string } | null
 }
-export const fetchAdminSubscriptions = (page = 1, limit = 20, status = "", plan = "") =>
+export const fetchAdminSubscriptions = (page = 1, limit = 20, state = "", plan = "") =>
   adminFetch<{ success: boolean; data: AdminSubscription[]; meta: AdminMeta }>(
-    `/admin-api/subscriptions?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}${plan ? `&plan=${plan}` : ""}`,
+    `/admin-api/subscriptions?page=${page}&limit=${limit}${state ? `&state=${state}` : ""}${plan ? `&plan=${plan}` : ""}`,
   )
 
 export interface SendRemindersResult {

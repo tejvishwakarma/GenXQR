@@ -5,6 +5,8 @@ import { enforceSubscriptionExpiry } from "../services/subscription-expiry.servi
 import { releaseStaleCheckoutHolds } from "../services/billing.service.js"
 import { sweepPendingUploads } from "../services/uploads.service.js"
 import { refreshGeoDatabase } from "../services/geo.service.js"
+import { fillMissingUserLocations } from "../services/user-location.service.js"
+import { purgeExpiredAuditLogs } from "../services/audit.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -41,6 +43,15 @@ async function processExpiryJob(_job: Job): Promise<void> {
   // ones gone within 30 days). Cheap when fresh: one file stat.
   await refreshGeoDatabase().catch((err) =>
     logger.error("GeoIP refresh failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Locations of accounts not located yet (older accounts, or ones recorded
+  // while the database was missing) — a batch per run until there are none.
+  await fillMissingUserLocations().catch((err) =>
+    logger.error("Filling user locations failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // The audit log is kept for 3 years, then deleted (Privacy policy §6).
+  await purgeExpiredAuditLogs().catch((err) =>
+    logger.error("Purging old audit log entries failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Uploads never attached within a day are deleted, so they cannot pile up.
   await sweepPendingUploads().catch((err) =>

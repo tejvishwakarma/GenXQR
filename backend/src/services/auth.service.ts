@@ -30,6 +30,7 @@ import { createTrialSubscription } from "./billing.service.js"
 import { isAccountBlocked } from "./blocklist.service.js"
 import fs from "node:fs"
 import { toDiskPath } from "./uploads.service.js"
+import { locationData } from "./user-location.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ export async function loginUser(
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() }
+    data: { lastLoginAt: new Date(), ...(await locationData(ip, ["lastLogin"])) }
   })
 
   // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
@@ -592,7 +593,8 @@ export async function handleGoogleOAuth(
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() }
+    // A Google sign-in that just created the account is also where it signed up.
+    data: { lastLoginAt: new Date(), ...(await locationData(ip, createdUser ? ["signup", "lastLogin"] : ["lastLogin"])) }
   })
   // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
   if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")

@@ -60,6 +60,20 @@ model User {
   signupLandingPath       String?
   /// When the attributed first visit happened (client clock, clamped to the past).
   firstTouchAt            DateTime?
+  /// Where the account was created and last signed in from (admin panel, decided
+  /// 24 Oct 2026; see user-location.service.ts). Country code "ZZ" = looked up,
+  /// unknown. null = not looked up yet (the expiry worker fills it). The IP is
+  /// never a Cloudflare or private address; the admin API shows it to SUPER_ADMIN only.
+  signupIp                String?
+  signupCountryCode       String?
+  signupCountry           String?
+  signupRegion            String?
+  signupCity              String?
+  lastLoginIp             String?
+  lastLoginCountryCode    String?
+  lastLoginCountry        String?
+  lastLoginRegion         String?
+  lastLoginCity           String?
   apiKeys                 ApiKey[]
   auditLogs               AuditLog[]
   emailVerificationTokens EmailVerificationToken[]
@@ -86,6 +100,8 @@ model User {
 
   @@index([normalizedEmail])
   @@index([createdAt, signupSource])
+  @@index([signupCountryCode])
+  @@index([lastLoginCountryCode])
   // No explicit @@index([email]) — the @unique on the email field above
   // already creates a backing index; a second one just duplicates write cost.
   @@map("users")

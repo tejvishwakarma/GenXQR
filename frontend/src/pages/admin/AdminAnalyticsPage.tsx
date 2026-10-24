@@ -1,14 +1,18 @@
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts"
-import { TrendingUp, Scan, QrCode, DollarSign, PieChart as PieIcon, Loader2, Megaphone } from "lucide-react"
+import { TrendingUp, Scan, QrCode, DollarSign, PieChart as PieIcon, Loader2, Megaphone, Globe2, MapPin } from "lucide-react"
 import {
   fetchAdminSignups, fetchAdminScans, fetchAdminStaticQRStats,
   fetchAdminRevenueTrend, fetchAdminPlanBreakdown, fetchAdminSignupSources,
+  fetchAdminUserCountries, fetchAdminSignupsByCountry,
 } from "@/lib/api"
+import { CountryLabel, countryName, UNKNOWN_COUNTRY } from "@/components/admin/CountryLabel"
+import { GeoAttribution } from "@/components/GeoAttribution"
 
 const RANGE_OPTIONS = [7, 30, 90] as const
 type Range = typeof RANGE_OPTIONS[number]
@@ -22,6 +26,20 @@ const QR_TYPE_COLORS: Record<string, string> = {
 }
 
 const PLAN_PIE_COLORS = ["#6366f1", "#3b82f6", "#22c55e", "#f59e0b", "#ec4899"]
+
+/**
+ * Sign-ups by country: the five all-time biggest countries in fixed slots, so a
+ * country keeps its colour when the range changes, and "Other" as a neutral.
+ * Validated on this page's #18181b surface (dataviz validate_palette.js, dark):
+ * the five pass every check (worst adjacent CVD ΔE 8.4, normal-vision 19.3, all
+ * ≥ 3:1); the grey is separable from all of them (normal-vision ≥ 15.9).
+ * "Unknown" is not drawn — a second grey could not be told apart — and is
+ * stated in the card instead.
+ */
+const COUNTRY_SERIES_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181"]
+const OTHER_COLOR = "#a1a1aa"
+/** Magnitude bars in the country table: one hue (the sequential default). */
+const COUNTRY_BAR_COLOR = "#3987e5"
 
 function ChartCard({ title, sub, icon, children }: {
   title: string; sub?: string; icon: React.ReactNode; children: React.ReactNode
@@ -45,6 +63,7 @@ function ChartCard({ title, sub, icon, children }: {
 export default function AdminAnalyticsPage() {
   const [range, setRange] = useState<Range>(30)
   const [sourceGroup, setSourceGroup] = useState<"source" | "campaign">("source")
+  const [countryScope, setCountryScope] = useState<"range" | "all">("range")
 
   const { data: signupsData, isLoading: loadSignups } = useQuery({
     queryKey: ["admin", "analytics", "signups", range],
@@ -71,6 +90,29 @@ export default function AdminAnalyticsPage() {
     queryKey: ["admin", "analytics", "signup-sources", range, sourceGroup],
     queryFn: () => fetchAdminSignupSources(range, sourceGroup),
   })
+
+  const { data: countriesData, isLoading: loadCountries } = useQuery({
+    queryKey: ["admin", "analytics", "user-countries", countryScope === "all" ? "all" : range],
+    queryFn: () => fetchAdminUserCountries(countryScope === "all" ? "all" : range),
+  })
+  const { data: countryTrendData, isLoading: loadCountryTrend } = useQuery({
+    queryKey: ["admin", "analytics", "signups-by-country", range],
+    queryFn: () => fetchAdminSignupsByCountry(range),
+  })
+
+  // Unknown last: it is a gap in the data, not a place.
+  const countryRows = [...(countriesData?.data?.rows ?? [])].sort(
+    (a, b) => Number(a.countryCode === UNKNOWN_COUNTRY) - Number(b.countryCode === UNKNOWN_COUNTRY),
+  )
+  const maxCountryUsers = Math.max(1, ...countryRows.map((r) => r.users))
+  const cities = countriesData?.data?.cities ?? []
+  const trendCountries = countryTrendData?.data?.countries ?? []
+  const countryTrend = countryTrendData?.data?.series ?? []
+  const unknownSignups = countryTrend.reduce((n, d) => n + Number(d[UNKNOWN_COUNTRY] ?? 0), 0)
+  const trendSeries = [
+    ...trendCountries.map((c, i) => ({ key: c.code, label: countryName(c.code, c.name), color: COUNTRY_SERIES_COLORS[i]! })),
+    { key: "OTHER", label: "Other", color: OTHER_COLOR },
+  ]
 
   const signups = signupsData?.data ?? []
   const sources = sourcesData?.data?.rows ?? []
@@ -213,6 +255,143 @@ export default function AdminAnalyticsPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </ChartCard>
+
+      {/* Where users come from */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <ChartCard
+            title="Users by Country"
+            sub={`${countryScope === "all" ? "All accounts" : `Accounts created in the last ${range} days`}. Country = where they signed up, else where they last signed in. "Paid" = at least one paid invoice.`}
+            icon={<Globe2 size={16} className="text-sky-400" />}
+          >
+            <div className="flex gap-2 mb-4">
+              {([["range", `Last ${range} days`], ["all", "All users"]] as const).map(([scope, label]) => (
+                <button
+                  key={scope}
+                  onClick={() => setCountryScope(scope)}
+                  className={`px-3 py-1.5 text-xs rounded-xl font-medium transition ${
+                    countryScope === scope
+                      ? "bg-violet-600 text-white"
+                      : "bg-zinc-900 border border-zinc-700 text-zinc-400 hover:bg-zinc-800"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {loadCountries ? (
+              <div className="h-32 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600" /></div>
+            ) : countryRows.length === 0 ? (
+              <p className="text-zinc-600 text-sm text-center py-8">No users in this period</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-zinc-500 text-xs text-left border-b border-zinc-800">
+                      <th className="py-2 pr-4 font-medium">Country</th>
+                      <th className="py-2 px-4 font-medium text-right">Users</th>
+                      <th className="py-2 px-4 font-medium text-right">Trialing</th>
+                      <th className="py-2 px-4 font-medium text-right">Paid</th>
+                      <th className="py-2 px-4 font-medium text-right">Conversion</th>
+                      <th className="py-2 pl-4 font-medium text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {countryRows.map((row) => (
+                      <tr key={row.countryCode} className="border-b border-zinc-800/60 last:border-0">
+                        <td className="py-2 pr-4 whitespace-nowrap">
+                          <Link to={`/admin/users?country=${row.countryCode}`} className="hover:underline underline-offset-2" title="See these users">
+                            <CountryLabel code={row.countryCode} name={row.country} />
+                          </Link>
+                        </td>
+                        <td className="py-2 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="hidden sm:block w-24 h-1.5 rounded-full bg-zinc-800" aria-hidden="true">
+                              <div className="h-1.5 rounded-full" style={{ width: `${(row.users / maxCountryUsers) * 100}%`, background: COUNTRY_BAR_COLOR }} />
+                            </div>
+                            <span className="text-zinc-300 tabular-nums w-10 text-right">{row.users}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-4 text-zinc-300 text-right tabular-nums">{row.trialing}</td>
+                        <td className="py-2 px-4 text-zinc-300 text-right tabular-nums">{row.paidUsers}</td>
+                        <td className="py-2 px-4 text-zinc-400 text-right tabular-nums">
+                          {Math.round((row.paidUsers / row.users) * 100)}%
+                        </td>
+                        <td className="py-2 pl-4 text-zinc-300 text-right tabular-nums">₹{row.revenue.toLocaleString("en-IN")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <GeoAttribution />
+          </ChartCard>
+        </div>
+
+        <ChartCard
+          title="Top Cities"
+          sub={countryScope === "all" ? "All accounts" : `Accounts created in the last ${range} days`}
+          icon={<MapPin size={16} className="text-sky-400" />}
+        >
+          {loadCountries ? (
+            <div className="h-32 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600" /></div>
+          ) : cities.length === 0 ? (
+            <p className="text-zinc-600 text-sm text-center py-8">No located users in this period</p>
+          ) : (
+            <ol className="space-y-2 text-sm">
+              {cities.map((c, i) => (
+                <li key={`${c.countryCode}|${c.region}|${c.city}`} className="flex items-baseline gap-3">
+                  <span className="text-zinc-600 text-xs tabular-nums w-5 text-right">{i + 1}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="text-zinc-200">{c.city}</span>
+                    <span className="text-zinc-500 text-xs"> · {[c.region, countryName(c.countryCode, c.country)].filter(Boolean).join(", ")}</span>
+                  </span>
+                  <span className="text-zinc-300 tabular-nums">{c.users}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </ChartCard>
+      </div>
+
+      <ChartCard
+        title="Sign-ups by Country"
+        sub={`Daily — last ${range} days. Your five biggest countries overall; the rest as Other.`}
+        icon={<Globe2 size={16} className="text-sky-400" />}
+      >
+        {loadCountryTrend ? (
+          <div className="h-48 flex items-center justify-center"><Loader2 className="animate-spin text-zinc-600" /></div>
+        ) : (
+          <>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-zinc-400" aria-label="Legend">
+              {trendSeries.map((sr) => (
+                <li key={sr.key} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: sr.color }} aria-hidden="true" />
+                  {sr.label}
+                </li>
+              ))}
+            </ul>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={countryTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis dataKey="date" {...axisProps.xAxis} tickFormatter={(v) => String(v).slice(5)} minTickGap={16} />
+                <YAxis {...axisProps.yAxis} />
+                <Tooltip {...tooltipStyle} cursor={{ fill: "#27272a" }} />
+                {trendSeries.map((sr) => (
+                  // The surface-coloured stroke is the 2px gap between stacked segments.
+                  <Bar key={sr.key} dataKey={sr.key} name={sr.label} stackId="countries" fill={sr.color} stroke="#18181b" strokeWidth={1} maxBarSize={28} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+            <p className="mt-2 text-[11px] text-zinc-500">
+              {unknownSignups > 0
+                ? `${unknownSignups} sign-up${unknownSignups === 1 ? "" : "s"} in this period had no known location and ${unknownSignups === 1 ? "is" : "are"} not shown.`
+                : "Every sign-up in this period has a known location."}
+            </p>
+            <GeoAttribution />
+          </>
         )}
       </ChartCard>
 

@@ -28,6 +28,7 @@ import { verifyMagicBytes } from "../utils/verifyMagicBytes.js"
 import { parseAttributionParam } from "../utils/attribution.util.js"
 import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.util.js"
 import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
+import { recordSignupLocation } from "../services/user-location.service.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -111,6 +112,7 @@ router.post(
     try {
       const input = AuthService.registerSchema.parse(req.body)
       const user = await AuthService.registerUser(input)
+      await recordSignupLocation(user.id, req.ip)
       logAudit({ userId: user.id, action: "auth.register", category: "auth", entityId: user.id, entityType: "User", metadata: { email: user.email }, ip: req.ip, userAgent: req.headers["user-agent"] })
       res.status(201).json({
         success: true,

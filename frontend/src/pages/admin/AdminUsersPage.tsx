@@ -1,12 +1,14 @@
 import { useState, useCallback, useRef } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Search, Loader2, Trash2, Shield, ExternalLink,
   Users, UserCheck, QrCode, X, ChevronDown,
 } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
-import { fetchAdminUsers, deleteAdminUser, type AdminUser } from "@/lib/api"
+import { fetchAdminUsers, fetchAdminUserCountries, deleteAdminUser, type AdminUser } from "@/lib/api"
+import { CountryLabel, countryFlag, countryName } from "@/components/admin/CountryLabel"
+import { describeState } from "@/components/admin/SubscriptionStateBadge"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -14,14 +16,6 @@ const ROLE_META: Record<string, { label: string; cls: string }> = {
   USER:        { label: "User",        cls: "bg-zinc-700/60 text-zinc-300 ring-zinc-600/40" },
   ADMIN:       { label: "Admin",       cls: "bg-amber-500/15 text-amber-400 ring-amber-500/30" },
   SUPER_ADMIN: { label: "Super Admin", cls: "bg-red-500/15 text-red-400 ring-red-500/30" },
-}
-
-const PLAN_META: Record<string, string> = {
-  ACTIVE:    "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  TRIALING:  "bg-blue-500/15 text-blue-400 ring-blue-500/30",
-  CANCELLED: "bg-zinc-700/60 text-zinc-400 ring-zinc-600/40",
-  PAST_DUE:  "bg-red-500/15 text-red-400 ring-red-500/30",
-  PAUSED:    "bg-amber-500/15 text-amber-400 ring-amber-500/30",
 }
 
 const ROLE_FILTERS  = ["All Roles",  "USER", "ADMIN", "SUPER_ADMIN"] as const
@@ -70,7 +64,7 @@ function relativeTime(iso: string | null) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-zinc-800/40">
-      {[36, 24, 20, 12, 16].map((w, i) => (
+      {[36, 24, 20, 20, 12, 16, 16].map((w, i) => (
         <td key={i} className="px-5 py-4">
           <div
             className="h-3 rounded-full bg-zinc-800 animate-pulse"
@@ -122,12 +116,30 @@ export default function AdminUsersPage() {
   const [roleFilter, setRole]     = useState("All Roles")
   const [statusFilter, setStatus] = useState("All Plans")
   const [showFilters, setShowFilters] = useState(false)
+  // Country lives in the URL so Analytics can link to /admin/users?country=IN.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const country = searchParams.get("country") ?? ""
+  const setCountry = (code: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (code) next.set("country", code)
+      else next.delete("country")
+      return next
+    })
+    setPage(1)
+  }
+  const { data: countriesData } = useQuery({
+    queryKey: ["admin", "analytics", "user-countries", "all"],
+    queryFn: () => fetchAdminUserCountries("all"),
+    staleTime: 5 * 60_000,
+  })
+  const countryOptions = countriesData?.data?.rows ?? []
 
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "users", page, q],
-    queryFn: () => fetchAdminUsers(page, 20, q),
+    queryKey: ["admin", "users", page, q, country],
+    queryFn: () => fetchAdminUsers(page, 20, q, country),
   })
 
   const deleteMut = useMutation({
@@ -191,7 +203,7 @@ export default function AdminUsersPage() {
               ref={inputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by email or name…"
+              placeholder="Search by email, name or phone…"
               className="bg-zinc-800/80 border border-zinc-700 rounded-xl pl-8 pr-8 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500/50 w-64 transition"
             />
             {search && (
@@ -214,7 +226,7 @@ export default function AdminUsersPage() {
             type="button"
             onClick={() => setShowFilters((p) => !p)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm border transition ${
-              showFilters || roleFilter !== "All Roles" || statusFilter !== "All Plans"
+              showFilters || roleFilter !== "All Roles" || statusFilter !== "All Plans" || country
                 ? "border-red-500/50 text-red-400 bg-red-500/10"
                 : "border-zinc-700 text-zinc-400 hover:text-zinc-200 bg-zinc-800/60 hover:border-zinc-500"
             }`}
@@ -225,7 +237,7 @@ export default function AdminUsersPage() {
               className={`transition-transform duration-200 ${showFilters ? "rotate-180" : ""}`}
             />
             Filters
-            {(roleFilter !== "All Roles" || statusFilter !== "All Plans") && (
+            {(roleFilter !== "All Roles" || statusFilter !== "All Plans" || country) && (
               <span className="w-1.5 h-1.5 rounded-full bg-red-400 ml-0.5" />
             )}
           </button>
@@ -283,6 +295,22 @@ export default function AdminUsersPage() {
               ))}
             </div>
           </div>
+          <div className="space-y-1.5">
+            <label htmlFor="country-filter" className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider pl-0.5">Country</label>
+            <select
+              id="country-filter"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="bg-zinc-800/60 border border-zinc-700 rounded-full px-3 py-1 text-xs text-zinc-300 focus:outline-none focus:ring-2 focus:ring-red-500/40"
+            >
+              <option value="">All countries</option>
+              {countryOptions.map((c) => (
+                <option key={c.countryCode} value={c.countryCode}>
+                  {[countryFlag(c.countryCode), countryName(c.countryCode, c.country)].filter(Boolean).join(" ")} ({c.users})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -295,6 +323,7 @@ export default function AdminUsersPage() {
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-5 py-3">User</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Role</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Plan</th>
+                <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Country</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">QRs</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Joined</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Last Login</th>
@@ -307,9 +336,10 @@ export default function AdminUsersPage() {
                 ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
                 : users.map((u) => {
                     const roleMeta = ROLE_META[u.role] ?? ROLE_META["USER"]
-                    const planCls  = u.subscription
-                      ? (PLAN_META[u.subscription.status] ?? "bg-zinc-700/60 text-zinc-400 ring-zinc-600/40")
-                      : "bg-zinc-700/60 text-zinc-500 ring-zinc-600/40"
+                    // Coloured by what the plan is doing (server state), not the raw
+                    // status, which reads ACTIVE for free and lapsed accounts too.
+                    const planState = u.subscription ? describeState(u.subscription.state, u.subscription.status) : null
+                    const planCls   = planState?.className ?? "bg-zinc-700/60 text-zinc-500 ring-zinc-600/40"
                     const planLabel = u.subscription?.plan.name ?? "Free"
                     const lastLogin = relativeTime(u.lastLoginAt)
 
@@ -343,9 +373,20 @@ export default function AdminUsersPage() {
 
                         {/* Plan */}
                         <td className="px-4 py-3.5">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${planCls}`}>
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${planCls}`}
+                            title={planState ? [planState.label, planState.detail].filter(Boolean).join(" · ") : undefined}
+                          >
                             {planLabel}
                           </span>
+                          {planState && planState.label.toUpperCase() !== planLabel && (
+                            <span className="block text-[10px] text-zinc-500 mt-0.5">{planState.label}</span>
+                          )}
+                        </td>
+
+                        {/* Country — sign-up location, else last sign-in */}
+                        <td className="px-4 py-3.5 text-xs whitespace-nowrap">
+                          <CountryLabel code={u.country.code} name={u.country.name} />
                         </td>
 
                         {/* QR count */}
@@ -398,7 +439,7 @@ export default function AdminUsersPage() {
               {/* Empty state */}
               {!isLoading && users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={8} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center">
                         <Users size={22} className="text-zinc-600" />

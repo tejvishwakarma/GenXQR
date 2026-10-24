@@ -7,17 +7,10 @@ import {
   CreditCard, Users, CalendarClock,
 } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
-import { fetchAdminSubscriptions, sendRenewalReminders, type AdminSubscription } from "@/lib/api"
+import { fetchAdminSubscriptions, sendRenewalReminders, type AdminSubscription, type SubscriptionStateKey } from "@/lib/api"
+import { SubscriptionStateBadge, STATE_FILTERS, describeState } from "@/components/admin/SubscriptionStateBadge"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const STATUS_META: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
-  ACTIVE:    { cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30", icon: <CheckCircle2 size={10} />, label: "Active"    },
-  TRIALING:  { cls: "bg-blue-500/15 text-blue-400 ring-blue-500/30",         icon: <Clock        size={10} />, label: "Trialing"  },
-  PAST_DUE:  { cls: "bg-amber-500/15 text-amber-400 ring-amber-500/30",      icon: <AlertCircle  size={10} />, label: "Past Due"  },
-  CANCELLED: { cls: "bg-zinc-700/60 text-zinc-400 ring-zinc-600/30",         icon: <X            size={10} />, label: "Cancelled" },
-  PAUSED:    { cls: "bg-orange-500/15 text-orange-400 ring-orange-500/30",   icon: <Clock        size={10} />, label: "Paused"   },
-}
 
 const PLAN_META: Record<string, string> = {
   FREE:       "bg-zinc-700/60 text-zinc-400 ring-zinc-600/30",
@@ -32,19 +25,24 @@ const REMINDER_LABELS: Record<string, string> = {
   "1_day":  "1d warning", "expired": "Expired", "manual": "Manual",
 }
 
-const STATUS_FILTERS = ["All", "ACTIVE", "TRIALING", "PAST_DUE", "CANCELLED", "PAUSED"] as const
+// Filtered by what a subscription is doing (server state), not the raw status:
+// PAST_DUE, CANCELLED and PAUSED are never set, and ACTIVE includes free accounts.
+type StateFilter = "All" | SubscriptionStateKey
 const PLAN_FILTERS   = ["All", "FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const RUNNING: SubscriptionStateKey[] = ["trial", "paid", "cancelling"]
 
 function daysUntil(dateStr: string) {
   return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
+/** "Nd left" for a plan still running; ended plans are told by the state badge. */
 function ExpiryBadge({ sub }: { sub: AdminSubscription }) {
-  if (sub.status === "CANCELLED" || sub.status === "PAUSED" || sub.plan.name === "FREE") return null
-  const days = daysUntil(sub.currentPeriodEnd)
-  if (days < 0)  return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 ring-1 ring-red-500/30">Expired</span>
+  if (!RUNNING.includes(sub.state.key)) return null
+  const days = daysUntil(sub.state.date ?? sub.currentPeriodEnd)
+  if (days < 0)  return null
   if (days <= 1) return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 ring-1 ring-red-500/30">1d left</span>
   if (days <= 3) return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30">{days}d left</span>
   if (days <= 7) return <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 ring-1 ring-yellow-500/30">{days}d left</span>
@@ -93,7 +91,7 @@ export default function AdminSubscriptionsPage() {
   const queryClient = useQueryClient()
 
   const [page, setPage]               = useState(1)
-  const [statusFilter, setStatus]     = useState<typeof STATUS_FILTERS[number]>("All")
+  const [statusFilter, setStatus]     = useState<StateFilter>("All")
   const [planFilter, setPlan]         = useState<typeof PLAN_FILTERS[number]>("All")
   const [showFilters, setShowFilters] = useState(false)
   const [selected, setSelected]       = useState<Set<string>>(new Set())
@@ -147,10 +145,10 @@ export default function AdminSubscriptionsPage() {
 
   // ── Stat bar derived values ────────────────────────────────────────────────
   const totalSubs    = meta?.total ?? 0
-  const activeCount  = subs.filter((s) => s.status === "ACTIVE").length
+  const activeCount  = subs.filter((s) => s.state.key === "paid" || s.state.key === "cancelling").length
   const expiringSoon = subs.filter((s) => {
-    if (s.status === "CANCELLED" || s.status === "PAUSED" || s.plan.name === "FREE") return false
-    const d = Math.ceil((new Date(s.currentPeriodEnd).getTime() - Date.now()) / 86_400_000)
+    if (!RUNNING.includes(s.state.key)) return false
+    const d = daysUntil(s.state.date ?? s.currentPeriodEnd)
     return d >= 0 && d <= 7
   }).length
 
@@ -204,7 +202,7 @@ export default function AdminSubscriptionsPage() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { icon: Users,         label: "Total Subscriptions",  value: totalSubs.toLocaleString(),           color: "text-violet-400",  bg: "bg-violet-500/10" },
-          { icon: CheckCircle2,  label: "Active (this page)",   value: `${activeCount} / ${subs.length}`,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
+          { icon: CheckCircle2,  label: "Paid (this page)",    value: `${activeCount} / ${subs.length}`,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
           { icon: CalendarClock, label: "Expiring Soon (≤7d)",  value: expiringSoon > 0 ? String(expiringSoon) : "None", color: expiringSoon > 0 ? "text-amber-400" : "text-zinc-500", bg: expiringSoon > 0 ? "bg-amber-500/10" : "bg-zinc-800" },
         ].map(({ icon: Icon, label, value, color, bg }) => (
           <div key={label} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800">
@@ -225,12 +223,12 @@ export default function AdminSubscriptionsPage() {
           <div className="space-y-1.5">
             <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Status</p>
             <div className="flex flex-wrap gap-1.5">
-              {STATUS_FILTERS.map((s) => (
+              {([{ key: "All", label: "All" }, ...STATE_FILTERS] as { key: StateFilter; label: string }[]).map((f) => (
                 <FilterChip
-                  key={s}
-                  label={s === "All" ? "All" : (STATUS_META[s]?.label ?? s)}
-                  active={statusFilter === s}
-                  onClick={() => { setStatus(s); setPage(1) }}
+                  key={f.key}
+                  label={f.label}
+                  active={statusFilter === f.key}
+                  onClick={() => { setStatus(f.key); setPage(1) }}
                 />
               ))}
             </div>
@@ -306,7 +304,6 @@ export default function AdminSubscriptionsPage() {
                 ? Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)
                 : subs.map((sub) => {
                     const isChecked = selected.has(sub.id)
-                    const sm = STATUS_META[sub.status] ?? { cls: "bg-zinc-700/60 text-zinc-400 ring-zinc-600/30", icon: null, label: sub.status }
                     const planCls = PLAN_META[sub.plan.name] ?? "bg-zinc-700/60 text-zinc-400 ring-zinc-600/30"
 
                     return (
@@ -348,23 +345,26 @@ export default function AdminSubscriptionsPage() {
 
                         {/* Status */}
                         <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ring-1 ${sm.cls}`}>
-                            {sm.icon}{sm.label}
-                          </span>
-                          {sub.cancelAtPeriodEnd && (
-                            <div className="text-amber-500 text-[11px] mt-0.5">cancels at period end</div>
+                          <SubscriptionStateBadge state={sub.state} rawStatus={sub.status} showDetail={false} />
+                          {describeState(sub.state, sub.status).detail && (
+                            <div className="text-zinc-500 text-[11px] mt-0.5">{describeState(sub.state, sub.status).detail}</div>
                           )}
                         </td>
 
                         {/* Expires */}
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-zinc-400 text-xs">{new Date(sub.currentPeriodEnd).toLocaleDateString()}</span>
+                            {/* A free account has no end: its "period" is a placeholder. */}
+                            <span className="text-zinc-400 text-xs">
+                              {sub.plan.name === "FREE" ? "—" : new Date(sub.status === "TRIALING" && sub.trialEndsAt ? sub.trialEndsAt : sub.currentPeriodEnd).toLocaleDateString()}
+                            </span>
                             <ExpiryBadge sub={sub} />
                           </div>
-                          <div className="text-zinc-600 text-[11px] mt-0.5">
-                            from {new Date(sub.currentPeriodStart).toLocaleDateString()}
-                          </div>
+                          {sub.plan.name !== "FREE" && (
+                            <div className="text-zinc-600 text-[11px] mt-0.5">
+                              from {new Date(sub.currentPeriodStart).toLocaleDateString()}
+                            </div>
+                          )}
                         </td>
 
                         {/* Last reminder */}

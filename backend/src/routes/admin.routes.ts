@@ -16,6 +16,8 @@
  * GET  /admin-api/analytics/signups  – signup trend (30 days)
  * GET  /admin-api/analytics/scans    – platform-wide scan trend (30 days)
  * GET  /admin-api/analytics/signup-sources – sign-ups by first-touch source, with paid conversions
+ * GET  /admin-api/analytics/user-countries – users per country (+ top cities), trials, paid, revenue
+ * GET  /admin-api/analytics/signups-by-country – daily sign-ups by top countries
  * GET  /admin-api/revenue            – MRR / ARR + recent invoices
  * GET  /admin-api/storage            – storage usage totals + by user
  * POST /admin-api/storage/cleanup-orphans – delete QRFile rows with no parent QR
@@ -33,6 +35,7 @@ import type { AccessTokenPayload } from "../utils/jwt.js"
 import { broadcastNotification } from "../services/notification.service.js"
 import * as AdminUsersService from "../services/admin-users.service.js"
 import * as AdminPlatformService from "../services/admin-platform.service.js"
+import { SUBSCRIPTION_STATES } from "../services/subscription-state.js"
 import * as AdminModerationService from "../services/admin-moderation.service.js"
 import * as AdminSupportService from "../services/admin-support.service.js"
 import * as AdminCouponsService from "../services/admin-coupons.service.js"
@@ -105,7 +108,9 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit, q } = PaginationSchema.parse(req.query)
-      const { users, total, pages } = await AdminUsersService.listUsers({ page, limit, q })
+      // Effective country, ISO 3166 alpha-2 ("ZZ" = unknown).
+      const country = z.string().regex(/^[A-Z]{2}$/).optional().parse(req.query["country"] || undefined)
+      const { users, total, pages } = await AdminUsersService.listUsers({ page, limit, q, country })
       res.json({ success: true, data: users, meta: { total, page, limit, pages } })
     } catch (err) {
       next(err)
@@ -121,7 +126,8 @@ router.get(
   "/users/:id",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const data = await AdminUsersService.getUserDetail(req.params["id"] as string)
+      const callerRole = (req.user as unknown as AccessTokenPayload).role
+      const data = await AdminUsersService.getUserDetail(req.params["id"] as string, callerRole)
       res.json({ success: true, data })
     } catch (err) {
       next(err)
@@ -352,6 +358,39 @@ router.get(
  * Daily platform-wide scan counts for the last N days.
  */
 /**
+ * GET /admin-api/analytics/user-countries?days=30|all
+ * Users per country (sign-up location, else last sign-in), with trials, paid
+ * customers and revenue, plus the top cities.
+ */
+router.get(
+  "/analytics/user-countries",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = await AdminPlatformService.getUserCountries(req.query["days"])
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * GET /admin-api/analytics/signups-by-country?days=30
+ * Daily sign-ups split by the top countries, "OTHER" and "ZZ" (unknown).
+ */
+router.get(
+  "/analytics/signups-by-country",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = await AdminPlatformService.getSignupsByCountry(req.query["days"])
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
  * GET /admin-api/analytics/signup-sources?days=30&groupBy=source|campaign
  * Sign-ups by first-touch source or campaign, with paid conversions and revenue.
  */
@@ -505,7 +544,7 @@ router.get(
         dateFrom: req.query["dateFrom"] as string | undefined,
         dateTo: req.query["dateTo"] as string | undefined,
         ip: req.query["ip"] as string | undefined,
-      })
+      }, (req.user as unknown as AccessTokenPayload).role)
       res.json({ success: true, data: logs, meta })
     } catch (err) {
       next(err)
@@ -523,11 +562,9 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
-      const { data, meta } = await AdminPlatformService.listSubscriptions(
-        { page, limit },
-        req.query["status"] as string | undefined,
-        req.query["plan"] as string | undefined,
-      )
+      const state = z.enum(SUBSCRIPTION_STATES).optional().parse(req.query["state"] || undefined)
+      const plan = z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]).optional().parse(req.query["plan"] || undefined)
+      const { data, meta } = await AdminPlatformService.listSubscriptions({ page, limit }, state, plan)
       res.json({ success: true, data, meta })
     } catch (err) {
       next(err)
