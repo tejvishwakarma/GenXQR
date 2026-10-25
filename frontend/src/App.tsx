@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { initAnalytics, trackPageView } from "@/lib/analytics"
+import { initClarity } from "@/lib/clarity"
 import { MarketingLayout } from "@/components/layout/MarketingLayout"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { AdminLayout } from "@/components/layout/AdminLayout"
@@ -131,6 +132,7 @@ function AnalyticsTracker() {
 
   useEffect(() => {
     initAnalytics()
+    initClarity()
   }, [])
 
   useEffect(() => {

@@ -1355,6 +1355,14 @@ pnpm preview               # vite preview (serves dist/)
     Without `--submit` it is a dry run — never pass it from a dev machine, where
     `SITE_URL` is also genxqr.com. Bing/Yandex only; Google ignores IndexNow.
 
+23. **Analytics are loaded as EXTERNAL scripts, never inline, because of the strict CSP** (`script-src 'self'`,
+    no `'unsafe-inline'`). Google Analytics (`lib/analytics.ts`, `VITE_GA_MEASUREMENT_ID`) and Microsoft Clarity
+    (`lib/clarity.ts`, `VITE_CLARITY_PROJECT_ID`, added 25 Oct 2026) both no-op when their env var is unset, and are
+    kicked off together in `App.tsx`'s `AnalyticsTracker`. Clarity's copy-paste snippet is inline — do NOT paste it;
+    `clarity.ts` runs its bootstrap from our origin and loads `https://www.clarity.ms/tag/<id>`. CSP must allow
+    `https://*.clarity.ms` in script-src and `https://*.clarity.ms https://c.bing.com` in connect-src (both
+    `deploy/*.conf`). The project id (public) goes in the frontend build env (`frontend/.env.local`), not backend.
+
 22. **Cloudflare Turnstile is optional and enabled by two keys together** (added 25 Oct 2026, after the external
     assessment). Backend `TURNSTILE_SECRET_KEY` + frontend `VITE_TURNSTILE_SITE_KEY`. With neither set, register,
     login and contact behave exactly as before — `turnstile.service.verifyTurnstileToken` is a no-op and the
