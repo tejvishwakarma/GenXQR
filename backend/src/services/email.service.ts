@@ -1,11 +1,11 @@
-import nodemailer from "nodemailer"
+import nodemailer, { type Transporter } from "nodemailer"
 import { Resend } from "resend"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 
 // Prefer Resend if API key provided, otherwise fall back to SMTP
 let resendClient: Resend | null = null
-let smtpTransporter: nodemailer.Transporter | null = null
+let smtpTransporter: Transporter | null = null
 
 if (env.RESEND_API_KEY) {
   resendClient = new Resend(env.RESEND_API_KEY)
