@@ -230,6 +230,10 @@ CASHFREE_API_VERSION="2026-01-01"
 # MaxMind GeoLite2 (scan geolocation) — free account; without these, no locations
 MAXMIND_ACCOUNT_ID=""
 MAXMIND_LICENSE_KEY=""
+
+# Cloudflare Turnstile (bot protection on register/login/contact). Optional:
+# unset = challenge skipped. SITE key → frontend VITE_TURNSTILE_SITE_KEY, SECRET here.
+TURNSTILE_SECRET_KEY=""
 ```
 
 ### Frontend `.env.local`
@@ -1350,6 +1354,15 @@ pnpm preview               # vite preview (serves dist/)
     `frontend/.indexnow-state.json` on the server); the key is `frontend/public/<key>.txt`.
     Without `--submit` it is a dry run — never pass it from a dev machine, where
     `SITE_URL` is also genxqr.com. Bing/Yandex only; Google ignores IndexNow.
+
+22. **Cloudflare Turnstile is optional and enabled by two keys together** (added 25 Oct 2026, after the external
+    assessment). Backend `TURNSTILE_SECRET_KEY` + frontend `VITE_TURNSTILE_SITE_KEY`. With neither set, register,
+    login and contact behave exactly as before — `turnstile.service.verifyTurnstileToken` is a no-op and the
+    `Turnstile` widget renders nothing. When the secret is set, `requireTurnstile` (after the rate limiter, before
+    the handler) rejects a missing/invalid token with 403, but FAILS OPEN if Cloudflare's siteverify is unreachable
+    (an outage must not lock out every login; the password still gates login). The token rides in the JSON body as
+    `turnstileToken` or the `cf-turnstile-response` header. CSP must allow `challenges.cloudflare.com` in script-src
+    and frame-src (both `deploy/*.conf`). Covered by `tests/integration/turnstile.test.ts`.
 
 21. **Blog and careers are `noindex` while empty**, and `/blog` drops out of the sitemap
     until a post is published (`sitemap: BLOG_ROUTES.length > 0` in `public-routes.mjs`).

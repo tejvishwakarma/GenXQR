@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto"
 import { z } from "zod"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import { contactLimiter } from "../middleware/rateLimit.middleware.js"
+import { requireTurnstile } from "../middleware/turnstile.middleware.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { AppError } from "../middleware/error.middleware.js"
@@ -100,6 +101,7 @@ const CONTACT_CATEGORY_LABEL: Record<string, string> = {
 router.post(
   "/contact",
   contactLimiter,
+  requireTurnstile,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = ContactSchema.parse(req.body)

@@ -22,6 +22,10 @@ const envSchema = z.object({
   // without them there is no geo data (geo.service.ts). Free account.
   MAXMIND_ACCOUNT_ID: z.string().trim().optional(),
   MAXMIND_LICENSE_KEY: z.string().trim().optional(),
+  // Cloudflare Turnstile (bot/abuse protection on register, login, contact).
+  // Without the secret key the checks are skipped, so the forms keep working
+  // in dev and until the key is set in production (turnstile.service.ts).
+  TURNSTILE_SECRET_KEY: z.string().trim().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z
     .string()

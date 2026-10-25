@@ -229,10 +229,10 @@ export interface LoginResponse {
   data: { accessToken: string; user: AuthUser }
 }
 
-export function login(email: string, password: string) {
+export function login(email: string, password: string, turnstileToken?: string) {
   return apiFetch<LoginResponse>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, turnstileToken }),
   })
 }
 
@@ -371,11 +371,11 @@ export interface RegisterResponse {
   data: { id: string; email: string; name: string }
 }
 
-export function register(name: string, email: string, password: string) {
+export function register(name: string, email: string, password: string, turnstileToken?: string) {
   return apiFetch<RegisterResponse>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify({
-      name, email, password,
+      name, email, password, turnstileToken,
       attribution: getAttribution() ?? undefined,
       // From a referral link (lib/referralLink); the server decides if it counts.
       referralCode: getPendingReferral() ?? undefined,
@@ -1474,10 +1474,10 @@ export interface ContactMessage {
  * Public contact form. No auth: anyone browsing the marketing site can use it,
  * which is why the server rate-limits it per IP.
  */
-export function sendContactMessage(body: ContactMessage) {
+export function sendContactMessage(body: ContactMessage, turnstileToken?: string) {
   return apiFetch<{ success: boolean }>("/api/support/contact", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, turnstileToken }),
   })
 }
 

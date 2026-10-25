@@ -1,11 +1,12 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { QrCode, Eye, EyeOff, RefreshCw, Zap, TrendingUp } from "lucide-react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
 import { referralQueryParam } from "@/lib/referralLink"
 import { login, resendVerificationEmail, ApiError } from "@/lib/api"
+import { Turnstile, TURNSTILE_ENABLED, type TurnstileHandle } from "@/components/Turnstile"
 
 // Stable decorative scan chart bars (no random — consistent across renders)
 const SCAN_BARS = [3, 6, 4, 8, 5, 9, 7, 10, 6, 8, 5, 7, 9, 6, 4, 8]
@@ -25,6 +26,8 @@ export default function LoginPage() {
     return null
   })
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileHandle>(null)
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "cooldown" | "error">("idle")
 
   const isUnverifiedError = error === "Please verify your email before signing in"
@@ -33,9 +36,13 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
     setResendState("idle")
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setError("Please complete the verification challenge below.")
+      return
+    }
     setLoading(true)
     try {
-      const res = await login(email, password)
+      const res = await login(email, password, turnstileToken ?? undefined)
       localStorage.setItem("access_token", res.data.accessToken)
       localStorage.setItem("user", JSON.stringify(res.data.user))
       const role = res.data.user.role
@@ -46,6 +53,9 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
+      // Turnstile tokens are single-use — get a fresh one for the retry.
+      setTurnstileToken(null)
+      turnstileRef.current?.reset()
     } finally {
       setLoading(false)
     }
@@ -237,6 +247,8 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              <Turnstile ref={turnstileRef} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken(null)} />
 
               <Button type="submit" className="w-full" size="lg" disabled={loading}>
                 {loading ? "Signing in…" : "Sign in"}
