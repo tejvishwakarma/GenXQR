@@ -712,6 +712,13 @@ GenXQR by default, so before this every revenue figure counted refunded money as
   `/REFUND/i` in `processCashfreeWebhook`); it is RE-FETCHED from Cashfree (`getRefund`) and only a
   `refund_status === "SUCCESS"` is recorded — same trust model as a payment. `Refund.cashfreeRefundId`
   is UNIQUE = the idempotency key.
+- **Cashfree's dashboard offers NO refund event in its webhook setup for this account** (checked 25 Oct
+  2026: the event list is payments only). So the main path is a reconciliation sweep, `reconcileRefunds`, in
+  the 10-minute expiry worker: it asks `GET /orders/{id}/refunds` (`getOrderRefunds`) for paid orders from
+  the last `REFUND_RECONCILE_DAYS` (60), `REFUND_RECONCILE_BATCH` (25) per run, least recently checked first
+  (`Invoice.refundCheckedAt`, stamped even on failure). Same recording path and idempotency as the webhook,
+  so a refund made in Cashfree shows up within about 10 minutes. The webhook branch stays for if Cashfree
+  ever enables refund events. Migration `20261025150000_refund_reconcile`.
 - A SUPER_ADMIN can also record one at `POST /admin-api/payments/:invoiceId/refund` (a backup / for
   past refunds / corrections). It does NOT call Cashfree — the money moves there; this records it.
 - Partial refunds are supported and capped at the amount paid. `Invoice.refundedAmount` is the running

@@ -284,6 +284,16 @@ export async function getRefund(orderId: string, refundId: string): Promise<Cash
 }
 
 /**
+ * Every refund on an order (Get All Refunds for an Order). Used by the refund
+ * reconciliation sweep, which needs no webhook: Cashfree does not offer a
+ * refund event in the dashboard's webhook setup for this account.
+ */
+export async function getOrderRefunds(orderId: string): Promise<CashfreeRefund[]> {
+  const res = await cashfreeRequest<CashfreeRefund[] | null>("GET", `/orders/${encodeURIComponent(orderId)}/refunds`)
+  return Array.isArray(res) ? res : []
+}
+
+/**
  * Verifies a webhook's authenticity.
  *
  * Cashfree signs `timestamp + rawBody` with the merchant secret key, so this

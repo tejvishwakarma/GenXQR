@@ -7,6 +7,7 @@ import { sweepPendingUploads } from "../services/uploads.service.js"
 import { refreshGeoDatabase } from "../services/geo.service.js"
 import { fillMissingUserLocations } from "../services/user-location.service.js"
 import { purgeExpiredAuditLogs } from "../services/audit.service.js"
+import { reconcileRefunds } from "../services/refund.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -52,6 +53,11 @@ async function processExpiryJob(_job: Job): Promise<void> {
   // The audit log is kept for 3 years, then deleted (Privacy policy §6).
   await purgeExpiredAuditLogs().catch((err) =>
     logger.error("Purging old audit log entries failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Refunds made in the Cashfree dashboard (no refund webhook is offered there):
+  // ask Cashfree about recent paid orders, a batch per run.
+  await reconcileRefunds().catch((err) =>
+    logger.error("Refund reconciliation failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Uploads never attached within a day are deleted, so they cannot pile up.
   await sweepPendingUploads().catch((err) =>

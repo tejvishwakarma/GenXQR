@@ -486,6 +486,9 @@ model Invoice {
   refundedAmount    Int          @default(0)
   // When the most recent refund against this invoice was recorded.
   refundedAt        DateTime?
+  // Last time the reconciliation sweep asked Cashfree about refunds on this
+  // order (refund.service reconcileRefunds); null = never. Oldest first.
+  refundCheckedAt   DateTime?
   refunds           Refund[]
   // Cashfree's own payment reference (cf_order_id), for reconciliation.
   cashfreePaymentId String?

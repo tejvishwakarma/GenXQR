@@ -4,6 +4,7 @@ import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
 import { createAdmin, createSuperAdmin, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
+import { reconcileRefunds } from "../../src/services/refund.service.js"
 
 /**
  * Refunds (decided 25 Oct 2026): recorded from the Cashfree webhook or by an
@@ -171,5 +172,72 @@ describe("refund side effects", () => {
     const inv = await paidInvoice(user.id, 79900)
     await request(app).post(`/admin-api/payments/${inv.id}/refund`).set("Authorization", `Bearer ${admin.token}`).send({ amountPaise: 100, reason: "x" }).expect(403)
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })).refundedAmount).toBe(0)
+  })
+})
+
+describe("reconciliation sweep (no webhook needed)", () => {
+  /** Stubs Cashfree's list-refunds call per order id; records which orders were asked. */
+  function stubOrderRefunds(byOrder: Record<string, unknown[] | "error">) {
+    const asked: string[] = []
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input)
+      const m = url.match(/\/orders\/([^/]+)\/refunds$/)
+      if (m) {
+        const orderId = decodeURIComponent(m[1]!)
+        asked.push(orderId)
+        const r = byOrder[orderId]
+        if (r === "error") return new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+        return new Response(JSON.stringify(r ?? []), { status: 200, headers: { "Content-Type": "application/json" } })
+      }
+      return new Response("{}", { status: 200 })
+    })
+    return asked
+  }
+  const refund = (orderId: string, cfId: string, rupees: number, status = "SUCCESS") =>
+    ({ cf_refund_id: cfId, refund_id: `r_${cfId}`, order_id: orderId, refund_amount: rupees, refund_status: status })
+
+  it("should record a refund made in the Cashfree dashboard, once, and skip pending ones", async () => {
+    const user = await createUser()
+    const inv = await paidInvoice(user.id, 79900)
+    const id = inv.cashfreeOrderId!
+    stubOrderRefunds({ [id]: [refund(id, "cf_a", 200), refund(id, "cf_b", 100, "PENDING")] })
+
+    expect((await reconcileRefunds()).recorded).toBe(1)
+    let after = await prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })
+    expect(after.refundedAmount).toBe(20000)
+    expect(after.refundCheckedAt).not.toBeNull()
+
+    // Next run: the same refund is not counted again.
+    await reconcileRefunds()
+    after = await prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })
+    expect(after.refundedAmount, "REAL BUG: a refund was recorded twice").toBe(20000)
+    expect(await prisma.refund.count({ where: { invoiceId: inv.id } })).toBe(1)
+  })
+
+  it("should not ask about free grants, old orders or fully refunded invoices", async () => {
+    const user = await createUser()
+    const recent = await paidInvoice(user.id, 79900)
+    const old = await paidInvoice(user.id, 79900)
+    await prisma.invoice.update({ where: { id: old.id }, data: { createdAt: new Date(Date.now() - 90 * 86_400_000) } })
+    const full = await paidInvoice(user.id, 79900)
+    await prisma.invoice.update({ where: { id: full.id }, data: { refundedAmount: 79900 } })
+    const free = await paidInvoice(user.id, 0)
+    await prisma.invoice.update({ where: { id: free.id }, data: { cashfreeOrderId: `genxqr_free_${Date.now()}` } })
+
+    const asked = stubOrderRefunds({})
+    await reconcileRefunds()
+    expect(asked).toEqual([recent.cashfreeOrderId])
+  })
+
+  it("should carry on past an order Cashfree errors on", async () => {
+    const user = await createUser()
+    const bad = await paidInvoice(user.id, 79900)
+    const good = await paidInvoice(user.id, 79900)
+    const gid = good.cashfreeOrderId!
+    stubOrderRefunds({ [bad.cashfreeOrderId!]: "error", [gid]: [refund(gid, "cf_g", 799)] })
+
+    await reconcileRefunds()
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: good.id } })).refundedAmount).toBe(79900)
+    expect((await prisma.invoice.findUniqueOrThrow({ where: { id: bad.id } })).refundCheckedAt, "a failing order is still stamped so it cannot block the queue").not.toBeNull()
   })
 })
