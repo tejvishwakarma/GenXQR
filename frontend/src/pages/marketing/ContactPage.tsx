@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { MapPin, Mail, Clock, Loader2, CheckCircle2 } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
@@ -6,6 +6,7 @@ import { MktContainer, Reveal, MktCard, IconTile, MktButton } from "@/components
 import { PageHero } from "@/components/marketing/PageHero"
 import { ORGANISATION } from "@/lib/site"
 import { sendContactMessage, type ContactCategory } from "@/lib/api"
+import { Turnstile, TURNSTILE_ENABLED, type TurnstileHandle } from "@/components/Turnstile"
 
 /** Mirrors the server's category enum; the label is what the visitor picks. */
 const SUBJECTS: { value: ContactCategory; label: string }[] = [
@@ -26,6 +27,8 @@ export default function ContactPage() {
   const [message, setMessage] = useState("")
   const [company, setCompany] = useState("")
   const [error, setError] = useState("")
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileHandle>(null)
 
   /**
    * Wraps a field setter so typing dismisses a previous success banner. Without
@@ -38,7 +41,7 @@ export default function ContactPage() {
   }
 
   const send = useMutation({
-    mutationFn: () => sendContactMessage({ firstName, lastName, email, category, message, company }),
+    mutationFn: () => sendContactMessage({ firstName, lastName, email, category, message, company }, turnstileToken ?? undefined),
     onSuccess: () => {
       setError("")
       setFirstName("")
@@ -47,8 +50,15 @@ export default function ContactPage() {
       setCategory("general")
       setMessage("")
       setCompany("")
+      setTurnstileToken(null)
+      turnstileRef.current?.reset()
     },
-    onError: (err: Error) => setError(err.message || "Could not send your message. Please try again."),
+    onError: (err: Error) => {
+      setError(err.message || "Could not send your message. Please try again.")
+      // Single-use token — reset for the retry.
+      setTurnstileToken(null)
+      turnstileRef.current?.reset()
+    },
   })
 
   // Validated here as well as on the server, so the visitor hears about a problem
@@ -66,6 +76,10 @@ export default function ContactPage() {
     }
     if (message.trim().length < MIN_MESSAGE) {
       setError("Please provide a little more detail (at least " + MIN_MESSAGE + " characters).")
+      return
+    }
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setError("Please complete the verification challenge below.")
       return
     }
     setError("")
@@ -238,6 +252,8 @@ export default function ContactPage() {
                     <span>Thanks — your message is on its way. We&apos;ll reply by email.</span>
                   </div>
                 )}
+
+                <Turnstile ref={turnstileRef} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken(null)} />
 
                 <MktButton variant="accent" size="lg" className="w-full" type="submit" disabled={send.isPending}>
                   {send.isPending ? (

@@ -1,12 +1,13 @@
 import { Link, useSearchParams } from "react-router-dom"
 import { QrCode, Eye, EyeOff, Check, Mail, Zap, BarChart3, RefreshCw, Shield } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
 import { clearPendingReferral, getPendingReferral, referralQueryParam } from "@/lib/referralLink"
 import { register, getTeamInvitePreview, ApiError } from "@/lib/api"
+import { Turnstile, TURNSTILE_ENABLED, type TurnstileHandle } from "@/components/Turnstile"
 
 const perks = [
   { icon: <BarChart3 size={15} />, text: "Real-time scan analytics" },
@@ -38,6 +39,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [agreed, setAgreed] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileHandle>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -54,11 +57,15 @@ export default function SignupPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!agreed) { setError("Please agree to the Terms of Service and Privacy Policy."); return }
+    if (TURNSTILE_ENABLED && !turnstileToken) {
+      setError("Please complete the verification challenge below.")
+      return
+    }
     setError(null)
     setLoading(true)
     try {
       const name = `${firstName.trim()} ${lastName.trim()}`.trim()
-      await register(name, email, password)
+      await register(name, email, password, turnstileToken ?? undefined)
       // Sent with the sign-up; not needed again.
       clearPendingReferral()
       setSuccess(true)
@@ -68,6 +75,9 @@ export default function SignupPage() {
       } else {
         setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
       }
+      // Single-use token — reset for the retry.
+      setTurnstileToken(null)
+      turnstileRef.current?.reset()
     } finally {
       setLoading(false)
     }
@@ -264,6 +274,8 @@ export default function SignupPage() {
                       <Link to="/privacy" className="text-violet-400 hover:underline">Privacy Policy</Link>
                     </label>
                   </div>
+
+                  <Turnstile ref={turnstileRef} onVerify={setTurnstileToken} onExpire={() => setTurnstileToken(null)} />
 
                   <Button type="submit" className="w-full" size="lg" disabled={loading}>
                     {loading ? "Creating account…" : "Create free account"}

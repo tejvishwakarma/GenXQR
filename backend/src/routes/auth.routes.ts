@@ -29,6 +29,7 @@ import { parseAttributionParam } from "../utils/attribution.util.js"
 import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.util.js"
 import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 import { recordSignupLocation } from "../services/user-location.service.js"
+import { requireTurnstile } from "../middleware/turnstile.middleware.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -108,6 +109,7 @@ function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
 router.post(
   "/register",
   registerLimiter,
+  requireTurnstile,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.registerSchema.parse(req.body)
@@ -132,6 +134,7 @@ router.post(
   "/login",
   loginLimiter,
   accountAttemptLimiter,
+  requireTurnstile,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.loginSchema.parse(req.body)
