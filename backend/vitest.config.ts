@@ -41,6 +41,7 @@ function loadTestEnv(): Record<string, string> {
     "RESEND_API_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASS",
     "MAXMIND_ACCOUNT_ID", "MAXMIND_LICENSE_KEY",
     "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_CALLBACK_URL", "GOOGLE_DRIVE_REDIRECT_URI",
+    "TURNSTILE_SECRET_KEY",
   ]
   for (const key of EXTERNAL_CREDENTIALS) parsed[key] ??= ""
 
