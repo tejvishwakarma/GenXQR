@@ -325,6 +325,29 @@ export async function listReferralsForAdmin(params: { status?: ReferralStatus; l
  * purchase, or abuse. Credit already spent is not taken back from the
  * purchase it paid for; the balance goes negative and future credit covers it.
  */
+/**
+ * Voids a referral (and both its reward credits) inside an existing transaction,
+ * found by the Cashfree order that qualified it. Used when that purchase is
+ * refunded (refund.service). Returns true if it voided one. Idempotent: an
+ * already-cancelled referral is left alone.
+ */
+export async function voidReferralForOrderInTx(
+  tx: Prisma.TransactionClient,
+  cashfreeOrderId: string,
+  reason: string,
+): Promise<boolean> {
+  const referral = await tx.referral.findUnique({
+    where: { qualifyingOrderId: cashfreeOrderId },
+    select: { id: true, cancelledAt: true },
+  })
+  if (!referral || referral.cancelledAt) return false
+  const now = new Date()
+  await tx.referral.update({ where: { id: referral.id }, data: { cancelledAt: now, cancelReason: reason } })
+  await tx.creditEntry.updateMany({ where: { referralId: referral.id, voidedAt: null }, data: { voidedAt: now } })
+  logger.info("Referral voided after refund", { referralId: referral.id, reason })
+  return true
+}
+
 export async function cancelReferral(referralId: string, reason: string): Promise<void> {
   const now = new Date()
   await prisma.$transaction(async (tx) => {

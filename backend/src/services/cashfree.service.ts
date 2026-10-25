@@ -261,6 +261,38 @@ export async function terminateOrder(orderId: string): Promise<CashfreeOrder> {
   return cashfreeRequest<CashfreeOrder>("PATCH", `/orders/${encodeURIComponent(orderId)}`, { order_status: "TERMINATED" })
 }
 
+export interface CashfreeRefund {
+  cf_refund_id: string | number
+  refund_id: string
+  order_id: string
+  /** Major units (rupees). */
+  refund_amount: number
+  refund_status: "SUCCESS" | "PENDING" | "ONHOLD" | "CANCELLED" | "FAILED"
+}
+
+/**
+ * Re-fetches one refund from Cashfree's authenticated API. Used from the refund
+ * webhook the same way getOrder is used for payments: the webhook is only a
+ * hint about which refund to look up; the authoritative amount and status come
+ * from here.
+ */
+export async function getRefund(orderId: string, refundId: string): Promise<CashfreeRefund> {
+  return cashfreeRequest<CashfreeRefund>(
+    "GET",
+    `/orders/${encodeURIComponent(orderId)}/refunds/${encodeURIComponent(refundId)}`,
+  )
+}
+
+/**
+ * Every refund on an order (Get All Refunds for an Order). Used by the refund
+ * reconciliation sweep, which needs no webhook: Cashfree does not offer a
+ * refund event in the dashboard's webhook setup for this account.
+ */
+export async function getOrderRefunds(orderId: string): Promise<CashfreeRefund[]> {
+  const res = await cashfreeRequest<CashfreeRefund[] | null>("GET", `/orders/${encodeURIComponent(orderId)}/refunds`)
+  return Array.isArray(res) ? res : []
+}
+
 /**
  * Verifies a webhook's authenticity.
  *

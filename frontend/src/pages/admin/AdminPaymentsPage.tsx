@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import {
   Search, X, ChevronDown, CreditCard,
   CheckCircle2, XCircle, Clock, IndianRupee,
-  Copy, Check,
+  Copy, Check, RotateCcw, Loader2, AlertTriangle,
 } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
-import { fetchAdminPayments, type AdminPayment } from "@/lib/api"
+import { fetchAdminPayments, recordAdminRefund, getTokenRole, ApiError, type AdminPayment } from "@/lib/api"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ const CYCLE_META: Record<string, string> = {
   yearly:  "bg-violet-500/15 text-violet-300 ring-violet-500/25",
 }
 
-const STATUS_FILTERS = ["All", "paid", "failed", "pending"] as const
+const STATUS_FILTERS = ["All", "paid", "refunded", "failed", "pending"] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ function rupees(paise: number) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-zinc-800/40">
-      {[36, 20, 14, 18, 28, 16].map((w, i) => (
+      {[36, 20, 14, 18, 28, 16, 14].map((w, i) => (
         <td key={i} className="px-5 py-4">
           <div className="h-3 rounded-full bg-zinc-800 animate-pulse" style={{ width: `${w * 4}px`, maxWidth: "100%" }} />
           {i === 0 && <div className="h-2.5 rounded-full bg-zinc-800/60 animate-pulse mt-1.5 w-28" />}
@@ -91,6 +91,9 @@ export default function AdminPaymentsPage() {
   const [q, setQ]                  = useState("")
   const [statusFilter, setStatus]  = useState<typeof STATUS_FILTERS[number]>("All")
   const [showFilters, setShowFilters] = useState(false)
+  const [refundTarget, setRefundTarget] = useState<AdminPayment | null>(null)
+  const isSuperAdmin = getTokenRole() === "SUPER_ADMIN"
+  const qc = useQueryClient()
 
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -230,6 +233,7 @@ export default function AdminPaymentsPage() {
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Plan</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Payment ID</th>
                 <th className="text-left text-[11px] font-semibold text-zinc-500 uppercase tracking-wider px-4 py-3">Date</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
 
@@ -257,11 +261,16 @@ export default function AdminPaymentsPage() {
 
                         {/* Amount */}
                         <td className="px-4 py-3.5">
-                          <span className="text-white font-semibold tabular-nums">{rupees(p.amount)}</span>
-                          <div className="mt-0.5">
+                          <span className={`tabular-nums ${p.refundedAmount >= p.amount && p.refundedAmount > 0 ? "line-through text-zinc-500" : "text-white font-semibold"}`}>{rupees(p.amount)}</span>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
                             <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 ${cycleCls}`}>
                               {p.billingCycle}
                             </span>
+                            {p.refundedAmount > 0 && (
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ring-1 bg-orange-500/15 text-orange-300 ring-orange-500/30" title={p.refunds.map((r) => `${rupees(r.amountPaise)} · ${r.source}${r.reason ? ` · ${r.reason}` : ""}`).join("\n")}>
+                                {p.refundedAmount >= p.amount ? "Refunded" : `−${rupees(p.refundedAmount)}`}
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -292,13 +301,27 @@ export default function AdminPaymentsPage() {
                         <td className="px-4 py-3.5 text-zinc-500 text-xs whitespace-nowrap">
                           {new Date(p.createdAt).toLocaleDateString()}
                         </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3.5">
+                          {isSuperAdmin && p.status === "paid" && p.refundedAmount < p.amount && (
+                            <button
+                              type="button"
+                              onClick={() => setRefundTarget(p)}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium text-orange-300 bg-orange-500/10 ring-1 ring-orange-500/25 hover:bg-orange-500/20 transition opacity-0 group-hover/row:opacity-100"
+                              title="Record a refund"
+                            >
+                              <RotateCcw size={11} /> Refund
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
 
               {!isLoading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-16 text-center">
+                  <td colSpan={7} className="px-5 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-zinc-800 flex items-center justify-center">
                         <CreditCard size={22} className="text-zinc-600" />
@@ -334,6 +357,117 @@ export default function AdminPaymentsPage() {
           />
         )}
       </div>
+
+      {refundTarget && (
+        <RefundModal
+          payment={refundTarget}
+          onClose={() => setRefundTarget(null)}
+          onDone={() => {
+            setRefundTarget(null)
+            void qc.invalidateQueries({ queryKey: ["admin", "payments"] })
+            void qc.invalidateQueries({ queryKey: ["admin", "revenue"] })
+            void qc.invalidateQueries({ queryKey: ["admin", "dashboard"] })
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Refund modal (SUPER_ADMIN) ────────────────────────────────────────────────
+
+function RefundModal({ payment, onClose, onDone }: { payment: AdminPayment; onClose: () => void; onDone: () => void }) {
+  const remaining = payment.amount - payment.refundedAmount
+  // Amount is entered in rupees; the API takes paise.
+  const [rupeesInput, setRupeesInput] = useState((remaining / 100).toString())
+  const [reason, setReason] = useState("")
+  const [revokeAccess, setRevokeAccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const amountPaise = Math.round(parseFloat(rupeesInput || "0") * 100)
+
+  const mut = useMutation({
+    mutationFn: () => recordAdminRefund(payment.id, { amountPaise, reason: reason.trim(), revokeAccess }),
+    onSuccess: onDone,
+    onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Could not record the refund."),
+  })
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!reason.trim()) { setError("Please add a reason (it is kept in the audit log)."); return }
+    if (!Number.isFinite(amountPaise) || amountPaise <= 0) { setError("Enter a refund amount greater than zero."); return }
+    if (amountPaise > remaining) { setError(`At most ${rupees(remaining)} can still be refunded on this payment.`); return }
+    mut.mutate()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={submit}
+        className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-white font-semibold text-lg">Record a refund</h2>
+            <p className="text-zinc-500 text-sm mt-0.5">{payment.user.email} · {payment.planName} · {rupees(payment.amount)} paid</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-zinc-300"><X size={18} /></button>
+        </div>
+
+        <p className="text-[12px] text-zinc-500 bg-zinc-800/50 rounded-xl px-3 py-2">
+          This records a refund that you make (or made) in Cashfree — it does not move money itself.
+          Refunds done in the Cashfree dashboard also arrive automatically. {rupees(remaining)} remaining.
+        </p>
+
+        <div>
+          <label className="block text-xs text-zinc-400 mb-1">Refund amount (₹)</label>
+          <input
+            value={rupeesInput}
+            onChange={(e) => setRupeesInput(e.target.value)}
+            inputMode="decimal"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-zinc-400 mb-1">Reason</label>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. customer request, duplicate charge"
+            maxLength={500}
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500"
+          />
+        </div>
+
+        <label className="flex items-start gap-2 text-sm text-zinc-300 cursor-pointer">
+          <input type="checkbox" checked={revokeAccess} onChange={(e) => setRevokeAccess(e.target.checked)} className="mt-0.5" />
+          <span>
+            Also revoke access now
+            <span className="block text-[11px] text-zinc-500">Drops the account to Free and pauses its dynamic QR codes. Leave off to only correct the revenue.</span>
+          </span>
+        </label>
+
+        {error && (
+          <p className="flex items-start gap-1.5 text-xs text-red-400">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {error}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200">Cancel</button>
+          <button
+            type="submit"
+            disabled={mut.isPending}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-orange-600 hover:bg-orange-500 text-white text-sm rounded-xl transition disabled:opacity-50"
+          >
+            {mut.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+            Record refund
+          </button>
+        </div>
+      </form>
     </div>
   )
 }

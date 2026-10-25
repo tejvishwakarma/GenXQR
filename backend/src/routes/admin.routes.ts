@@ -34,6 +34,8 @@ import { requireAdmin } from "../middleware/admin.middleware.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { broadcastNotification } from "../services/notification.service.js"
 import * as AdminUsersService from "../services/admin-users.service.js"
+import { recordManualRefund } from "../services/refund.service.js"
+import { AppError } from "../middleware/error.middleware.js"
 import * as AdminPlatformService from "../services/admin-platform.service.js"
 import { SUBSCRIPTION_STATES } from "../services/subscription-state.js"
 import * as AdminModerationService from "../services/admin-moderation.service.js"
@@ -610,6 +612,45 @@ router.get(
         req.query["status"] as string | undefined,
       )
       res.json({ success: true, data: invoices, meta })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * POST /admin-api/payments/:invoiceId/refund   (SUPER_ADMIN)
+ * Records a refund against an invoice — a backup for refunds done in the
+ * Cashfree dashboard (those also arrive by webhook) or a correction. Does NOT
+ * call Cashfree; the money moves there. `revokeAccess` optionally drops the
+ * account to Free and pauses its codes. Partial refunds supported.
+ */
+const RefundSchema = z.object({
+  amountPaise: z.number().int().positive(),
+  reason: z.string().trim().min(1).max(500),
+  revokeAccess: z.boolean().optional().default(false),
+})
+router.post(
+  "/payments/:invoiceId/refund",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const callerRole = (req.user as unknown as AccessTokenPayload).role
+      if (callerRole !== "SUPER_ADMIN") throw new AppError(403, "SUPER_ADMIN role required to record a refund.")
+      const input = RefundSchema.parse(req.body)
+      await recordManualRefund({
+        invoiceId: req.params["invoiceId"] as string,
+        amountPaise: input.amountPaise,
+        reason: input.reason,
+        adminId: uid(req),
+        revokeAccess: input.revokeAccess,
+      })
+      logAudit({
+        userId: uid(req), action: "admin.payment.refund", category: "admin",
+        entityId: req.params["invoiceId"] as string, entityType: "Invoice",
+        metadata: { amountPaise: input.amountPaise, revokeAccess: input.revokeAccess, reason: input.reason },
+        ip: req.ip, userAgent: req.headers["user-agent"],
+      })
+      res.json({ success: true })
     } catch (err) {
       next(err)
     }

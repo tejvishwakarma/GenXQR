@@ -54,6 +54,30 @@ export function isLapsed(sub: LapseCheckable, now = new Date()): boolean {
 }
 
 /**
+ * Immediately drops an account to FREE and pauses its stored codes — used when
+ * an admin refunds a payment and chooses to also pull access (refund.service).
+ * Unconditional (unlike expireSubscription, which only acts on a lapsed plan):
+ * a refund can revoke a still-running paid period. Idempotent on FREE.
+ */
+export async function revokeToFreeForRefund(userId: string): Promise<void> {
+  const sub = await prisma.subscription.findUnique({ where: { userId }, include: { plan: true } })
+  if (!sub || sub.plan.name === "FREE") return
+  const freePlan = await prisma.plan.findUniqueOrThrow({ where: { name: "FREE" } })
+  const now = new Date()
+  await prisma.subscription.update({
+    where: { userId },
+    data: {
+      planId: freePlan.id, status: "ACTIVE", trialEndsAt: null, cancelAtPeriodEnd: false,
+      codesPauseAt: null, lapsedAt: now, currentPeriodStart: now,
+      currentPeriodEnd: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()),
+    },
+  })
+  await invalidateScanQuota(userId)
+  const paused = await pauseCodesForBilling(userId)
+  logger.info("Access revoked to FREE after a refund", { userId, pausedCodes: paused })
+}
+
+/**
  * Switches off the owner's active codes and marks them as paused by us.
  * Returns how many were paused.
  *
