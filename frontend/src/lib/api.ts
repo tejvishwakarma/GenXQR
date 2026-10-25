@@ -732,7 +732,9 @@ export const fetchAdminPlanBreakdown = () =>
 // Admin — Revenue
 export interface AdminRevenue {
   mrr: number; arr: number
-  invoices: { id: string; amount: number; currency: string; status: string; planName: string; billingCycle: string; createdAt: string; user: { id: string; name: string; email: string } }[]
+  /** All-time refunded, in rupees. MRR/ARR above are already net of refunds. */
+  refundedTotal: number
+  invoices: { id: string; amount: number; refundedAmount: number; currency: string; status: string; planName: string; billingCycle: string; createdAt: string; user: { id: string; name: string; email: string } }[]
 }
 export const fetchAdminRevenue = (page = 1, limit = 20) =>
   adminFetch<{ success: boolean; data: AdminRevenue; meta: AdminMeta }>(
@@ -825,16 +827,21 @@ export const sendUserPaymentReminder = (userId: string) =>
   )
 
 // Admin — Payments
+export interface AdminRefund { amountPaise: number; reason: string | null; source: string; createdAt: string }
 export interface AdminPayment {
-  id: string; amount: number; currency: string; status: string
+  id: string; amount: number; refundedAmount: number; refundedAt: string | null; currency: string; status: string
   planName: string; billingCycle: string; periodStart: string; periodEnd: string
   createdAt: string; cashfreePaymentId: string | null; cashfreeOrderId: string | null
   user: { id: string; name: string; email: string }
+  refunds: AdminRefund[]
 }
 export const fetchAdminPayments = (page = 1, limit = 20, status = "") =>
   adminFetch<{ success: boolean; data: AdminPayment[]; meta: AdminMeta }>(
     `/admin-api/payments?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}`,
   )
+/** Record a refund against an invoice (SUPER_ADMIN). amountPaise = paise to refund. */
+export const recordAdminRefund = (invoiceId: string, body: { amountPaise: number; reason: string; revokeAccess: boolean }) =>
+  adminFetch<{ success: boolean }>(`/admin-api/payments/${invoiceId}/refund`, { method: "POST", body: JSON.stringify(body) })
 
 // Admin — Abuse
 export interface AbuseReport {

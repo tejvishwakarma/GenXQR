@@ -701,9 +701,27 @@ could be priced into any number of open orders and every one paid (12 months of 
   has passed. `priceCheckout` applies it after the coupon; paid orders carry a bounded
   `creditPaise` tag and spend it at activation (REDEMPTION, unique per order); free grants
   re-check the balance under `pg_advisory_xact_lock`. Shown on invoices as "GenXQR credit".
-- Refunds happen in the Cashfree dashboard and GenXQR is not told: an admin cancels the
-  referral at `/admin/referrals`, voiding both rewards (spent credit → negative balance).
+- A refund that fully refunds a referral's qualifying purchase voids both rewards automatically
+  (`refund.service` → `voidReferralForOrderInTx`); spent credit → negative balance. An admin can
+  still cancel manually at `/admin/referrals`.
 - No cash payouts: they would need Cashfree Payouts (separate activation) and §194R TDS.
+
+**Refunds** (`services/refund.service.ts`, decided 25 Oct 2026). There is no refund UI in Cashfree→
+GenXQR by default, so before this every revenue figure counted refunded money as earned. Now:
+- A refund done in the Cashfree dashboard arrives as a webhook (`REFUND_STATUS_WEBHOOK`, matched by
+  `/REFUND/i` in `processCashfreeWebhook`); it is RE-FETCHED from Cashfree (`getRefund`) and only a
+  `refund_status === "SUCCESS"` is recorded — same trust model as a payment. `Refund.cashfreeRefundId`
+  is UNIQUE = the idempotency key.
+- A SUPER_ADMIN can also record one at `POST /admin-api/payments/:invoiceId/refund` (a backup / for
+  past refunds / corrections). It does NOT call Cashfree — the money moves there; this records it.
+- Partial refunds are supported and capped at the amount paid. `Invoice.refundedAmount` is the running
+  total, so EVERY revenue query is `amount - refundedAmount`: dashboard MRR, `getRevenue` MRR/ARR +
+  `refundedTotal`, the revenue trend, per-source and per-country revenue, and the payments list.
+  If you add a new revenue sum, net it too.
+- Access: only a manual refund with `revokeAccess: true` drops the account to FREE and pauses its codes
+  (`revokeToFreeForRefund`); a webhook refund just corrects the money (no one is choosing at that moment).
+- Covered by `tests/integration/refunds.test.ts`. Migration `20261025140000_refunds` (Refund table +
+  `Invoice.refundedAmount`/`refundedAt`).
 
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns

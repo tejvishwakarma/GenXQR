@@ -30,16 +30,21 @@ export default function AdminRevenuePage() {
 
       {/* KPI cards */}
       {rev && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
             <p className="text-zinc-500 text-xs uppercase tracking-widest font-medium mb-1">Monthly Recurring Revenue</p>
             <p className="text-3xl font-bold text-white">₹{rev.mrr.toLocaleString()}</p>
-            <p className="text-zinc-500 text-xs mt-1">Normalised across billing cycles</p>
+            <p className="text-zinc-500 text-xs mt-1">Net of refunds, normalised across cycles</p>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
             <p className="text-zinc-500 text-xs uppercase tracking-widest font-medium mb-1">Annual Recurring Revenue</p>
             <p className="text-3xl font-bold text-white">₹{rev.arr.toLocaleString()}</p>
             <p className="text-zinc-500 text-xs mt-1">MRR × 12</p>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+            <p className="text-zinc-500 text-xs uppercase tracking-widest font-medium mb-1">Refunded (all time)</p>
+            <p className={`text-3xl font-bold ${rev.refundedTotal > 0 ? "text-orange-400" : "text-white"}`}>₹{rev.refundedTotal.toLocaleString()}</p>
+            <p className="text-zinc-500 text-xs mt-1">Already subtracted from MRR / ARR</p>
           </div>
         </div>
       )}
@@ -77,7 +82,12 @@ export default function AdminRevenuePage() {
                     <td className="px-4 py-3 text-zinc-300 text-xs">{inv.planName}</td>
                     <td className="px-4 py-3 text-zinc-400 text-xs capitalize">{inv.billingCycle}</td>
                     <td className="px-4 py-3 text-right font-medium text-white text-xs">
-                      {inv.currency} {(inv.amount / 100).toFixed(2)}
+                      <span className={inv.refundedAmount >= inv.amount && inv.refundedAmount > 0 ? "line-through text-zinc-500" : ""}>
+                        {inv.currency} {(inv.amount / 100).toFixed(2)}
+                      </span>
+                      {inv.refundedAmount > 0 && (
+                        <div className="text-orange-400 text-[10px]">−{inv.currency} {(inv.refundedAmount / 100).toFixed(2)} refunded</div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs ${statusBadge[inv.status] ?? ""}`}>

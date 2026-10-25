@@ -25,6 +25,7 @@ import { prisma } from "../db/prisma.js"
 import { env } from "../config/env.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
+import { recordCashfreeRefund } from "./refund.service.js"
 import { deliverWebhookEvent } from "./webhook.service.js"
 import { createOrder, getOrder, terminateOrder, type CashfreeOrder } from "./cashfree.service.js"
 import { expireSubscription, isLapsed, resumeCodesPausedForBilling } from "./subscription-expiry.service.js"
@@ -1258,6 +1259,7 @@ interface CashfreeWebhookPayload {
   type?: string
   data?: {
     order?: { order_id?: string }
+    refund?: { order_id?: string; refund_id?: string; cf_refund_id?: string | number }
   }
 }
 
@@ -1276,9 +1278,26 @@ export async function processCashfreeWebhook(
 ): Promise<{ handled: boolean; reason?: string }> {
   const eventType = payload.type
 
+  // Refund webhooks (REFUND_STATUS_WEBHOOK and the like): a refund done in the
+  // Cashfree dashboard reaches us here. Re-fetch it and record it (refund.service),
+  // the same trust model as a payment — never trust the payload's amount.
+  if (eventType && /REFUND/i.test(eventType)) {
+    const r = payload.data?.refund
+    const refundOrderId = r?.order_id
+    const refundId = r?.refund_id
+    if (!refundOrderId || !refundId) {
+      logger.warn("Cashfree refund webhook missing order_id/refund_id", { eventType })
+      return { handled: false, reason: "missing_refund_id" }
+    }
+    if (!isOwnOrderId(refundOrderId)) return { handled: false, reason: "foreign_order" }
+    const res = await recordCashfreeRefund(refundOrderId, refundId)
+    logger.info("Cashfree refund webhook processed", { refundOrderId, refundId, recorded: res.recorded })
+    return { handled: res.recorded, reason: res.reason }
+  }
+
   if (eventType !== PAYMENT_SUCCESS_EVENT) {
-    // Refunds, failures, disputes and so on are acknowledged so Cashfree stops
-    // retrying, but only a successful payment grants a plan.
+    // Failures, disputes and so on are acknowledged so Cashfree stops retrying,
+    // but only a successful payment grants a plan.
     logger.info("Cashfree webhook ignored (not a payment success)", { eventType })
     return { handled: false, reason: "unhandled_event" }
   }

@@ -480,6 +480,13 @@ model Invoice {
   periodStart       DateTime
   periodEnd         DateTime
   createdAt         DateTime     @default(now())
+  // Total refunded so far, in paise (denormalised sum of this invoice's Refund
+  // rows) so every revenue query is `amount - refundedAmount` with no join.
+  // 0 = fully earned, 0 < r < amount = partially refunded, r >= amount = fully refunded.
+  refundedAmount    Int          @default(0)
+  // When the most recent refund against this invoice was recorded.
+  refundedAt        DateTime?
+  refunds           Refund[]
   // Cashfree's own payment reference (cf_order_id), for reconciliation.
   cashfreePaymentId String?
   // The order_id we generate and send to Cashfree. UNIQUE because it is the
@@ -492,6 +499,32 @@ model Invoice {
 
   @@index([userId, createdAt])
   @@map("invoices")
+}
+
+/// A refund against an Invoice (decided 25 Oct 2026). Cashfree refunds done in
+/// their dashboard arrive as webhooks and are recorded here (re-fetched from
+/// Cashfree, like payments); an admin can also record one by hand. Partial
+/// refunds are supported, so one invoice may have several rows.
+model Refund {
+  id               String   @id @default(cuid())
+  invoiceId        String
+  /// Cashfree's refund id (cf_refund_id). UNIQUE — the idempotency key for the
+  /// refund webhook, exactly as Invoice.cashfreeOrderId is for payments. Null
+  /// for a manual admin record of a refund made outside GenXQR.
+  cashfreeRefundId String?  @unique
+  amountPaise      Int
+  reason           String?
+  /// "cashfree" (webhook) or "manual" (recorded by an admin).
+  source           String   @default("cashfree")
+  /// The admin who recorded a manual refund; null for webhook refunds.
+  createdByAdminId String?
+  createdAt        DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([createdAt])
+  @@map("refunds")
 }
 
 /// A discount code created by a super-admin and redeemed by a customer at checkout.

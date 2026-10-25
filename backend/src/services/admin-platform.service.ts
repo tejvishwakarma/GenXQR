@@ -51,7 +51,7 @@ export async function getDashboardMetrics() {
     prisma.qRScan.count({ where: { scannedAt: { gte: todayStart } } }),
     prisma.qRScan.count(),
     prisma.invoice.aggregate({
-      _sum: { amount: true },
+      _sum: { amount: true, refundedAmount: true },
       where: {
         status: "paid",
         periodEnd: { gte: new Date() },
@@ -60,8 +60,8 @@ export async function getDashboardMetrics() {
     prisma.qRFile.aggregate({ _sum: { sizeBytes: true } }),
   ])
 
-  // MRR in INR rupees (amounts stored in paise)
-  const mrr = Math.round((revenueResult._sum.amount ?? 0) / 100)
+  // MRR in INR rupees (amounts in paise), NET of refunds.
+  const mrr = Math.round(((revenueResult._sum.amount ?? 0) - (revenueResult._sum.refundedAmount ?? 0)) / 100)
   const storageBytes = Number(storageResult._sum.sizeBytes ?? 0)
   const storageGB = parseFloat((storageBytes / BYTES_PER_GB).toFixed(3))
 
@@ -283,10 +283,10 @@ export async function getSignupSources(rawDays: unknown, rawGroupBy: unknown) {
     ? await prisma.invoice.groupBy({
         by: ["userId"],
         where: { status: "paid", userId: { in: users.map((u) => u.id) } },
-        _sum: { amount: true },
+        _sum: { amount: true, refundedAmount: true },
       })
     : []
-  const paidByUser = new Map(paid.map((p) => [p.userId, p._sum.amount ?? 0]))
+  const paidByUser = new Map(paid.map((p) => [p.userId, (p._sum.amount ?? 0) - (p._sum.refundedAmount ?? 0)]))
 
   const rows = new Map<string, { key: string; signups: number; paidUsers: number; revenuePaise: number }>()
   for (const u of users) {
@@ -340,9 +340,9 @@ export async function getUserCountries(rawDays: unknown) {
   const paid = await prisma.invoice.groupBy({
     by: ["userId"],
     where: { status: "paid", ...(all ? {} : { userId: { in: users.map((u) => u.id) } }) },
-    _sum: { amount: true },
+    _sum: { amount: true, refundedAmount: true },
   })
-  const paidByUser = new Map(paid.map((p) => [p.userId, p._sum.amount ?? 0]))
+  const paidByUser = new Map(paid.map((p) => [p.userId, (p._sum.amount ?? 0) - (p._sum.refundedAmount ?? 0)]))
 
   type Row = { countryCode: string; country: string | null; users: number; trialing: number; paidUsers: number; revenuePaise: number }
   const rows = new Map<string, Row>()
@@ -477,7 +477,8 @@ export async function getRevenueTrend(rawDays: unknown) {
 
   const rows = await prisma.invoice.findMany({
     where: { status: "paid", createdAt: { gte: since } },
-    select: { createdAt: true, amount: true },
+    // Net = amount - refundedAmount, attributed to the payment's day.
+    select: { createdAt: true, amount: true, refundedAmount: true },
     orderBy: { createdAt: "asc" },
   })
 
@@ -485,7 +486,7 @@ export async function getRevenueTrend(rawDays: unknown) {
   const buckets: Record<string, number> = {}
   for (const row of rows) {
     const date = row.createdAt.toISOString().slice(0, 10)
-    buckets[date] = (buckets[date] ?? 0) + Math.round(row.amount / 100)
+    buckets[date] = (buckets[date] ?? 0) + Math.round((row.amount - row.refundedAmount) / 100)
   }
 
   return Object.entries(buckets).map(([date, amount]) => ({ date, amount }))
@@ -518,42 +519,38 @@ export async function getPlanBreakdown() {
 export async function getRevenue({ page, limit }: PaginationParams) {
   const skip = (page - 1) * limit
 
-  const [mrrResult, arrResult, total, invoices] = await prisma.$transaction([
-    // MRR = sum of active subscriptions' current-period amounts (normalised to monthly)
+  const [mrrResult, arrResult, refundResult, total, invoices] = await prisma.$transaction([
+    // MRR = active-period monthly invoices, NET of refunds.
     prisma.invoice.aggregate({
-      _sum: { amount: true },
-      where: {
-        status: "paid",
-        periodEnd: { gte: new Date() },
-        billingCycle: "monthly",
-      },
+      _sum: { amount: true, refundedAmount: true },
+      where: { status: "paid", periodEnd: { gte: new Date() }, billingCycle: "monthly" },
     }),
     prisma.invoice.aggregate({
-      _sum: { amount: true },
-      where: {
-        status: "paid",
-        periodEnd: { gte: new Date() },
-        billingCycle: "yearly",
-      },
+      _sum: { amount: true, refundedAmount: true },
+      where: { status: "paid", periodEnd: { gte: new Date() }, billingCycle: "yearly" },
     }),
+    // All-time refunds, to show alongside gross.
+    prisma.invoice.aggregate({ _sum: { refundedAmount: true } }),
     prisma.invoice.count(),
     prisma.invoice.findMany({
       skip,
       take: limit,
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, amount: true, currency: true, status: true,
+        id: true, amount: true, refundedAmount: true, currency: true, status: true,
         planName: true, billingCycle: true, createdAt: true,
         user: { select: { id: true, name: true, email: true } },
       },
     }),
   ])
 
-  const mrr = Math.round((mrrResult._sum.amount ?? 0) / 100) +
-    Math.round((arrResult._sum.amount ?? 0) / 100 / 12)
+  const netMonthly = (mrrResult._sum.amount ?? 0) - (mrrResult._sum.refundedAmount ?? 0)
+  const netYearly = (arrResult._sum.amount ?? 0) - (arrResult._sum.refundedAmount ?? 0)
+  const mrr = Math.round(netMonthly / 100) + Math.round(netYearly / 100 / 12)
   const arr = mrr * 12
+  const refundedTotal = Math.round((refundResult._sum.refundedAmount ?? 0) / 100)
 
-  return { data: { mrr, arr, invoices }, meta: pageMeta(total, page, limit) }
+  return { data: { mrr, arr, refundedTotal, invoices }, meta: pageMeta(total, page, limit) }
 }
 
 // ─── Storage ───────────────────────────────────────────────────────────────────
@@ -765,7 +762,9 @@ export async function listPayments({ page, limit }: PaginationParams, status?: s
   const skip = (page - 1) * limit
 
   const where: Record<string, unknown> = {}
-  if (status) where["status"] = status
+  // "refunded" is a virtual status: any invoice with money refunded.
+  if (status === "refunded") where["refundedAmount"] = { gt: 0 }
+  else if (status) where["status"] = status
 
   const [total, invoices] = await prisma.$transaction([
     prisma.invoice.count({ where }),
@@ -775,11 +774,12 @@ export async function listPayments({ page, limit }: PaginationParams, status?: s
       take: limit,
       orderBy: { createdAt: "desc" },
       select: {
-        id: true, amount: true, currency: true, status: true,
+        id: true, amount: true, refundedAmount: true, refundedAt: true, currency: true, status: true,
         planName: true, billingCycle: true, periodStart: true,
         periodEnd: true, createdAt: true,
         cashfreePaymentId: true, cashfreeOrderId: true,
         user: { select: { id: true, name: true, email: true } },
+        refunds: { orderBy: { createdAt: "desc" }, select: { amountPaise: true, reason: true, source: true, createdAt: true } },
       },
     }),
   ])
