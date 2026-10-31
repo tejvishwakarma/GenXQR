@@ -17,6 +17,7 @@ import {
   recoveryLimiter,
   refreshLimiter,
   registerLimiter,
+  ssoLimiter,
 } from "../middleware/rateLimit.middleware.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import * as AuthService from "../services/auth.service.js"
@@ -30,6 +31,9 @@ import { NotificationPrefsSchema, readPrefs } from "../utils/notification-prefs.
 import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 import { recordSignupLocation } from "../services/user-location.service.js"
 import { requireTurnstile } from "../middleware/turnstile.middleware.js"
+import * as SsoService from "../services/sso.service.js"
+import { SSO_PROVIDERS, type SsoProvider } from "../services/oidc.service.js"
+import { SSO_STATE_COOKIE, setSsoStateCookie } from "./sso.routes.js"
 
 // ─── Google OAuth Strategy (registered only when credentials are provided) ────
 
@@ -39,7 +43,7 @@ import { requireTurnstile } from "../middleware/turnstile.middleware.js"
  * the address is what links this sign-in to an existing GenXQR account
  * (handleGoogleOAuth) — so it must be proven.
  */
-export function googleProfileToUser(profile: Pick<Profile, "id" | "displayName" | "emails" | "photos">) {
+export function googleProfileToUser(profile: Pick<Profile, "id" | "displayName" | "emails" | "photos"> & { _json?: { hd?: unknown } }) {
   const email = profile.emails?.[0]?.value
   if (!email) throw new Error("Google did not return an email address")
   const verified = profile.emails?.[0]?.verified as unknown
@@ -49,6 +53,9 @@ export function googleProfileToUser(profile: Pick<Profile, "id" | "displayName" 
     email,
     name: profile.displayName ?? email,
     avatarUrl: profile.photos?.[0]?.value,
+    // Google Workspace domain, from Google's userinfo (server to server). Lets a
+    // Workspace account through where its domain requires Google SSO.
+    hostedDomain: typeof profile._json?.hd === "string" ? profile._json.hd.toLowerCase() : null,
   }
 }
 
@@ -109,6 +116,7 @@ function safeFrontendPath(input: unknown, fallback = "/app/dashboard"): string {
 router.post(
   "/register",
   registerLimiter,
+  ssoLimiter,
   requireTurnstile,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -747,11 +755,76 @@ router.get(
           res.redirect(`${env.FRONTEND_URL}/login?error=account_deleted`)
           return
         }
+        if (err.message === "sso_required") {
+          res.redirect(`${env.FRONTEND_URL}/login?error=sso_required`)
+          return
+        }
       }
       res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`)
     }
   },
 )
+
+// ─── Single sign-on (services/sso.service.ts) ─────────────────────────────────
+
+/** Error codes the login page knows how to explain; anything else is "sso_failed". */
+const SSO_LOGIN_ERRORS = new Set([
+  "sso_state", "sso_cancelled", "sso_unavailable", "sso_wrong_account", "sso_no_seat",
+  "sso_email_unverified", "sso_no_email", "account_deleted", "account_permanently_banned",
+])
+const SSO_LINK_ERRORS = new Set(["sso_state", "sso_cancelled", "sso_unavailable", "sso_link_wrong_account"])
+
+/**
+ * POST /api/auth/sso/start { email } → { url } of the company's sign-in page.
+ */
+router.post("/sso/start", ssoLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { email } = z.object({ email: z.string().trim().toLowerCase().email().max(254) }).parse(req.body)
+    const { url, state } = await SsoService.startLogin(email)
+    setSsoStateCookie(res, state)
+    res.json({ success: true, data: { url } })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * GET /api/auth/sso/callback/:provider — where Google / Microsoft send the
+ * browser back. Signs in (one-time code, like Google sign-in) or, for the
+ * owner's Microsoft link, returns to the SSO settings page.
+ */
+router.get("/sso/callback/:provider", async (req: Request, res: Response): Promise<void> => {
+  const provider = String(req.params["provider"]) as SsoProvider
+  const state = typeof req.query["state"] === "string" ? req.query["state"] : ""
+  const cookieState = (req.cookies as Record<string, string | undefined>)[SSO_STATE_COOKIE]
+  res.clearCookie(SSO_STATE_COOKIE, { path: "/api/auth/sso" })
+
+  // Only a round trip this browser started counts (login CSRF otherwise).
+  const stored = state && cookieState === state ? await SsoService.takeState(state) : null
+  const toLogin = (code: string) => res.redirect(`${env.FRONTEND_URL}/login?error=${SSO_LOGIN_ERRORS.has(code) ? code : "sso_failed"}`)
+  const toSettings = (q: string) => res.redirect(`${env.FRONTEND_URL}/app/sso?${q}`)
+  const fail = (code: string) => (stored?.purpose === "link"
+    ? toSettings(`error=${SSO_LINK_ERRORS.has(code) ? code : "sso_failed"}`)
+    : toLogin(code))
+
+  if (!SSO_PROVIDERS.includes(provider) || !stored) return fail("sso_state")
+  if (typeof req.query["error"] === "string") return fail("sso_cancelled")
+  const code = typeof req.query["code"] === "string" ? req.query["code"] : ""
+  if (!code) return fail("sso_state")
+
+  try {
+    const result = await SsoService.completeCallback(provider, code, stored, req.ip ?? "")
+    if (result.kind === "link") return toSettings("linked=1")
+    const oneTime = randomBytes(32).toString("hex")
+    await redis.setex(`oauth:code:${oneTime}`, 60, result.accessToken)
+    res
+      .cookie("refresh_token", result.refreshToken, REFRESH_COOKIE_OPTIONS)
+      .redirect(oauthLandingUrl(env.FRONTEND_URL, oneTime, "/app/dashboard"))
+  } catch (err) {
+    logger.warn("SSO callback rejected", { provider, error: err instanceof Error ? err.message : String(err) })
+    fail(err instanceof AppError ? err.message : "sso_failed")
+  }
+})
 
 /**
  * POST /api/auth/oauth-token

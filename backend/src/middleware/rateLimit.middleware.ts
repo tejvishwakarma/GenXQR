@@ -67,6 +67,8 @@ export const authLimiter = makeAuthLimiter("account", 10)
  * only a ceiling against abuse. Sized for many tabs and many people per IP.
  */
 export const refreshLimiter = makeAuthLimiter("refresh", 300)
+/** "Sign in with SSO": proves nothing by itself (the provider does), so sized for an office arriving at once. */
+export const ssoLimiter = makeAuthLimiter("sso", 100)
 
 /**
  * Per ACCOUNT (the email in the body), not per IP: password guessing spread

@@ -59,6 +59,8 @@ export interface PlanLimits {
   scanPageLogo: boolean
   /** The team activity log + CSV export in /app/activity — Pro and above (decided 31 Oct 2026). Every plan sees its own security history. */
   activityLog: boolean
+  /** Single sign-on (Google Workspace / Microsoft Entra ID) for the account's company domain — Business and above (decided 31 Oct 2026). */
+  sso: boolean
 }
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
@@ -80,6 +82,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     premiumFrames: false,
     scanPageLogo: false,
     activityLog: false,
+    sso: false,
   },
   STARTER: {
     dynamicQRLimit: 50,
@@ -99,6 +102,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     premiumFrames: true,
     scanPageLogo: true,
     activityLog: false,
+    sso: false,
   },
   PRO: {
     dynamicQRLimit: 250,
@@ -118,6 +122,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     premiumFrames: true,
     scanPageLogo: true,
     activityLog: true,
+    sso: false,
   },
   BUSINESS: {
     dynamicQRLimit: 2000,
@@ -137,6 +142,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     premiumFrames: true,
     scanPageLogo: true,
     activityLog: true,
+    sso: true,
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
@@ -156,6 +162,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     premiumFrames: true,
     scanPageLogo: true,
     activityLog: true,
+    sso: true,
   },
 }
 

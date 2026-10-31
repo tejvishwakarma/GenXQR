@@ -75,6 +75,7 @@ import TeamPage from "@/pages/dashboard/TeamPage"
 import APIKeysPage from "@/pages/dashboard/APIKeysPage"
 import DomainsPage from "@/pages/dashboard/DomainsPage"
 import ActivityPage from "@/pages/dashboard/ActivityPage"
+import SsoPage from "@/pages/dashboard/SsoPage"
 import BillingPage from "@/pages/dashboard/BillingPage"
 import ReferralsPage from "@/pages/dashboard/ReferralsPage"
 import SettingsPage from "@/pages/dashboard/SettingsPage"
@@ -216,6 +217,7 @@ export function AppRoutes() {
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route path="domains" element={<DomainsPage />} />
           <Route path="activity" element={<ActivityPage />} />
+          <Route path="sso" element={<SsoPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="settings" element={<SettingsPage />} />

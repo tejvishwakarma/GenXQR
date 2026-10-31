@@ -82,6 +82,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   qrCodes                 QRCode[]
   customDomains           CustomDomain[]
+  ssoConnection           SsoConnection?
   refreshTokens           RefreshToken[]
   subscription            Subscription?
   supportTickets          SupportTicket[]
@@ -177,7 +178,7 @@ model QRCode {
   /// Set when an ADMIN took the code down (Admin → QR codes → Force deactivate).
   /// Only an admin can switch it back on: the owner's toggle, a renewed plan and
   /// the scan path (reason "blocked", no fallback) all respect it.
-  disabledByAdminAt DateTime?
+  disabledByAdminAt   DateTime?
   /// Every scan, repeats included. This is the number the per-QR scanLimit is
   /// measured against.
   scanCount           Int                @default(0)
@@ -596,10 +597,10 @@ model Coupon {
 /// One successful use of a coupon, written in the same transaction that activates
 /// the subscription.
 model CouponRedemption {
-  id       String @id @default(cuid())
-  couponId String
+  id        String  @id @default(cuid())
+  couponId  String
   /// Null once the account is deleted — the row stays so the use still counts.
-  userId   String?
+  userId    String?
   /// inboxHash of the redeeming account's email (utils/inbox-hash.util.ts), so
   /// "once per customer" survives deleting and re-creating the account
   /// (audit, 24 Oct 2026). Null on rows written before it existed.
@@ -1000,16 +1001,16 @@ enum ApplicationStatus {
 /// purchase qualifies it: both people then get 20% of what was actually paid as
 /// GenXQR credit, usable 15 days later (after the 7-day refund window).
 model Referral {
-  id         String   @id @default(cuid())
-  referrerId String
+  id               String   @id @default(cuid())
+  referrerId       String
   /// One referrer per account, for life. Null once the referee deletes their
   /// account — the row stays so refereeEmailHash keeps blocking a re-referral.
-  refereeId  String?  @unique
+  refereeId        String?  @unique
   /// sha256 of the referee's inbox (normalizeEmail: aliases and Gmail dots
   /// folded). UNIQUE with referrerId: a referrer can refer a person once, not
   /// again through an alias or a deleted-and-recreated account.
   refereeEmailHash String
-  createdAt  DateTime @default(now())
+  createdAt        DateTime @default(now())
 
   /// The purchase that earned the rewards. UNIQUE: one qualification ever.
   qualifyingOrderId     String?   @unique
@@ -1131,4 +1132,35 @@ model CustomDomain {
   @@index([userId])
   @@index([status, lastCheckedAt])
   @@map("custom_domains")
+}
+
+/// Single sign-on for one account's company domain (services/sso.service.ts,
+/// built 31 Oct 2026). OpenID Connect through GenXQR's own Google and Microsoft
+/// apps — the customer never gives us a secret. Usable once the domain is
+/// DNS-verified (and, for Microsoft, the company's directory is linked) while
+/// the owner's plan has PLAN_LIMITS.sso.
+model SsoConnection {
+  id          String    @id @default(cuid())
+  /// The account (team owner) the domain's people sign in to.
+  ownerId     String    @unique
+  /// Lower-case, e.g. "acme.com". Unique among VERIFIED connections (partial
+  /// index in the migration) — anyone may claim, only DNS proves.
+  domain      String
+  /// "google" | "microsoft"
+  provider    String
+  /// Value of the TXT record _genxqr.<domain> = "genxqr-verify=<token>".
+  verifyToken String
+  verifiedAt  DateTime?
+  /// Microsoft only: the Entra tenant ("tid") linked by the owner signing in once.
+  tenantId    String?
+  /// Role given to people who join the team through SSO (EDITOR or VIEWER).
+  defaultRole TeamRole  @default(VIEWER)
+  /// Members at the domain must sign in through SSO (the owner never is).
+  enforced    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  owner       User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([domain])
+  @@map("sso_connections")
 }

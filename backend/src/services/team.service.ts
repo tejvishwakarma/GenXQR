@@ -95,7 +95,7 @@ function dbRoleFromApi(role: TeamRole): "ADMIN" | "EDITOR" | "VIEWER" {
 
 // ─── Team lookup / auto-provisioning ──────────────────────────────────────────
 
-async function getOrCreateOwnedTeam(ownerId: string) {
+export async function getOrCreateOwnedTeam(ownerId: string) {
   const existing = await prisma.team.findFirst({ where: { ownerId }, select: { id: true, ownerId: true } })
   if (existing) {
     await migrateLegacyTeamStateIfNeeded(ownerId, existing.id)
