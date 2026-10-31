@@ -28,6 +28,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express"
 import { z } from "zod"
 import QRCode from "qrcode"
+import { scanUrlFor } from "../services/custom-domain.service.js"
 import { prisma } from "../db/prisma.js"
 
 const router: IRouter = Router()
@@ -71,7 +72,7 @@ router.get(
       // Resolve slug → active QR in DB (slug is public; only serve active QRs)
       const qr = await prisma.qRCode.findFirst({
         where: { slug, isActive: true },
-        select: { id: true, slug: true },
+        select: { id: true, slug: true, customDomain: { select: { hostname: true, status: true } } },
       })
 
       if (!qr) {
@@ -81,8 +82,7 @@ router.get(
         return
       }
 
-      const host = process.env["APP_URL"] ?? `${req.protocol}://${req.host}`
-      const encodedUrl = `${host}/r/${qr.slug}`
+      const encodedUrl = scanUrlFor(qr)
 
       const svg = await QRCode.toString(encodedUrl, {
         type: "svg",

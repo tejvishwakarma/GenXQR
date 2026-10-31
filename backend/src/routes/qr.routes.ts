@@ -468,9 +468,9 @@ router.get(
       const qr = await QRService.getQR(req.params["id"] as string, wsOwner(req))
       const format = DownloadFormatSchema.parse(req.query["format"] ?? "svg")
 
-      // The QR always encodes the redirect URL: https://<host>/r/<slug>
-      const host = process.env["APP_URL"] ?? `${req.protocol}://${req.host}`
-      const encodedUrl = `${host}/r/${qr.slug}`
+      // The QR always encodes the code's scan URL — its custom domain when it
+      // has a verified one, else genxqr.com (custom-domain.service scanUrlFor).
+      const encodedUrl = qr.scanUrl
 
       if (format === "json") {
         res.json({

@@ -2,6 +2,7 @@ import { google } from "googleapis"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
+import { scanUrlFor } from "./custom-domain.service.js"
 import { env } from "../config/env.js"
 
 function getOAuth2Client() {
@@ -171,6 +172,7 @@ export async function exportQRsToDrive(
       scanCount: true,
       createdAt: true,
       content: { select: { data: true } },
+      customDomain: { select: { hostname: true, status: true } },
     },
     orderBy: { createdAt: "desc" },
     take: 500,
@@ -178,7 +180,6 @@ export async function exportQRsToDrive(
 
   if (qrs.length === 0) throw new AppError(400, "No QR codes found to export")
 
-  const FRONTEND_URL = env.FRONTEND_URL ?? "https://genxqr.com"
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const fileName = `GenXQR_export_${timestamp}.json`
 
@@ -189,7 +190,7 @@ export async function exportQRsToDrive(
     type: q.type,
     isActive: q.isActive,
     scanCount: q.scanCount,
-    scanUrl: `${FRONTEND_URL}/r/${q.slug}`,
+    scanUrl: scanUrlFor(q),
     content: q.content?.data,
     createdAt: q.createdAt.toISOString(),
   }))

@@ -24,6 +24,8 @@ export type QRResolution =
   | { action: "landing"; slug: string; type: string; content: Record<string, unknown>; design: Record<string, unknown> }
   | { action: "password"; slug: string }
   | { action: "expired"; slug: string; fallbackUrl: string | null; reason: ExpiredReason }
+  /** The code exists but belongs to another account than the custom domain it was requested on. */
+  | { action: "not_found" }
 
 export interface ScanJobData {
   qrId: string
@@ -476,7 +478,15 @@ export async function resolveQRScan(
    * — then runs exactly as it does for an unprotected code, instead of being
    * reimplemented by the caller.
    */
-  opts?: { passwordVerified?: boolean },
+  opts?: {
+    passwordVerified?: boolean
+    /**
+     * Set when the scan arrived on a customer's own domain: only that account's
+     * codes may resolve there (custom-domain.service). Checked before anything
+     * is counted or logged, so a probe of other slugs costs the owner nothing.
+     */
+    ownerId?: string
+  },
 ): Promise<QRResolution> {
   // 1. Cache lookup
   let qr = await getCachedQR(slug)
@@ -497,6 +507,9 @@ export async function resolveQRScan(
       logger.warn("Failed to seed live scan count", { slug, error: String(err) })
     })
   }
+
+  // 1a. Custom-domain isolation.
+  if (opts?.ownerId && qr.userId !== opts.ownerId) return { action: "not_found" }
 
   // 1b–4b. Blocked owner, switched off, outside its dates, scan limit, monthly
   // quota — shared with the landing-page content endpoint (scanAvailability).

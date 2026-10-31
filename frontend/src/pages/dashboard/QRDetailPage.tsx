@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { getQR, deleteQR, toggleQR, duplicateQR, getQrBaseUrl, type QRCode as QRCodeType } from "@/lib/api"
+import { getQR, deleteQR, toggleQR, duplicateQR, scanUrlOf, type QRCode as QRCodeType } from "@/lib/api"
 import { usePlanFeature, PlanChip } from "@/components/PlanFeatureGate"
 import { useWorkspace } from "@/hooks/useWorkspace"
 import { FramedPreview } from "@/components/qr-frames/FramedPreview"
@@ -147,7 +147,7 @@ export default function QRDetailPage() {
     },
   })
 
-  const scanUrl = qr ? `${getQrBaseUrl()}/r/${qr.slug}` : ""
+  const scanUrl = qr ? scanUrlOf(qr) : ""
 
   // Initialise QR instance from saved design
   useEffect(() => {

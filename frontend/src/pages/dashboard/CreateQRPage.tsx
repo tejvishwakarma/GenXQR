@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SocialIcon } from "@/components/ui/social-icon"
 import { cn } from "@/lib/utils"
-import { createQR, updateQR, getQR, uploadFile, getSubscription, getBillingUsage, ApiError, type CreateQRPayload, type UploadedFileInfo, type QRCode, type QRFile } from "@/lib/api"
+import { createQR, updateQR, getQR, uploadFile, getSubscription, getBillingUsage, getCustomDomains, ApiError, type CreateQRPayload, type UploadedFileInfo, type QRCode, type QRFile } from "@/lib/api"
 import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } from "./VCardEditor"
 import LandingPreview from "./LandingPreview"
 import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashboard/ScanPageLogoSetting"
@@ -744,6 +744,20 @@ export default function CreateQRPage() {
   // The account's scan-page logo, so the Scan Result preview matches the real page.
   const scanPageLogoUrl = useScanPageLogoPreview(existingQR?.data?.slug)
 
+  // Custom domains (backend custom-domain.service): which domain the printed
+  // link uses. null = untouched, so an edit never re-sends a domain that has
+  // since stopped verifying; "genxqr" = genxqr.com.
+  const { data: domainsData } = useQuery({ queryKey: ["custom-domains"], queryFn: getCustomDomains, retry: false, staleTime: 60_000 })
+  const activeDomains = (domainsData?.data.domains ?? []).filter((d) => d.status === "active")
+  const [domainChoice, setDomainChoice] = useState<string | null>(null)
+  const shownDomain = domainChoice
+    ?? (isEdit
+      ? existingQR?.data?.customDomainId ?? "genxqr"
+      : activeDomains.find((d) => d.isDefault)?.id ?? "genxqr")
+  const existingDomain = existingQR?.data?.customDomain
+  const existingDomainUnverified = isEdit && !!existingQR?.data?.customDomainId
+    && !activeDomains.some((d) => d.id === existingQR.data.customDomainId)
+
   // Pre-populate form once existing data is loaded
   useEffect(() => {
     if (!existingQR?.data) return
@@ -959,6 +973,7 @@ export default function CreateQRPage() {
           ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),
         },
         tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
+        ...(domainChoice !== null && { customDomainId: domainChoice === "genxqr" ? null : domainChoice }),
         // In edit mode, only send newly uploaded files; existing files stay in DB untouched
         uploadedFiles: FILE_TYPES.has(selectedType) ? uploadedFiles : [],
         settings: {
@@ -1225,6 +1240,34 @@ export default function CreateQRPage() {
                       </p>
                     )}
                   </div>
+
+                  {/* Short-link domain — only when the account has a verified custom domain */}
+                  {(activeDomains.length > 0 || existingDomainUnverified) && (
+                    <div>
+                      <label className="label-text" htmlFor="qr-domain">Link domain</label>
+                      <select
+                        id="qr-domain"
+                        value={shownDomain}
+                        onChange={(e) => setDomainChoice(e.target.value)}
+                        className="w-full h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-zinc-900 dark:text-white"
+                      >
+                        {activeDomains.map((d) => (
+                          <option key={d.id} value={d.id}>{d.hostname}{d.isDefault ? " (default)" : ""}</option>
+                        ))}
+                        {existingDomainUnverified && existingDomain && (
+                          <option value={existingQR!.data.customDomainId!} disabled>{existingDomain.hostname} (not verified)</option>
+                        )}
+                        <option value="genxqr">genxqr.com</option>
+                      </select>
+                      <p className="text-xs text-zinc-500 mt-1">
+                        The code will open{" "}
+                        <span className="font-mono">
+                          {shownDomain === "genxqr" ? "genxqr.com" : (activeDomains.find((d) => d.id === shownDomain)?.hostname ?? existingDomain?.hostname ?? "genxqr.com")}/r/…
+                        </span>
+                        {isEdit && domainChoice !== null && " — reprint it after changing this; the old link keeps working."}
+                      </p>
+                    </div>
+                  )}
 
                   {/* URL */}
                   {selectedType === "url" && (

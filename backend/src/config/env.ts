@@ -26,6 +26,14 @@ const envSchema = z.object({
   // Without the secret key the checks are skipped, so the forms keep working
   // in dev and until the key is set in production (turnstile.service.ts).
   TURNSTILE_SECRET_KEY: z.string().trim().optional(),
+  // Custom domains via Cloudflare for SaaS (custom-domain.service.ts). All three
+  // are needed; without them adding a domain answers 503 and nothing else changes.
+  // Token: Zone > SSL and Certificates > Edit on the genxqr.com zone only.
+  CLOUDFLARE_API_TOKEN: z.string().trim().optional(),
+  CLOUDFLARE_ZONE_ID: z.string().trim().optional(),
+  // The hostname customers CNAME to, e.g. "customers.genxqr.com" — the zone's
+  // Cloudflare for SaaS fallback origin.
+  CUSTOM_DOMAIN_TARGET: z.string().trim().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z
     .string()

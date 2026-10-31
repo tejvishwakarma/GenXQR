@@ -15,6 +15,18 @@ export const SITE_URL: string = (
   import.meta.env["VITE_SITE_URL"] as string | undefined ?? "https://genxqr.com"
 ).replace(/\/$/, "")
 
+/**
+ * True on genxqr.com itself (or a dev/LAN host) — false on a customer's custom
+ * domain, where only scan pages are served. Our own analytics stay off there:
+ * those visitors are the customer's, not ours.
+ */
+export function onOwnSite(): boolean {
+  if (typeof window === "undefined") return true
+  const host = window.location.hostname.toLowerCase()
+  const own = new URL(SITE_URL).hostname.toLowerCase().replace(/^www\./, "")
+  return host === own || host === `www.${own}` || host === "localhost" || /^[0-9.]+$/.test(host) || host.includes(":")
+}
+
 export const SITE_NAME = "GenXQR"
 
 export const SITE_TAGLINE = "QR Code Generator with Analytics"

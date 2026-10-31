@@ -8,6 +8,7 @@ import { getUserPlanLimits } from "./billing.service.js"
 import { getQR } from "./qr.service.js"
 import { deliverWebhookEvent, hasWebhookSubscribers } from "./webhook.service.js"
 import { logger } from "../logger/index.js"
+import { scanUrlFor } from "./custom-domain.service.js"
 import { csvCell } from "../utils/csv-cell.util.js"
 
 // Max rows allowed per plan
@@ -233,7 +234,10 @@ export async function streamResultsZip(
   const ids = created.map((r) => r.qrId!).filter(Boolean)
   const qrs = await prisma.qRCode.findMany({
     where: { id: { in: ids }, userId },
-    select: { id: true, name: true, slug: true, type: true, createdAt: true, content: { select: { data: true } } },
+    select: {
+      id: true, name: true, slug: true, type: true, createdAt: true, content: { select: { data: true } },
+      customDomain: { select: { hostname: true, status: true } },
+    },
   })
 
   const FRONTEND_URL = process.env["FRONTEND_URL"] ?? "https://genxqr.com"
@@ -248,7 +252,7 @@ export async function streamResultsZip(
   const csvLines = [
     "name,slug,qr_url,scan_url,created_at",
     ...qrs.map((q) => {
-      const scanUrl = `${FRONTEND_URL}/r/${q.slug}`
+      const scanUrl = scanUrlFor(q)
       const qrUrl = `${FRONTEND_URL}/api/qr/${q.id}/image`
       return [q.name, q.slug, qrUrl, scanUrl, q.createdAt.toISOString()].map(csvCell).join(",")
     }),
@@ -262,7 +266,7 @@ export async function streamResultsZip(
       name: qr.name,
       slug: qr.slug,
       type: qr.type,
-      scanUrl: `${FRONTEND_URL}/r/${qr.slug}`,
+      scanUrl: scanUrlFor(qr),
       content: qr.content?.data,
       createdAt: qr.createdAt.toISOString(),
     }

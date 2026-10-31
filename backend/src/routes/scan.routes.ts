@@ -4,11 +4,11 @@ import bcrypt from "bcryptjs"
 import { z } from "zod"
 import { prisma } from "../db/prisma.js"
 import { resolveQRScan, buildDestinationFromContent } from "../services/scan.service.js"
-import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
 import { qrPasswordLimiter } from "../middleware/rateLimit.middleware.js"
 import { isSafeHttpUrl, safeRedirectTarget } from "../utils/safe-url.js"
 import { signQRUnlock } from "../utils/jwt.js"
+import { resolveScanHost } from "../services/custom-domain.service.js"
 
 const router: IRouter = Router()
 
@@ -49,6 +49,25 @@ function getClientIP(req: Request): string {
   return req.ip ?? "0.0.0.0"
 }
 
+/**
+ * The hostname the scanner actually typed/scanned. Read from the Host header
+ * nginx sets ($host), NOT req.hostname: with trust proxy on, req.hostname
+ * honours X-Forwarded-Host, which a client can send through Cloudflare and
+ * nginx untouched — qr.victim.com with "X-Forwarded-Host: genxqr.com" would
+ * then pass as canonical and serve ANY code under the victim's domain.
+ */
+export function requestHost(req: Request): string {
+  const raw = (req.headers.host ?? "").trim().toLowerCase()
+  if (raw.startsWith("[")) return raw.slice(1, raw.indexOf("]") > 0 ? raw.indexOf("]") : undefined)
+  return raw.split(":")[0] ?? ""
+}
+
+function noStore(res: Response): void {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+  res.setHeader("Pragma", "no-cache")
+  res.setHeader("Expires", "0")
+}
+
 // ─── GET /r/:slug — Main scan resolution endpoint ────────────────────────────
 
 router.get(
@@ -67,7 +86,22 @@ router.get(
       const refHeader = req.headers["referer"] ?? req.headers["referrer"]
       const ref = typeof refHeader === "string" ? refHeader : undefined
 
-      const resolution = await resolveQRScan(slug, ip, ua, ref)
+      // Custom domains: on a customer's own hostname only their codes resolve.
+      const host = await resolveScanHost(requestHost(req))
+      if (host.kind === "unknown") {
+        res.status(404).send("Not found")
+        return
+      }
+      if (host.kind === "lapsed") {
+        // The owner's plan no longer includes custom domains: the printed code
+        // keeps working, served from genxqr.com instead.
+        noStore(res)
+        res.redirect(302, `${host.base}/r/${slug}`)
+        return
+      }
+      const base = host.base
+
+      const resolution = await resolveQRScan(slug, ip, ua, ref, host.kind === "custom" ? { ownerId: host.ownerId } : undefined)
 
       // Never let a scan response be cached. The whole premise of a dynamic QR is
       // that its destination can change after the code is printed, so a cached
@@ -76,9 +110,7 @@ router.get(
       // to the old destination, and the owner sees their change "not working" with
       // no way to tell why. Set before the switch so every branch is covered —
       // redirect, pixel trampoline, landing page, password and expired alike.
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-      res.setHeader("Pragma", "no-cache")   // for HTTP/1.0 proxies still in the path
-      res.setHeader("Expires", "0")
+      noStore(res)
 
       switch (resolution.action) {
         case "redirect":
@@ -140,11 +172,11 @@ ${gaSnippet}${gtmSnippet}${fbSnippet}
 
         case "landing":
           // Redirect to the frontend landing page
-          res.redirect(302, `${env.FRONTEND_URL}/l/${slug}`)
+          res.redirect(302, `${base}/l/${slug}`)
           break
 
         case "password":
-          res.redirect(302, `${env.FRONTEND_URL}/r/${slug}/password`)
+          res.redirect(302, `${base}/r/${slug}/password`)
           break
 
         case "expired": {
@@ -152,7 +184,7 @@ ${gaSnippet}${gtmSnippet}${fbSnippet}
           if (fallback && isSafeHttpUrl(fallback)) {
             res.redirect(302, fallback)
           } else {
-            res.redirect(302, `${env.FRONTEND_URL}/r/${slug}/expired?reason=${resolution.reason}`)
+            res.redirect(302, `${base}/r/${slug}/expired?reason=${resolution.reason}`)
           }
           break
         }
@@ -189,17 +221,27 @@ router.post(
         return
       }
 
+      const host = await resolveScanHost(requestHost(req))
+      if (host.kind === "unknown" || host.kind === "lapsed") {
+        res.status(404).json({ success: false, error: "QR code not found" })
+        return
+      }
+      const base = host.base
+
       const qr = await prisma.qRCode.findUnique({
         where: { slug: String(slug) },
         select: {
           id: true,
+          userId: true,
           isActive: true,
           isPasswordProtected: true,
           passwordHash: true,
         },
       })
 
-      if (!qr || !qr.isActive) {
+      // Before the password check: on a customer's domain another account's code
+      // is "not found", never a password oracle.
+      if (!qr || !qr.isActive || (host.kind === "custom" && qr.userId !== host.ownerId)) {
         res.status(404).json({ success: false, error: "QR code not found or inactive" })
         return
       }
@@ -227,7 +269,10 @@ router.post(
       const refHeader = req.headers["referer"] ?? req.headers["referrer"]
       const ref = typeof refHeader === "string" ? refHeader : undefined
 
-      const resolution = await resolveQRScan(slug, ip, ua, ref, { passwordVerified: true })
+      const resolution = await resolveQRScan(slug, ip, ua, ref, {
+        passwordVerified: true,
+        ...(host.kind === "custom" && { ownerId: host.ownerId }),
+      })
 
       let destination: string | null = null
       switch (resolution.action) {
@@ -248,18 +293,21 @@ router.post(
           // so the visitor carries a short-lived proof of the password with them.
           // Without it the correct password led to the homepage.
           destination = buildDestinationFromContent(resolution.type, resolution.content)
-            ?? `${env.FRONTEND_URL}/l/${slug}?access=${encodeURIComponent(signQRUnlock(slug))}`
+            ?? `${base}/l/${slug}?access=${encodeURIComponent(signQRUnlock(slug))}`
           break
         case "expired":
           // Became unavailable between the prompt being shown and the password
           // being submitted, e.g. the scan limit was reached.
           destination = resolution.fallbackUrl
-            ?? `${env.FRONTEND_URL}/r/${slug}/expired?reason=${resolution.reason}`
+            ?? `${base}/r/${slug}/expired?reason=${resolution.reason}`
           break
         case "password":
           // Unreachable with passwordVerified set; treated as a failure rather
           // than silently sending the visitor somewhere.
           res.status(500).json({ success: false, error: "Could not resolve destination" })
+          return
+        case "not_found":
+          res.status(404).json({ success: false, error: "QR code not found" })
           return
       }
 
@@ -269,11 +317,11 @@ router.post(
       // matching the http(s)-only rule the ordinary redirect path already applies.
       const safeDestination =
         (destination && safeRedirectTarget(destination)) ??
-        (destination && destination.startsWith(env.FRONTEND_URL) ? destination : null)
+        (destination && destination.startsWith(base) ? destination : null)
 
       res.json({
         success: true,
-        data: { destination: safeDestination ?? `${env.FRONTEND_URL}/l/${slug}` },
+        data: { destination: safeDestination ?? `${base}/l/${slug}` },
       })
     } catch (err) {
       next(err)

@@ -10,7 +10,7 @@
 import QRCodeStyling, { type CornerSquareType, type DotType } from "qr-code-styling"
 import jsPDF from "jspdf"
 import { svg2pdf } from "svg2pdf.js"
-import { getQrBaseUrl, type QRCode } from "@/lib/api"
+import { scanUrlOf, type QRCode } from "@/lib/api"
 import { getFrame, renderFramed, type FrameFields } from "@/lib/frames/compose"
 
 export type QRDownloadExt = "png" | "svg" | "pdf" | "jpeg" | "webp"
@@ -23,7 +23,7 @@ export async function renderQRDownload(qr: QRCode, ext: QRDownloadExt): Promise<
   const frameStyle = d?.frameStyle ?? "none"
   const primaryColor = d?.primaryColor ?? "#7c3aed"
   const sharedOpts = {
-    data: `${getQrBaseUrl()}/r/${qr.slug}`,
+    data: scanUrlOf(qr),
     dotsOptions: { color: primaryColor, type: (d?.dotStyle ?? "rounded") as DotType },
     cornersSquareOptions: { color: primaryColor, type: (d?.cornerSquareStyle ?? "square") as CornerSquareType },
     cornersDotOptions: { color: primaryColor },

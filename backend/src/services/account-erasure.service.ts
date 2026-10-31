@@ -18,6 +18,7 @@ import path from "node:path"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { invalidateQRCache } from "./scan.service.js"
+import { releaseAccountDomains } from "./custom-domain.service.js"
 import { removeUnreferencedFiles } from "./uploads.service.js"
 
 // Same root as upload.routes.ts (uploads land under the backend's cwd).
@@ -37,6 +38,10 @@ function toDiskPath(fileUrl: string): string | null {
  * deletes their uploaded files and avatar from disk.
  */
 export async function deleteUserAndData(userId: string): Promise<void> {
+  // Before the rows go: the hostnames live on in Cloudflare otherwise, still
+  // pointed at us and blocking whoever owns the domain from adding it again.
+  await releaseAccountDomains(userId)
+
   const [user, codes, files] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { avatarUrl: true } }),
     prisma.qRCode.findMany({ where: { userId }, select: { slug: true } }),

@@ -3,6 +3,8 @@ import { prisma } from "../db/prisma.js"
 import { resolveBrandingForSlug, GENXQR_BRANDING, resolveBrandingForUser } from "../services/branding.service.js"
 import { contentHasBlockedLink, scanAvailability } from "../services/scan.service.js"
 import { verifyQRUnlock } from "../utils/jwt.js"
+import { resolveScanHost } from "../services/custom-domain.service.js"
+import { requestHost } from "./scan.routes.js"
 
 const router: IRouter = Router()
 
@@ -72,9 +74,13 @@ router.get(
       // destination/credentials to anyone who knows the slug.
       // …unless the visitor carries the short-lived proof of having entered the
       // password (POST /r/:slug/password → /l/<slug>?access=…).
+      // On a customer's own domain only their codes exist (custom-domain.service).
+      const host = await resolveScanHost(requestHost(req))
+      const foreign = host.kind === "unknown" || (host.kind === "custom" && qr?.userId !== host.ownerId)
+
       const access = typeof req.query["access"] === "string" ? req.query["access"] : ""
       const unlocked = qr?.isPasswordProtected === true && access !== "" && verifyQRUnlock(access, slug)
-      if (!qr || (qr.isPasswordProtected && !unlocked)) {
+      if (!qr || foreign || (qr.isPasswordProtected && !unlocked)) {
         res.status(404).json({ success: false, error: "QR code not found" })
         return
       }
@@ -152,6 +158,17 @@ router.get(
     try {
       const slug = String(req.params["slug"] ?? "")
       if (!slug || !/^[a-zA-Z0-9_-]{4,32}$/.test(slug)) {
+        res.json({ success: true, data: GENXQR_BRANDING })
+        return
+      }
+      // On a customer's own domain the page is theirs, whatever slug is asked
+      // for: never show another account's name or logo under their brand.
+      const host = await resolveScanHost(requestHost(req))
+      if (host.kind === "custom") {
+        res.json({ success: true, data: await resolveBrandingForUser(host.ownerId) })
+        return
+      }
+      if (host.kind === "unknown") {
         res.json({ success: true, data: GENXQR_BRANDING })
         return
       }

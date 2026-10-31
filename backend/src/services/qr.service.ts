@@ -15,6 +15,7 @@ import { safeHttpUrlSchema } from "../utils/safe-url.js"
 // a deleted or deactivated QR kept resolving. DEL is idempotent, so the existing
 // explicit calls in qr.routes.ts remain harmless.
 import { invalidateQRCache } from "./scan.service.js"
+import { assertDomainForCode, defaultDomainId, scanUrlFor } from "./custom-domain.service.js"
 import { markAttached, removeUnreferencedFiles, resolveAttachments } from "./uploads.service.js"
 
 /** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
@@ -30,6 +31,11 @@ export const createQRSchema = z.object({
   type: z.nativeEnum(QRType),
   category: z.nativeEnum(QRCategory).default("DYNAMIC"),
   tags: z.array(z.string().max(50).trim()).max(10).default([]),
+  /**
+   * The account's own domain to print this code with (custom-domain.service).
+   * Omitted on create = the account's default domain; null = genxqr.com.
+   */
+  customDomainId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).default({ data: {} }),
   design: z
     .object({
@@ -102,6 +108,7 @@ export const updateQRSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
   type: z.nativeEnum(QRType).optional(),
   tags: z.array(z.string().max(50).trim()).max(10).optional(),
+  customDomainId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).optional(),
   // Partial and WITHOUT the create defaults: an update changes only the design
   // fields it names. Reusing the create schema filled every omitted field with
@@ -154,6 +161,8 @@ const qrSelect = {
   createdAt: true,
   updatedAt: true,
   lastScannedAt: true,
+  customDomainId: true,
+  customDomain: { select: { hostname: true, status: true } },
   content: { select: { data: true } },
   design: {
     select: {
@@ -217,10 +226,17 @@ async function uniqueSlug(): Promise<string> {
 }
 
 /** Convert BigInt sizeBytes to Number for JSON serialisation */
-function serializeQR<T extends { files?: Array<{ sizeBytes: bigint | number }> }>(qr: T): T {
+function serializeQR<T extends {
+  slug: string
+  customDomain?: { hostname: string; status: string } | null
+  files?: Array<{ sizeBytes: bigint | number }>
+}>(qr: T): T & { scanUrl: string } {
   return {
     ...qr,
     files: (qr.files ?? []).map((f) => ({ ...f, sizeBytes: Number(f.sizeBytes) })),
+    // The one URL this code's image encodes — its custom domain when it has a
+    // verified one, else genxqr.com. Clients use this rather than building it.
+    scanUrl: scanUrlFor(qr),
   }
 }
 
@@ -383,7 +399,11 @@ export async function createWithinQRLimit<T>(ownerId: string, create: (tx: Prism
 }
 
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
-  const { design, settings, content, uploadedFiles: requestedFiles, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, ...qrData } = input
+
+  const customDomainId = requestedDomain === undefined
+    ? await defaultDomainId(userId)
+    : await assertDomainForCode(userId, requestedDomain)
 
   // tempUrl is client-supplied: only the caller's own uploads (finding #1), and
   // with the size/type the SERVER recorded, never the request's (uploads.service).
@@ -400,6 +420,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
       ...qrData,
       userId,
       slug,
+      customDomainId: customDomainId ?? null,
       isPasswordProtected: !!settings.password,
       passwordHash,
       activeFrom: settings.activeFrom ? new Date(settings.activeFrom) : undefined,
@@ -500,9 +521,10 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
-  const { design, settings, content, uploadedFiles: requestedFiles, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, ...qrData } = input
 
   await assertFrameAllowed(userId, design, existing.design)
+  const customDomainId = await assertDomainForCode(userId, requestedDomain)
 
   const uploadedFiles = requestedFiles && requestedFiles.length > 0
     ? await resolveAttachments(userId, requestedFiles, actorId)
@@ -527,6 +549,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
       ...(qrData.name !== undefined && { name: qrData.name }),
       ...(qrData.type !== undefined && { type: qrData.type }),
       ...(qrData.tags !== undefined && { tags: qrData.tags }),
+      ...(customDomainId !== undefined && { customDomainId }),
       ...(settings?.password !== undefined && {
         isPasswordProtected: !!settings.password,
         passwordHash,
@@ -656,6 +679,7 @@ export async function duplicateQR(id: string, userId: string) {
       activeUntil: qr.activeUntil,
       scanLimit: qr.scanLimit,
       fallbackUrl: qr.fallbackUrl,
+      customDomainId: qr.customDomainId,
       content: qr.content
         ? { create: { data: qr.content.data as Prisma.InputJsonValue } }
         : undefined,
