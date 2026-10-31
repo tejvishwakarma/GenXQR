@@ -531,7 +531,10 @@ export async function acceptInvite(currentUserId: string, rawToken: string) {
 
   await prisma.auditLog.create({
     data: {
-      userId: match.team.ownerId,
+      // The person who acted is the invitee; the entry belongs to the team
+      // owner's activity log (it used to be written AS the owner for that).
+      userId: currentUser.id,
+      ownerId: match.team.ownerId,
       action: "team.invite.accept",
       category: "team",
       entityType: "TeamInvite",
@@ -605,6 +608,7 @@ export async function leaveTeam(memberUserId: string, ownerId: string): Promise<
   await prisma.auditLog.create({
     data: {
       userId: memberUserId,
+      ownerId,
       action: "team.member.leave",
       category: "team",
       entityType: "TeamMember",

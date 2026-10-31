@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe } from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -28,6 +28,7 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "Analytics", href: "/app/analytics", icon: <BarChart3 size={18} /> },
   { label: "Bulk Generate", href: "/app/bulk-generate", icon: <Layers size={18} /> },
   { label: "Team", href: "/app/team", icon: <Users size={18} /> },
+  { label: "Activity", href: "/app/activity", icon: <History size={18} /> },
   { label: "API Keys", href: "/app/api-keys", icon: <Key size={18} /> },
   { label: "Webhooks", href: "/app/webhooks", icon: <Webhook size={18} /> },
   { label: "Custom domains", href: "/app/domains", icon: <Globe size={18} /> },

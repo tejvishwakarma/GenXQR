@@ -74,6 +74,7 @@ import BulkGeneratePage from "@/pages/dashboard/BulkGeneratePage"
 import TeamPage from "@/pages/dashboard/TeamPage"
 import APIKeysPage from "@/pages/dashboard/APIKeysPage"
 import DomainsPage from "@/pages/dashboard/DomainsPage"
+import ActivityPage from "@/pages/dashboard/ActivityPage"
 import BillingPage from "@/pages/dashboard/BillingPage"
 import ReferralsPage from "@/pages/dashboard/ReferralsPage"
 import SettingsPage from "@/pages/dashboard/SettingsPage"
@@ -214,6 +215,7 @@ export function AppRoutes() {
           <Route path="api-keys" element={<APIKeysPage />} />
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route path="domains" element={<DomainsPage />} />
+          <Route path="activity" element={<ActivityPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="settings" element={<SettingsPage />} />

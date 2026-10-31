@@ -46,8 +46,8 @@ router.patch(
       logAudit({
         userId: uid(req),
         action: "branding.update",
-        // No "settings" category exists; branding is an account-level change.
-        category: "system",
+        // Account-level change; shows in the activity log under settings.
+        category: "settings",
         entityId: uid(req),
         entityType: "User",
         metadata: { brandName: data.brandName, hasLogo: Boolean(data.brandLogoUrl) },

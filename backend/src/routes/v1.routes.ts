@@ -25,6 +25,7 @@ import {
   updateQRSchema,
 } from "../services/qr.service.js"
 import { getQRAnalytics } from "../services/analytics.service.js"
+import { logAudit } from "../services/audit.service.js"
 import {
   createWebhook,
   deleteWebhook,
@@ -37,6 +38,14 @@ import {
 
 const router: IRouter = Router()
 const uid = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
+
+/** Activity-log entry for a change made through the developer API (via: "api" marks the source). */
+function auditApi(req: Request, action: string, category: "qr" | "webhook", entityId: string, metadata: Record<string, unknown> = {}): void {
+  logAudit({
+    userId: uid(req), action, category, entityId, entityType: category === "qr" ? "QRCode" : "Webhook",
+    metadata: { ...metadata, via: "api", apiKeyId: req.apiKeyId ?? null }, ip: req.ip, userAgent: req.headers["user-agent"],
+  })
+}
 
 // All v1 routes: authenticate the API key, rate-limit per user (req.user.sub),
 // then count the call against the monthly quota. Order matters both ways: the
@@ -92,6 +101,7 @@ router.post("/qr", requireQRSlot, async (req, res, next) => {
     // developer API raised no qr.created — so an integration's own "New QR Code"
     // trigger never saw anything it created, or anything another integration did.
     void deliverWebhookEvent(uid(req), "qr.created", { qr })
+    auditApi(req, "qr.create", "qr", qr.id, { name: qr.name, type: qr.type })
     res.status(201).json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -121,6 +131,7 @@ router.patch("/qr/:id", async (req, res, next) => {
     // req.body straight through, skipping every rule in updateQRSchema.
     const qr = await updateQR(req.params.id!, uid(req), updateQRSchema.parse(req.body))
     void deliverWebhookEvent(uid(req), "qr.updated", { qr })
+    auditApi(req, "qr.update", "qr", qr.id, { name: qr.name })
     res.json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -138,6 +149,7 @@ router.patch("/qr/:id/toggle", async (req, res, next) => {
     void getQR(result.id, uid(req))
       .then((qr) => deliverWebhookEvent(uid(req), "qr.updated", { qr }))
       .catch(() => undefined)
+    auditApi(req, result.isActive ? "qr.activate" : "qr.deactivate", "qr", result.id)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)
@@ -155,6 +167,7 @@ router.delete("/qr/:id", async (req, res, next) => {
     const existing = await getQR(req.params.id!, uid(req))
     await deleteQR(req.params.id!, uid(req))
     void deliverWebhookEvent(uid(req), "qr.deleted", { qrId: req.params.id!, name: existing?.name ?? "" })
+    auditApi(req, "qr.delete", "qr", req.params.id!, { name: existing?.name ?? "" })
     res.status(204).end()
   } catch (err) {
     next(err)
@@ -267,6 +280,7 @@ router.post("/webhooks", async (req, res, next) => {
       [event],
       source,
     )
+    auditApi(req, "webhook.create", "webhook", hook.id, { url, events: [event] })
     res.status(201).json({ success: true, data: hook })
   } catch (err) {
     next(err)
@@ -294,6 +308,7 @@ router.get("/webhooks/:id", async (req, res, next) => {
 router.delete("/webhooks/:id", async (req, res, next) => {
   try {
     await deleteWebhook(uid(req), req.params.id!)
+    auditApi(req, "webhook.delete", "webhook", req.params.id!)
     res.status(204).end()
   } catch (err) {
     next(err)

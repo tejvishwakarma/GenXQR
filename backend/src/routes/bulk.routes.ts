@@ -11,6 +11,7 @@ import {
   streamResultsZip,
   streamCsvTemplate,
 } from "../services/bulk.service.js"
+import { logAudit } from "../services/audit.service.js"
 import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
 
 const router: IRouter = Router()
@@ -54,6 +55,12 @@ router.post(
     try {
       if (!req.file) throw new AppError(400, "No CSV file uploaded. Use multipart field name 'file'.")
       const { results, created, failed } = await processBulkCsv(wsOwner(req), req.file.buffer)
+      if (created > 0) {
+        logAudit({
+          userId: (req.user as unknown as AccessTokenPayload).sub, action: "qr.bulk_create", category: "qr",
+          entityType: "QRCode", metadata: { created, failed }, ip: req.ip, userAgent: req.headers["user-agent"],
+        })
+      }
       res.status(created > 0 ? 201 : 422).json({
         success: created > 0,
         data: { results, summary: { total: results.length, created, failed } },

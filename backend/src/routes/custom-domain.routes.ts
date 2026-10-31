@@ -32,7 +32,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { hostname } = AddSchema.parse(req.body)
     const domain = await Domains.addDomain(uid(req), hostname)
-    logAudit({ userId: uid(req), action: "domain.add", category: "qr", entityId: domain.id, entityType: "CustomDomain", metadata: { hostname: domain.hostname }, ip: req.ip, userAgent: req.headers["user-agent"] })
+    logAudit({ userId: uid(req), action: "domain.add", category: "settings", entityId: domain.id, entityType: "CustomDomain", metadata: { hostname: domain.hostname }, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.status(201).json({ success: true, data: domain })
   } catch (err) { next(err) }
 })
@@ -57,7 +57,7 @@ router.delete("/:id", async (req: Request, res: Response, next: NextFunction) =>
   try {
     const id = String(req.params["id"])
     const result = await Domains.deleteDomain(uid(req), id)
-    logAudit({ userId: uid(req), action: "domain.remove", category: "qr", entityId: id, entityType: "CustomDomain", metadata: result, ip: req.ip, userAgent: req.headers["user-agent"] })
+    logAudit({ userId: uid(req), action: "domain.remove", category: "settings", entityId: id, entityType: "CustomDomain", metadata: result, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.json({ success: true, data: result })
   } catch (err) { next(err) }
 })

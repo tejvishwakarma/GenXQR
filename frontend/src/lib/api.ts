@@ -1722,6 +1722,8 @@ export interface PlanLimits {
   qrExpiry: boolean
   premiumFrames: boolean
   scanPageLogo: boolean
+  /** The team activity log + export (Pro+). Security history is on every plan. */
+  activityLog: boolean
 }
 
 export interface Plan {
@@ -2601,3 +2603,72 @@ export const setDefaultCustomDomain = (id: string | null) =>
   apiFetch<{ success: boolean }>("/api/domains/default", { method: "PUT", headers: authHeader(), body: JSON.stringify({ id }) })
 export const removeCustomDomain = (id: string) =>
   apiFetch<{ success: boolean; data: { codesMoved: number } }>(`/api/domains/${id}`, { method: "DELETE", headers: authHeader() })
+
+// ─── Activity log ──────────────────────────────────────────────────────────────
+
+/** security: your own sign-ins and credentials (every plan) · team: the workspace's changes (Pro+, owner/admin) */
+export type ActivityScope = "security" | "team"
+
+export type ActivityActor =
+  | { kind: "user"; id: string; name: string | null; email: string }
+  /** GenXQR staff acting on your account at your request */
+  | { kind: "support" }
+  | { kind: "deleted" }
+
+export interface ActivityEntry {
+  id: string
+  createdAt: string
+  action: string
+  category: string
+  actor: ActivityActor
+  entityType: string | null
+  entityId: string | null
+  metadata: Record<string, unknown> | null
+  /** Masked (203.0.113.x) */
+  ip: string
+  /** "Chrome on macOS" */
+  device: string | null
+}
+
+export interface ActivityFilters {
+  category?: string
+  actorId?: string
+  /** ISO timestamps */
+  from?: string
+  to?: string
+}
+
+function activityQuery(filters: ActivityFilters, extra: Record<string, string | number> = {}): string {
+  const q = new URLSearchParams()
+  for (const [k, v] of Object.entries({ ...filters, ...extra })) if (v !== undefined && v !== "") q.set(k, String(v))
+  const s = q.toString()
+  return s ? `?${s}` : ""
+}
+
+export const getActivity = (scope: ActivityScope, filters: ActivityFilters, page = 1, limit = 50) =>
+  apiFetch<{ success: boolean; data: { items: ActivityEntry[]; total: number; page: number; limit: number } }>(
+    `/api/activity/${scope}${activityQuery(filters, { page, limit })}`,
+    { headers: authHeader() },
+  )
+
+export const getActivityActors = () =>
+  apiFetch<{ success: boolean; data: { id: string; name: string | null; email: string }[] }>("/api/activity/team/actors", { headers: authHeader() })
+
+/** Downloads up to 10,000 matching entries as CSV. */
+export async function downloadActivityCsv(scope: ActivityScope, filters: ActivityFilters): Promise<void> {
+  const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? ""
+  const res = await fetch(`${BASE_URL}/api/activity/${scope}/export${activityQuery(filters)}`, {
+    credentials: "include",
+    headers: authHeader(),
+  })
+  if (!res.ok) throw new Error(`Export failed (${res.status})`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `genxqr-${scope === "team" ? "activity-log" : "security-history"}-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}

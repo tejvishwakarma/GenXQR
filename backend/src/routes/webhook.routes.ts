@@ -5,6 +5,7 @@ import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import { requirePlanFeature } from "../middleware/plan-gate.middleware.js"
+import { logAudit } from "../services/audit.service.js"
 import {
   listWebhooks,
   createWebhook,
@@ -55,6 +56,7 @@ router.post("/", requireAuth, forbidWhileImpersonating, planGuard, async (req, r
   try {
     const { name, url, events } = createSchema.parse(req.body)
     const hook = await createWebhook(uid(req), name, url, events)
+    logAudit({ userId: uid(req), action: "webhook.create", category: "webhook", entityId: hook.id, entityType: "Webhook", metadata: { url, events }, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.status(201).json({ success: true, data: hook })
   } catch (err) {
     next(err)
@@ -76,6 +78,7 @@ router.patch("/:id", requireAuth, forbidWhileImpersonating, planGuard, async (re
     const { id } = req.params as { id: string }
     const patch = updateSchema.parse(req.body)
     const hook = await updateWebhook(uid(req), id, patch)
+    logAudit({ userId: uid(req), action: "webhook.update", category: "webhook", entityId: id, entityType: "Webhook", metadata: { changed: Object.keys(patch) }, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.json({ success: true, data: hook })
   } catch (err) {
     next(err)
@@ -89,6 +92,7 @@ router.delete("/:id", requireAuth, forbidWhileImpersonating, planGuard, async (r
   try {
     const { id } = req.params as { id: string }
     await deleteWebhook(uid(req), id)
+    logAudit({ userId: uid(req), action: "webhook.delete", category: "webhook", entityId: id, entityType: "Webhook", metadata: undefined, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.json({ success: true, message: "Webhook deleted" })
   } catch (err) {
     next(err)

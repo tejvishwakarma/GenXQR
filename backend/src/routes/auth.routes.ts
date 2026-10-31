@@ -181,10 +181,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const rawToken = (req.cookies as Record<string, string | undefined>)["refresh_token"]
-      if (rawToken) {
-        await AuthService.logoutUser(rawToken)
-      }
-      logAudit({ action: "auth.logout", category: "auth", ip: req.ip, userAgent: req.headers["user-agent"] })
+      const userId = rawToken ? await AuthService.logoutUser(rawToken) : null
+      logAudit({ userId, action: "auth.logout", category: "auth", ip: req.ip, userAgent: req.headers["user-agent"] })
       res
         .clearCookie("refresh_token", { path: "/api/auth" })
         .json({ success: true, message: "Logged out successfully" })
@@ -244,8 +242,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.resetPasswordSchema.parse(req.body)
-      await AuthService.resetPassword(input)
-      logAudit({ action: "auth.password.reset", category: "auth", ip: req.ip, userAgent: req.headers["user-agent"] })
+      const userId = await AuthService.resetPassword(input)
+      logAudit({ userId, action: "auth.password.reset", category: "auth", ip: req.ip, userAgent: req.headers["user-agent"] })
       res.json({ success: true, message: "Password updated. Please log in." })
     } catch (err) {
       next(err)

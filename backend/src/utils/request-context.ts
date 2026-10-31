@@ -8,6 +8,12 @@ import { AsyncLocalStorage } from "node:async_hooks"
 export interface RequestContext {
   /** Admin user id behind an impersonation session (the token's `act` claim). */
   impersonatedBy?: string
+  /**
+   * The workspace owner this request acts for (withWorkspace). Audit rows
+   * written during the request belong to this account's activity log, even
+   * when a team member is the one acting (db/prisma.ts).
+   */
+  workspaceOwnerId?: string
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>()

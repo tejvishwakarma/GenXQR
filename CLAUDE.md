@@ -355,6 +355,10 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `POST /cashfree-webhook` — public; HMAC verified against `req.rawBody`; authoritative activation path
 - `POST /cancel` — schedules subscription cancellation at period end
 
+#### `/api/activity` → `activity.routes.ts`
+- `GET  /security` + `/security/export` — the caller's own security history (every plan)
+- `GET  /team` + `/team/export` + `/team/actors` — the workspace's activity log (OWNER/ADMIN, owner's plan has `activityLog`)
+
 #### `/api/referrals` → `referral.routes.ts`
 - `GET  /me` — the user's referral code (created on first call), balance, referrals (friend emails masked), credit history
 
@@ -946,6 +950,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `APIKeysPage.tsx` | `/app/api-keys` | Create/revoke API keys |
 | `WebhooksPage.tsx` | `/app/webhooks` | Manage webhooks |
 | `BillingPage.tsx` | `/app/billing` | Subscription, plan upgrade, invoices; coupon + credit at checkout |
+| `ActivityPage.tsx` | `/app/activity` | Security history (all plans) + team activity log with CSV export (Pro+) |
 | `ReferralsPage.tsx` | `/app/referrals` | Refer & earn: invite link, credit balance, referrals, history |
 | `SettingsPage.tsx` | `/app/settings` | Profile, password, notification prefs, delete account |
 | `UserReportPage.tsx` | `/app/report` | Submit and view abuse reports |
@@ -1122,6 +1127,22 @@ Workspace-aware: `/api/qr/*`, `/api/analytics/*`, `/api/upload/*`, `/api/bulk/*`
 Personal-only (ignore the header): billing, API keys, webhooks, branding, settings, `/v1`.
 Access needs the owner's plan to have `teamSeatsLimit > 1`. Audit logs record the actor.
 Uploads record the uploader; attaching accepts files uploaded by the owner or the actor.
+
+**Customer activity log (built 31 Oct 2026)** — `services/activity.service.ts`, `/app/activity`.
+Two views over `AuditLog`: **Security** (every plan) = rows the caller wrote (`userId`) in `auth`/`apikey`/`webhook`;
+**Team activity** (`PLAN_LIMITS.activityLog`, Pro+; OWNER/ADMIN of the workspace) = rows whose `ownerId` is the
+workspace owner in `qr`/`team`/`settings`. Admin and billing rows are in neither, and sign-ins never reach the team log.
+- `AuditLog.ownerId` is filled by the audit hook in `db/prisma.ts`: the request's workspace owner (`withWorkspace`
+  puts it in `requestContext`), else `userId`; NULL for `admin` rows. Pass `ownerId` explicitly when the actor is
+  outside any workspace request (invite accept, leave). Log the ACTOR as `userId`, never the owner.
+- Shown IPs are `maskIp`ped, devices come from `utils/user-agent.util.ts`, and `metadata.impersonatedBy` is removed:
+  impersonated actions show as "GenXQR support". `logAudit` stores metadata as an object (it was a JSON string, and the
+  impersonation hook then spread it into one key per character; migration `20261031140100` converted old rows).
+- New mutation paths need a log entry with a category in one of the two lists, or customers never see them.
+  The page's `describe()` (ActivityPage.tsx) turns actions into sentences and falls back to the raw action name.
+- Every password sign-in used to be logged twice (`loginUser` + the route); migration `20261031140200` removed the
+  duplicates and re-attributed old "joined the team" rows, which were written as the owner.
+- Privacy policy §2 says who can see what here — keep it in step. Covered by `tests/integration/activity-log.test.ts`.
 
 ---
 
