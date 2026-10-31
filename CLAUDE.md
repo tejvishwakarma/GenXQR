@@ -1184,6 +1184,16 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
 - **CloudPanel's Vhost Editor strips anything that looks like an HTML tag — and the rest of the file after a
   `<script>`** — so a vhost with `<…>` in a comment is rejected as "unexpected end of file". Keep `<` and `>`
   out of `deploy/*.conf` entirely, comments included.
+- **Testing a vhost locally with `nginx -t` in Docker: mount it from under `$HOME`.** On the Mac, Docker runs in
+  Colima, which only shares the home directory with its VM. A bind mount from `/tmp` or `/private/tmp` arrives
+  EMPTY, so nginx tests its own default config and reports "successful" without ever loading ours (found 31 Oct
+  2026 — earlier checks done that way proved nothing). Confirm with `ls /etc/nginx/conf.d` inside the container,
+  substitute the `{{…}}` placeholders, and supply a stand-in `/etc/nginx/global_settings`.
+- **`/etc/nginx/global_settings` (CloudPanel, included by our vhost, shared by every site on the server) sends
+  `X-Frame-Options: SAMEORIGIN`, `X-XSS-Protection: 1; mode=block` and `Referrer-Policy: same-origin`**, without
+  `always`. Our vhost therefore does not repeat the first two (that sent each twice). It still sets
+  `Referrer-Policy: strict-origin-when-cross-origin`: browsers apply the last value, which is ours. Don't edit
+  global_settings — CloudPanel owns it and other sites depend on it.
 - Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
 
 **PM2 config** (`ecosystem.config.cjs`):
