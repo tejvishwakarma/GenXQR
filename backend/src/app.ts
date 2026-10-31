@@ -46,6 +46,10 @@ app.use(
     frameguard: false,
     referrerPolicy: false,
     strictTransportSecurity: false,
+    // CloudPanel's /etc/nginx/global_settings sends X-XSS-Protection on every
+    // response, so Helmet's "0" made API routes carry two conflicting values
+    // (seen live 31 Oct 2026). Browsers ignore the header today either way.
+    xXssProtection: false,
     // X-Content-Type-Options (noSniff) and the rest of Helmet's defaults stay on:
     // they carry a single fixed value with no conflicting variant, so a
     // duplicate is harmless, and they add defense-in-depth on the localhost-only
