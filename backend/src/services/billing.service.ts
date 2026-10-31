@@ -46,6 +46,8 @@ export interface PlanLimits {
   bulkGeneration: boolean
   apiAccess: boolean
   customDomains: boolean
+  /** How many custom domains the account may add (decided 31 Oct 2026). 0 when customDomains is false. */
+  customDomainsLimit: number
   whiteLabel: boolean
   prioritySupport: boolean
   abTesting: boolean
@@ -67,6 +69,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     bulkGeneration: false,
     apiAccess: false,
     customDomains: false,
+    customDomainsLimit: 0,
     whiteLabel: false,
     prioritySupport: false,
     abTesting: false,
@@ -84,6 +87,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     bulkGeneration: false,
     apiAccess: false,
     customDomains: false,
+    customDomainsLimit: 0,
     whiteLabel: false,
     prioritySupport: false,
     abTesting: false,
@@ -101,6 +105,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
+    customDomainsLimit: 1,
     whiteLabel: false,
     prioritySupport: false,
     abTesting: true,
@@ -118,6 +123,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
+    customDomainsLimit: 5,
     whiteLabel: true,
     prioritySupport: true,
     abTesting: true,
@@ -135,6 +141,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     bulkGeneration: true,
     apiAccess: true,
     customDomains: true,
+    customDomainsLimit: 25,
     whiteLabel: true,
     prioritySupport: true,
     abTesting: true,

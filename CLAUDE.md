@@ -234,6 +234,11 @@ MAXMIND_LICENSE_KEY=""
 # Cloudflare Turnstile (bot protection on register/login/contact). Optional:
 # unset = challenge skipped. SITE key → frontend VITE_TURNSTILE_SITE_KEY, SECRET here.
 TURNSTILE_SECRET_KEY=""
+
+# Custom domains (Cloudflare for SaaS). Optional: all three or the feature answers 503.
+CLOUDFLARE_API_TOKEN=""
+CLOUDFLARE_ZONE_ID=""
+CUSTOM_DOMAIN_TARGET=""            # e.g. customers.genxqr.com (the fallback origin)
 ```
 
 ### Frontend `.env.local`
@@ -729,6 +734,28 @@ GenXQR by default, so before this every revenue figure counted refunded money as
   (`revokeToFreeForRefund`); a webhook refund just corrects the money (no one is choosing at that moment).
 - Covered by `tests/integration/refunds.test.ts`. Migration `20261025140000_refunds` (Refund table +
   `Invoice.refundedAmount`/`refundedAt`).
+
+**Custom domains** (`services/custom-domain.service.ts` + `cloudflare.service.ts`, built 31 Oct 2026).
+Codes print as `https://qr.brand.com/r/<slug>` instead of genxqr.com.
+- Cloudflare for SaaS: the customer adds ONE CNAME to `CUSTOM_DOMAIN_TARGET` (the zone's fallback origin);
+  Cloudflare issues HTTPS (HTTP validation) and proxies to us, so the origin stays hidden. First 100 hostnames are
+  free on any Cloudflare plan, then $0.10/month each. The 10-minute expiry worker re-checks `pending` domains.
+- Caps: `PLAN_LIMITS.customDomainsLimit` — Pro 1, Business 5, Enterprise 25. Added under a per-owner advisory lock.
+- **Isolation**: on a customer host ONLY that account's codes resolve (`resolveScanHost` → `resolveQRScan`'s
+  `ownerId`, checked before anything is counted), plus `/api/public/qr` and POST `/r/:slug/password`. Branding there
+  is the DOMAIN OWNER's whatever the slug. genxqr.com serves every code; any of an owner's domains serves any of
+  their codes, so changing a code's domain never breaks a print.
+- **The host is read from the raw `Host` header (`requestHost` in scan.routes), never `req.hostname`**: with trust
+  proxy on, `req.hostname` honours `X-Forwarded-Host`, which passes through Cloudflare and nginx — a forged one
+  would make a customer host look canonical and serve anyone's code under their brand. Tested.
+- Plan no longer includes custom domains → scans on that host 302 to the same code on genxqr.com (`lapsed`).
+- Every scan URL comes from `scanUrlFor` (backend; also `scanUrl` on every QR response) / `scanUrlOf` (frontend) —
+  downloads, detail page, bulk ZIP, Drive export, widget. Never build `/r/<slug>` by hand.
+- nginx: `deploy/custom-domains-vhost.conf` is a SEPARATE CloudPanel site (customers.genxqr.com) with a catch-all
+  `server_name`; it serves only scan pages, `/api/public/`, uploads and assets — dashboard, login, admin and the
+  service worker are 404 there. GA/Clarity don't load on customer hosts (`onOwnSite` in lib/site.ts).
+- Account deletion releases the hostnames from Cloudflare (`releaseAccountDomains`). Covered by
+  `tests/integration/custom-domains.test.ts`; migration `20261031120000_custom_domains`.
 
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns

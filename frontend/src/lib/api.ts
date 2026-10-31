@@ -19,6 +19,16 @@ export function getQrBaseUrl(): string {
   return (import.meta.env.VITE_PUBLIC_BASE_URL as string | undefined)?.replace(/\/$/, "") || window.location.origin
 }
 
+/**
+ * THE URL a code's image encodes. A code on a verified custom domain uses the
+ * server's scanUrl (https://qr.brand.com/r/<slug>); otherwise this origin, so
+ * VITE_PUBLIC_BASE_URL still works for LAN testing. Never build /r/<slug> elsewhere.
+ */
+export function scanUrlOf(qr: Pick<QRCode, "slug" | "scanUrl" | "customDomain">): string {
+  if (qr.customDomain?.status === "active" && qr.scanUrl) return qr.scanUrl
+  return `${getQrBaseUrl()}/r/${qr.slug}`
+}
+
 export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -1136,6 +1146,11 @@ export interface QRCode {
   createdAt: string
   updatedAt: string
   lastScannedAt: string | null
+  /** The account's own domain this code prints with; null = genxqr.com. */
+  customDomainId?: string | null
+  customDomain?: { hostname: string; status: string } | null
+  /** Server-built scan URL (custom domain when verified). Use scanUrlOf(). */
+  scanUrl?: string
   content: { data: Record<string, unknown> } | null
   design: QRDesign | null
   files: QRFile[]
@@ -1166,6 +1181,8 @@ export interface CreateQRPayload {
   name: string
   type: string
   category: "DYNAMIC" | "STATIC"
+  /** Omit on create for the account default; null = genxqr.com. */
+  customDomainId?: string | null
   content: { data: Record<string, unknown> }
   design?: {
     primaryColor?: string
@@ -2546,3 +2563,41 @@ export function listMyTickets(page = 1, limit = 10) {
 
 
 
+
+
+// ─── Custom domains ────────────────────────────────────────────────────────────
+
+export interface CustomDomain {
+  id: string
+  hostname: string
+  /** pending (waiting for DNS / HTTPS) · active · failed */
+  status: "pending" | "active" | "failed"
+  sslStatus: string | null
+  verificationErrors: string[] | null
+  isDefault: boolean
+  createdAt: string
+  activatedAt: string | null
+  lastCheckedAt: string | null
+  codeCount: number
+}
+
+export interface CustomDomainList {
+  domains: CustomDomain[]
+  /** How many the plan allows (0 = not on this plan). */
+  limit: number
+  /** The hostname customers CNAME to. */
+  target: string | null
+  /** False until the platform's domain provider is configured. */
+  available: boolean
+}
+
+export const getCustomDomains = () =>
+  apiFetch<{ success: boolean; data: CustomDomainList }>("/api/domains", { headers: authHeader() })
+export const addCustomDomain = (hostname: string) =>
+  apiFetch<{ success: boolean; data: CustomDomain }>("/api/domains", { method: "POST", headers: authHeader(), body: JSON.stringify({ hostname }) })
+export const checkCustomDomain = (id: string) =>
+  apiFetch<{ success: boolean; data: CustomDomain }>(`/api/domains/${id}/check`, { method: "POST", headers: authHeader() })
+export const setDefaultCustomDomain = (id: string | null) =>
+  apiFetch<{ success: boolean }>("/api/domains/default", { method: "PUT", headers: authHeader(), body: JSON.stringify({ id }) })
+export const removeCustomDomain = (id: string) =>
+  apiFetch<{ success: boolean; data: { codesMoved: number } }>(`/api/domains/${id}`, { method: "DELETE", headers: authHeader() })

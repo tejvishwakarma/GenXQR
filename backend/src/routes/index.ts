@@ -3,6 +3,7 @@ import authRouter from "./auth.routes.js"
 import staticRouter from "./static.routes.js"
 import publicRouter from "./public.routes.js"
 import qrRouter from "./qr.routes.js"
+import customDomainRouter from "./custom-domain.routes.js"
 import uploadRouter from "./upload.routes.js"
 import analyticsRouter from "./analytics.routes.js"
 import billingRouter from "./billing.routes.js"
@@ -24,6 +25,7 @@ router.use("/auth", authRouter)
 router.use("/static", staticRouter)
 router.use("/public", publicRouter)
 router.use("/qr", qrRouter)
+router.use("/domains", customDomainRouter)
 router.use("/upload", uploadRouter)
 router.use("/analytics", analyticsRouter)
 router.use("/billing", billingRouter)

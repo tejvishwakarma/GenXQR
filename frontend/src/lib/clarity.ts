@@ -1,3 +1,4 @@
+import { onOwnSite } from "@/lib/site"
 /**
  * Microsoft Clarity (session recordings + heatmaps).
  *
@@ -37,6 +38,8 @@ export function isClarityEnabled(): boolean {
  */
 export function initClarity(): void {
   if (initialised || typeof window === "undefined") return
+  // Not on a customer's custom domain (site.ts onOwnSite).
+  if (!onOwnSite()) return
   if (!isClarityEnabled()) return
   initialised = true
 

@@ -81,6 +81,7 @@ model User {
   notifications           Notification[]
   passwordResetTokens     PasswordResetToken[]
   qrCodes                 QRCode[]
+  customDomains           CustomDomain[]
   refreshTokens           RefreshToken[]
   subscription            Subscription?
   supportTickets          SupportTicket[]
@@ -161,6 +162,11 @@ model QRCode {
   category            QRCategory
   name                String
   slug                String             @unique
+  /// The customer's own domain this code prints with (custom-domain.service).
+  /// Null = genxqr.com. Any of the owner's domains serves any of the owner's codes,
+  /// so changing this never breaks a code already printed with another domain.
+  customDomainId      String?
+  customDomain        CustomDomain?      @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
   tags                String[]
   isActive            Boolean            @default(true)
   /// True when the SYSTEM switched this code off because the owner's plan
@@ -1090,4 +1096,33 @@ model CreditEntry {
   @@unique([orderId, kind])
   @@index([userId, availableAt])
   @@map("credit_entries")
+}
+
+/// A customer's own hostname for scan links (decided 31 Oct 2026). Issued and
+/// proxied by Cloudflare for SaaS: the customer CNAMEs it to CUSTOM_DOMAIN_TARGET
+/// and Cloudflare provisions HTTPS. On this host only the owner's codes scan.
+model CustomDomain {
+  id                 String    @id @default(cuid())
+  userId             String
+  /// Lower-case, no scheme/port/path, e.g. "qr.brand.com".
+  hostname           String    @unique
+  /// Cloudflare custom-hostname id; null until Cloudflare accepted it.
+  cfHostnameId       String?   @unique
+  /// pending | active | failed — from Cloudflare's hostname + certificate status.
+  status             String    @default("pending")
+  sslStatus          String?
+  /// Cloudflare's verification errors, shown to the customer verbatim.
+  verificationErrors Json?
+  /// Account default for new codes.
+  isDefault          Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  activatedAt        DateTime?
+  lastCheckedAt      DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodes QRCode[]
+
+  @@index([userId])
+  @@index([status, lastCheckedAt])
+  @@map("custom_domains")
 }

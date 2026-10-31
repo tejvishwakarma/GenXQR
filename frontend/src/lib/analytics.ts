@@ -1,3 +1,4 @@
+import { onOwnSite } from "@/lib/site"
 /**
  * Google Analytics 4.
  *
@@ -52,6 +53,8 @@ export function isAnalyticsEnabled(): boolean {
  */
 export function initAnalytics(): void {
   if (initialised || typeof window === "undefined") return
+  // Not on a customer's custom domain (site.ts onOwnSite).
+  if (!onOwnSite()) return
 
   if (!isAnalyticsEnabled()) {
     // A malformed id is worth surfacing: it looks configured but collects nothing.

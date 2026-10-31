@@ -8,6 +8,7 @@ import { refreshGeoDatabase } from "../services/geo.service.js"
 import { fillMissingUserLocations } from "../services/user-location.service.js"
 import { purgeExpiredAuditLogs } from "../services/audit.service.js"
 import { reconcileRefunds } from "../services/refund.service.js"
+import { refreshPendingDomains } from "../services/custom-domain.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -58,6 +59,10 @@ async function processExpiryJob(_job: Job): Promise<void> {
   // ask Cashfree about recent paid orders, a batch per run.
   await reconcileRefunds().catch((err) =>
     logger.error("Refund reconciliation failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Custom domains waiting on the customer's DNS / Cloudflare's certificate.
+  await refreshPendingDomains().catch((err) =>
+    logger.error("Checking pending custom domains failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Uploads never attached within a day are deleted, so they cannot pile up.
   await sweepPendingUploads().catch((err) =>
