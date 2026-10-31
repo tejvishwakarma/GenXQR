@@ -19,6 +19,7 @@ import notificationRouter from "./notification.routes.js"
 import brandingRouter from "./branding.routes.js"
 import referralRouter from "./referral.routes.js"
 import activityRouter from "./activity.routes.js"
+import ssoRouter from "./sso.routes.js"
 
 const router: IRouter = Router()
 
@@ -42,5 +43,6 @@ router.use("/careers", careersRouter)
 router.use("/notifications", notificationRouter)
 router.use("/referrals", referralRouter)
 router.use("/activity", activityRouter)
+router.use("/sso", ssoRouter)
 
 export default router

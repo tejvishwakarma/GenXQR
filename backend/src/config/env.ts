@@ -34,6 +34,13 @@ const envSchema = z.object({
   // The hostname customers CNAME to, e.g. "customers.genxqr.com" — the zone's
   // Cloudflare for SaaS fallback origin.
   CUSTOM_DOMAIN_TARGET: z.string().trim().optional(),
+  // Single sign-on with Microsoft Entra ID (sso.service.ts): a multi-tenant app
+  // registration ("Accounts in any organizational directory"), redirect URI
+  // <BACKEND_URL>/api/auth/sso/callback/microsoft. Without these, Microsoft SSO
+  // answers 503. Google SSO reuses GOOGLE_CLIENT_ID/SECRET, with redirect URI
+  // <BACKEND_URL>/api/auth/sso/callback/google added to that client.
+  MICROSOFT_CLIENT_ID: z.string().trim().optional(),
+  MICROSOFT_CLIENT_SECRET: z.string().trim().optional(),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z
     .string()

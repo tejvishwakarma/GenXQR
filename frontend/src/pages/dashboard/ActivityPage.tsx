@@ -66,6 +66,7 @@ function describe(e: ActivityEntry): string {
     switch (e.action) {
       case "auth.login": return "Signed in"
       case "auth.login.google": return "Signed in with Google"
+      case "auth.login.sso": return `Signed in with SSO${str(m.provider) === "microsoft" ? " (Microsoft)" : str(m.provider) === "google" ? " (Google Workspace)" : ""}`
       case "auth.logout": return "Signed out"
       case "auth.register": return "Created the account"
       case "auth.password.change": return "Changed the password"
@@ -98,6 +99,13 @@ function describe(e: ActivityEntry): string {
       case "team.member.role": return `Changed ${str(m.memberEmail) ?? "a member"}'s role${str(m.to) ? ` to ${String(m.to).toLowerCase()}` : ""}`
       case "team.member.remove": return `Removed ${str(m.memberEmail) ?? "a member"} from the team`
       case "team.member.leave": return "Left the team"
+      case "team.member.join_sso": return `Joined the team through SSO${str(m.role) ? ` as ${String(m.role).toLowerCase()}` : ""}`
+      case "sso.configure": return `Set up single sign-on for ${str(m.domain) ?? "a domain"}`
+      case "sso.verify": return `Verified ${str(m.domain) ?? "the SSO domain"}`
+      case "sso.link": return "Linked the Microsoft directory for SSO"
+      case "sso.enforce": return `Required SSO for ${str(m.domain) ?? "the domain"}`
+      case "sso.unenforce": return "Stopped requiring SSO"
+      case "sso.remove": return "Removed single sign-on"
       case "branding.update": return "Changed scan-page branding"
       case "domain.add": return `Added custom domain${str(m.hostname) ? ` ${str(m.hostname)}` : ""}`
       case "domain.remove": return "Removed a custom domain"

@@ -42,6 +42,7 @@ const REQUIRED_PLAN: Record<GatedFeature, string> = {
   customDomains: "Pro",
   activityLog: "Pro",
   whiteLabel: "Business",
+  sso: "Business",
   prioritySupport: "Business",
 }
 

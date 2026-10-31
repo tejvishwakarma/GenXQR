@@ -1724,6 +1724,8 @@ export interface PlanLimits {
   scanPageLogo: boolean
   /** The team activity log + export (Pro+). Security history is on every plan. */
   activityLog: boolean
+  /** Single sign-on with Google Workspace / Microsoft Entra ID (Business+). */
+  sso: boolean
 }
 
 export interface Plan {
@@ -2672,3 +2674,46 @@ export async function downloadActivityCsv(scope: ActivityScope, filters: Activit
   a.remove()
   URL.revokeObjectURL(url)
 }
+
+// ─── Single sign-on ────────────────────────────────────────────────────────────
+
+export type SsoProvider = "google" | "microsoft"
+
+export interface SsoConnection {
+  domain: string
+  provider: SsoProvider
+  verified: boolean
+  /** Microsoft: the company's directory has been linked. */
+  tenantLinked: boolean
+  defaultRole: "EDITOR" | "VIEWER"
+  enforced: boolean
+  /** People at the domain can sign in with it now. */
+  ready: boolean
+  dns: { type: "TXT"; name: string; value: string }
+}
+
+export interface SsoSettings {
+  /** The plan includes SSO. */
+  available: boolean
+  /** Which providers this server is set up for. */
+  providers: Record<SsoProvider, boolean>
+  connection: SsoConnection | null
+}
+
+export const getSsoSettings = () =>
+  apiFetch<{ success: boolean; data: SsoSettings }>("/api/sso", { headers: authHeader() })
+export const saveSsoConnection = (input: { domain: string; provider: SsoProvider; defaultRole: "EDITOR" | "VIEWER" }) =>
+  apiFetch<{ success: boolean; data: SsoConnection }>("/api/sso", { method: "PUT", headers: authHeader(), body: JSON.stringify(input) })
+export const verifySsoDomain = () =>
+  apiFetch<{ success: boolean; data: SsoConnection }>("/api/sso/verify", { method: "POST", headers: authHeader() })
+/** Microsoft: returns the sign-in page that links the company's directory. */
+export const linkSsoDirectory = () =>
+  apiFetch<{ success: boolean; data: { url: string } }>("/api/sso/link", { method: "POST", headers: authHeader() })
+export const setSsoEnforced = (enforced: boolean) =>
+  apiFetch<{ success: boolean; data: { settings: SsoConnection; sessionsEnded: number } }>("/api/sso/enforce", { method: "PUT", headers: authHeader(), body: JSON.stringify({ enforced }) })
+export const deleteSsoConnection = () =>
+  apiFetch<{ success: boolean }>("/api/sso", { method: "DELETE", headers: authHeader() })
+/** "Sign in with SSO": the company's sign-in page for this email. */
+export const startSsoLogin = (email: string) =>
+  apiFetch<{ success: boolean; data: { url: string } }>("/api/auth/sso/start", { method: "POST", body: JSON.stringify({ email }) })
+

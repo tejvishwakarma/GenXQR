@@ -71,7 +71,7 @@ export async function requireQRSlot(
  * @param feature  A boolean key from PlanLimits (e.g. "apiAccess", "bulkGeneration")
  */
 export function requirePlanFeature(
-  feature: "apiAccess" | "bulkGeneration" | "customDomains" | "whiteLabel" | "abTesting" | "smartRouting" | "qrExpiry",
+  feature: "apiAccess" | "bulkGeneration" | "customDomains" | "whiteLabel" | "abTesting" | "smartRouting" | "qrExpiry" | "sso",
 ) {
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {

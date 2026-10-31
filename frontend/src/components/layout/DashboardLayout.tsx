@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History } from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History, KeyRound } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -32,13 +32,14 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "API Keys", href: "/app/api-keys", icon: <Key size={18} /> },
   { label: "Webhooks", href: "/app/webhooks", icon: <Webhook size={18} /> },
   { label: "Custom domains", href: "/app/domains", icon: <Globe size={18} /> },
+  { label: "Single sign-on", href: "/app/sso", icon: <KeyRound size={18} /> },
   { label: "Report / Abuse", href: "/app/report", icon: <Flag size={18} /> },
   { label: "Help & Support", href: "/app/support", icon: <LifeBuoy size={18} /> },
 ]
 
 // Personal-only pages: these never act on a team workspace (backend
 // workspace.service.ts), so they are hidden while one is selected.
-const PERSONAL_ONLY_NAV = new Set(["/app/api-keys", "/app/webhooks", "/app/domains"])
+const PERSONAL_ONLY_NAV = new Set(["/app/api-keys", "/app/webhooks", "/app/domains", "/app/sso"])
 // Pages whose purpose is creating codes.
 const CREATE_NAV = new Set(["/app/create", "/app/bulk-generate"])
 

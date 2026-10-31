@@ -153,6 +153,7 @@ genx-qr/                         ← Repository root
 | ZIP archives | `archiver` |
 | Google Drive | `googleapis` |
 | Payments | Cashfree Payments (Indian payment gateway) |
+| SSO (OIDC) | `jose` — ID-token / JWKS verification for Google + Microsoft |
 | Validation | Zod |
 | Logging | Winston |
 | HTTP logging | Morgan |
@@ -239,6 +240,10 @@ TURNSTILE_SECRET_KEY=""
 CLOUDFLARE_API_TOKEN=""
 CLOUDFLARE_ZONE_ID=""
 CUSTOM_DOMAIN_TARGET=""            # e.g. customers.genxqr.com (the fallback origin)
+
+# Single sign-on, Microsoft (optional; Google SSO reuses GOOGLE_CLIENT_ID/SECRET)
+MICROSOFT_CLIENT_ID=""
+MICROSOFT_CLIENT_SECRET=""
 ```
 
 ### Frontend `.env.local`
@@ -354,6 +359,10 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `POST /verify-payment` — (auth) re-reads an order from Cashfree after the browser returns; ownership-checked
 - `POST /cashfree-webhook` — public; HMAC verified against `req.rawBody`; authoritative activation path
 - `POST /cancel` — schedules subscription cancellation at period end
+
+#### `/api/sso` → `sso.routes.ts` (owner's own account; Business+)
+- `GET /` settings · `PUT /` domain/provider/default role · `POST /verify` DNS TXT · `POST /link` (Microsoft) · `PUT /enforce` · `DELETE /`
+- Sign-in itself: `POST /api/auth/sso/start {email}` → provider URL; `GET /api/auth/sso/callback/:provider`
 
 #### `/api/activity` → `activity.routes.ts`
 - `GET  /security` + `/security/export` — the caller's own security history (every plan)
@@ -950,6 +959,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `APIKeysPage.tsx` | `/app/api-keys` | Create/revoke API keys |
 | `WebhooksPage.tsx` | `/app/webhooks` | Manage webhooks |
 | `BillingPage.tsx` | `/app/billing` | Subscription, plan upgrade, invoices; coupon + credit at checkout |
+| `SsoPage.tsx` | `/app/sso` | Single sign-on setup: domain + provider, DNS proof, Microsoft link, require SSO |
 | `ActivityPage.tsx` | `/app/activity` | Security history (all plans) + team activity log with CSV export (Pro+) |
 | `ReferralsPage.tsx` | `/app/referrals` | Refer & earn: invite link, credit balance, referrals, history |
 | `SettingsPage.tsx` | `/app/settings` | Profile, password, notification prefs, delete account |
@@ -1127,6 +1137,24 @@ Workspace-aware: `/api/qr/*`, `/api/analytics/*`, `/api/upload/*`, `/api/bulk/*`
 Personal-only (ignore the header): billing, API keys, webhooks, branding, settings, `/v1`.
 Access needs the owner's plan to have `teamSeatsLimit > 1`. Audit logs record the actor.
 Uploads record the uploader; attaching accepts files uploaded by the owner or the actor.
+
+**Single sign-on (built 31 Oct 2026)** — `services/sso.service.ts` (+ `oidc.service.ts`, `sso-policy.service.ts`),
+`/app/sso`, `PLAN_LIMITS.sso` (Business+). OpenID Connect through GenXQR's OWN apps — Google reuses the sign-in
+client, Microsoft is one multi-tenant registration (`organizations` endpoints, so no personal accounts). Customers
+never paste secrets. Decided with the user: new people AUTO-JOIN the owner's team with the connection's default role
+(EDITOR/VIEWER) while a seat is free (a pending invite's role wins); "require SSO" is optional and NEVER binds the owner.
+- Trust: the owner proves the domain with TXT `_genxqr.<domain>` = `genxqr-verify=<token>` (one VERIFIED owner per domain,
+  partial unique index). Every sign-in needs an address AT the domain plus Google `hd` = domain, or Microsoft `tid` = the
+  tenant the owner linked by signing in once with an account at the domain. ID tokens are verified with `jose` (signature,
+  aud, iss — Microsoft's per-tid — exp, nonce); PKCE; state is single-use in Redis and bound to the browser by the
+  `sso_state` cookie (path /api/auth/sso). Unverified accounts at the address are taken over like Google sign-in.
+- "Require SSO" (`requiredSsoFor`): password login (checked after the password), forgot-password (silently), old reset
+  links and Google sign-in (unless it is that domain's own Workspace, `hd`) refuse with `sso_required`; switching it on
+  revokes the domain's sessions except the owner's. A plan without `sso` makes the connection not ready, which also
+  lifts the requirement, so a lapse never locks people out.
+- Setup on Google Cloud: add `<BACKEND_URL>/api/auth/sso/callback/google` to the OAuth client. Azure: register the
+  multi-tenant app with `/callback/microsoft`. Covered by `tests/integration/sso.test.ts` (providers stubbed, tokens
+  signed with a test key). Activity log: `auth.login.sso`, `team.member.join_sso`, `sso.*`.
 
 **Customer activity log (built 31 Oct 2026)** — `services/activity.service.ts`, `/app/activity`.
 Two views over `AuditLog`: **Security** (every plan) = rows the caller wrote (`userId`) in `auth`/`apikey`/`webhook`;

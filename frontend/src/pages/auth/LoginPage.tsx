@@ -1,15 +1,28 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { QrCode, Eye, EyeOff, RefreshCw, Zap, TrendingUp } from "lucide-react"
+import { QrCode, Eye, EyeOff, RefreshCw, Zap, TrendingUp, KeyRound } from "lucide-react"
 import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
 import { referralQueryParam } from "@/lib/referralLink"
-import { login, resendVerificationEmail, ApiError } from "@/lib/api"
+import { login, resendVerificationEmail, startSsoLogin, ApiError } from "@/lib/api"
 import { Turnstile, TURNSTILE_ENABLED, type TurnstileHandle } from "@/components/Turnstile"
 
 // Stable decorative scan chart bars (no random — consistent across renders)
 const SCAN_BARS = [3, 6, 4, 8, 5, 9, 7, 10, 6, 8, 5, 7, 9, 6, 4, 8]
+
+/** What the SSO callback (backend auth.routes.ts) can send back as ?error=. */
+const SSO_ERRORS: Record<string, string> = {
+  sso_required: "Your organisation signs you in with its company account. Use \"Sign in with SSO\" below.",
+  sso_cancelled: "Sign-in was cancelled. Please try again.",
+  sso_state: "That sign-in link expired or was opened in another browser. Please start again.",
+  sso_unavailable: "Single sign-on isn't available for your organisation right now. Ask your GenXQR admin.",
+  sso_wrong_account: "That account isn't part of the organisation set up for this email domain. Choose your work account and try again.",
+  sso_no_seat: "Your organisation's GenXQR team has no free seats. Ask your admin to free one or upgrade.",
+  sso_email_unverified: "Your provider hasn't verified that email address.",
+  sso_no_email: "Your provider didn't share an email address. Ask your IT admin to check your account.",
+  sso_failed: "Single sign-on failed. Please try again.",
+}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -23,8 +36,11 @@ export default function LoginPage() {
     if (urlError === "account_permanently_banned") return "This account has been permanently banned from the platform. Contact support if you believe this is a mistake."
     if (urlError === "account_deleted") return "This account has been deleted by an administrator. Contact support if you believe this is a mistake."
     if (urlError === "oauth_failed") return "Google sign-in failed. Please try again."
+    if (urlError && SSO_ERRORS[urlError]) return SSO_ERRORS[urlError]
     return null
   })
+  // "Sign in with SSO": email only, then off to the company's sign-in page.
+  const [ssoMode, setSsoMode] = useState(() => (searchParams.get("error") ?? "").startsWith("sso_"))
   const [loading, setLoading] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileHandle>(null)
@@ -52,11 +68,29 @@ export default function LoginPage() {
         navigate(next, { replace: true })
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
+      if (err instanceof ApiError && err.message === "sso_required") {
+        setSsoMode(true)
+        setError(SSO_ERRORS.sso_required)
+      } else {
+        setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
+      }
       // Turnstile tokens are single-use — get a fresh one for the retry.
       setTurnstileToken(null)
       turnstileRef.current?.reset()
     } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleSso(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+    try {
+      const res = await startSsoLogin(email)
+      window.location.href = res.data.url
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Please try again.")
       setLoading(false)
     }
   }
@@ -174,15 +208,38 @@ export default function LoginPage() {
               </svg>
               Continue with Google
             </a>
+            <button
+              type="button"
+              onClick={() => { setSsoMode((v) => !v); setError(null) }}
+              className="-mt-3 mb-6 w-full flex items-center justify-center gap-2 rounded-xl border border-zinc-800 px-4 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-all"
+            >
+              <KeyRound size={15} className="text-violet-400" />
+              {ssoMode ? "Sign in with a password instead" : "Sign in with SSO"}
+            </button>
 
             {/* Divider */}
             <div className="flex items-center gap-4 mb-6">
               <div className="flex-1 h-px bg-zinc-800" />
-              <span className="text-zinc-600 text-xs">or continue with email</span>
+              <span className="text-zinc-600 text-xs">{ssoMode ? "single sign-on with your work account" : "or continue with email"}</span>
               <div className="flex-1 h-px bg-zinc-800" />
             </div>
 
             {/* Form */}
+            {ssoMode ? (
+              <form className="space-y-4" onSubmit={handleSso}>
+                {error && (
+                  <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{error}</div>
+                )}
+                <div>
+                  <label className="label-text">Work email</label>
+                  <Input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+                </div>
+                <p className="text-xs text-zinc-500">We'll send you to your company's Google Workspace or Microsoft sign-in.</p>
+                <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                  {loading ? "Redirecting…" : "Continue"}
+                </Button>
+              </form>
+            ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>
               {error && (
                 <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
@@ -254,6 +311,7 @@ export default function LoginPage() {
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
             </form>
+            )}
 
             <p className="text-center text-zinc-500 text-sm mt-6">
               Don't have an account?{" "}

@@ -31,6 +31,7 @@ import { isAccountBlocked } from "./blocklist.service.js"
 import fs from "node:fs"
 import { toDiskPath } from "./uploads.service.js"
 import { locationData } from "./user-location.service.js"
+import { requiredSsoFor } from "./sso-policy.service.js"
 
 // ─── Validation Schemas ────────────────────────────────────────────────────────
 
@@ -110,6 +111,24 @@ async function persistRefreshToken(
     },
   })
   return refreshToken
+}
+
+/**
+ * Signs in an account whose identity was proved elsewhere (SSO): records the
+ * sign-in time and place, refuses a blocked account, and issues the session.
+ */
+export async function startVerifiedSession(
+  user: { id: string; email: string; role: "USER" | "ADMIN" | "SUPER_ADMIN" },
+  ip: string,
+  createdUser: boolean,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date(), ...(await locationData(ip, createdUser ? ["signup", "lastLogin"] : ["lastLogin"])) },
+  })
+  if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
+  const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)
+  return { accessToken, refreshToken: await persistRefreshToken(user.id, jti, refreshExpiresAt) }
 }
 
 async function ensureVerifiedTrialSubscription(userId: string): Promise<void> {
@@ -226,6 +245,8 @@ export async function loginUser(
   if (!user.emailVerified) {
     throw new AppError(403, "Please verify your email before signing in")
   }
+  // Checked after the password, so only someone who has it learns the domain uses SSO.
+  if (await requiredSsoFor(user.email, user.id)) throw new AppError(403, "sso_required")
 
   await prisma.user.update({
     where: { id: user.id },
@@ -354,6 +375,8 @@ async function sendPasswordReset(email: string): Promise<void> {
   })
 
   if (!user) return
+  // Their organisation signs them in; a password would be a way around it.
+  if (await requiredSsoFor(user.email, user.id)) return
 
   // Expire existing tokens
   await prisma.passwordResetToken.updateMany({
@@ -394,6 +417,9 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
   if (!record) {
     throw new AppError(400, "Invalid or expired password reset link")
   }
+  // A link sent before the organisation turned on "require SSO" must not work after.
+  const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true } })
+  if (owner && (await requiredSsoFor(owner.email, record.userId))) throw new AppError(403, "sso_required")
 
   const passwordHash = await hashPassword(input.password)
 
@@ -512,7 +538,7 @@ export async function resendVerificationEmail(email: string): Promise<void> {
  * Handle Google OAuth callback: create or link user account.
  */
 export async function handleGoogleOAuth(
-  profile: { id: string; email: string; name: string; avatarUrl?: string },
+  profile: { id: string; email: string; name: string; avatarUrl?: string; hostedDomain?: string | null },
   ip: string,
   /** Applied only if this call CREATES the account; existing users keep theirs. */
   attribution: UserAttributionData | null = null,
@@ -541,6 +567,13 @@ export async function handleGoogleOAuth(
       ]
     }
   })
+
+  // Where the domain requires SSO, Google sign-in is accepted only as that
+  // domain's own Google Workspace sign-in (Google vouches for hd).
+  const sso = await requiredSsoFor(profile.email, user?.id ?? null)
+  if (sso && !(sso.provider === "google" && profile.hostedDomain === sso.domain)) {
+    throw new AppError(403, "sso_required")
+  }
 
   if (!user) {
     createdUser = true
