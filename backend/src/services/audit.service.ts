@@ -3,13 +3,16 @@
  * All calls are async and swallow errors to never block request handlers.
  */
 
+import type { Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 
-export type AuditCategory = "auth" | "qr" | "billing" | "admin" | "team" | "apikey" | "system"
+export type AuditCategory = "auth" | "qr" | "billing" | "admin" | "team" | "apikey" | "webhook" | "settings" | "system"
 
 export interface AuditParams {
   userId?: string | null
+  /** Whose activity log this belongs to. Omit: the request's workspace owner, else userId (db/prisma.ts). */
+  ownerId?: string | null
   action: string
   category: AuditCategory
   entityId?: string | null
@@ -27,11 +30,14 @@ export function logAudit(params: AuditParams): void {
     .create({
       data: {
         userId:     params.userId ?? null,
+        ...(params.ownerId !== undefined && { ownerId: params.ownerId }),
         action:     params.action,
         category:   params.category,
         entityId:   params.entityId ?? null,
         entityType: params.entityType ?? null,
-        metadata:   params.metadata ? JSON.stringify(params.metadata) : undefined,
+        // An object, not JSON.stringify(...): a string in a Json column reads back
+        // as a string and broke every consumer that expects an object.
+        metadata:   params.metadata ? (params.metadata as Prisma.InputJsonValue) : undefined,
         ip:         params.ip ?? null,
         userAgent:  params.userAgent ?? null,
       },

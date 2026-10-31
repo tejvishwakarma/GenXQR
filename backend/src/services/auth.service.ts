@@ -234,14 +234,8 @@ export async function loginUser(
 
   // A blocked account cannot sign in or keep a session (blocklist "user"/"email").
   if (await isAccountBlocked(user.id, user.email)) throw new AppError(403, "This account has been suspended. Contact support@genxqr.com.")
-  await prisma.auditLog.create({
-    data: {
-      userId: user.id,
-      action: "auth.login",
-      category: "auth",
-      ip
-    }
-  })
+  // Logged by the /login route (with the user agent). Logging here as well
+  // wrote every password sign-in twice.
 
   const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)
   const refreshToken = await persistRefreshToken(user.id, jti, refreshExpiresAt)
@@ -324,15 +318,18 @@ export async function refreshTokens(
 /**
  * Logout: revoke the provided refresh token.
  */
-export async function logoutUser(rawRefreshToken: string): Promise<void> {
+/** Returns the signed-out user's id (for the audit log), or null for an invalid token. */
+export async function logoutUser(rawRefreshToken: string): Promise<string | null> {
   try {
     const payload = verifyRefreshToken(rawRefreshToken)
     await prisma.refreshToken.updateMany({
       where: { id: payload.jti, revokedAt: null },
       data: { revokedAt: new Date() }
     })
+    return payload.sub
   } catch {
     // Silently ignore — logout should always succeed from the client's perspective
+    return null
   }
 }
 
@@ -384,7 +381,8 @@ async function sendPasswordReset(email: string): Promise<void> {
 /**
  * Reset password using a valid reset token.
  */
-export async function resetPassword(input: z.infer<typeof resetPasswordSchema>): Promise<void> {
+/** Returns the user whose password was reset (for the audit log). */
+export async function resetPassword(input: z.infer<typeof resetPasswordSchema>): Promise<string> {
   const record = await prisma.passwordResetToken.findFirst({
     where: {
       tokenHash: hashToken(input.token),
@@ -413,6 +411,7 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
       data: { revokedAt: new Date() }
     })
   })
+  return record.userId
 }
 
 /**

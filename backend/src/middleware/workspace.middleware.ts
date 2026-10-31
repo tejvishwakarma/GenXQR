@@ -13,6 +13,7 @@
 import type { Request, Response, NextFunction } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { AppError } from "./error.middleware.js"
+import { requestContext } from "../utils/request-context.js"
 import { can, resolveWorkspace, type Workspace, type WorkspaceAction } from "../services/workspace.service.js"
 
 export const WORKSPACE_HEADER = "x-workspace-id"
@@ -29,7 +30,9 @@ export async function withWorkspace(req: Request, _res: Response, next: NextFunc
     const header = req.headers[WORKSPACE_HEADER]
     const requested = typeof header === "string" && header.length > 0 && header.length <= 64 ? header : null
     req.workspace = await resolveWorkspace(actorId, requested)
-    next()
+    // Every audit row this request writes belongs to the workspace owner's
+    // activity log (db/prisma.ts audit hook). Keeps any impersonation stamp.
+    requestContext.run({ ...requestContext.getStore(), workspaceOwnerId: req.workspace.ownerId }, next)
   } catch (err) {
     next(err)
   }

@@ -30,6 +30,11 @@ const canCreate = requireWorkspacePermission("qr:create")
 const canEdit = requireWorkspacePermission("qr:edit")
 const canDelete = requireWorkspacePermission("qr:delete")
 
+/** Activity-log entry for a change to a code (owner = this request's workspace; db/prisma.ts). */
+function auditQR(req: Request, action: string, qrId: string, metadata?: Record<string, unknown>): void {
+  logAudit({ userId: uid(req), action, category: "qr", entityId: qrId, entityType: "QRCode", metadata, ip: req.ip, userAgent: req.headers["user-agent"] })
+}
+
 /**
  * POST /api/qr
  * Create a new QR code.
@@ -169,6 +174,7 @@ router.post(
       const qr = await QRService.duplicateQR(req.params["id"] as string, wsOwner(req))
       // A duplicate is a new code like any other.
       void deliverWebhookEvent(wsOwner(req), "qr.created", { qr })
+      auditQR(req, "qr.duplicate", qr.id, { name: qr.name, from: req.params["id"] })
       res.status(201).json({ success: true, data: qr })
     } catch (err) {
       next(err)
@@ -248,6 +254,7 @@ router.post(
         },
       })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.routing.add", qrId, { conditionType: rule.conditionType, targetUrl: rule.targetUrl })
       res.status(201).json({ success: true, data: rule })
     } catch (err) {
       next(err)
@@ -284,6 +291,7 @@ router.put(
         },
       })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.routing.update", req.params["id"] as string, { conditionType: rule.conditionType, targetUrl: rule.targetUrl })
       res.json({ success: true, data: rule })
     } catch (err) {
       next(err)
@@ -308,6 +316,7 @@ router.delete(
       }
       await prisma.smartRoutingRule.delete({ where: { id: ruleId } })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.routing.remove", qrId, { conditionType: existing.conditionType, targetUrl: existing.targetUrl })
       res.json({ success: true, message: "Rule deleted" })
     } catch (err) {
       next(err)
@@ -344,6 +353,7 @@ router.patch(
         select: { id: true, abTestEnabled: true, abTestSplitPct: true },
       })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.abtest.update", qrId, { abTestEnabled, abTestSplitPct })
       res.json({ success: true, data: updated })
     } catch (err) {
       next(err)
@@ -389,6 +399,7 @@ router.post(
         data: { qrId, name: body.name, targetUrl: body.targetUrl, splitPct: body.splitPct },
       })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.abvariant.add", req.params["id"] as string, { targetUrl: variant.targetUrl })
       res.status(201).json({ success: true, data: variant })
     } catch (err) {
       next(err)
@@ -417,6 +428,7 @@ router.put(
         data: { name: body.name, targetUrl: body.targetUrl, splitPct: body.splitPct },
       })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.abvariant.update", req.params["id"] as string, { targetUrl: variant.targetUrl })
       res.json({ success: true, data: variant })
     } catch (err) {
       next(err)
@@ -441,6 +453,7 @@ router.delete(
       }
       await prisma.aBTestVariant.delete({ where: { id: variantId } })
       await invalidateQRCache(slug)
+      auditQR(req, "qr.abvariant.remove", req.params["id"] as string)
       res.json({ success: true, message: "Variant deleted" })
     } catch (err) {
       next(err)

@@ -9,7 +9,7 @@ const sections = [
   },
   {
     title: "2. How We Use Your Information",
-    content: "We use the collected information to operate and maintain our platform, process transactions, send service updates, and provide analytics features to our customers. We use the sign-up and sign-in locations to protect accounts and to understand which countries and cities our customers are in, so we can plan features, languages and pricing, and the activity log to investigate fraud, abuse and security incidents. Only GenXQR administrators can see these locations and the activity log, and only our most senior administrators can see IP addresses. We do not sell your personal information or the scanning data of your end-users to third parties.",
+    content: "We use the collected information to operate and maintain our platform, process transactions, send service updates, and provide analytics features to our customers. We use the sign-up and sign-in locations to protect accounts and to understand which countries and cities our customers are in, so we can plan features, languages and pricing, and the activity log to investigate fraud, abuse and security incidents. Only GenXQR administrators can see these locations and the full activity log, and only our most senior administrators can see full IP addresses. You can see your own entries in the activity log under Activity in your dashboard. If you work in someone else's team workspace, its owner and admins can see what you changed there, when, and from which browser and device, with the IP address shortened to the network (for example 203.0.113.x); your sign-ins are only ever shown to you. We do not sell your personal information or the scanning data of your end-users to third parties.",
   },
   {
     title: "3. Data Security",
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />
-      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 24, 2026" />
+      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 31, 2026" />
       <LegalBody>
         <LegalStats
           items={[

@@ -6,6 +6,7 @@ import type { AccessTokenPayload } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import { requirePlanFeature } from "../middleware/plan-gate.middleware.js"
 import { AppError } from "../middleware/error.middleware.js"
+import { logAudit } from "../services/audit.service.js"
 import {
   listApiKeys,
   createApiKey,
@@ -42,6 +43,7 @@ router.post("/", requireAuth, forbidWhileImpersonating, requirePlanFeature("apiA
   try {
     const { name, expiresInDays } = createSchema.parse(req.body)
     const { key, rawKey } = await createApiKey(uid(req), name, expiresInDays)
+    logAudit({ userId: uid(req), action: "apikey.create", category: "apikey", entityId: key.id, entityType: "ApiKey", metadata: { name }, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.status(201).json({ success: true, data: { ...key, rawKey } })
   } catch (err) {
     next(err)
@@ -57,6 +59,7 @@ router.patch("/:id/revoke", requireAuth, forbidWhileImpersonating, async (req, r
     const { id } = req.params as { id: string }
     if (!id) throw new AppError(400, "Key ID required")
     await revokeApiKey(uid(req), id)
+    logAudit({ userId: uid(req), action: "apikey.revoke", category: "apikey", entityId: id, entityType: "ApiKey", metadata: undefined, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.json({ success: true, message: "API key revoked" })
   } catch (err) {
     next(err)
@@ -72,6 +75,7 @@ router.delete("/:id", requireAuth, forbidWhileImpersonating, async (req, res, ne
     const { id } = req.params as { id: string }
     if (!id) throw new AppError(400, "Key ID required")
     await deleteApiKey(uid(req), id)
+    logAudit({ userId: uid(req), action: "apikey.delete", category: "apikey", entityId: id, entityType: "ApiKey", metadata: undefined, ip: req.ip, userAgent: req.headers["user-agent"] })
     res.json({ success: true, message: "API key deleted" })
   } catch (err) {
     next(err)

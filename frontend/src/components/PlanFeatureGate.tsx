@@ -40,6 +40,7 @@ const REQUIRED_PLAN: Record<GatedFeature, string> = {
   bulkGeneration: "Pro",
   apiAccess: "Pro",
   customDomains: "Pro",
+  activityLog: "Pro",
   whiteLabel: "Business",
   prioritySupport: "Business",
 }

@@ -372,6 +372,11 @@ model ApiKey {
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
+  /// The account whose data the action touched — the workspace owner when a
+  /// team member acts in someone's workspace, else the actor. Set for every row
+  /// by the audit hook in db/prisma.ts; drives the customer activity log.
+  /// Plain string, no FK: entries outlive the account (3-year retention).
+  ownerId    String?
   action     String
   entityId   String?
   entityType String?
@@ -383,6 +388,7 @@ model AuditLog {
   user       User?    @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+  @@index([ownerId, createdAt])
   @@index([category, createdAt])
   @@index([action, createdAt])
   @@index([createdAt])

@@ -57,6 +57,8 @@ export interface PlanLimits {
   premiumFrames: boolean
   /** The account's logo at the top of the scan landing page — any paid plan (decided 23 Oct 2026). White-label (brand NAME replacing GenXQR) stays whiteLabel. */
   scanPageLogo: boolean
+  /** The team activity log + CSV export in /app/activity — Pro and above (decided 31 Oct 2026). Every plan sees its own security history. */
+  activityLog: boolean
 }
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
@@ -77,6 +79,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: false,
     premiumFrames: false,
     scanPageLogo: false,
+    activityLog: false,
   },
   STARTER: {
     dynamicQRLimit: 50,
@@ -95,6 +98,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: true,
     premiumFrames: true,
     scanPageLogo: true,
+    activityLog: false,
   },
   PRO: {
     dynamicQRLimit: 250,
@@ -113,6 +117,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: true,
     premiumFrames: true,
     scanPageLogo: true,
+    activityLog: true,
   },
   BUSINESS: {
     dynamicQRLimit: 2000,
@@ -131,6 +136,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: true,
     premiumFrames: true,
     scanPageLogo: true,
+    activityLog: true,
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
@@ -149,6 +155,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     qrExpiry: true,
     premiumFrames: true,
     scanPageLogo: true,
+    activityLog: true,
   },
 }
 
