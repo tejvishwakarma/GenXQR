@@ -25,24 +25,41 @@ Private Zapier app that lets users connect their GenXQR account to 7,000+ Zapier
 
 ## Development
 
+The Zapier CLI is installed globally with **npm**, not as a dependency here:
+under pnpm its own dependencies resolve to an incompatible `mem-fs`, and it
+fails to start. Zapier runs CLI integrations on Node.js 22; the CLI needs
+Node ≥ 22. Since v19 the command is `zapier-platform` (the old `zapier` binary
+was removed).
+
 ```bash
-pnpm install
-pnpm --filter GenXQR-zapier build
-pnpm --filter GenXQR-zapier validate
+npm install -g zapier-platform-cli@19.2.1
+pnpm install                # from the repo root
+cd integrations/zapier
+pnpm build                  # tsc → dist/
+zapier-platform validate    # schema + Zapier's integration checks
 ```
 
 Point at staging during development via the Zapier env var:
 ```bash
-zapier env:set 1.0.0 GenXQR_API_URL=https://staging.genxqr.com
+zapier-platform env:set 1.0.0 GenXQR_API_URL=https://staging.genxqr.com
 ```
 
 ## Deployment
 
+First time, logged in as the GenXQR Zapier developer account:
 ```bash
-pnpm --filter GenXQR-zapier push
+zapier-platform login
+zapier-platform register "GenXQR"   # creates the app; writes .zapierapprc (app id — commit it)
 ```
-
-Requires a Zapier developer account and the app to be registered (`zapier register` on first push).
+Then for every release:
+```bash
+pnpm build && zapier-platform push
+```
+The app starts **private**: invite testers from the Zapier developer platform
+(Manage team → invite). Publishing to the App Directory is a separate review —
+see Zapier's integration publishing requirements (an admin with a @genxqr.com
+address, a non-expiring Pro+ test account for integration-testing@zapier.com,
+live test Zaps with successful runs).
 
 ## Plan requirement
 

@@ -49,8 +49,6 @@ export default {
       isActive: true,
     },
   },
-  // Not exported as a user-facing trigger — only used as a dropdown source.
-  listQRsDropdown,
 }
 
 export const qrListHidden = {
