@@ -2,7 +2,7 @@
   "name": "genxqr-zapier",
   "version": "1.0.0",
   "description": "GenXQR integration for Zapier \u2014 create QR codes, manage destinations, and trigger Zaps on scan events.",
-  "main": "dist/index.js",
+  "main": "index.js",
   "private": true,
   "scripts": {
     "build": "tsc",
@@ -10,7 +10,8 @@
     "test": "jest --passWithNoTests",
     "validate": "pnpm build && zapier-platform validate",
     "push": "pnpm build && zapier-platform push",
-    "deploy": "pnpm build && zapier-platform push"
+    "deploy": "pnpm build && zapier-platform push",
+    "_zapier-build": "tsc"
   },
   "engines": {
     "node": ">=22"
