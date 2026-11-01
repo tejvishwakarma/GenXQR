@@ -609,7 +609,11 @@ export function DashboardLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 md:pl-64">
+      {/* min-w-0: a flex item never shrinks below its widest content by default.
+          Without it the six plan cards on /app/billing (meant to scroll sideways
+          inside their own row) widened the whole page past the window and cut
+          off the right of everything — the invoice Download column included. */}
+      <div className="flex-1 min-w-0 md:pl-64">
         {/* Top Header */}
         <header className="sticky top-0 z-20 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-950/90 backdrop-blur-xl px-4 md:px-8 py-4">
           <div className="flex items-center gap-3 justify-between">

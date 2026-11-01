@@ -1130,7 +1130,8 @@ export default function CreateQRPage() {
                 )}>{label}</span>
               </Tabs.Trigger>
               {i < steps.length - 1 && (
-                <div className={cn("w-16 h-px mx-3", i < step ? "bg-violet-500/40" : "bg-zinc-200 dark:bg-zinc-800")} />
+                // Shorter on phones: three steps with 64px connectors overflowed a 390px screen.
+                <div className={cn("w-4 sm:w-16 h-px mx-1.5 sm:mx-3", i < step ? "bg-violet-500/40" : "bg-zinc-200 dark:bg-zinc-800")} />
               )}
             </div>
           ))}
