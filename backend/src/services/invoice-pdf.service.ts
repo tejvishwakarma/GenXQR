@@ -28,6 +28,7 @@
  * formatAmount(); do not simply swap the character back in.
  */
 
+import fs from "node:fs"
 import PDFDocument from "pdfkit"
 import type { PlanName } from "@prisma/client"
 
@@ -58,6 +59,13 @@ export interface InvoiceData {
    * the order's REDEMPTION CreditEntry. Shown as its own line after any coupon.
    */
   creditPaise?: number
+  /**
+   * Refunded so far on this invoice, in paise (Invoice.refundedAmount — the sum
+   * of its Refund rows), and when the latest refund was recorded. Shown as its
+   * own line with the net kept, and the status reads REFUNDED / PARTIALLY REFUNDED.
+   */
+  refundedPaise?: number
+  refundedAt?: Date | null
   currency: string
   status: string
   planName: PlanName
@@ -86,6 +94,8 @@ const COLOR = {
   brand: "#7c3aed",
   paidBg: "#d1fae5",
   paidText: "#065f46",
+  refundBg: "#fef3c7",
+  refundText: "#92400e",
 } as const
 
 /** Rupees from paise, grouped Indian-style, prefixed with the ISO code. */
@@ -133,14 +143,22 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
   // ── Header: brand on the left, invoice identity on the right ──────────────
   const headerTop = PAGE_MARGIN
 
-  doc.roundedRect(left, headerTop, 34, 34, 8).fill(COLOR.brand)
-  doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(19).text("G", left, headerTop + 8, {
-    width: 34,
-    align: "center",
-  })
-
-  doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(17).text("GenXQR", left + 44, headerTop + 3)
-  doc.fillColor(COLOR.muted).font("Helvetica").fontSize(9).text(data.siteUrl, left + 44, headerTop + 22)
+  // The real logo (the site header's logo_full.png, copied into backend/assets so
+  // the PDF never depends on the frontend folder). Missing file → the old drawn
+  // mark, so an invoice can always be produced.
+  const logo = readLogo()
+  if (logo) {
+    doc.image(logo, left, headerTop + 1, { height: LOGO_HEIGHT })
+    doc.fillColor(COLOR.muted).font("Helvetica").fontSize(9).text(data.siteUrl, left, headerTop + LOGO_HEIGHT + 6)
+  } else {
+    doc.roundedRect(left, headerTop, 34, 34, 8).fill(COLOR.brand)
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(19).text("G", left, headerTop + 8, {
+      width: 34,
+      align: "center",
+    })
+    doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(17).text("GenXQR", left + 44, headerTop + 3)
+    doc.fillColor(COLOR.muted).font("Helvetica").fontSize(9).text(data.siteUrl, left + 44, headerTop + 22)
+  }
 
   doc.fillColor(COLOR.ink).font("Helvetica").fontSize(22).text("INVOICE", left, headerTop, {
     width: CONTENT_WIDTH,
@@ -191,16 +209,18 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
   })
   doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(10).text(formatDate(data.createdAt), left, metaTop + 12)
 
-  const statusLabel = data.status.toUpperCase()
+  const refundedPaise = Math.min(Math.max(0, data.refundedPaise ?? 0), data.amount)
+  const fullyRefunded = refundedPaise > 0 && refundedPaise >= data.amount
+  const statusLabel = fullyRefunded ? "REFUNDED" : refundedPaise > 0 ? "PARTIALLY REFUNDED" : data.status.toUpperCase()
   const badgeWidth = Math.max(46, doc.widthOfString(statusLabel) + 20)
   doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7.5).text("PAYMENT STATUS", left, metaTop, {
     width: CONTENT_WIDTH,
     align: "right",
     characterSpacing: 1,
   })
-  doc.roundedRect(right - badgeWidth, metaTop + 11, badgeWidth, 16, 8).fill(COLOR.paidBg)
+  doc.roundedRect(right - badgeWidth, metaTop + 11, badgeWidth, 16, 8).fill(refundedPaise > 0 ? COLOR.refundBg : COLOR.paidBg)
   doc
-    .fillColor(COLOR.paidText)
+    .fillColor(refundedPaise > 0 ? COLOR.refundText : COLOR.paidText)
     .font("Helvetica-Bold")
     .fontSize(8)
     .text(statusLabel, right - badgeWidth, metaTop + 15.5, { width: badgeWidth, align: "center" })
@@ -263,7 +283,7 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
   const totalsLeft = right - totalsWidth
   // One extra row when a coupon was used, so the box grows rather than overlapping
   // the payment-details grid beneath it.
-  const totalsHeight = 74 + (data.discount ? 18 : 0) + (creditPaise > 0 ? 18 : 0)
+  const totalsHeight = 74 + (data.discount ? 18 : 0) + (creditPaise > 0 ? 18 : 0) + (refundedPaise > 0 ? 44 : 0)
   const formatted = formatAmount(data.amount, data.currency)
 
   doc.roundedRect(totalsLeft, totalsTop, totalsWidth, totalsHeight, 8).fill(COLOR.panel)
@@ -306,6 +326,12 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     .stroke("#d1d5db")
   doc.undash()
   totalsRow("Total Paid", formatted, rowY + 7, true)
+  if (refundedPaise > 0) {
+    // What came back, and what the customer is left having paid.
+    const when = data.refundedAt ? ` (${formatDate(data.refundedAt)})` : ""
+    totalsRow(`Refunded${when}`, `-${formatAmount(refundedPaise, data.currency)}`, rowY + 28)
+    totalsRow("Net Paid", formatAmount(data.amount - refundedPaise, data.currency), rowY + 46, true)
+  }
 
   // ── Payment reference ─────────────────────────────────────────────────────
   let cursor = totalsTop + totalsHeight + 24
@@ -372,3 +398,16 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
       { width: CONTENT_WIDTH, align: "center" },
     )
 }
+
+const LOGO_HEIGHT = 26
+let logoCache: Buffer | null | undefined
+function readLogo(): Buffer | null {
+  if (logoCache !== undefined) return logoCache
+  try {
+    logoCache = fs.readFileSync(new URL("../../assets/invoice-logo.png", import.meta.url))
+  } catch {
+    logoCache = null
+  }
+  return logoCache
+}
+

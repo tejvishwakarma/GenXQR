@@ -491,6 +491,8 @@ router.get(
             }
           : null,
         creditPaise: creditSpend ? -creditSpend.amountPaise : 0,
+        refundedPaise: inv.refundedAmount,
+        refundedAt: inv.refundedAt,
         currency: inv.currency,
         status: inv.status,
         planName: inv.planName,
