@@ -294,8 +294,9 @@ function drawInvoice(doc: PDFKit.PDFDocument, data: InvoiceData): void {
     totalsRow("GenXQR credit", `-${formatAmount(creditPaise, data.currency)}`, rowY)
     rowY += 18
   }
-  totalsRow("Tax (GST)", "Included", rowY)
-  rowY += 18
+  // No tax row: GenXQR is not registered for GST (decided 1 Nov 2026), so an
+  // invoice must not claim GST was charged or included. If registration
+  // happens, the invoice needs a GSTIN, SAC code and a proper tax breakdown.
 
   doc
     .moveTo(totalsLeft + 14, rowY)
