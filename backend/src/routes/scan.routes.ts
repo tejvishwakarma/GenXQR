@@ -189,6 +189,13 @@ ${gaSnippet}${gtmSnippet}${fbSnippet}
           break
         }
 
+        case "not_found":
+          // Another account's code on a customer's domain: answered exactly as a
+          // code that does not exist, so the domain shows its normal "no longer
+          // available" page and nobody can tell the slug exists elsewhere.
+          res.redirect(302, `${base}/r/${slug}/expired?reason=expired`)
+          break
+
         default:
           res.status(404).send("Not found")
       }
