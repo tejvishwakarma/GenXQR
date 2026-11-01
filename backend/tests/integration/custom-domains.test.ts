@@ -149,8 +149,14 @@ describe("scanning on a customer's domain", () => {
     expect(ownScan.status).toBe(302)
     expect(ownScan.headers.location, "landing page stays on the customer's domain").toBe(`https://qr.isolation.com/l/${own.slug}`)
 
+    // Refused exactly like a code that does not exist: same page, nothing to
+    // tell the two apart (and never the foreign code's destination).
     const foreignScan = await request(app).get(`/r/${foreign.slug}`).set("Host", "qr.isolation.com")
-    expect(foreignScan.status, "REAL BUG: another account's code served under this brand's domain").toBe(404)
+    const unknownScan = await request(app).get("/r/nosuchcode1").set("Host", "qr.isolation.com")
+    expect(foreignScan.status).toBe(302)
+    expect(foreignScan.headers.location, "REAL BUG: another account's code served under this brand's domain")
+      .toBe(`https://qr.isolation.com/r/${foreign.slug}/expired?reason=expired`)
+    expect(unknownScan.headers.location).toBe("https://qr.isolation.com/r/nosuchcode1/expired?reason=expired")
 
     // genxqr.com (the test's own host) still serves both.
     expect((await request(app).get(`/r/${foreign.slug}`)).status).toBe(302)
@@ -163,7 +169,8 @@ describe("scanning on a customer's domain", () => {
     const foreign = await createQRCode(stranger.id)
     const res = await request(app).get(`/r/${foreign.slug}`)
       .set("Host", "qr.spoof.com").set("X-Forwarded-Host", new URL(env.FRONTEND_URL).host)
-    expect(res.status, "REAL BUG: X-Forwarded-Host bypassed custom-domain isolation").toBe(404)
+    expect(res.headers.location, "REAL BUG: X-Forwarded-Host bypassed custom-domain isolation")
+      .toBe(`https://qr.spoof.com/r/${foreign.slug}/expired?reason=expired`)
   })
 
   it("should 404 on a host that is not a verified customer domain", async () => {
