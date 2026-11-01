@@ -135,7 +135,7 @@ const values = [
 
 // ─── Milestones data ──────────────────────────────────────────────────────────
 // Q1 2026 and the white-label & enterprise release are live. Q2 (integrations)
-// stays "coming soon" until the user confirms what of it has shipped.
+// is partly live — the card names what is and what is next.
 
 type Milestone = {
   quarter: string
@@ -157,7 +157,9 @@ const milestones: Milestone[] = [
     quarter: "Q2 2026",
     label: "Coming soon",
     title: "Integrations & automation",
-    desc: "Native integrations with Zapier, Google Sheets, and Notion. Deeper webhook controls, campaign tagging, and automated scan-based email triggers — so your QR data connects to the tools you already use.",
+    // Checked 1 Nov 2026: webhooks, the REST-hook API, tags and scan emails are
+    // live; no Zapier/Make/n8n app is published yet, and no Sheets/Notion exists.
+    desc: "Live: webhooks for every code event including scans (with retries and a delivery log), an API Zapier, Make and n8n can use, tags to organise campaigns, and scan-milestone and weekly digest emails. Next: one-click Zapier, Make and n8n apps, then Google Sheets and Notion.",
     status: "upcoming",
   },
   {
