@@ -11,10 +11,22 @@ const authentication = {
     const response = await z.request({
       url: apiUrl(z, "/v1/qr"),
       params: { page: 1, limit: 1 },
+      // Since SDK v18, z.request throws on any 4xx before the checks below run,
+      // and users saw a raw stack trace instead of these messages.
+      skipThrowForStatus: true,
     })
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       throw new z.errors.Error(
-        "The API key is invalid. Generate one at genxqr.com/app/api-keys and paste it here.",
+        "GenXQR didn't accept this API key. Create one on genxqr.com → API Keys (a key from a test or local site won't work) and paste only that key here.",
+        "AuthenticationError",
+        response.status,
+      )
+    }
+    if (response.status === 403) {
+      // Plan without API access, or a suspended account — the API says which.
+      const reason = (response.data as { error?: string } | undefined)?.error
+      throw new z.errors.Error(
+        `GenXQR refused this account: ${reason ?? "access denied"}. Zapier needs the Pro plan or higher.`,
         "AuthenticationError",
         response.status,
       )
