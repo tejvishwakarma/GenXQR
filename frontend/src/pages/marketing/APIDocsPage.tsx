@@ -1002,15 +1002,27 @@ const ERROR_CODES = [
 const WEBHOOK_EVENTS = [
   {
     event: "qr.scanned",
-    desc: "Fired for every recorded scan, including repeat scans from the same device. Scans that are turned away (code switched off, expired, or over a scan limit) are not recorded and fire nothing. Location and device details are not included — fetch them from List Scans.",
+    desc: "Fired for every recorded scan, including repeat scans from the same device (isUnique tells them apart). Scans that are turned away (code switched off, expired, or over a scan limit) are not recorded and fire nothing. data.id is the scan's own id — the same fields as List Scans, plus the code's name and slug. The scanner's IP address is never sent. name and slug repeat qrName and qrSlug for older integrations.",
     payload: `{
   "event": "qr.scanned",
   "timestamp": "2025-04-14T10:30:01.000Z",
   "data": {
+    "id": "clyyyyyyyyyyyyyyyy",
     "qrId": "clxxxxxxxxxxxxxxxx",
+    "qrName": "Restaurant Menu",
+    "qrSlug": "aB3dE5fG",
     "name": "Restaurant Menu",
     "slug": "aB3dE5fG",
-    "scannedAt": "2025-04-14T10:30:00.000Z"
+    "scannedAt": "2025-04-14T10:30:00.000Z",
+    "country": "India",
+    "countryCode": "IN",
+    "city": "Mumbai",
+    "region": "Maharashtra",
+    "deviceType": "MOBILE",
+    "os": "Android",
+    "browser": "Chrome",
+    "referrer": null,
+    "isUnique": true
   }
 }`,
   },
