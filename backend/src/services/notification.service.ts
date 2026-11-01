@@ -191,7 +191,7 @@ async function resolveSegmentUserIds(segment: string): Promise<string[]> {
   }
 
   if (segment === "paid") {
-    const paidPlanNames = ["STARTER", "PRO", "BUSINESS", "ENTERPRISE"] as const
+    const paidPlanNames = ["STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"] as const
     const rows = await prisma.subscription.findMany({
       where: {
         status: "ACTIVE",

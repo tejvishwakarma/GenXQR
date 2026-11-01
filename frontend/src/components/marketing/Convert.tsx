@@ -99,6 +99,14 @@ export function MarketingPricing() {
 
         <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-[20px] border border-line bg-paper p-6">
           <div>
+            <div className="font-semibold text-ink">Agency · {sym}{cur === "inr" ? "5,999" : "72"}/mo</div>
+            <div className="text-sm text-ink-soft">Manage up to 15 clients, each with its own codes, brand and domain, plus client reports under your agency&apos;s brand.</div>
+          </div>
+          <MktButton href="/pricing" variant="ink" size="md">See Agency</MktButton>
+        </div>
+
+        <div className="mt-3 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-[20px] border border-line bg-paper p-6">
+          <div>
             <div className="font-semibold text-ink">Enterprise</div>
             <div className="text-sm text-ink-soft">Unlimited scale, custom contracts, and dedicated support.</div>
           </div>

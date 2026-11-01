@@ -27,6 +27,15 @@ export function onOwnSite(): boolean {
   return host === own || host === `www.${own}` || host === "localhost" || /^[0-9.]+$/.test(host) || host.includes(":")
 }
 
+/**
+ * Pages carried under someone else's brand, where GenXQR's own analytics must
+ * not load: an agency's share report (/l/report/<token>) — its token is also a
+ * secret that must not be sent to Google or recorded by Clarity.
+ */
+export function isWhiteLabelPage(pathname: string = typeof window === "undefined" ? "" : window.location.pathname): boolean {
+  return pathname.startsWith("/l/report/")
+}
+
 export const SITE_NAME = "GenXQR"
 
 export const SITE_TAGLINE = "QR Code Generator with Analytics"

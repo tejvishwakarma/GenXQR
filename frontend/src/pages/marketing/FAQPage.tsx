@@ -51,6 +51,13 @@ const FAQ_JSON_LD = [
         "priceCurrency": "INR",
         "description": "2,000 QR codes, bulk generation, white-label, priority support.",
       },
+      {
+        "@type": "Offer",
+        "name": "Agency",
+        "price": "5999",
+        "priceCurrency": "INR",
+        "description": "Manage up to 15 clients, each with its own QR codes, brand and custom domain; agency-branded client reports.",
+      },
     ],
   },
   {
@@ -218,7 +225,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         q: "What plans does GenXQR offer?",
-        a: "Free (₹0): static QR codes, no credit card. Starter (₹299/month): 50 dynamic QR codes, 5,000 scans/month, full analytics, CSV export. Pro (₹799/month): 250 QR codes, 50,000 scans/month, A/B testing, smart routing, 5 team seats, REST API, webhooks. Business (₹2,499/month): 2,000 QR codes, 500,000 scans/month, 20 team seats, bulk generation, white-label. Enterprise (₹9,999/month): custom limits, dedicated support. Yearly billing saves up to 20%.",
+        a: "Free (₹0): static QR codes, no credit card. Starter (₹299/month): 50 dynamic QR codes, 5,000 scans/month, full analytics, CSV export. Pro (₹799/month): 250 QR codes, 50,000 scans/month, A/B testing, smart routing, 5 team seats, REST API, webhooks. Business (₹2,499/month): 2,000 QR codes, 500,000 scans/month, 20 team seats, bulk generation, white-label. Agency (₹5,999/month): manage up to 15 clients, each with its own QR codes, brand and custom domain, sharing 5,000 QR codes and 1,000,000 scans/month that you split between them, plus client reports under your agency's brand. Enterprise (₹9,999/month): custom limits, up to 50 clients, dedicated support. Yearly billing saves up to 20%.",
       },
       {
         q: "What happens if I use up my monthly scans?",

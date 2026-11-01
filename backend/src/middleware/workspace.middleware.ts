@@ -54,3 +54,18 @@ export function wsOwner(req: Request): string {
   if (req.workspace) return req.workspace.ownerId
   return (req.user as unknown as AccessTokenPayload).sub
 }
+
+/**
+ * The account an account-level setting (custom domains) acts on: the caller's
+ * own — except in an agency client's workspace, where it is that client, and
+ * only the agency's owner or admins may change it.
+ */
+export function settingsAccount(req: Request): string {
+  const ws = req.workspace
+  if (ws?.clientOf) {
+    if (!can(ws, "team:manage")) throw new AppError(403, "Only the agency's owner or admins can change a client's settings.")
+    return ws.ownerId
+  }
+  return (req.user as unknown as AccessTokenPayload).sub
+}
+

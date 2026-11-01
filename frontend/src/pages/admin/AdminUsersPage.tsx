@@ -19,7 +19,7 @@ const ROLE_META: Record<string, { label: string; cls: string }> = {
 }
 
 const ROLE_FILTERS  = ["All Roles",  "USER", "ADMIN", "SUPER_ADMIN"] as const
-const STATUS_FILTERS = ["All Plans", "FREE", "PRO", "ENTERPRISE", "STARTER", "BUSINESS"] as const
+const STATUS_FILTERS = ["All Plans", "FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

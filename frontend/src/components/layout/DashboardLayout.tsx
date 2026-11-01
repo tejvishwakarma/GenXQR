@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History, KeyRound } from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History, KeyRound, Briefcase } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme"
 import { SupportModal } from "@/components/SupportModal"
 import { BrandLogo } from "@/components/BrandLogo"
 import { useWorkspace } from "@/hooks/useWorkspace"
+import { useSubscription } from "@/hooks/useSubscription"
 
 const navItems: { label: string; href: string; icon: ReactElement; badge?: string }[] = [
   { label: "Dashboard", href: "/app/dashboard", icon: <LayoutDashboard size={18} /> },
@@ -27,6 +28,7 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "Create QR", href: "/app/create", icon: <PlusCircle size={18} /> },
   { label: "Analytics", href: "/app/analytics", icon: <BarChart3 size={18} /> },
   { label: "Bulk Generate", href: "/app/bulk-generate", icon: <Layers size={18} /> },
+  { label: "Clients", href: "/app/clients", icon: <Briefcase size={18} /> },
   { label: "Team", href: "/app/team", icon: <Users size={18} /> },
   { label: "Activity", href: "/app/activity", icon: <History size={18} /> },
   { label: "API Keys", href: "/app/api-keys", icon: <Key size={18} /> },
@@ -40,6 +42,9 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
 // Personal-only pages: these never act on a team workspace (backend
 // workspace.service.ts), so they are hidden while one is selected.
 const PERSONAL_ONLY_NAV = new Set(["/app/api-keys", "/app/webhooks", "/app/domains", "/app/sso"])
+// In an agency client's workspace: the client has no team, clients, keys or
+// SSO of its own (custom domains DO act on the client there — settingsAccount).
+const CLIENT_HIDDEN_NAV = new Set(["/app/team", "/app/clients", "/app/api-keys", "/app/webhooks", "/app/sso"])
 // Pages whose purpose is creating codes.
 const CREATE_NAV = new Set(["/app/create", "/app/bulk-generate"])
 
@@ -161,8 +166,16 @@ export function DashboardLayout() {
 
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"
   const ws = useWorkspace()
+  // Your own plan (the billing endpoint is personal): shows "Clients" to agencies.
+  const { limits: ownLimits } = useSubscription()
+  const hasClientsPlan = (ownLimits?.agencyClientsLimit ?? 0) > 0
   const visibleNavItems = navItems.filter((item) => {
-    if (!ws.isPersonal && PERSONAL_ONLY_NAV.has(item.href)) return false
+    if (ws.isClient) {
+      if (CLIENT_HIDDEN_NAV.has(item.href)) return false
+      if (item.href === "/app/domains" && !ws.can("team:manage")) return false
+    } else if (!ws.isPersonal && PERSONAL_ONLY_NAV.has(item.href)) return false
+    // Clients: agencies only — your own plan, or an agency team you manage.
+    if (item.href === "/app/clients" && !(ws.isPersonal ? hasClientsPlan : ws.can("team:manage"))) return false
     if (CREATE_NAV.has(item.href) && !ws.can("qr:create")) return false
     return true
   })
@@ -361,12 +374,21 @@ export function DashboardLayout() {
               onChange={(e) => switchWorkspace(e.target.value)}
               className="w-full appearance-none rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 py-1.5 pl-2.5 pr-8 text-sm text-zinc-800 dark:text-zinc-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/40"
             >
-              {ws.workspaces.map((w, i) => (
+              {ws.workspaces.filter((w) => w.kind !== "client").map((w, i) => (
                 <option key={w.ownerId} value={w.ownerId} disabled={!w.available}>
                   {i === 0 ? "Personal" : `${w.name} · ${w.role.charAt(0) + w.role.slice(1).toLowerCase()}`}
                   {!w.available ? " (unavailable)" : ""}
                 </option>
               ))}
+              {ws.workspaces.some((w) => w.kind === "client") && (
+                <optgroup label="Clients">
+                  {ws.workspaces.filter((w) => w.kind === "client").map((w) => (
+                    <option key={w.ownerId} value={w.ownerId}>
+                      {w.name}{w.ownerName ? ` · ${w.ownerName}` : ""}{!w.available ? " (paused)" : ""}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
             <ChevronDown
               size={14}
@@ -378,7 +400,14 @@ export function DashboardLayout() {
       )}
 
       {/* In a team workspace the owner's plan applies, not yours */}
-      {!ws.isPersonal && ws.current && (
+      {ws.isClient && ws.current && (
+        <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
+          Working for client <span className="font-medium text-zinc-800 dark:text-zinc-200">{ws.current.name}</span>.
+          Codes here belong to this client and use the limits you gave it.
+          {!ws.current.available && <span className="block mt-1 text-amber-600 dark:text-amber-400">Your plan no longer covers this client, so its codes are paused.</span>}
+        </div>
+      )}
+      {!ws.isPersonal && !ws.isClient && ws.current && (
         <div className="px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
           Working in <span className="font-medium text-zinc-800 dark:text-zinc-200">{ws.current.ownerName}</span>&apos;s
           workspace as <span className="font-medium text-zinc-800 dark:text-zinc-200">{ws.current.role.toLowerCase()}</span>.

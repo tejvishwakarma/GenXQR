@@ -30,6 +30,7 @@ import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
 import { getMonthlyApiCallCount } from "../services/apikeys.service.js"
+import { syncAgencyClients } from "../services/agency.service.js"
 
 const router: IRouter = Router()
 
@@ -99,7 +100,7 @@ router.get(
 // ─── POST /api/billing/create-order ───────────────────────────────────────────
 
 const CreateOrderSchema = z.object({
-  planName:     z.enum(["STARTER", "PRO", "BUSINESS", "ENTERPRISE"]),
+  planName:     z.enum(["STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]),
   billingCycle: z.enum(["monthly", "yearly"]),
   phone:        z.string().regex(/^\d{10}$/).optional(),
   // Only the CODE is accepted. Any amount or discount in the body is ignored —
@@ -126,7 +127,7 @@ router.post(
 // ─── POST /api/billing/downgrade ──────────────────────────────────────────────
 
 const DowngradeSchema = z.object({
-  planName: z.enum(["STARTER", "PRO", "BUSINESS"]),
+  planName: z.enum(["STARTER", "PRO", "BUSINESS", "AGENCY"]),
 })
 
 router.post(
@@ -140,7 +141,7 @@ router.post(
       const userId = uid(req)
       const sub = await getOrCreateSubscription(userId)
       
-      const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]
+      const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]
       const currentIndex = planOrder.indexOf(sub.plan.name as PlanName)
       const targetIndex = planOrder.indexOf(planName)
       
@@ -155,6 +156,8 @@ router.post(
         data: { planId: newPlan.id },
       })
       await invalidateScanQuota(sub.userId)
+      // Clients beyond the new plan's client count pause now, not in 10 minutes.
+      await syncAgencyClients(sub.userId)
 
       res.json({ success: true, message: `Successfully downgraded to ${planName}.` })
     } catch (err) {
@@ -178,7 +181,7 @@ router.post(
 
 const ValidateCouponSchema = z.object({
   code:         z.string().trim().min(1).max(40),
-  planName:     z.enum(["STARTER", "PRO", "BUSINESS"]),
+  planName:     z.enum(["STARTER", "PRO", "BUSINESS", "AGENCY"]),
   billingCycle: z.enum(["monthly", "yearly"]),
 })
 
@@ -218,7 +221,7 @@ router.post(
 // page can show why and still show what credit does.
 
 const QuoteSchema = z.object({
-  planName:     z.enum(["STARTER", "PRO", "BUSINESS"]),
+  planName:     z.enum(["STARTER", "PRO", "BUSINESS", "AGENCY"]),
   billingCycle: z.enum(["monthly", "yearly"]),
   couponCode:   z.string().trim().min(1).max(40).optional(),
 })

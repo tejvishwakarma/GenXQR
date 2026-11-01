@@ -48,6 +48,13 @@ const PRICING_JSON_LD = [
         "priceCurrency": "INR",
         "description": "2,000 dynamic QR codes, 500,000 scans/month, 20 team seats, white-label branding, webhooks, 100,000 API calls/month.",
       },
+      {
+        "@type": "Offer",
+        "name": "Agency",
+        "price": "5999",
+        "priceCurrency": "INR",
+        "description": "Manage up to 15 clients, each with its own QR codes, brand and custom domain, from one pool of 5,000 dynamic QR codes and 1,000,000 scans/month. Agency-branded client reports.",
+      },
     ],
   },
   {
@@ -257,6 +264,10 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
 
 const faqItems = [
   {
+    q: "Do you have a plan for agencies?",
+    a: "Yes — the Agency plan (₹5,999/month, or ₹4,999/month billed yearly). Manage up to 15 clients from one login: each client gets its own workspace, QR codes, brand on its scan pages and custom domain, and you decide how much of your plan each one gets (QR codes, monthly scans, domains, storage and features). Share an analytics report per client under your agency's brand. Your plan's pool is 5,000 dynamic QR codes, 1,000,000 scans a month, 15 custom domains, 100 GB of storage and 10 team seats for your own staff.",
+  },
+  {
     q: "Can I switch plans any time?",
     a: "Yes. Upgrade or downgrade from your billing dashboard at any time. A paid upgrade takes effect immediately and starts a new billing period from the day you pay. A downgrade also takes effect immediately and keeps your current period's end date — your QR codes stay active.",
   },
@@ -338,7 +349,7 @@ export default function PricingPage() {
     <div className="pb-24">
       {/* ── Deliverable 1 & 2: Title + Meta ── */}
       <SEOMeta
-        title="QR Code Generator Pricing — Free to ₹2,499/mo"
+        title="QR Code Generator Pricing — Free to ₹5,999/mo"
         description="Compare GenXQR plans — free QR codes to unlimited dynamic QR with analytics. INR pricing, UPI accepted, 14-day free trial. No hidden fees. Start free today."
         url="/pricing"
         jsonLd={PRICING_JSON_LD}
@@ -569,6 +580,34 @@ export default function PricingPage() {
           )}
         </div>
 
+        {/* ── Agency ── */}
+        <MktCard interactive={false} className="p-8 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h2 className="font-display font-bold text-ink text-2xl">Agency</h2>
+              <span className="inline-flex items-center rounded-full bg-accent-soft px-3 py-1 text-xs font-medium text-accent">
+                For agencies managing clients
+              </span>
+            </div>
+            <p className="text-ink font-semibold">
+              ₹5,999<span className="text-ink-soft font-normal text-sm">/month</span>
+              <span className="text-ink-soft font-normal text-sm"> · or ₹4,999/month billed yearly</span>
+            </p>
+            <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-sm text-ink-soft">
+              <li>Up to 15 clients, each in its own workspace</li>
+              <li>Each client&apos;s own brand and custom domain on scan pages</li>
+              <li>Split 5,000 QR codes and 1,000,000 scans/month between clients</li>
+              <li>Per-client limits and feature switches</li>
+              <li>Client reports under your agency&apos;s brand</li>
+              <li>Everything in Business, 10 seats for your team</li>
+            </ul>
+          </div>
+          <MktButton href="/signup?plan=agency" variant="accent" size="lg">
+            Choose Agency
+            <ChevronRight size={15} />
+          </MktButton>
+        </MktCard>
+
         {/* ── Enterprise ── */}
         <MktCard interactive={false} className="p-8 mb-16 flex flex-col md:flex-row items-center justify-between gap-6">
           <div>
@@ -579,8 +618,8 @@ export default function PricingPage() {
               </span>
             </div>
             <p className="text-ink-soft max-w-lg text-sm leading-relaxed">
-              Need white-label QR codes, a dedicated success manager,
-              or volume pricing across 10+ team seats?{" "}
+              More than 15 clients (up to 50), a dedicated success manager,
+              or volume pricing across many team seats?{" "}
               <Link to="/features" className="text-accent underline underline-offset-2 hover:text-accent-ink">
                 See all enterprise features
               </Link>{" "}

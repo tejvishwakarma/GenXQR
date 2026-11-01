@@ -13,6 +13,7 @@ const PLAN_SEEDS = [
   { name: "STARTER", displayName: "Starter", priceMonthlyINR: 299, priceYearlyINR: 2988, priceMonthlyUSD: 4, priceYearlyUSD: 36, dynamicQRLimit: 50, scanLimit: 5000, fileStorageGB: 1, teamSeatsLimit: 1, apiCallsLimit: 0 },
   { name: "PRO", displayName: "Pro", priceMonthlyINR: 799, priceYearlyINR: 7788, priceMonthlyUSD: 10, priceYearlyUSD: 96, dynamicQRLimit: 250, scanLimit: 50000, fileStorageGB: 5, teamSeatsLimit: 5, apiCallsLimit: 10000 },
   { name: "BUSINESS", displayName: "Business", priceMonthlyINR: 2499, priceYearlyINR: 23988, priceMonthlyUSD: 30, priceYearlyUSD: 288, dynamicQRLimit: 2000, scanLimit: 500000, fileStorageGB: 50, teamSeatsLimit: 20, apiCallsLimit: 100000 },
+  { name: "AGENCY", displayName: "Agency", priceMonthlyINR: 5999, priceYearlyINR: 59988, priceMonthlyUSD: 72, priceYearlyUSD: 720, dynamicQRLimit: 5000, scanLimit: 1000000, fileStorageGB: 100, teamSeatsLimit: 10, apiCallsLimit: 250000 },
   { name: "ENTERPRISE", displayName: "Enterprise", priceMonthlyINR: 9999, priceYearlyINR: 99990, priceMonthlyUSD: 120, priceYearlyUSD: 1200, dynamicQRLimit: 999999, scanLimit: 999999999, fileStorageGB: 1000, teamSeatsLimit: 999, apiCallsLimit: 999999999 },
 ] as const
 

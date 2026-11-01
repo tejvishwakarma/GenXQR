@@ -171,7 +171,7 @@ router.patch(
  * Force-set a user's plan (SUPER_ADMIN only).
  */
 const ChangePlanSchema = z.object({
-  planName: z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]),
+  planName: z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]),
 })
 
 router.patch(
@@ -565,7 +565,7 @@ router.get(
     try {
       const { page, limit } = PaginationSchema.parse(req.query)
       const state = z.enum(SUBSCRIPTION_STATES).optional().parse(req.query["state"] || undefined)
-      const plan = z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]).optional().parse(req.query["plan"] || undefined)
+      const plan = z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]).optional().parse(req.query["plan"] || undefined)
       const { data, meta } = await AdminPlatformService.listSubscriptions({ page, limit }, state, plan)
       res.json({ success: true, data, meta })
     } catch (err) {
@@ -1246,7 +1246,7 @@ const CouponBodySchema = z.object({
   discountValue: z.coerce.number().int().positive(),
   maxDiscountPaise: z.coerce.number().int().positive().nullish(),
   minOrderPaise: z.coerce.number().int().nonnegative().nullish(),
-  applicablePlans: z.array(z.enum(["STARTER", "PRO", "BUSINESS"])).optional(),
+  applicablePlans: z.array(z.enum(["STARTER", "PRO", "BUSINESS", "AGENCY"])).optional(),
   applicableCycles: z.array(z.enum(["monthly", "yearly"])).optional(),
   maxRedemptions: z.coerce.number().int().positive().nullish(),
   maxRedemptionsPerUser: z.coerce.number().int().positive().optional(),

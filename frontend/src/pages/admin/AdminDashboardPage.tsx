@@ -18,6 +18,7 @@ const PLAN_COLORS: Record<string, string> = {
   STARTER:    "bg-blue-500/20 text-blue-300 border-blue-500/30",
   PRO:        "bg-violet-500/20 text-violet-300 border-violet-500/30",
   BUSINESS:   "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  AGENCY: "bg-sky-500/20 text-sky-300 border-sky-500/30",
   ENTERPRISE: "bg-red-500/20 text-red-300 border-red-500/30",
 }
 

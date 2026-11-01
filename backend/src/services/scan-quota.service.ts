@@ -31,7 +31,8 @@
 import { prisma } from "../db/prisma.js"
 import { redis } from "../redis/client.js"
 import { logger } from "../logger/index.js"
-import { PLAN_LIMITS } from "./billing.service.js"
+import { getPlanLimitsReadOnly } from "./billing.service.js"
+import { getManagedClient } from "./managed-account.service.js"
 import { isLapsed } from "./subscription-expiry.service.js"
 import type { PlanName } from "@prisma/client"
 
@@ -84,8 +85,11 @@ export async function getScanQuota(userId: string): Promise<ScanQuota> {
     /* cache miss */
   }
 
+  // A managed client runs on its agency's subscription (period and lapse),
+  // with its own cap as the limit.
+  const managed = await getManagedClient(userId)
   const sub = await prisma.subscription.findUnique({
-    where: { userId },
+    where: { userId: managed?.agencyId ?? userId },
     select: {
       status: true, trialEndsAt: true, currentPeriodStart: true, currentPeriodEnd: true, codesPauseAt: true,
       plan: { select: { name: true } },
@@ -94,7 +98,10 @@ export async function getScanQuota(userId: string): Promise<ScanQuota> {
   const planName: PlanName = !sub || isLapsed(sub) ? "FREE" : sub.plan.name
   const anchor = sub?.currentPeriodStart ?? new Date()
   const { start, end } = scanUsageWindow(anchor)
-  const quota: ScanQuota = { limit: PLAN_LIMITS[planName].scanLimitPerMonth, windowStart: start, windowEnd: end }
+  // Plan limits through getPlanLimitsReadOnly: an agency's own limit is its pool
+  // minus what clients were given, and a client's is its cap.
+  const limit = planName === "FREE" ? 0 : (await getPlanLimitsReadOnly(userId)).scanLimitPerMonth
+  const quota: ScanQuota = { limit, windowStart: start, windowEnd: end }
 
   await redis
     .set(quotaKey(userId), JSON.stringify(quota), "EX", QUOTA_CACHE_TTL)

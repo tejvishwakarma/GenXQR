@@ -51,5 +51,8 @@ export function useWorkspace() {
     [personal?.ownerId, queryClient],
   )
 
-  return { workspaces, current, isPersonal, role, can, switchTo }
+  /** A client's workspace (an agency managing it): domains act on the client, no team/billing. */
+  const isClient = current?.kind === "client"
+
+  return { workspaces, current, isPersonal, isClient, role, can, switchTo }
 }

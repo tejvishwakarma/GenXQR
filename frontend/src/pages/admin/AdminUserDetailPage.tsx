@@ -297,7 +297,8 @@ export default function AdminUserDetailPage() {
                         <option value="STARTER">STARTER</option>
                         <option value="PRO">PRO</option>
                         <option value="BUSINESS">BUSINESS</option>
-                        <option value="ENTERPRISE">ENTERPRISE</option>
+                        <option value="AGENCY">AGENCY</option>
+                    <option value="ENTERPRISE">ENTERPRISE</option>
                       </select>
                       <button
                         onClick={() => changePlanMut.mutate(editPlan)}
@@ -358,6 +359,7 @@ export default function AdminUserDetailPage() {
                     <option value="STARTER">STARTER</option>
                     <option value="PRO">PRO</option>
                     <option value="BUSINESS">BUSINESS</option>
+                    <option value="AGENCY">AGENCY</option>
                     <option value="ENTERPRISE">ENTERPRISE</option>
                   </select>
                   <button

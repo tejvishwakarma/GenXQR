@@ -83,6 +83,10 @@ model User {
   qrCodes                 QRCode[]
   customDomains           CustomDomain[]
   ssoConnection           SsoConnection?
+  /// Clients this account manages (Agency plan).
+  agencyClients           AgencyClient[]           @relation("AgencyClients")
+  /// Set when this account IS a client managed by an agency: it has no login.
+  managedClient           AgencyClient?            @relation("ManagedClient")
   refreshTokens           RefreshToken[]
   subscription            Subscription?
   supportTickets          SupportTicket[]
@@ -903,6 +907,7 @@ enum PlanName {
   STARTER
   PRO
   BUSINESS
+  AGENCY
   ENTERPRISE
 }
 
@@ -1163,4 +1168,32 @@ model SsoConnection {
 
   @@index([domain])
   @@map("sso_connections")
+}
+
+/// A client an agency manages (services/agency.service.ts, built 1 Nov 2026).
+/// The client's codes, domains and scan-page branding live on a separate,
+/// login-less User (userId) that the agency's people work in through the
+/// workspace switcher. The agency hands each client part of its plan's pool;
+/// the caps below are that client's limits.
+model AgencyClient {
+  id               String   @id @default(cuid())
+  agencyId         String
+  /// The managed account holding the client's codes. Never signs in.
+  userId           String   @unique
+  name             String
+  maxCodes         Int
+  maxScansPerMonth Int
+  maxDomains       Int
+  maxStorageGB     Int
+  /// Per-client feature switches: { abTesting, smartRouting, bulkGeneration }.
+  features         Json
+  /// Share link for the agency-branded report (/l/report/<token>); null = off.
+  reportToken      String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  agency           User     @relation("AgencyClients", fields: [agencyId], references: [id], onDelete: Cascade)
+  user             User     @relation("ManagedClient", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([agencyId, createdAt])
+  @@map("agency_clients")
 }

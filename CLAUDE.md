@@ -51,7 +51,7 @@
 **Core value proposition:**
 - Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, and coupons.
 - Dynamic QR codes have editable destinations, scan tracking with geolocation/device/browser analytics, A/B testing, smart routing rules (by time, device, geo), password protection, scan limits, expiry dates, and custom landing pages.
-- Plans: FREE → STARTER → PRO → BUSINESS → ENTERPRISE (gated by `plan-gate.middleware.ts`).
+- Plans: FREE → STARTER → PRO → BUSINESS → AGENCY → ENTERPRISE (gated by `plan-gate.middleware.ts`).
 - Team workspaces with OWNER / ADMIN / EDITOR / VIEWER roles.
 - Public REST developer API authenticated with API keys (`/v1/...`).
 - Admin panel for super-admins to manage users, subscriptions, revenue, abuse, email broadcasts, platform settings.
@@ -360,6 +360,10 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `POST /cashfree-webhook` — public; HMAC verified against `req.rawBody`; authoritative activation path
 - `POST /cancel` — schedules subscription cancellation at period end
 
+#### `/api/agency` → `agency.routes.ts` (agency workspace, OWNER/ADMIN; Agency/Enterprise)
+- `GET /clients` (+ pool) · `POST /clients` · `PATCH /clients/:id` (caps, features, client brand) · `DELETE /clients/:id` · `PUT /clients/:id/report {enabled}`
+- Public share report: `GET /api/public/report/:token?days=7|30|90` → page `/l/report/:token`
+
 #### `/api/sso` → `sso.routes.ts` (owner's own account; Business+)
 - `GET /` settings · `PUT /` domain/provider/default role · `POST /verify` DNS TXT · `POST /link` (Microsoft) · `PUT /enforce` · `DELETE /`
 - Sign-in itself: `POST /api/auth/sso/start {email}` → provider URL; `GET /api/auth/sso/callback/:provider`
@@ -508,7 +512,7 @@ Schema at: `backend/prisma/schema.prisma`
 | Enum | Values |
 |---|---|
 | `Role` | USER, ADMIN, SUPER_ADMIN |
-| `PlanName` | FREE, STARTER, PRO, BUSINESS, ENTERPRISE |
+| `PlanName` | FREE, STARTER, PRO, BUSINESS, AGENCY, ENTERPRISE |
 | `SubscriptionStatus` | ACTIVE, CANCELLED, PAST_DUE, TRIALING, PAUSED |
 | `QRType` | URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON |
 | `QRCategory` | STATIC, DYNAMIC |
@@ -959,6 +963,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `APIKeysPage.tsx` | `/app/api-keys` | Create/revoke API keys |
 | `WebhooksPage.tsx` | `/app/webhooks` | Manage webhooks |
 | `BillingPage.tsx` | `/app/billing` | Subscription, plan upgrade, invoices; coupon + credit at checkout |
+| `ClientsPage.tsx` | `/app/clients` | Agency: clients, pool, caps/features, client brand, share-report link, open a client's workspace |
 | `SsoPage.tsx` | `/app/sso` | Single sign-on setup: domain + provider, DNS proof, Microsoft link, require SSO |
 | `ActivityPage.tsx` | `/app/activity` | Security history (all plans) + team activity log with CSV export (Pro+) |
 | `ReferralsPage.tsx` | `/app/referrals` | Refer & earn: invite link, credit balance, referrals, history |
@@ -971,6 +976,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | File | Route |
 |---|---|
 | `landing/LandingPage.tsx` | `/l/:slug` — renders custom QR landing page |
+| `landing/ClientReportPage.tsx` | `/l/report/:token` — an agency's share report (agency brand; no GenXQR analytics/Clarity: `isWhiteLabelPage`) |
 | `scan/PasswordPage.tsx` | `/r/:slug/password` — password entry form |
 | `scan/ExpiredPage.tsx` | `/r/:slug/expired` — QR expired/inactive screen |
 
@@ -1137,6 +1143,27 @@ Workspace-aware: `/api/qr/*`, `/api/analytics/*`, `/api/upload/*`, `/api/bulk/*`
 Personal-only (ignore the header): billing, API keys, webhooks, branding, settings, `/v1`.
 Access needs the owner's plan to have `teamSeatsLimit > 1`. Audit logs record the actor.
 Uploads record the uploader; attaching accepts files uploaded by the owner or the actor.
+
+**Agency plan (built 1 Nov 2026)** — `services/agency.service.ts`, `managed-account.service.ts`, `/app/clients`.
+Price/limits decided with the user from competitors' agency tiers: ₹5,999/mo, ₹59,988/yr ($72 / $720); a POOL of 5,000
+codes, 1,000,000 scans/mo, 15 custom domains, 100 GB, 10 staff seats, 250k API calls, 15 clients; everything in Business.
+Self-serve (PURCHASABLE_PLANS), no trial. Enterprise gets 50 clients (`PLAN_LIMITS.agencyClientsLimit`). Decided: only the
+agency logs in; scan pages show the CLIENT's brand/domain; the client sees the AGENCY's brand on the share report.
+- A client = `AgencyClient` + a managed `User` (no password, address `client-…@clients.genxqr.invalid` — `sendEmail` drops
+  `.invalid` recipients). The agency's people work in it via the workspace switcher: `resolveWorkspace` lets them in with
+  their AGENCY role (`Workspace.clientOf`). So every per-owner rule (code ownership, custom-domain isolation, scan quota,
+  branding, activity log) applies to clients unchanged.
+- Limits: `getUserPlanLimits`/`getPlanLimitsReadOnly` give a client its caps (`clientLimits`: agency features, client caps,
+  no API/team/SSO, per-client A/B · routing · bulk switches); the agency gets the pool MINUS what clients hold
+  (`withClientAllocations`; scans floor at 1 — 0 means "not enforced"). `getOrCreateSubscription` and the scan quota read the
+  AGENCY's subscription for a client — a client never gets a Subscription row. Caps are checked against the pool (and the
+  agency's own codes/domains) under `agency:<id>` advisory lock.
+- Clients follow the agency's plan: beyond `agencyClientsLimit` (earliest first) or lapsed → codes paused
+  (`syncAgencyClients`: 10-min worker, after payment, admin plan change, downgrade). Deleting the agency deletes its clients.
+- Custom domains in a client's workspace act on the CLIENT (`settingsAccount`, agency OWNER/ADMIN only).
+- Dashboard "Plan Usage" shows only in your personal workspace (billing/usage is personal).
+- Covered by `tests/integration/agency.test.ts` (14 guards break-tested). Migrations `20261101100749_agency_plan` (enum +
+  table) and `20261101100800_agency_plan_row` (plan row — a new enum value cannot be used in the transaction that adds it).
 
 **Single sign-on (built 31 Oct 2026)** — `services/sso.service.ts` (+ `oidc.service.ts`, `sso-policy.service.ts`),
 `/app/sso`, `PLAN_LIMITS.sso` (Business+). OpenID Connect through GenXQR's OWN apps — Google reuses the sign-in

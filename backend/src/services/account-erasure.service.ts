@@ -38,6 +38,11 @@ function toDiskPath(fileUrl: string): string | null {
  * deletes their uploaded files and avatar from disk.
  */
 export async function deleteUserAndData(userId: string): Promise<void> {
+  // An agency's clients are its data: their managed accounts would otherwise
+  // outlive it with every code still live (agency.service.ts).
+  const clients = await prisma.agencyClient.findMany({ where: { agencyId: userId }, select: { userId: true } })
+  for (const c of clients) await deleteUserAndData(c.userId)
+
   // Before the rows go: the hostnames live on in Cloudflare otherwise, still
   // pointed at us and blocking whoever owns the domain from adding it again.
   await releaseAccountDomains(userId)
