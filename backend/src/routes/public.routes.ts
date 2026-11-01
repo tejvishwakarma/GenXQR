@@ -5,6 +5,8 @@ import { contentHasBlockedLink, scanAvailability } from "../services/scan.servic
 import { verifyQRUnlock } from "../utils/jwt.js"
 import { resolveScanHost } from "../services/custom-domain.service.js"
 import { requestHost } from "./scan.routes.js"
+import { REPORT_DAYS, getClientReport } from "../services/agency.service.js"
+import { AppError } from "../middleware/error.middleware.js"
 
 const router: IRouter = Router()
 
@@ -189,7 +191,8 @@ router.get(
   async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const [userCount, qrStats] = await Promise.all([
-        prisma.user.count(),
+        // An agency's clients are its accounts, not businesses that signed up.
+        prisma.user.count({ where: { managedClient: { is: null } } }),
         prisma.qRCode.aggregate({
           _count: { id: true },
           _sum: { scanCount: true },
@@ -266,6 +269,28 @@ router.get(
           careers: parseJsonArray(map.get("careers_sections"), defaultCareers),
         },
       })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * GET /api/public/report/:token?days=30 — an agency's share report for one
+ * client (agency.service.ts getClientReport). Aggregates only; carries the
+ * agency's brand. The token is the only key, 32 random bytes.
+ */
+router.get(
+  "/report/:token",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const token = String(req.params["token"])
+      if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) throw new AppError(404, "Report not found.")
+      const days = Number(req.query["days"] ?? 30)
+      if (!(REPORT_DAYS as readonly number[]).includes(days)) throw new AppError(422, "days must be 7, 30 or 90")
+      res.setHeader("Cache-Control", "no-store")
+      res.setHeader("X-Robots-Tag", "noindex")
+      res.json({ success: true, data: await getClientReport(token, days) })
     } catch (err) {
       next(err)
     }

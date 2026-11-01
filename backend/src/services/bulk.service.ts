@@ -17,6 +17,7 @@ const BULK_LIMITS: Record<string, number> = {
   STARTER: 10,
   PRO: 100,
   BUSINESS: 5000,
+  AGENCY: 5000,
   ENTERPRISE: 10000,
 }
 

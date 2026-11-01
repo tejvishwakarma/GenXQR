@@ -644,7 +644,7 @@ export interface AdminUserDetail extends Omit<AdminUser, "country"> {
   location: { signup: AdminUserPlace; lastLogin: AdminUserPlace }
 }
 export type AdminMeta = { total: number; page: number; limit: number; pages: number }
-export type AdminPlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE"
+export type AdminPlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY" | "ENTERPRISE"
 
 export const fetchAdminUsers = (page = 1, limit = 20, q = "", country = "") =>
   adminFetch<{ success: boolean; data: AdminUser[]; meta: AdminMeta }>(
@@ -1703,7 +1703,7 @@ export function updatePixelSettings(qrId: string, pixels: PixelSettings) {
 
 // ─── Billing ──────────────────────────────────────────────────────────────────
 
-export type PlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE"
+export type PlanName = "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY" | "ENTERPRISE"
 export type SubscriptionStatus = "ACTIVE" | "CANCELLED" | "PAST_DUE" | "TRIALING" | "PAUSED"
 
 export interface PlanLimits {
@@ -1726,6 +1726,8 @@ export interface PlanLimits {
   activityLog: boolean
   /** Single sign-on with Google Workspace / Microsoft Entra ID (Business+). */
   sso: boolean
+  /** How many clients the account can manage (Agency 15, Enterprise 50). */
+  agencyClientsLimit: number
 }
 
 export interface Plan {
@@ -2153,8 +2155,12 @@ export interface WorkspaceSummary {
   name: string
   ownerName: string
   role: WorkspaceRole
-  /** False when the owner's plan no longer includes team seats. */
+  /** False when the owner's plan no longer includes team seats (or, for a client, no longer covers it). */
   available: boolean
+  /** personal · a team you belong to · a client of an agency you work in */
+  kind?: "personal" | "team" | "client"
+  /** For a client: the agency's account id. */
+  agencyId?: string
 }
 
 export interface TeamInvitePreview {
@@ -2716,4 +2722,69 @@ export const deleteSsoConnection = () =>
 /** "Sign in with SSO": the company's sign-in page for this email. */
 export const startSsoLogin = (email: string) =>
   apiFetch<{ success: boolean; data: { url: string } }>("/api/auth/sso/start", { method: "POST", body: JSON.stringify({ email }) })
+
+// ─── Agency: clients ───────────────────────────────────────────────────────────
+
+export interface AgencyClientCaps {
+  maxCodes: number
+  maxScansPerMonth: number
+  maxDomains: number
+  maxStorageGB: number
+}
+
+export interface AgencyClientFeatures {
+  abTesting: boolean
+  smartRouting: boolean
+  bulkGeneration: boolean
+}
+
+export interface AgencyClient {
+  id: string
+  /** Switch to this workspace to work on the client's codes. */
+  workspaceId: string
+  name: string
+  caps: AgencyClientCaps
+  features: AgencyClientFeatures
+  brandName: string | null
+  brandLogoUrl: string | null
+  usage: { codes: number; domains: number; scansThisMonth: number }
+  /** False when the plan no longer covers this client (its codes are paused). */
+  active: boolean
+  reportToken: string | null
+  createdAt: string
+}
+
+export interface AgencyClientList {
+  clients: AgencyClient[]
+  /** The plan's pool; null when the plan has no clients. */
+  pool: { clients: number; codes: number; scansPerMonth: number; domains: number; storageGB: number } | null
+}
+
+export const getAgencyClients = () =>
+  apiFetch<{ success: boolean; data: AgencyClientList }>("/api/agency/clients", { headers: authHeader() })
+export const createAgencyClient = (input: { name: string; features?: Partial<AgencyClientFeatures> } & AgencyClientCaps) =>
+  apiFetch<{ success: boolean }>("/api/agency/clients", { method: "POST", headers: authHeader(), body: JSON.stringify(input) })
+export const updateAgencyClient = (id: string, input: Partial<AgencyClientCaps> & { name?: string; features?: Partial<AgencyClientFeatures>; brandName?: string | null; brandLogoUrl?: string | null }) =>
+  apiFetch<{ success: boolean }>(`/api/agency/clients/${id}`, { method: "PATCH", headers: authHeader(), body: JSON.stringify(input) })
+export const deleteAgencyClient = (id: string) =>
+  apiFetch<{ success: boolean }>(`/api/agency/clients/${id}`, { method: "DELETE", headers: authHeader() })
+/** Switch the share-report link on (a new link each time) or off. */
+export const setAgencyClientReport = (id: string, enabled: boolean) =>
+  apiFetch<{ success: boolean; data: { reportToken: string | null } }>(`/api/agency/clients/${id}/report`, { method: "PUT", headers: authHeader(), body: JSON.stringify({ enabled }) })
+
+export interface ClientReport {
+  agency: { name: string; logoUrl: string | null }
+  client: { name: string; logoUrl: string | null }
+  days: number
+  generatedAt: string
+  totals: { scans: number; uniqueScans: number; codes: number; activeCodes: number }
+  timeline: Array<{ date: string; scans: number }>
+  topCodes: Array<{ name: string; scans: number }>
+  countries: Array<{ country: string; scans: number }>
+  devices: Array<{ device: string; scans: number }>
+}
+
+/** The public share report (no sign-in). */
+export const getClientReport = (token: string, days: number) =>
+  apiFetch<{ success: boolean; data: ClientReport }>(`/api/public/report/${encodeURIComponent(token)}?days=${days}`)
 

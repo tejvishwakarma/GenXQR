@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from "nodemailer"
 import { Resend } from "resend"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
+import { isManagedAddress } from "./managed-account.service.js"
 
 // Prefer Resend if API key provided, otherwise fall back to SMTP
 let resendClient: Resend | null = null
@@ -43,6 +44,10 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail(opts: SendEmailOptions): Promise<void> {
+  // An agency's managed client has a placeholder address under .invalid
+  // (managed-account.service.ts): it has no inbox, and every reminder, digest or
+  // limit email about it would bounce. The agency hears about its clients instead.
+  if (isManagedAddress(opts.to)) return
   // Subjects carry user text (names, ticket subjects, QR names). One line only.
   opts = { ...opts, subject: opts.subject.replace(/[\r\n]+/g, " ") }
   if (resendClient) {

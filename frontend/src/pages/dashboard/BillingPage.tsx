@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Check, Zap, Download, ArrowRight, Loader2,
-  AlertTriangle, ChevronDown, ChevronUp, Crown, Rocket, Building2,
+  AlertTriangle, ChevronDown, ChevronUp, Crown, Rocket, Building2, Briefcase,
   CheckCircle, XCircle, FileText,
 } from "lucide-react"
 import { clearPendingCoupon, getPendingCoupon } from "@/lib/couponLink"
@@ -61,6 +61,7 @@ const PLAN_ICON: Record<PlanName, React.ReactNode> = {
   STARTER:    <Zap size={20} className="text-violet-400" />,
   PRO:        <Rocket size={20} className="text-violet-400" />,
   BUSINESS:   <Crown size={20} className="text-amber-400" />,
+  AGENCY:     <Briefcase size={20} className="text-sky-400" />,
   ENTERPRISE: <Building2 size={20} className="text-emerald-400" />,
 }
 
@@ -69,6 +70,7 @@ const PLAN_COLOR: Record<PlanName, string> = {
   STARTER:    "bg-violet-500/20 border-violet-500/30",
   PRO:        "bg-violet-500/20 border-violet-500/30",
   BUSINESS:   "bg-amber-500/20 border-amber-500/30",
+  AGENCY:     "bg-sky-500/20 border-sky-500/30",
   ENTERPRISE: "bg-emerald-500/20 border-emerald-500/30",
 }
 
@@ -118,7 +120,7 @@ interface PlanCardProps {
 function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardProps) {
   const [cycle, setCycle] = useState<"monthly" | "yearly">("monthly")
   const isCurrent = plan.name === currentPlanName
-  const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]
+  const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]
   const isDowngrade = planOrder.indexOf(plan.name) < planOrder.indexOf(currentPlanName)
 
   const limits = plan.limits
@@ -135,6 +137,10 @@ function PlanCard({ plan, currentPlanName, onSubscribe, isLoading }: PlanCardPro
     { label: "API access", enabled: limits?.apiAccess ?? false },
     { label: `${plan.teamSeatsLimit} team seat${plan.teamSeatsLimit !== 1 ? "s" : ""}`, enabled: plan.teamSeatsLimit > 1 },
     { label: "White-label", enabled: limits?.whiteLabel ?? false },
+    // Agency/Enterprise: shown only where the plan has clients.
+    ...((limits?.agencyClientsLimit ?? 0) > 0
+      ? [{ label: `Manage up to ${limits!.agencyClientsLimit} clients`, enabled: true }]
+      : []),
     { label: "Priority support", enabled: limits?.prioritySupport ?? false },
   ]
 
@@ -423,7 +429,7 @@ export default function BillingPage() {
     setCheckoutError("")
     setCheckoutLoading(true)
     try {
-      const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"]
+      const planOrder: PlanName[] = ["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]
       const currentPlan = subData?.data?.planName ?? "FREE"
       const isDowngrade = planOrder.indexOf(planName) < planOrder.indexOf(currentPlan)
 
@@ -887,22 +893,22 @@ export default function BillingPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
-                    {currentPlanName === "BUSINESS" && (
+                    {currentPlanName === "AGENCY" && (
                       <a href="mailto:support@genxqr.com" className="w-full sm:w-auto">
                         <Button variant="outline" size="sm" className="w-full">
                           Contact Sales to Upgrade
                         </Button>
                       </a>
                     )}
-                    {currentPlanName !== "ENTERPRISE" && currentPlanName !== "BUSINESS" && (
+                    {currentPlanName !== "ENTERPRISE" && currentPlanName !== "AGENCY" && (
                       <Button
                         variant="glow"
                         size="sm"
                         disabled={checkoutLoading}
-                        onClick={() => void handleSubscribe(currentPlanName === "FREE" ? "PRO" : "BUSINESS", "monthly")}
+                        onClick={() => void handleSubscribe(currentPlanName === "FREE" ? "PRO" : currentPlanName === "BUSINESS" ? "AGENCY" : "BUSINESS", "monthly")}
                       >
                         {checkoutLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                        {currentPlanName === "FREE" ? "Upgrade to Pro" : "Upgrade to Business"}
+                        {currentPlanName === "FREE" ? "Upgrade to Pro" : currentPlanName === "BUSINESS" ? "Upgrade to Agency" : "Upgrade to Business"}
                       </Button>
                     )}
                     {currentPlanName !== "FREE" && !subscription.cancelAtPeriodEnd && (

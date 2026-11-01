@@ -76,6 +76,8 @@ import APIKeysPage from "@/pages/dashboard/APIKeysPage"
 import DomainsPage from "@/pages/dashboard/DomainsPage"
 import ActivityPage from "@/pages/dashboard/ActivityPage"
 import SsoPage from "@/pages/dashboard/SsoPage"
+import ClientsPage from "@/pages/dashboard/ClientsPage"
+import ClientReportPage from "@/pages/landing/ClientReportPage"
 import BillingPage from "@/pages/dashboard/BillingPage"
 import ReferralsPage from "@/pages/dashboard/ReferralsPage"
 import SettingsPage from "@/pages/dashboard/SettingsPage"
@@ -218,6 +220,7 @@ export function AppRoutes() {
           <Route path="domains" element={<DomainsPage />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="sso" element={<SsoPage />} />
+          <Route path="clients" element={<ClientsPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="referrals" element={<ReferralsPage />} />
           <Route path="settings" element={<SettingsPage />} />
@@ -227,6 +230,8 @@ export function AppRoutes() {
         </Route>
 
         {/* QR Landing / Scan pages (public, no layout) */}
+        {/* An agency's share report: the agency's brand, never GenXQR's. */}
+        <Route path="/l/report/:token" element={<ClientReportPage />} />
         <Route path="/l/:slug" element={<LandingPage />} />
         <Route path="/r/:slug/password" element={<PasswordPage />} />
         <Route path="/r/:slug/expired" element={<ExpiredPage />} />

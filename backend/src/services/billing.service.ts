@@ -20,7 +20,7 @@
  * the server-set order_tags via Cashfree's authenticated API.
  */
 
-import type { PlanName, SubscriptionStatus } from "@prisma/client"
+import type { PlanName, Prisma, SubscriptionStatus } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { env } from "../config/env.js"
 import { AppError } from "../middleware/error.middleware.js"
@@ -33,6 +33,7 @@ import { invalidateScanQuota } from "./scan-quota.service.js"
 import { normalizeEmail } from "../utils/normalize-email.util.js"
 import { inboxHash } from "../utils/inbox-hash.util.js"
 import { quoteCoupon, recordRedemption, releaseCouponHold, MINIMUM_CHARGEABLE_PAISE, type CouponQuote } from "./coupon.service.js"
+import { allocatedToClients, clientWithinCount, getManagedClient, readClientFeatures, type ManagedClient } from "./managed-account.service.js"
 import { getCreditBalance, lockCredit, recordCreditSpend, releaseCreditHold, qualifyReferralInTx } from "./referral.service.js"
 
 // ─── Plan constants (mirrors seed data) ───────────────────────────────────────
@@ -61,6 +62,8 @@ export interface PlanLimits {
   activityLog: boolean
   /** Single sign-on (Google Workspace / Microsoft Entra ID) for the account's company domain — Business and above (decided 31 Oct 2026). */
   sso: boolean
+  /** How many clients the account can manage as an agency (agency.service.ts) — Agency 15, Enterprise 50 (decided 1 Nov 2026). */
+  agencyClientsLimit: number
 }
 
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
@@ -83,6 +86,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: false,
     activityLog: false,
     sso: false,
+    agencyClientsLimit: 0,
   },
   STARTER: {
     dynamicQRLimit: 50,
@@ -103,6 +107,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: false,
     sso: false,
+    agencyClientsLimit: 0,
   },
   PRO: {
     dynamicQRLimit: 250,
@@ -123,6 +128,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: false,
+    agencyClientsLimit: 0,
   },
   BUSINESS: {
     dynamicQRLimit: 2000,
@@ -143,6 +149,31 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: true,
+    agencyClientsLimit: 0,
+  },
+  // Decided 1 Nov 2026 from competitors' agency tiers (Hovercode Business Plus,
+  // QRCodeChimp Ultima 3x–5x, QRTRAC Agency): a pool the agency splits between
+  // up to 15 clients; everything in Business besides.
+  AGENCY: {
+    dynamicQRLimit: 5000,
+    scanLimitPerMonth: 1000000,
+    fileStorageGB: 100,
+    teamSeatsLimit: 10,
+    apiCallsLimit: 250000,
+    bulkGeneration: true,
+    apiAccess: true,
+    customDomains: true,
+    customDomainsLimit: 15,
+    whiteLabel: true,
+    prioritySupport: true,
+    abTesting: true,
+    smartRouting: true,
+    qrExpiry: true,
+    premiumFrames: true,
+    scanPageLogo: true,
+    activityLog: true,
+    sso: true,
+    agencyClientsLimit: 15,
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
@@ -163,6 +194,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: true,
+    agencyClientsLimit: 50,
   },
 }
 
@@ -171,6 +203,7 @@ export const PLAN_PRICES_INR: Record<PlanName, { monthly: number; yearly: number
   STARTER:    { monthly: 299,  yearly: 2988  },
   PRO:        { monthly: 799,  yearly: 7788  },
   BUSINESS:   { monthly: 2499, yearly: 23988 },
+  AGENCY:     { monthly: 5999, yearly: 59988 },
   ENTERPRISE: { monthly: 9999, yearly: 99990 },
 }
 
@@ -178,7 +211,7 @@ export const PLAN_PRICES_INR: Record<PlanName, { monthly: number; yearly: number
 const TRIAL_DAYS = 14
 
 /** Plans a user can actually buy through self-serve checkout. */
-const PURCHASABLE_PLANS = ["STARTER", "PRO", "BUSINESS"] as const
+const PURCHASABLE_PLANS = ["STARTER", "PRO", "BUSINESS", "AGENCY"] as const
 type PurchasablePlan = (typeof PURCHASABLE_PLANS)[number]
 
 function isPurchasablePlan(value: string): value is PurchasablePlan {
@@ -213,7 +246,11 @@ export function normalisePhone(raw: string | null | undefined): string | null {
  * Get or create a user's subscription record.
  * New users always start on FREE; this is a fallback safety net.
  */
-export async function getOrCreateSubscription(userId: string) {
+export async function getOrCreateSubscription(userId: string): Promise<Prisma.SubscriptionGetPayload<{ include: { plan: true } }>> {
+  // A managed client has no subscription of its own; never create one for it.
+  const managed = await getManagedClient(userId)
+  if (managed) return getOrCreateSubscription(managed.agencyId)
+
   let sub = await prisma.subscription.findUnique({
     where: { userId },
     include: { plan: true },
@@ -251,6 +288,15 @@ export async function getUserPlanLimits(userId: string): Promise<{
   trialEndsAt: Date | null
   subscriptionStatus: SubscriptionStatus
 }> {
+  // A client an agency manages has no subscription of its own: it runs on the
+  // agency's, within the caps the agency gave it.
+  const managed = await getManagedClient(userId)
+  if (managed) {
+    const agency = await getUserPlanLimits(managed.agencyId)
+    const entitled = await clientWithinCount(managed, agency.limits.agencyClientsLimit)
+    return { ...agency, limits: entitled ? clientLimits(agency.limits, managed) : PLAN_LIMITS["FREE"] }
+  }
+
   const sub = await getOrCreateSubscription(userId)
   const planName = sub.plan.name as PlanName
 
@@ -270,7 +316,7 @@ export async function getUserPlanLimits(userId: string): Promise<{
 
   return {
     planName,
-    limits: PLAN_LIMITS[planName] ?? PLAN_LIMITS["FREE"],
+    limits: await withClientAllocations(userId, PLAN_LIMITS[planName] ?? PLAN_LIMITS["FREE"]),
     isTrialing: sub.status === "TRIALING",
     trialEndsAt: sub.trialEndsAt,
     subscriptionStatus: sub.status,
@@ -295,6 +341,12 @@ export async function getUserPlanLimits(userId: string): Promise<{
  * upgrade took time to show. Revisit if landing-page traffic ever makes it hurt.
  */
 export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits> {
+  const managed = await getManagedClient(userId)
+  if (managed) {
+    const agency = await getPlanLimitsReadOnly(managed.agencyId)
+    return (await clientWithinCount(managed, agency.agencyClientsLimit)) ? clientLimits(agency, managed) : PLAN_LIMITS["FREE"]
+  }
+
   const sub = await prisma.subscription.findUnique({
     where: { userId },
     select: {
@@ -309,7 +361,50 @@ export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits>
 
   if (isLapsed(sub)) return PLAN_LIMITS["FREE"]
 
-  return PLAN_LIMITS[sub.plan.name as PlanName] ?? PLAN_LIMITS["FREE"]
+  return withClientAllocations(userId, PLAN_LIMITS[sub.plan.name as PlanName] ?? PLAN_LIMITS["FREE"])
+}
+
+/**
+ * A managed client's limits: the agency's features, the client's caps
+ * (agency.service.ts). The client never has a team, API access or clients of
+ * its own — the agency's people work in it, and keys/webhooks are personal.
+ */
+function clientLimits(agency: PlanLimits, c: ManagedClient): PlanLimits {
+  const f = readClientFeatures(c.features)
+  return {
+    ...agency,
+    dynamicQRLimit: c.maxCodes,
+    scanLimitPerMonth: c.maxScansPerMonth,
+    fileStorageGB: c.maxStorageGB,
+    customDomains: agency.customDomains && c.maxDomains > 0,
+    customDomainsLimit: c.maxDomains,
+    teamSeatsLimit: 1,
+    apiCallsLimit: 0,
+    apiAccess: false,
+    abTesting: agency.abTesting && f.abTesting,
+    smartRouting: agency.smartRouting && f.smartRouting,
+    bulkGeneration: agency.bulkGeneration && f.bulkGeneration,
+    sso: false,
+    agencyClientsLimit: 0,
+  }
+}
+
+/**
+ * An agency's OWN limits: its plan's pool minus what it has handed to clients.
+ * Nothing to do for accounts that cannot have clients.
+ */
+async function withClientAllocations(userId: string, limits: PlanLimits): Promise<PlanLimits> {
+  if (limits.agencyClientsLimit <= 0) return limits
+  const a = await allocatedToClients(userId)
+  if (a.count === 0) return limits
+  return {
+    ...limits,
+    dynamicQRLimit: Math.max(0, limits.dynamicQRLimit - a.codes),
+    // Never 0: a scan limit of 0 means "not enforced" (scan-quota.service).
+    scanLimitPerMonth: Math.max(1, limits.scanLimitPerMonth - a.scans),
+    fileStorageGB: Math.max(0, limits.fileStorageGB - a.storageGB),
+    customDomainsLimit: Math.max(0, limits.customDomainsLimit - a.domains),
+  }
 }
 
 /**
@@ -1227,6 +1322,11 @@ async function applyPurchasedPeriod(p: {
   await resumeCodesPausedForBilling(userId).catch((err) =>
     logger.error("Failed to resume paused codes after payment", { userId, orderId, error: String(err) }),
   )
+  // An agency's clients come back with it (or pause, if the new plan has fewer
+  // client places). Imported here: agency.service imports this module.
+  await import("./agency.service.js")
+    .then((m) => m.syncAgencyClients(userId))
+    .catch((err) => logger.error("Failed to sync agency clients after payment", { userId, orderId, error: String(err) }))
 
   return { status: "activated", planName, billingCycle }
 }

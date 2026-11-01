@@ -39,7 +39,7 @@ function formatDate(iso: string): string {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient()
-  const { can } = useWorkspace()
+  const { can, isPersonal } = useWorkspace()
   const [typeFilter, setTypeFilter] = useState("all")
 
   const { data, isLoading, isError } = useQuery({
@@ -86,6 +86,9 @@ export default function DashboardPage() {
     queryKey: ["billing-usage-dashboard"],
     queryFn: getBillingUsage,
     staleTime: 2 * 60_000,
+    // Usage is your OWN plan's (billing is personal); in a team's or a client's
+    // workspace it would describe the wrong account.
+    enabled: isPersonal,
   })
   const usage = usageData?.data
 
@@ -326,148 +329,150 @@ export default function DashboardPage() {
       </div>
 
       {/* Plan Usage */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium">
-            Plan Usage
-            {usage && (
-              <span className="ml-2 text-xs font-normal text-zinc-500">
-                {usage.planName} plan
-              </span>
-            )}
-          </CardTitle>
-          <Link to="/app/billing" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
-            Manage plan <ArrowUpRight size={12} />
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {usageLoading ? (
-            <div className="space-y-4">
-              {[1, 2].map((i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="h-3 w-24 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
-                  <div className="h-2 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full animate-pulse" />
-                </div>
-              ))}
-            </div>
-          ) : usage ? (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-5">
-              {/* QR Codes */}
-              {(() => {
-                const { used, limit } = usage.qrCodes
-                const isUnlimited = limit < 0
-                const isBlocked = limit === 0  // post-trial FREE: subscribe required
-                const pct = isUnlimited || isBlocked ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
-                const remaining = isUnlimited || isBlocked ? null : Math.max(limit - used, 0)
-                const critical = !isUnlimited && !isBlocked && pct >= 90
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500 font-medium">QR Codes</span>
-                      <span className={isBlocked ? "text-red-400 font-semibold" : critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
-                        {isBlocked ? "Subscription required" : isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${isBlocked ? "bg-red-500/40" : critical ? "bg-amber-400" : "bg-violet-500"}`}
-                        style={{ width: isBlocked ? "100%" : isUnlimited ? "0%" : `${pct}%` }}
-                      />
-                    </div>
-                    <p className={`text-[10px] ${isBlocked ? "text-red-400" : "text-zinc-500"}`}>
-                      {isBlocked ? "Subscribe to create QR codes" : isUnlimited ? "Unlimited" : `${remaining} remaining`}
-                    </p>
+      {isPersonal && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">
+              Plan Usage
+              {usage && (
+                <span className="ml-2 text-xs font-normal text-zinc-500">
+                  {usage.planName} plan
+                </span>
+              )}
+            </CardTitle>
+            <Link to="/app/billing" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
+              Manage plan <ArrowUpRight size={12} />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {usageLoading ? (
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="h-3 w-24 bg-zinc-200 dark:bg-zinc-800 rounded animate-pulse" />
+                    <div className="h-2 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full animate-pulse" />
                   </div>
-                )
-              })()}
+                ))}
+              </div>
+            ) : usage ? (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-5">
+                {/* QR Codes */}
+                {(() => {
+                  const { used, limit } = usage.qrCodes
+                  const isUnlimited = limit < 0
+                  const isBlocked = limit === 0  // post-trial FREE: subscribe required
+                  const pct = isUnlimited || isBlocked ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
+                  const remaining = isUnlimited || isBlocked ? null : Math.max(limit - used, 0)
+                  const critical = !isUnlimited && !isBlocked && pct >= 90
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-500 font-medium">QR Codes</span>
+                        <span className={isBlocked ? "text-red-400 font-semibold" : critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
+                          {isBlocked ? "Subscription required" : isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${isBlocked ? "bg-red-500/40" : critical ? "bg-amber-400" : "bg-violet-500"}`}
+                          style={{ width: isBlocked ? "100%" : isUnlimited ? "0%" : `${pct}%` }}
+                        />
+                      </div>
+                      <p className={`text-[10px] ${isBlocked ? "text-red-400" : "text-zinc-500"}`}>
+                        {isBlocked ? "Subscribe to create QR codes" : isUnlimited ? "Unlimited" : `${remaining} remaining`}
+                      </p>
+                    </div>
+                  )
+                })()}
 
-              {/* Scans this month */}
-              {usage.scans && (() => {
-                const { used, limit } = usage.scans
-                const isUnlimited = limit < 0
-                const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
-                const remaining = isUnlimited ? null : Math.max(limit - used, 0)
-                const critical = !isUnlimited && pct >= 90
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500 font-medium">Scans (this month)</span>
-                      <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
-                        {isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
-                      </span>
+                {/* Scans this month */}
+                {usage.scans && (() => {
+                  const { used, limit } = usage.scans
+                  const isUnlimited = limit < 0
+                  const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
+                  const remaining = isUnlimited ? null : Math.max(limit - used, 0)
+                  const critical = !isUnlimited && pct >= 90
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-500 font-medium">Scans (this month)</span>
+                        <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
+                          {isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-emerald-500"}`}
+                          style={{ width: isUnlimited ? "0%" : `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">
+                        {isUnlimited ? "Unlimited" : `${remaining} remaining`}
+                      </p>
                     </div>
-                    <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-emerald-500"}`}
-                        style={{ width: isUnlimited ? "0%" : `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-zinc-500">
-                      {isUnlimited ? "Unlimited" : `${remaining} remaining`}
-                    </p>
-                  </div>
-                )
-              })()}
+                  )
+                })()}
 
-              {/* Storage — paid plans only */}
-              {usage.planName !== "FREE" && (() => {
-                const { used, limit } = usage.storageGB
-                const isUnlimited = limit < 0
-                const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
-                const remaining = isUnlimited ? null : Math.max(limit - used, 0)
-                const critical = !isUnlimited && pct >= 90
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500 font-medium">Storage</span>
-                      <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
-                        {isUnlimited ? `${used} GB / ∞` : `${used} GB / ${limit} GB`}
-                      </span>
+                {/* Storage — paid plans only */}
+                {usage.planName !== "FREE" && (() => {
+                  const { used, limit } = usage.storageGB
+                  const isUnlimited = limit < 0
+                  const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
+                  const remaining = isUnlimited ? null : Math.max(limit - used, 0)
+                  const critical = !isUnlimited && pct >= 90
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-500 font-medium">Storage</span>
+                        <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
+                          {isUnlimited ? `${used} GB / ∞` : `${used} GB / ${limit} GB`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-blue-500"}`}
+                          style={{ width: isUnlimited ? "0%" : `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">
+                        {isUnlimited ? "Unlimited" : `${remaining} GB remaining`}
+                      </p>
                     </div>
-                    <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-blue-500"}`}
-                        style={{ width: isUnlimited ? "0%" : `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-zinc-500">
-                      {isUnlimited ? "Unlimited" : `${remaining} GB remaining`}
-                    </p>
-                  </div>
-                )
-              })()}
+                  )
+                })()}
 
-              {/* API Calls — PRO+ only (limit > 0 means plan has API access) */}
-              {usage.apiCalls.limit !== 0 && (() => {
-                const { used, limit } = usage.apiCalls
-                const isUnlimited = limit < 0
-                const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
-                const remaining = isUnlimited ? null : Math.max(limit - used, 0)
-                const critical = !isUnlimited && pct >= 90
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-zinc-500 font-medium">API Calls (this month)</span>
-                      <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
-                        {isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
-                      </span>
+                {/* API Calls — PRO+ only (limit > 0 means plan has API access) */}
+                {usage.apiCalls.limit !== 0 && (() => {
+                  const { used, limit } = usage.apiCalls
+                  const isUnlimited = limit < 0
+                  const pct = isUnlimited ? 0 : Math.min((used / Math.max(limit, 1)) * 100, 100)
+                  const remaining = isUnlimited ? null : Math.max(limit - used, 0)
+                  const critical = !isUnlimited && pct >= 90
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-500 font-medium">API Calls (this month)</span>
+                        <span className={critical ? "text-amber-400 font-semibold" : "text-zinc-400"}>
+                          {isUnlimited ? `${used} / ∞` : `${used} / ${limit}`}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-amber-500"}`}
+                          style={{ width: isUnlimited ? "0%" : `${pct}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-zinc-500">
+                        {isUnlimited ? "Unlimited" : `${remaining} remaining`}
+                      </p>
                     </div>
-                    <div className="h-1.5 w-full bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${critical ? "bg-amber-400" : "bg-amber-500"}`}
-                        style={{ width: isUnlimited ? "0%" : `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-zinc-500">
-                      {isUnlimited ? "Unlimited" : `${remaining} remaining`}
-                    </p>
-                  </div>
-                )
-              })()}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+                  )
+                })()}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Mini Analytics: Scan Trend + Top QR Codes */}
       <div className="grid lg:grid-cols-2 gap-6">

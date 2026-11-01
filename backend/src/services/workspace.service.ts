@@ -17,11 +17,16 @@
  * branding, account settings. Membership grants access only while the owner's
  * plan includes team seats (teamSeatsLimit > 1); after a downgrade, members
  * lose access but stay on the roster.
+ *
+ * Agency clients (agency.service.ts) are workspaces too: the client's managed
+ * account is the owner, and the agency's people get in with the role they have
+ * in the AGENCY's workspace (the agency owner as OWNER).
  */
 import type { TeamRole } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { getPlanLimitsReadOnly } from "./billing.service.js"
+import { clientWithinCount, getManagedClient } from "./managed-account.service.js"
 
 export type WorkspaceRole = TeamRole // OWNER | ADMIN | EDITOR | VIEWER
 
@@ -40,6 +45,8 @@ export interface Workspace {
   /** Who is making the request — used for audit logs and upload provenance. */
   actorId: string
   role: WorkspaceRole
+  /** Set when the workspace is an agency's client: the agency's account id. */
+  clientOf?: string
 }
 
 export function can(ws: Workspace, action: WorkspaceAction): boolean {
@@ -53,6 +60,13 @@ export function can(ws: Workspace, action: WorkspaceAction): boolean {
 export async function resolveWorkspace(actorId: string, requestedOwnerId?: string | null): Promise<Workspace> {
   if (!requestedOwnerId || requestedOwnerId === actorId) {
     return { ownerId: actorId, actorId, role: "OWNER" }
+  }
+
+  // An agency's client: reached only through the agency's own workspace.
+  const managed = await getManagedClient(requestedOwnerId)
+  if (managed) {
+    const agency = await resolveWorkspace(actorId, managed.agencyId)
+    return { ownerId: requestedOwnerId, actorId, role: agency.role, clientOf: managed.agencyId }
   }
 
   const membership = await prisma.teamMember.findFirst({
@@ -126,8 +140,38 @@ export async function listWorkspaces(userId: string) {
     }),
   )
 
+  // Clients of every agency the user can work in: their own, and teams'.
+  const agencies = [
+    { ownerId: userId, role: "OWNER" as WorkspaceRole, name: me?.name ?? "" },
+    ...shared.filter((w) => w.available).map((w) => ({ ownerId: w.ownerId, role: w.role, name: w.ownerName })),
+  ]
+  const clients = (
+    await Promise.all(
+      agencies.map(async (a) => {
+        const rows = await prisma.agencyClient.findMany({
+          where: { agencyId: a.ownerId },
+          select: { id: true, agencyId: true, userId: true, name: true, createdAt: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        })
+        if (rows.length === 0) return []
+        const limits = await getPlanLimitsReadOnly(a.ownerId)
+        return Promise.all(rows.map(async (c) => ({
+          ownerId: c.userId,
+          name: c.name,
+          ownerName: a.name,
+          role: a.role,
+          /** False when the agency's plan no longer covers this client. */
+          available: await clientWithinCount(c, limits.agencyClientsLimit),
+          kind: "client" as const,
+          agencyId: a.ownerId,
+        })))
+      }),
+    )
+  ).flat()
+
   return [
-    { ownerId: userId, name: "Personal", ownerName: me?.name ?? "", role: "OWNER" as WorkspaceRole, available: true },
-    ...shared,
+    { ownerId: userId, name: "Personal", ownerName: me?.name ?? "", role: "OWNER" as WorkspaceRole, available: true, kind: "personal" as const },
+    ...shared.map((w) => ({ ...w, kind: "team" as const })),
+    ...clients,
   ]
 }

@@ -134,7 +134,8 @@ const values = [
 ]
 
 // ─── Milestones data ──────────────────────────────────────────────────────────
-// Q1 2026 = LIVE NOW. Q2 and Q3 are upcoming roadmap milestones.
+// Q1 2026 and the white-label & enterprise release are live. Q2 (integrations)
+// stays "coming soon" until the user confirms what of it has shipped.
 
 type Milestone = {
   quarter: string
@@ -160,11 +161,12 @@ const milestones: Milestone[] = [
     status: "upcoming",
   },
   {
-    quarter: "Q3 2026",
-    label: "On the roadmap",
+    // Promised for Q3, shipped at the start of Q4 (31 Oct – 1 Nov 2026).
+    quarter: "Q4 2026",
+    label: "Live now",
     title: "White-label & enterprise",
-    desc: "Custom domain QR codes, white-label dashboard for agencies, SSO, and enterprise-grade audit logging — so large teams and resellers can run GenXQR under their own brand.",
-    status: "planned",
+    desc: "Your own domain on your QR codes, an Agency plan to run clients' codes under their brands with reports under yours, single sign-on with Google Workspace and Microsoft, and an activity log of every change and sign-in.",
+    status: "live",
   },
 ]
 

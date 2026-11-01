@@ -24,7 +24,7 @@ import {
  * wants to type "79900" for ₹799. Percentages are entered as whole numbers.
  */
 
-const PURCHASABLE_PLANS: PlanName[] = ["STARTER", "PRO", "BUSINESS"]
+const PURCHASABLE_PLANS: PlanName[] = ["STARTER", "PRO", "BUSINESS", "AGENCY"]
 const CYCLES = ["monthly", "yearly"] as const
 
 function rupees(paise: number): string {

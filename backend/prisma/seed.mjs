@@ -42,6 +42,12 @@ const PLANS = [
     features: { customDomains: true, analytics: "2y", bulkGeneration: true, apiAccess: true, whiteLabel: true, prioritySupport: true },
   },
   {
+    name: "AGENCY", displayName: "Agency",
+    priceMonthlyINR: 5999, priceYearlyINR: 59988, priceMonthlyUSD: 72, priceYearlyUSD: 720,
+    dynamicQRLimit: 5000, scanLimit: 1000000, fileStorageGB: 100, teamSeatsLimit: 10, apiCallsLimit: 250000,
+    features: { customDomains: true, analytics: "2y", bulkGeneration: true, apiAccess: true, whiteLabel: true, prioritySupport: true, agencyClients: 15 },
+  },
+  {
     name: "ENTERPRISE", displayName: "Enterprise",
     priceMonthlyINR: 9999, priceYearlyINR: 99990, priceMonthlyUSD: 120, priceYearlyUSD: 1200,
     dynamicQRLimit: 999999, scanLimit: 999999999, fileStorageGB: 1000, teamSeatsLimit: 999, apiCallsLimit: 999999999,

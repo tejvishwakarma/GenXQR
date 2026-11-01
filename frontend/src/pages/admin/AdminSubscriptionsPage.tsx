@@ -17,6 +17,7 @@ const PLAN_META: Record<string, string> = {
   STARTER:    "bg-blue-500/15 text-blue-400 ring-blue-500/30",
   PRO:        "bg-violet-500/15 text-violet-400 ring-violet-500/30",
   BUSINESS:   "bg-amber-500/15 text-amber-400 ring-amber-500/30",
+  AGENCY: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
   ENTERPRISE: "bg-red-500/15 text-red-400 ring-red-500/30",
 }
 
@@ -28,7 +29,7 @@ const REMINDER_LABELS: Record<string, string> = {
 // Filtered by what a subscription is doing (server state), not the raw status:
 // PAST_DUE, CANCELLED and PAUSED are never set, and ACTIVE includes free accounts.
 type StateFilter = "All" | SubscriptionStateKey
-const PLAN_FILTERS   = ["All", "FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"] as const
+const PLAN_FILTERS   = ["All", "FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"] as const
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

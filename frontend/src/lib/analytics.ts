@@ -1,4 +1,4 @@
-import { onOwnSite } from "@/lib/site"
+import { isWhiteLabelPage, onOwnSite } from "@/lib/site"
 /**
  * Google Analytics 4.
  *
@@ -55,6 +55,8 @@ export function initAnalytics(): void {
   if (initialised || typeof window === "undefined") return
   // Not on a customer's custom domain (site.ts onOwnSite).
   if (!onOwnSite()) return
+  // Nor on pages carried under an agency's brand (site.ts isWhiteLabelPage).
+  if (isWhiteLabelPage()) return
 
   if (!isAnalyticsEnabled()) {
     // A malformed id is worth surfacing: it looks configured but collects nothing.
@@ -140,6 +142,8 @@ const REDACTED_QUERY_PARAMS = new Set([
 const REDACTED_PATH_PREFIXES: Array<{ prefix: string; replacement: string }> = [
   // /invite/<team-invite-token> — accepting it joins a team.
   { prefix: "/invite/", replacement: "/invite/:token" },
+  // /l/report/<token> — an agency's share report; the token opens it.
+  { prefix: "/l/report/", replacement: "/l/report/:token" },
 ]
 
 /**

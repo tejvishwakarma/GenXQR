@@ -37,11 +37,11 @@ const HOME_JSON_LD = [
     "offers": {
       "@type": "AggregateOffer",
       "lowPrice": "0",
-      // Self-serve plans only (Free, Starter, Pro, Business); Enterprise is
-      // "Custom pricing" on /pricing, so its internal price is not advertised.
-      "highPrice": "2499",
+      // Self-serve plans only (Free, Starter, Pro, Business, Agency); Enterprise
+      // is "Custom pricing" on /pricing, so its internal price is not advertised.
+      "highPrice": "5999",
       "priceCurrency": "INR",
-      "offerCount": "4",
+      "offerCount": "5",
       "description": "14-day Pro trial, no credit card required. Paid plans from ₹299/month.",
     },
     "featureList": [

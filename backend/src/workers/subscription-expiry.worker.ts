@@ -9,6 +9,7 @@ import { fillMissingUserLocations } from "../services/user-location.service.js"
 import { purgeExpiredAuditLogs } from "../services/audit.service.js"
 import { reconcileRefunds } from "../services/refund.service.js"
 import { refreshPendingDomains } from "../services/custom-domain.service.js"
+import { syncAgencyClients } from "../services/agency.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -59,6 +60,10 @@ async function processExpiryJob(_job: Job): Promise<void> {
   // ask Cashfree about recent paid orders, a batch per run.
   await reconcileRefunds().catch((err) =>
     logger.error("Refund reconciliation failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Agencies' clients follow their agency's plan (after expiry above).
+  await syncAgencyClients().catch((err) =>
+    logger.error("Syncing agency clients failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Custom domains waiting on the customer's DNS / Cloudflare's certificate.
   await refreshPendingDomains().catch((err) =>

@@ -71,7 +71,7 @@ function assertValid(input: CouponInput): void {
   // clamped to a free order, which the checkout then refuses — better to say so
   // now than to let the admin discover it from a customer complaint.
   if (input.discountType === "FIXED") {
-    const plans = (input.applicablePlans?.length ? input.applicablePlans : (["STARTER", "PRO", "BUSINESS"] as PlanName[]))
+    const plans = (input.applicablePlans?.length ? input.applicablePlans : (["STARTER", "PRO", "BUSINESS", "AGENCY"] as PlanName[]))
     const cycles = (input.applicableCycles?.length ? input.applicableCycles : [...CYCLES])
     const cheapestPaise = Math.min(
       ...plans.flatMap((p) =>
@@ -136,7 +136,7 @@ export async function getCoupon(id: string) {
  * than ₹1 to pay — i.e. it grants the plan free (coupon.service quoteCoupon).
  */
 export function couponCanMakePurchaseFree(input: CouponInput): boolean {
-  const plans = (input.applicablePlans?.length ? input.applicablePlans : ["STARTER", "PRO", "BUSINESS"]) as PlanName[]
+  const plans = (input.applicablePlans?.length ? input.applicablePlans : ["STARTER", "PRO", "BUSINESS", "AGENCY"]) as PlanName[]
   const cycles = (input.applicableCycles?.length ? input.applicableCycles : ["monthly", "yearly"]) as Array<"monthly" | "yearly">
   for (const plan of plans) {
     const prices = PLAN_PRICES_INR[plan]

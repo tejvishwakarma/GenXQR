@@ -1,4 +1,4 @@
-import { onOwnSite } from "@/lib/site"
+import { isWhiteLabelPage, onOwnSite } from "@/lib/site"
 /**
  * Microsoft Clarity (session recordings + heatmaps).
  *
@@ -40,6 +40,8 @@ export function initClarity(): void {
   if (initialised || typeof window === "undefined") return
   // Not on a customer's custom domain (site.ts onOwnSite).
   if (!onOwnSite()) return
+  // Nor on pages carried under an agency's brand (site.ts isWhiteLabelPage).
+  if (isWhiteLabelPage()) return
   if (!isClarityEnabled()) return
   initialised = true
 

@@ -209,7 +209,7 @@ export async function changePlan(
   callerRole: AdminRole,
   callerId: string,
   targetId: string,
-  planName: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE",
+  planName: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY" | "ENTERPRISE",
 ) {
   if (callerRole !== "SUPER_ADMIN") throw new AppError(403, "SUPER_ADMIN role required")
 
@@ -259,6 +259,8 @@ export async function changePlan(
   // switches back on what a previous move to FREE (or a lapse) paused.
   if (planName === "FREE") await pauseCodesForBilling(targetUser.id)
   else await resumeCodesPausedForBilling(targetUser.id)
+  // ...and an agency's clients follow its plan.
+  await import("./agency.service.js").then((m) => m.syncAgencyClients(targetUser.id))
 
   await prisma.auditLog.create({
     data: {
