@@ -982,9 +982,11 @@ export default function BillingPage() {
       {plans.length > 0 && (
         <div ref={plansRef}>
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white mb-4">Available Plans</h2>
-          <div className="grid grid-flow-col auto-cols-[minmax(260px,1fr)] gap-5 overflow-x-auto overflow-y-visible pt-3 pb-2">
+          {/* Wrapping rows, not one sideways-scrolling row: with six plans the
+              row hid Agency and Enterprise off to the right with no hint. */}
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 pt-3 pb-2">
             {plans.map((plan) => (
-              <div key={plan.id} className="min-w-[260px] h-full">
+              <div key={plan.id} className="h-full">
                 <PlanCard
                   plan={plan}
                   currentPlanName={currentPlanName}
