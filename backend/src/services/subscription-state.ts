@@ -25,6 +25,16 @@ import type { Prisma, SubscriptionStatus } from "@prisma/client"
  * in each state — tests/integration/subscription-state.test.ts checks that.
  */
 
+/**
+ * The period end of a plan an admin granted with "never expires" (e.g. the
+ * non-expiring account Zapier's reviewers need). A far-future date rather than
+ * a NULL column, so expiry, reminders, the scan-quota window and QR expiry
+ * limits work unchanged; the UI shows it as "Never" (year >= NO_EXPIRY_YEAR).
+ */
+export const NO_EXPIRY_YEAR = 2099
+export const NO_EXPIRY_PERIOD_END = new Date(Date.UTC(NO_EXPIRY_YEAR, 11, 31, 23, 59, 59))
+export const isNoExpiry = (end: Date): boolean => end.getUTCFullYear() >= NO_EXPIRY_YEAR
+
 export const SUBSCRIPTION_STATES = ["trial", "paid", "cancelling", "notice", "ending", "free", "other"] as const
 export type SubscriptionStateKey = (typeof SUBSCRIPTION_STATES)[number]
 

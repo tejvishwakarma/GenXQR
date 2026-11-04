@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { BarChart3, Loader2, MapPin, Pencil, Plus, QrCode, Trash2 } from "lucide-react"
+import { BarChart3, ListChecks, Loader2, MapPin, Pencil, Plus, QrCode, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -9,6 +9,7 @@ import { ApiError, createPlace, deletePlace, getPlaces, updatePlace, type PlaceW
 import { useWorkspace } from "@/hooks/useWorkspace"
 import { PlaceForm, mapLink } from "@/components/places/PlaceForm"
 import { PlaceModal } from "@/components/places/PlacePicker"
+import { AssignCodesModal } from "@/components/places/AssignCodesModal"
 
 /**
  * Places (backend place.service.ts): where the workspace's codes are printed,
@@ -24,6 +25,7 @@ export default function PlacesPage() {
   const [days, setDays] = useState(30)
   const [editing, setEditing] = useState<PlaceWithStats | "new" | null>(null)
   const [deleting, setDeleting] = useState<PlaceWithStats | null>(null)
+  const [assigning, setAssigning] = useState<PlaceWithStats | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -57,7 +59,7 @@ export default function PlacesPage() {
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Places</h1>
           <p className="text-zinc-500 text-sm mt-0.5 max-w-2xl">
             The spots where your codes are printed — a store, a metro station, a stand. Give each place its own code
-            (pick the place when you create it, or use <span className="text-zinc-700 dark:text-zinc-300">Copy to other places</span> on a code) and see how many scans each place gets.
+            (pick the place when you create it, tick existing codes with <span className="text-zinc-700 dark:text-zinc-300">Assign codes</span>, or use <span className="text-zinc-700 dark:text-zinc-300">Copy to other places</span> on a code) and see how many scans each place gets.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -151,6 +153,12 @@ export default function PlacesPage() {
                               <QrCode size={14} />
                             </Link>
                             {can("qr:edit") && (
+                              <button type="button" onClick={() => setAssigning(p)} title="Assign codes" aria-label={`Assign codes to ${p.name}`}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10">
+                                <ListChecks size={14} />
+                              </button>
+                            )}
+                            {can("qr:edit") && (
                               <button type="button" onClick={() => setEditing(p)} title="Edit" aria-label={`Edit ${p.name}`}
                                 className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10">
                                 <Pencil size={14} />
@@ -190,6 +198,8 @@ export default function PlacesPage() {
           />
         </PlaceModal>
       )}
+
+      {assigning && <AssignCodesModal place={assigning} onClose={() => setAssigning(null)} />}
 
       {deleting && (
         <PlaceModal title="Delete place?" onClose={() => setDeleting(null)}>

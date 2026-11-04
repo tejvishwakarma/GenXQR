@@ -58,6 +58,7 @@ const CATEGORY_ICON: Record<string, ReactElement> = {
 
 const str = (v: unknown) => (typeof v === "string" && v.length > 0 ? v : null)
 const quoted = (v: unknown) => (str(v) ? ` “${str(v)}”` : "")
+const num = (v: unknown) => (typeof v === "number" && v > 0 ? v : 0)
 
 /** A sentence for one entry. Unknown actions fall back to their code, so a new one is never hidden. */
 function describe(e: ActivityEntry): string {
@@ -88,6 +89,10 @@ function describe(e: ActivityEntry): string {
       case "place.create": return `Added place${quoted(m.name)}`
       case "place.update": return `Edited place${quoted(m.name)}`
       case "place.delete": return `Deleted place${quoted(m.name)}`
+      case "place.codes": {
+        const parts = [num(m.added) ? `put ${num(m.added)} code${num(m.added) === 1 ? "" : "s"} there` : "", num(m.removed) ? `took ${num(m.removed)} off it` : ""].filter(Boolean)
+        return `Changed the codes at place${quoted(m.name)}${parts.length ? `: ${parts.join(", ")}` : ""}`
+      }
       case "qr.bulk_create": return `Bulk-created ${Number(m.created) || 0} code${Number(m.created) === 1 ? "" : "s"}${Number(m.failed) > 0 ? ` (${Number(m.failed)} rows failed)` : ""}`
       case "qr.routing.add": return "Added a smart-routing rule"
       case "qr.routing.update": return "Changed a smart-routing rule"

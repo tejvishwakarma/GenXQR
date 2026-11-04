@@ -6,7 +6,14 @@
     "limit": 50,
     "sort": "updatedAt"
   },
+  "pagination": {
+    "qs": {
+      "page": "{{pagination.page}}"
+    },
+    "condition": "{{body.pagination.hasNext}}"
+  },
   "response": {
+    "limit": 150,
     "iterate": "{{body.data}}",
     "output": {
       "label": "{{item.name}}",

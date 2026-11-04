@@ -1,7 +1,8 @@
-import { beforeAll, describe, expect, it } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
+import { enforceSubscriptionExpiry } from "../../src/services/subscription-expiry.service.js"
 import { createAdmin, createQRCode, createSuperAdmin, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
 
 /** Admin-panel findings from the 23 Oct 2026 audit. */
@@ -38,5 +39,36 @@ describe("admin moderation hardening", () => {
 
     await request(app).patch(`/admin-api/users/${user.id}/plan`).set("Authorization", `Bearer ${superAdmin.token}`).send({ planName: "PRO" }).expect(200)
     expect((await prisma.qRCode.findUniqueOrThrow({ where: { id: qr.id } })).isActive).toBe(true)
+  })
+
+  it("should keep a plan granted as never-expiring after a month, and refuse it for FREE or an ADMIN", async () => {
+    const superAdmin = await createSuperAdmin()
+    const admin = await createAdmin()
+    const user = await createUser()
+    const qr = await createQRCode(user.id)
+    const plan = (body: object, token = superAdmin.token) =>
+      request(app).patch(`/admin-api/users/${user.id}/plan`).set("Authorization", `Bearer ${token}`).send(body)
+
+    await plan({ planName: "FREE", noExpiry: true }).expect(422)
+    await plan({ planName: "PRO", noExpiry: true }, admin.token).expect(403)
+    await plan({ planName: "PRO", noExpiry: true }).expect(200)
+
+    const sub = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id }, select: { currentPeriodEnd: true } })
+    expect(sub.currentPeriodEnd.getUTCFullYear()).toBe(2099)
+    // Run the expiry job as if 13 months had passed: nothing lapses.
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 400 * 86_400_000 })
+    try {
+      await enforceSubscriptionExpiry()
+    } finally {
+      vi.useRealTimers()
+    }
+    const after = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id }, select: { plan: { select: { name: true } } } })
+    expect(after.plan.name).toBe("PRO")
+    expect((await prisma.qRCode.findUniqueOrThrow({ where: { id: qr.id } })).isActive).toBe(true)
+
+    // An ordinary plan change afterwards goes back to a one-month period.
+    await plan({ planName: "BUSINESS" }).expect(200)
+    const normal = await prisma.subscription.findUniqueOrThrow({ where: { userId: user.id }, select: { currentPeriodEnd: true } })
+    expect(normal.currentPeriodEnd.getTime() - Date.now()).toBeLessThan(32 * 86_400_000)
   })
 })

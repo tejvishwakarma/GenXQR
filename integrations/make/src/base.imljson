@@ -6,6 +6,11 @@
     "Accept": "application/json",
     "User-Agent": "GenXQR-Make/1.0"
   },
+  "response": {
+    "error": {
+      "message": "[{{statusCode}}] {{ifempty(body.error, body.message)}}"
+    }
+  },
   "log": {
     "sanitize": ["request.headers.Authorization"]
   }

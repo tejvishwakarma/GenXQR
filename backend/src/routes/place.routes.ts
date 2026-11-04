@@ -5,6 +5,8 @@ import { requireAuth } from "../middleware/auth.middleware.js"
 import { requireWorkspacePermission, withWorkspace, wsOwner } from "../middleware/workspace.middleware.js"
 import * as PlaceService from "../services/place.service.js"
 import { logAudit } from "../services/audit.service.js"
+import { getQR } from "../services/qr.service.js"
+import { deliverWebhookEvent } from "../services/webhook.service.js"
 
 /**
  * /api/places — the workspace's print locations (place.service.ts). Same roles
@@ -47,6 +49,29 @@ router.patch("/:id", requireWorkspacePermission("qr:edit"), async (req: Request,
     const place = await PlaceService.updatePlace(wsOwner(req), req.params["id"] as string, PlaceService.placeUpdateSchema.parse(req.body))
     auditPlace(req, "place.update", place.id, { name: place.name })
     res.json({ success: true, data: place })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * PUT /api/places/:id/codes {add, remove} — put codes at this place or take
+ * them off it. An edit of each code: audited and sent as qr.updated.
+ */
+router.put("/:id/codes", requireWorkspacePermission("qr:edit"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const owner = wsOwner(req)
+    const result = await PlaceService.setPlaceCodes(owner, req.params["id"] as string, PlaceService.placeCodesSchema.parse(req.body))
+    if (result.added.length || result.removed.length) {
+      auditPlace(req, "place.codes", result.place.id, { name: result.place.name, added: result.added.length, removed: result.removed.length })
+    }
+    // qr.updated for each changed code, one after another (as bulk upload does).
+    void (async () => {
+      for (const id of [...result.added, ...result.removed]) {
+        await getQR(id, owner).then((qr) => deliverWebhookEvent(owner, "qr.updated", { qr })).catch(() => undefined)
+      }
+    })()
+    res.json({ success: true, data: { added: result.added, removed: result.removed } })
   } catch (err) {
     next(err)
   }

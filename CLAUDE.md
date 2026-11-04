@@ -349,6 +349,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 
 #### `/api/places` → `place.routes.ts` (workspace-aware; view = qr:view, add = qr:create, edit = qr:edit, delete = qr:delete)
 - `GET /?days=` (with codeCount, scansInRange, totalScans) · `POST /` · `PATCH /:id` · `DELETE /:id`
+- `PUT /api/places/:id/codes {add, remove}` (qr:edit) — "Assign codes": put the owner's codes at a place / take them off it; qr.updated per code
 - `POST /api/qr/:id/copy-to-places {placeIds}` — one ACTIVE copy per place, "<name> — <place>", within the QR limit (overflow → `failed`)
 
 #### `/api/billing` → `billing.routes.ts`
@@ -672,7 +673,11 @@ no auto-debit, so renewing means paying again. Until this existed, nothing acted
   set by migration `20261017130000`. While it is in the future, the account is not lapsed.
 - The "expired" email is sent by the expiry service, not the renewal-reminder job,
   so it can say what actually happened.
-- Admin plan changes set a 1-month period, so admin-granted plans now expire too.
+- Admin plan changes set a 1-month period, so admin-granted plans now expire too — unless the SUPER_ADMIN ticks
+  "Never expires" (`noExpiry`, paid plans only; built 4 Nov 2026 for the non-expiring test account Zapier's review
+  requires at integration-testing@zapier.com). Stored as `currentPeriodEnd` = `NO_EXPIRY_PERIOD_END` (31 Dec 2099,
+  subscription-state.ts), not NULL, so expiry/reminders/quota need no special case; the UI shows "Never" (`isNoExpiry`).
+  Such an account counts as "paid" in the admin state. A later ordinary plan change goes back to one month.
 - **`Subscription.status` is not the state** (24 Oct 2026). Only ACTIVE and TRIALING are ever written;
   CANCELLED / PAST_DUE / PAUSED never are (cancelling = `cancelAtPeriodEnd`), and an expired plan becomes FREE
   with status ACTIVE. The admin panel shows `subscriptionState()` (services/subscription-state.ts): trial, paid,
@@ -854,7 +859,7 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 City Centre Metro", location ID `DEL-MCC-01`, city/address/map pin. Decided with the user: a saved list per workspace
 owner (names and location IDs unique per account ignoring case); every plan; no plan gate.
 - **One code per place.** A printed image can't tell its copies apart, so a place is counted only through its own
-  code(s). Helpers: the place picker on create/edit, "Copy to other places" on a code (`copyQRToPlaces`), and bulk CSV
+  code(s). Helpers: the place picker on create/edit, "Assign codes" on the Places page (`setPlaceCodes`), "Copy to other places" on a code (`copyQRToPlaces`), and bulk CSV
   columns `place`, `location_id`, `place_city`, `place_address` (matched by location ID, then name, else created —
   `placeResolver`; a match is never edited by a row).
 - **Scans record the code's place AT scan time** (`QRScan.placeId`, set in `scan.worker`), so moving a code later
@@ -1000,7 +1005,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | File | Route |
 |---|---|
 | `landing/LandingPage.tsx` | `/l/:slug` — renders custom QR landing page |
-| `landing/ClientReportPage.tsx` | `/l/report/:token` — an agency's share report (agency brand; no GenXQR analytics/Clarity: `isWhiteLabelPage`) |
+| `landing/ClientReportPage.tsx` | `/l/report/:token` — an agency's share report (agency brand; no GenXQR analytics/Clarity: `isWhiteLabelPage`; `useAgencyHead` swaps the favicon, home-screen title and manifest for the agency's) |
 | `scan/PasswordPage.tsx` | `/r/:slug/password` — password entry form |
 | `scan/ExpiredPage.tsx` | `/r/:slug/expired` — QR expired/inactive screen |
 

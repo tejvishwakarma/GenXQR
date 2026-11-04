@@ -172,6 +172,8 @@ router.patch(
  */
 const ChangePlanSchema = z.object({
   planName: z.enum(["FREE", "STARTER", "PRO", "BUSINESS", "AGENCY", "ENTERPRISE"]),
+  /** Never expires — for test/partner accounts such as Zapier's reviewers'. */
+  noExpiry: z.boolean().optional(),
 })
 
 router.patch(
@@ -179,8 +181,8 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const caller = req.user as unknown as AccessTokenPayload
-      const { planName } = ChangePlanSchema.parse(req.body)
-      const data = await AdminUsersService.changePlan(caller.role, caller.sub, req.params["id"] as string, planName)
+      const { planName, noExpiry } = ChangePlanSchema.parse(req.body)
+      const data = await AdminUsersService.changePlan(caller.role, caller.sub, req.params["id"] as string, planName, { noExpiry })
       res.json({ success: true, data })
     } catch (err) {
       next(err)

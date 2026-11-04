@@ -219,7 +219,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "Can I see scans for each place where my QR code is printed?",
-        a: "Yes. Add your places in Places — a name such as Millennium City Centre Metro, and optionally a location ID, city, address and map pin — and give each place its own QR code. One printed image cannot tell which of its copies was scanned, so a separate code per place is what makes per-place counts possible. Pick the place when you create a code, use “Copy to other places” to make one copy per place in one go, or add a place column to a bulk upload. Analytics then shows scans per place, and each code's scan log lists every scan with its exact date and time.",
+        a: "Yes. Add your places in Places — a name such as Millennium City Centre Metro, and optionally a location ID, city, address and map pin — and give each place its own QR code. One printed image cannot tell which of its copies was scanned, so a separate code per place is what makes per-place counts possible. Pick the place when you create a code, tick existing codes with “Assign codes” on the Places page, use “Copy to other places” to make one copy per place in one go, or add a place column to a bulk upload. Analytics then shows scans per place, and each code's scan log lists every scan with its exact date and time.",
       },
       {
         q: "What scan data does GenXQR collect?",

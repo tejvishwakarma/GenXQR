@@ -7,7 +7,7 @@ import {
   CreditCard, Users, CalendarClock,
 } from "lucide-react"
 import AdminPagination from "@/components/admin/AdminPagination"
-import { fetchAdminSubscriptions, sendRenewalReminders, type AdminSubscription, type SubscriptionStateKey } from "@/lib/api"
+import { fetchAdminSubscriptions, isNoExpiry, sendRenewalReminders, type AdminSubscription, type SubscriptionStateKey } from "@/lib/api"
 import { SubscriptionStateBadge, STATE_FILTERS, describeState } from "@/components/admin/SubscriptionStateBadge"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ export default function AdminSubscriptionsPage() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {/* A free account has no end: its "period" is a placeholder. */}
                             <span className="text-zinc-400 text-xs">
-                              {sub.plan.name === "FREE" ? "—" : new Date(sub.status === "TRIALING" && sub.trialEndsAt ? sub.trialEndsAt : sub.currentPeriodEnd).toLocaleDateString()}
+                              {sub.plan.name === "FREE" ? "—" : isNoExpiry(sub.currentPeriodEnd) && sub.status !== "TRIALING" ? "Never" : new Date(sub.status === "TRIALING" && sub.trialEndsAt ? sub.trialEndsAt : sub.currentPeriodEnd).toLocaleDateString()}
                             </span>
                             <ExpiryBadge sub={sub} />
                           </div>

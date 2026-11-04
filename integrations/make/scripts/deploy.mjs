@@ -86,7 +86,7 @@ for (const dir of dirs("rpcs")) {
 }
 
 // ── Modules ──────────────────────────────────────────────────────────────────
-const TYPE_ID = { trigger: 10, action: 4 } // 10 = instant trigger (webhook), 4 = action
+const TYPE_ID = { trigger: 10, action: 4, universal: 12 } // 10 = instant trigger (webhook), 4 = action, 12 = universal
 const existingModules = (await api("GET", `/sdk/apps/${APP}/${VERSION}/modules`)).appModules.map((m) => m.name)
 for (const dir of dirs("modules")) {
   const meta = json(`modules/${dir}/metadata.json`)

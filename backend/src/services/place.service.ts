@@ -137,6 +137,44 @@ export async function attributeUnplacedScans(qrId: string, placeId: string): Pro
   await prisma.qRScan.updateMany({ where: { qrId, placeId: null }, data: { placeId } })
 }
 
+export const placeCodesSchema = z
+  .object({
+    add: z.array(z.string().min(1).max(40)).max(500).default([]),
+    remove: z.array(z.string().min(1).max(40)).max(500).default([]),
+  })
+  .refine((v) => v.add.length + v.remove.length > 0, { message: "Choose at least one code." })
+
+/**
+ * "Assign codes" on the Places page: puts the owner's codes at this place, or
+ * takes them off it. Codes that aren't the owner's are skipped, never touched.
+ * A code moving here from another place keeps that place's scans there; one
+ * that had no place brings its scans along (attributeUnplacedScans).
+ * Returns the ids actually changed.
+ */
+export async function setPlaceCodes(ownerId: string, placeId: string, input: z.infer<typeof placeCodesSchema>) {
+  const place = await prisma.place.findFirst({ where: { id: placeId, userId: ownerId }, select: { id: true, name: true } })
+  if (!place) throw new AppError(404, "Place not found")
+  const addIds = [...new Set(input.add)]
+  const removeIds = [...new Set(input.remove)].filter((id) => !addIds.includes(id))
+
+  const toAdd = addIds.length
+    ? await prisma.qRCode.findMany({
+        where: { id: { in: addIds }, userId: ownerId, OR: [{ placeId: null }, { placeId: { not: placeId } }] },
+        select: { id: true, placeId: true },
+      })
+    : []
+  const toRemove = removeIds.length
+    ? await prisma.qRCode.findMany({ where: { id: { in: removeIds }, userId: ownerId, placeId }, select: { id: true } })
+    : []
+
+  await prisma.$transaction([
+    prisma.qRCode.updateMany({ where: { id: { in: toAdd.map((q) => q.id) }, userId: ownerId }, data: { placeId } }),
+    prisma.qRScan.updateMany({ where: { qrId: { in: toAdd.filter((q) => !q.placeId).map((q) => q.id) }, placeId: null }, data: { placeId } }),
+    prisma.qRCode.updateMany({ where: { id: { in: toRemove.map((q) => q.id) }, userId: ownerId, placeId }, data: { placeId: null } }),
+  ])
+  return { place, added: toAdd.map((q) => q.id), removed: toRemove.map((q) => q.id) }
+}
+
 /**
  * A place for a bulk-upload row: matched by location ID, else by name (both
  * ignoring case), else created. A match is used as it is — the row's city or
