@@ -1,9 +1,16 @@
 {
-  "url": "/v1/qr",
+  "url": "https://genxqr.com/v1/qr",
   "method": "GET",
+  "headers": {
+    "Authorization": "Bearer {{parameters.apiKey}}",
+    "Accept": "application/json"
+  },
   "qs": {
     "page": 1,
     "limit": 1
+  },
+  "log": {
+    "sanitize": ["request.headers.Authorization"]
   },
   "response": {
     "error": {
