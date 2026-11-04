@@ -1,5 +1,5 @@
 {
-  "name": "GenXQR-watch-qr-created",
+  "name": "watchQrCreated",
   "label": "Watch New QR Codes",
   "description": "Triggers instantly when a new QR code is created in your account.",
   "type": "trigger",

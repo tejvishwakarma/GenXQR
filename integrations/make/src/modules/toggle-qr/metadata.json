@@ -1,5 +1,5 @@
 {
-  "name": "GenXQR-toggle-qr",
+  "name": "toggleQr",
   "label": "Activate / Deactivate QR Code",
   "description": "Flips a QR code between active and inactive. Inactive QR codes show the fallback URL when scanned.",
   "type": "action",

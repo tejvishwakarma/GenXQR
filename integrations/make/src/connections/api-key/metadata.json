@@ -1,6 +1,6 @@
 {
   "name": "GenXQR-api-key",
   "label": "GenXQR API Key",
-  "type": "custom",
+  "type": "basic",
   "scope": "user"
 }

@@ -1,5 +1,5 @@
 {
-  "name": "GenXQR-delete-qr",
+  "name": "deleteQr",
   "label": "Delete QR Code",
   "description": "Permanently deletes a QR code and releases its slug. This action cannot be undone.",
   "type": "action",
