@@ -232,6 +232,9 @@ router.get("/qr/:id/scans", async (req, res, next) => {
         os: true,
         browser: true,
         referrer: true,
+        // In the qr.scanned webhook too: the two must carry the same fields, since
+        // Zapier/Make/n8n build a Zap's field list from this endpoint's sample.
+        isUnique: true,
       },
     })
 

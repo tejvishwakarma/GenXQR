@@ -402,6 +402,10 @@ describe("webhook delivery", () => {
       expect(data).toMatchObject({ id: scan.id, qrSlug: slug, qrName: created.body.data.name, deviceType: scan.deviceType })
       for (const key of ["country", "city", "os", "browser", "referrer"]) expect(data, key).toHaveProperty(key)
       expect(data).not.toHaveProperty("ip")
+      // Every field of the sample automation tools build Zaps from must arrive
+      // on the real webhook, or the mapped field is empty on every live scan.
+      const sample = await request(app).get(`/v1/qr/${created.body.data.id}/scans`).set("Authorization", `Bearer ${apiKey}`).expect(200)
+      for (const key of Object.keys(sample.body.data[0] as object)) expect(data, `webhook lacks sample field "${key}"`).toHaveProperty(key)
       expect(got!.headers["x-genxqr-signature"]).toBe(sign(got!.raw, hook.secret))
     })
   })
