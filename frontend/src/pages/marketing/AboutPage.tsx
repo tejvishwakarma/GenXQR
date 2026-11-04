@@ -157,9 +157,9 @@ const milestones: Milestone[] = [
     quarter: "Q2 2026",
     label: "Coming soon",
     title: "Integrations & automation",
-    // Checked 1 Nov 2026: webhooks, the REST-hook API, tags and scan emails are
-    // live; no Zapier/Make/n8n app is published yet, and no Sheets/Notion exists.
-    desc: "Live: webhooks for every code event including scans (with retries and a delivery log), an API Zapier, Make and n8n can use, tags to organise campaigns, and scan-milestone and weekly digest emails. Next: one-click Zapier, Make and n8n apps, then Google Sheets and Notion.",
+    // Checked 4 Nov 2026: Zapier and Make apps live but private (invite links in
+    // lib/integrations.ts); n8n via webhooks + HTTP node; no Sheets/Notion yet.
+    desc: "Live: GenXQR apps for Zapier and Make (beta, added by invite link), n8n through webhooks and the API, webhooks for every code event including scans (with retries and a delivery log), tags to organise campaigns, and scan-milestone and weekly digest emails. Next: public listings in the Zapier and Make directories, then Google Sheets and Notion.",
     status: "upcoming",
   },
   {

@@ -1,4 +1,11 @@
-﻿# n8n-nodes-GenXQR
+# n8n-nodes-GenXQR
+
+> **Status (4 Nov 2026): not published.** This node is not on npm, so
+> customers cannot install it. The customer docs (API docs → Integrations → n8n,
+> `frontend/src/lib/integrations.ts` `N8N_STEPS`) use n8n's built-in Webhook and
+> HTTP Request nodes instead, which work today. Publishing this package (it
+> needs a lower-case npm name, e.g. `n8n-nodes-genxqr`) is a later step.
+
 
 [n8n](https://n8n.io/) community node for the [GenXQR](https://genxqr.com) dynamic QR code platform.
 

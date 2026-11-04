@@ -1,4 +1,12 @@
-﻿# GenXQR Make (Integromat) Integration
+# GenXQR Make (Integromat) Integration
+
+> **Status (4 Nov 2026): live, private.** Built in Make as `genxqr-tl8adh` (eu1)
+> with `scripts/deploy.mjs` and tested end to end (Watch QR Scans → Google
+> Sheets). Customers add it through Make's **invite link** (App Builder →
+> GenXQR → Invite; Make does not expose it through its API). Paste it into
+> `MAKE_INVITE_URL` in `frontend/src/lib/integrations.ts` — until then the docs
+> tell customers to ask support for it. Next: request Make's public review.
+
 
 Private Make app that lets users connect their GenXQR account to Make's 1,500+ app ecosystem.
 
