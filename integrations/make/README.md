@@ -47,13 +47,25 @@ src/
 
 ## How to import
 
-1. Go to [Make Developer Platform](https://www.make.com/en/app-builder) and create a new app named **GenXQR**.
-2. Under **General** → set base URL to `https://genxqr.com` and paste `base.imljson`.
-3. Under **Connections** → create `api-key` connection and upload the 3 files.
-4. Under **Webhooks** → create each of the 4 webhooks and upload their 3 files each.
-5. Under **RPCs** → create `list-qrs` RPC and upload its `api.imljson`.
-6. Under **Modules** → create each module and upload its files.
-7. Submit for review when ready to publish (1–2 week turnaround).
+In Make: **Custom apps → Create a new app** (name `GenXQR`), then add each part
+under the **exact name** below and paste the matching file's contents into the
+tab of the same name. Names must match — modules and dropdowns refer to them.
+
+1. **Base** tab ← `src/base.imljson`
+2. **Connection** `GenXQR-api-key` (type: Other / custom): API ← `connections/api-key/api.imljson`,
+   Parameters ← `connections/api-key/parameters.imljson`
+3. **Webhooks** (type: dedicated, attached), connection `GenXQR-api-key`, for each of
+   `GenXQR-qr-scanned`, `GenXQR-qr-created`, `GenXQR-qr-updated`, `GenXQR-qr-deleted`:
+   Communication ← `respond.imljson`, Attach ← `attach.imljson`, Detach ← `detach.imljson`
+   (folders `webhooks/qr-scanned/` etc.)
+4. **RPC** `GenXQR-list-qrs`, connection `GenXQR-api-key`: Communication ← `rpcs/list-qrs/api.imljson`
+5. **Modules** — each with connection `GenXQR-api-key`:
+   - Instant triggers `GenXQR-watch-qr-scanned` / `-created` / `-updated` / `-deleted`, each attached to the
+     webhook of the same event: Interface ← `output.imljson`
+   - Actions `GenXQR-create-qr`, `GenXQR-update-destination`, `GenXQR-toggle-qr`, `GenXQR-delete-qr`:
+     Communication ← `api.imljson`, Mappable parameters ← `parameters.imljson`
+6. Test in a scenario with an API key from **genxqr.com** (Pro plan or higher).
+7. Publishing to all Make users is a separate review by Make.
 
 ## Subscribe / Unsubscribe Lifecycle
 

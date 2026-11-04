@@ -7,7 +7,11 @@
     "sort": "updatedAt"
   },
   "response": {
-    "output": "{{body.data}}",
+    "iterate": "{{body.data}}",
+    "output": {
+      "label": "{{item.name}}",
+      "value": "{{item.id}}"
+    },
     "error": {
       "message": "[{{statusCode}}] {{body.error}}"
     }

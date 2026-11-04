@@ -11,5 +11,6 @@
   { "name": "deviceType", "label": "Device Type", "type": "text" },
   { "name": "os", "label": "Operating System", "type": "text" },
   { "name": "browser", "label": "Browser", "type": "text" },
-  { "name": "referrer", "label": "Referrer URL", "type": "url" }
+  { "name": "referrer", "label": "Referrer URL", "type": "url" },
+  { "name": "isUnique", "label": "Unique Scan", "type": "boolean" }
 ]
