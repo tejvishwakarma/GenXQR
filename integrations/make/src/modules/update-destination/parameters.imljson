@@ -4,7 +4,7 @@
     "label": "QR Code",
     "type": "select",
     "required": true,
-    "options": "rpc://GenXQR-list-qrs",
+    "options": "rpc://listQrs",
     "help": "Select the QR code to update."
   },
   {

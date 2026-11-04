@@ -1,5 +1,5 @@
 {
-  "name": "GenXQR-list-qrs",
+  "name": "listQrs",
   "label": "List QR Codes",
   "connection": "GenXQR-api-key"
 }

@@ -1,12 +1,11 @@
 {
-  "name": "GenXQR-make",
+  "name": "genxqr-make",
   "version": "1.0.0",
-  "description": "GenXQR integration for Make (Integromat) — JSON manifests for all modules, webhooks, and connections.",
+  "description": "GenXQR integration for Make (Integromat) \u2014 JSON manifests for all modules, webhooks, and connections.",
   "private": true,
   "scripts": {
     "validate": "node scripts/validate.mjs",
-    "push": "imt push"
+    "deploy": "node scripts/deploy.mjs"
   },
   "devDependencies": {}
-
 }

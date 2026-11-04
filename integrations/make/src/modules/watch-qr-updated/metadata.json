@@ -1,5 +1,5 @@
 {
-  "name": "GenXQR-watch-qr-updated",
+  "name": "watchQrUpdated",
   "label": "Watch QR Code Updates",
   "description": "Triggers instantly when a QR code's destination or settings are changed.",
   "type": "trigger",

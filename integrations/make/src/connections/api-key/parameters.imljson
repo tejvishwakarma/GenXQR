@@ -2,8 +2,8 @@
   {
     "name": "apiKey",
     "label": "API Key",
-    "type": "text",
+    "type": "password",
     "required": true,
-    "help": "Create an API key at <a href='https://genxqr.com/app/api-keys' target='_blank'>genxqr.com/app/api-keys</a>. Requires a PRO plan or higher. The key begins with <code>gxqr_</code>."
+    "help": "Create an API key on [genxqr.com \u2192 API Keys](https://genxqr.com/app/api-keys) (a key from a test or local site won't work). Requires the Pro plan or higher. The key begins with `gxqr_`."
   }
 ]
