@@ -1,4 +1,14 @@
-﻿# GenXQR Zapier Integration
+# GenXQR Zapier Integration
+
+> **Status (4 Nov 2026): live, private.** Version 1.0.0 is pushed to Zapier
+> (app 248982) and tested end to end (New QR Scan → Google Sheets). Customers add
+> it through the **invite link**, which is published in the API docs and the
+> dashboard guides from one place: `frontend/src/lib/integrations.ts`
+> (`ZAPIER_INVITE_URL`; get it with `zapier-platform users:links`). Invite links
+> are per version — pushing a new version means updating that constant.
+> Next: submit for the public App Directory (needs an @genxqr.com admin and a
+> non-expiring Pro test account for integration-testing@zapier.com).
+
 
 Private Zapier app that lets users connect their GenXQR account to 7,000+ Zapier apps.
 

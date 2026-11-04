@@ -3,10 +3,14 @@ import { Link } from "react-router-dom"
 import {
   Copy, Check, Key, ChevronRight, Menu, X,
   BookOpen, Shield, Zap, AlertTriangle, Radio,
-  List, Plus, Eye, Pencil, Trash2, BarChart2, Power, ScanLine,
+  List, Plus, Eye, Pencil, Trash2, BarChart2, Power, ScanLine, Plug, ExternalLink,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SEOMeta } from "@/components/SEOMeta"
+import {
+  INTEGRATION_ACTIONS, INTEGRATION_NOTES, INTEGRATION_REQUIREMENTS, INTEGRATION_TRIGGERS,
+  MAKE_INVITE_URL, MAKE_STEPS, N8N_STEPS, SCAN_FIELDS, ZAPIER_INVITE_URL, ZAPIER_STEPS,
+} from "@/lib/integrations"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,16 @@ const NAV = [
       { id: "rate-limits",    label: "Rate Limits" },
       { id: "errors",         label: "Error Codes" },
       { id: "pagination",     label: "Pagination" },
+    ],
+  },
+  {
+    group: "Integrations",
+    icon: <Plug size={13} />,
+    items: [
+      { id: "integrations",        label: "Overview" },
+      { id: "integrations-zapier", label: "Zapier" },
+      { id: "integrations-make",   label: "Make" },
+      { id: "integrations-n8n",    label: "n8n" },
     ],
   },
   {
@@ -1280,6 +1294,111 @@ curl "https://genxqr.com/v1/qr?page=3&limit=50" \\
   )
 }
 
+// ─── Integrations (content: lib/integrations.ts) ──────────────────────────────
+
+function IntegrationSteps({ steps }: { steps: string[] }) {
+  return (
+    <ol className="space-y-2 mb-4">
+      {steps.map((text, i) => (
+        <li key={i} className="flex gap-3 text-ink-soft text-sm leading-relaxed">
+          <span className="w-6 h-6 rounded-full bg-accent-soft text-accent text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+          <span className="pt-0.5">{text}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function InviteButton({ href, label }: { href: string; label: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 mb-5 rounded-lg bg-accent hover:bg-accent-ink text-white text-sm font-semibold transition-colors">
+      {label} <ExternalLink size={14} />
+    </a>
+  )
+}
+
+function IntegrationsSection() {
+  return (
+    <>
+      <section id="integrations" className="scroll-mt-32 mb-16">
+        <h2 className="text-ink font-display font-bold text-2xl mb-4">Integrations — Zapier, Make &amp; n8n</h2>
+        <p className="text-ink-soft text-sm leading-relaxed mb-4">
+          Connect GenXQR to thousands of apps without code. GenXQR has its own apps for Zapier and Make (added through an invite link while they are in beta), and works with n8n through its built-in Webhook and HTTP Request nodes. All three use the same API and webhooks documented on this page.
+        </p>
+        <p className="text-ink font-semibold text-sm mb-2">You need</p>
+        <ul className="list-disc pl-5 space-y-1 text-ink-soft text-sm mb-6">
+          {INTEGRATION_REQUIREMENTS.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+
+        <div className="grid gap-4 md:grid-cols-2 mb-6">
+          <div className="border border-line rounded-xl p-4">
+            <p className="text-ink font-semibold text-sm mb-3">Triggers</p>
+            <ul className="space-y-2">
+              {INTEGRATION_TRIGGERS.map((t) => (
+                <li key={t.event} className="text-ink-soft text-xs leading-relaxed">
+                  <span className="text-ink font-medium">{t.zapier}</span> <span className="text-ink-faint">(Make: {t.make} · event <code className="text-accent">{t.event}</code>)</span> — {t.desc}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="border border-line rounded-xl p-4">
+            <p className="text-ink font-semibold text-sm mb-3">Actions (Zapier &amp; Make)</p>
+            <ul className="space-y-2">
+              {INTEGRATION_ACTIONS.map((a) => (
+                <li key={a.name} className="text-ink-soft text-xs leading-relaxed"><span className="text-ink font-medium">{a.name}</span> — {a.desc}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <p className="text-ink font-semibold text-sm mb-2">What a scan carries</p>
+        <div className="border border-line rounded-xl overflow-hidden mb-6">
+          <table className="w-full text-xs">
+            <tbody>
+              {SCAN_FIELDS.map((f) => (
+                <tr key={f.field} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2 font-mono text-accent whitespace-nowrap align-top">{f.field}</td>
+                  <td className="px-4 py-2 text-ink-soft">{f.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-ink font-semibold text-sm mb-2">Good to know</p>
+        <ul className="list-disc pl-5 space-y-1 text-ink-soft text-sm">
+          {INTEGRATION_NOTES.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+        <div className="mt-6 border-t border-line" />
+      </section>
+
+      <section id="integrations-zapier" className="scroll-mt-32 mb-16">
+        <h2 className="text-ink font-display font-bold text-2xl mb-4">Zapier</h2>
+        <InviteButton href={ZAPIER_INVITE_URL} label="Add GenXQR to Zapier" />
+        <IntegrationSteps steps={ZAPIER_STEPS} />
+        <div className="mt-6 border-t border-line" />
+      </section>
+
+      <section id="integrations-make" className="scroll-mt-32 mb-16">
+        <h2 className="text-ink font-display font-bold text-2xl mb-4">Make</h2>
+        {MAKE_INVITE_URL && <InviteButton href={MAKE_INVITE_URL} label="Add GenXQR to Make" />}
+        <IntegrationSteps steps={MAKE_STEPS} />
+        <div className="mt-6 border-t border-line" />
+      </section>
+
+      <section id="integrations-n8n" className="scroll-mt-32 mb-16">
+        <h2 className="text-ink font-display font-bold text-2xl mb-4">n8n</h2>
+        <p className="text-ink-soft text-sm leading-relaxed mb-4">
+          No GenXQR node to install — n8n&apos;s built-in nodes do it. Webhook payloads are described under{" "}
+          <a href="#webhooks-events" className="text-accent hover:text-accent-ink underline underline-offset-2">Events &amp; Payloads</a>, the endpoints under QR Codes and Analytics below.
+        </p>
+        <IntegrationSteps steps={N8N_STEPS} />
+        <div className="mt-6 border-t border-line" />
+      </section>
+    </>
+  )
+}
+
 function WebhooksSection() {
   return (
     <>
@@ -1577,6 +1696,7 @@ export default function APIDocsPage() {
           <RateLimitsSection />
           <ErrorsSection />
           <PaginationSection />
+          <IntegrationsSection />
 
           <div className="mb-8">
             <h2 className="text-ink font-display font-bold text-2xl mb-1">QR Codes</h2>

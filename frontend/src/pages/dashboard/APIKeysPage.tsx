@@ -1,3 +1,4 @@
+import { IntegrationsGuide } from "@/components/dashboard/IntegrationsGuide"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -17,10 +18,11 @@ import {
 // ─── API Keys Tutorial Modal ───────────────────────────────────────────────────
 
 function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"overview" | "auth" | "endpoints" | "security">("overview")
+  const [tab, setTab] = useState<"overview" | "integrations" | "auth" | "endpoints" | "security">("overview")
 
   const tabs = [
     { id: "overview",   label: "Overview" },
+    { id: "integrations", label: "Zapier, Make & n8n" },
     { id: "auth",       label: "Authentication" },
     { id: "endpoints",  label: "Endpoints" },
     { id: "security",   label: "Security" },
@@ -66,6 +68,8 @@ function APIKeyTutorialModal({ onClose }: { onClose: () => void }) {
 
         {/* Content */}
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5 text-sm">
+
+          {tab === "integrations" && <IntegrationsGuide />}
 
           {tab === "overview" && (
             <>

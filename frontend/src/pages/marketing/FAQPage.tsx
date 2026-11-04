@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import {
   ArrowRight, MessageCircle,
   QrCode, BarChart3, IndianRupee, ShieldCheck, Rocket,
+  Plug,
 } from "lucide-react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { PageHero } from "@/components/marketing/PageHero"
@@ -64,6 +65,14 @@ const FAQ_JSON_LD = [
     "@context": "https://schema.org",
     "@type": "FAQPage",
     "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does GenXQR work with Zapier, Make or n8n?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. GenXQR has its own apps for Zapier and Make — in beta, added through the invite links on the API docs page (genxqr.com/api-docs, Integrations). They trigger on every scan (with location, device, OS and browser) and on new, updated or deleted codes, and can create a code, change its destination, switch it on or off, or delete it. n8n works with GenXQR through its built-in Webhook and HTTP Request nodes, no install needed. All of them need the Pro plan or higher and an API key from your dashboard (API Keys).",
+        },
+      },
       {
         "@type": "Question",
         "name": "What is the difference between static and dynamic QR codes?",
@@ -215,6 +224,17 @@ const faqCategories: FAQCategory[] = [
       {
         q: "How long is analytics data retained?",
         a: "Scan history is kept for as long as your plan or trial is active, on every plan — there is no per-plan history limit. If the plan ends and the account moves to Free, the history is kept for 3 more months and then deleted (raw scans, daily totals and per-code counts). Your QR codes are not deleted — they stay paused and can be renewed. While the data is kept, the most recent 10,000 scans per QR code can be exported to CSV.",
+      },
+    ],
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    icon: <Plug size={16} />,
+    items: [
+      {
+        q: "Does GenXQR work with Zapier, Make or n8n?",
+        a: "Yes. GenXQR has its own apps for Zapier and Make — in beta, added through the invite links on the API docs page (genxqr.com/api-docs, Integrations). They trigger on every scan (with location, device, OS and browser) and on new, updated or deleted codes, and can create a code, change its destination, switch it on or off, or delete it. n8n works with GenXQR through its built-in Webhook and HTTP Request nodes, no install needed. All of them need the Pro plan or higher and an API key from your dashboard (API Keys).",
       },
     ],
   },

@@ -1237,6 +1237,19 @@ workspace owner in `qr`/`team`/`settings`. Admin and billing rows are in neither
 - Each delivery logged to `WebhookDelivery` (status code, response body, success flag)
 - Test endpoint: `POST /api/webhooks/:id/test` sends sample payload
 
+**Zapier / Make / n8n** (4 Nov 2026). Customer docs come from ONE file, `frontend/src/lib/integrations.ts`
+(invite links, triggers, actions, scan fields, steps), rendered by the API docs (`/api-docs#integrations`), the
+"Zapier, Make & n8n" tab of the API Keys and Webhooks guides (`components/dashboard/IntegrationsGuide.tsx`) and the FAQ.
+- Zapier app: `integrations/zapier`, SDK 19.2.1, app 248982, PRIVATE — customers join via `ZAPIER_INVITE_URL`
+  (`zapier-platform users:links`; per version). Deploy: `pnpm build && zapier-platform push` (CLI installed globally with
+  npm — under pnpm its deps break). CommonJS needs the root `index.js`.
+- Make app: `integrations/make`, deployed by `scripts/deploy.mjs` (Make API, token `~/.make-token`) to `genxqr-tl8adh`
+  (eu1), PRIVATE — invite link from Make's App Builder into `MAKE_INVITE_URL` (null → docs say "ask support").
+  Connection checks don't inherit the base: full URL + `{{parameters.apiKey}}`. Detach reads `{{webhook.<field>}}`.
+- n8n: no published node; docs use n8n's Webhook + HTTP Request nodes.
+- The `qr.scanned` webhook and `GET /v1/qr/:id/scans` must carry the same fields — the tools build their field
+  lists from the list's sample. `webhook-delivery.test.ts` asserts it.
+
 ---
 
 ## 16. PWA & Service Worker

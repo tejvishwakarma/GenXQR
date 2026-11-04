@@ -1,3 +1,4 @@
+import { IntegrationsGuide } from "@/components/dashboard/IntegrationsGuide"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -19,10 +20,11 @@ import {
 // ─── Webhooks Tutorial Modal ───────────────────────────────────────────────────
 
 function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<"overview" | "events" | "verify" | "debug">("overview")
+  const [tab, setTab] = useState<"overview" | "integrations" | "events" | "verify" | "debug">("overview")
 
   const tabs = [
     { id: "overview", label: "Overview" },
+    { id: "integrations", label: "Zapier, Make & n8n" },
     { id: "events",   label: "Events & Payload" },
     { id: "verify",   label: "Signature Verification" },
     { id: "debug",    label: "Debugging" },
@@ -68,6 +70,8 @@ function WebhookTutorialModal({ onClose }: { onClose: () => void }) {
 
         {/* Content */}
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5 text-sm">
+
+          {tab === "integrations" && <IntegrationsGuide />}
 
           {tab === "overview" && (
             <>

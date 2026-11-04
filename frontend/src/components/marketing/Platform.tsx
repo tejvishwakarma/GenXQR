@@ -131,7 +131,7 @@ const FEATURES = [
   { icon: Layers, title: "Bulk generation", body: "Upload a CSV to create codes in one batch, with a ZIP of their scan links." },
   { icon: Users, title: "Team workspaces", body: "Invite teammates as admins, editors, or viewers — each role enforced by the server." },
   { icon: Code2, title: "Developer API", body: "Automate everything with a clean REST API and API keys." },
-  { icon: Plug, title: "Integrations", body: "Connect Zapier, Make and n8n through webhooks and our API." },
+  { icon: Plug, title: "Integrations", body: "GenXQR apps for Zapier and Make, and n8n through webhooks and our API." },
 ]
 
 export function PowerFeatures() {
