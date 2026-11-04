@@ -218,6 +218,10 @@ const faqCategories: FAQCategory[] = [
         a: "GenXQR tracks every scan on dynamic QR codes automatically — no setup needed. Your dashboard shows the timestamp, city, country, device type (mobile/tablet/desktop), OS, and browser for every scan, updated in real time. Filter by date range and export up to the 10,000 most recent scans per QR code to CSV. No app is required for the person scanning. Scan analytics are included from the Starter plan at ₹299/month.",
       },
       {
+        q: "Can I see scans for each place where my QR code is printed?",
+        a: "Yes. Add your places in Places — a name such as Millennium City Centre Metro, and optionally a location ID, city, address and map pin — and give each place its own QR code. One printed image cannot tell which of its copies was scanned, so a separate code per place is what makes per-place counts possible. Pick the place when you create a code, use “Copy to other places” to make one copy per place in one go, or add a place column to a bulk upload. Analytics then shows scans per place, and each code's scan log lists every scan with its exact date and time.",
+      },
+      {
         q: "What scan data does GenXQR collect?",
         a: "For each scan we record: timestamp, IP address, country, region, city, and approximate coordinates (all looked up from the IP address, not GPS), device type (mobile/tablet/desktop), operating system (iOS/Android/Windows/macOS), browser, the full user-agent string, and the referring page if the browser sends one. We do not collect GPS location, names, email addresses, or phone numbers from the person scanning. In your dashboard, API and CSV exports, IP addresses are shown with the last part hidden (for example 203.0.113.x). Scan data is stored on servers we operate and secure.",
       },

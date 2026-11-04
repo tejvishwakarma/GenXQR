@@ -1,5 +1,6 @@
 import { maskIp } from "../utils/mask-ip.util.js"
 import { prisma } from "../db/prisma.js"
+import { AppError } from "../middleware/error.middleware.js"
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -278,6 +279,52 @@ export async function getQRAnalytics(
   }
 }
 
+// ─── Scan log (every scan of one code, with its exact time) ──────────────────
+
+export interface ScanLogEntry extends RecentScan {
+  countryCode: string | null
+  isUnique: boolean
+  placeName: string | null
+}
+
+/**
+ * One page of a code's scans, newest first, optionally between two instants.
+ * The analytics page shows each with its exact date and time (in the viewer's
+ * timezone) — "3h ago" alone was no use to a marketer reading a campaign.
+ * Caller must verify ownership.
+ */
+export async function listScans(
+  qrId: string,
+  opts: { page: number; limit: number; from?: Date; to?: Date },
+): Promise<{ data: ScanLogEntry[]; pagination: { total: number; page: number; limit: number; totalPages: number } }> {
+  const where = {
+    qrId,
+    ...((opts.from || opts.to) && { scannedAt: { ...(opts.from && { gte: opts.from }), ...(opts.to && { lt: opts.to }) } }),
+  }
+  const [total, rows] = await Promise.all([
+    prisma.qRScan.count({ where }),
+    prisma.qRScan.findMany({
+      where,
+      orderBy: { scannedAt: "desc" },
+      skip: (opts.page - 1) * opts.limit,
+      take: opts.limit,
+      select: {
+        id: true, scannedAt: true, ip: true, country: true, countryCode: true, city: true, region: true,
+        deviceType: true, os: true, browser: true, referrer: true, isUnique: true, place: { select: { name: true } },
+      },
+    }),
+  ])
+  return {
+    data: rows.map(({ place, ...s }) => ({
+      ...s,
+      scannedAt: s.scannedAt.toISOString(),
+      ip: maskIp(s.ip),
+      placeName: place?.name ?? null,
+    })),
+    pagination: { total, page: opts.page, limit: opts.limit, totalPages: Math.max(1, Math.ceil(total / opts.limit)) },
+  }
+}
+
 // ─── Global analytics (aggregate across all of a user's QRs) ─────────────────
 
 export interface GlobalAnalyticsResult {
@@ -295,13 +342,28 @@ export interface GlobalAnalyticsResult {
   byOS: OSBreakdown[]
   byBrowser: BrowserBreakdown[]
   byCountry: GeoBreakdown[]
+  /** With a place filter: scans AT that place per code, all time. */
   topQRs: Array<{ id: string; name: string; type: string; scanCount: number; isActive: boolean }>
+  /** Places by scans in the range (no place filter only). */
+  byPlace: PlaceBreakdown[]
+  /** The place the figures are filtered to, if any. */
+  place: { id: string; name: string; code: string | null; city: string | null } | null
+}
+
+export interface PlaceBreakdown {
+  id: string
+  name: string
+  code: string | null
+  city: string | null
+  count: number
 }
 
 export async function getGlobalAnalytics(
   userId: string,
   days = 30,
+  placeId?: string,
 ): Promise<GlobalAnalyticsResult> {
+  if (placeId) return getPlaceAnalytics(userId, placeId, days)
   const rangeStart = daysAgo(days)
   const todayStart = startOfDayUTC(new Date())
   const weekStart = daysAgo(7)
@@ -318,7 +380,7 @@ export async function getGlobalAnalytics(
       totalScans: 0, uniqueScans: 0, scansToday: 0, scansThisWeek: 0, scansThisMonth: 0,
       totalQRs: 0, activeQRs: 0,
       timeline: buildFilledTimeline([], days),
-      byDevice: [], byOS: [], byBrowser: [], byCountry: [], topQRs: [],
+      byDevice: [], byOS: [], byBrowser: [], byCountry: [], topQRs: [], byPlace: [], place: null,
     }
   }
 
@@ -333,6 +395,7 @@ export async function getGlobalAnalytics(
     osRows,
     browserRows,
     countryRows,
+    placeRows,
   ] = await Promise.all([
     prisma.qRScan.count({ where: { qrId: { in: qrIds }, scannedAt: { gte: todayStart } } }),
     prisma.qRScan.count({ where: { qrId: { in: qrIds }, scannedAt: { gte: weekStart } } }),
@@ -367,6 +430,13 @@ export async function getGlobalAnalytics(
       orderBy: { _count: { id: "desc" } },
       take: 20,
     }),
+    prisma.qRScan.groupBy({
+      by: ["placeId"],
+      where: { qrId: { in: qrIds }, placeId: { not: null }, scannedAt: { gte: rangeStart } },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      take: 20,
+    }),
   ])
 
   const timeline = buildFilledTimeline(dailyRows, days)
@@ -390,5 +460,87 @@ export async function getGlobalAnalytics(
       .sort((a, b) => b.scanCount - a.scanCount)
       .slice(0, 10)
       .map((q) => ({ id: q.id, name: q.name, type: q.type, scanCount: q.scanCount, isActive: q.isActive })),
+    byPlace: await withPlaceNames(placeRows),
+    place: null,
+  }
+}
+
+async function withPlaceNames(rows: Array<{ placeId: string | null; _count: { id: number } }>): Promise<PlaceBreakdown[]> {
+  const ids = rows.flatMap((r) => (r.placeId ? [r.placeId] : []))
+  if (ids.length === 0) return []
+  const places = await prisma.place.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, code: true, city: true } })
+  const byId = new Map(places.map((p) => [p.id, p]))
+  return rows.flatMap((r) => {
+    const p = r.placeId ? byId.get(r.placeId) : undefined
+    return p ? [{ ...p, count: r._count.id }] : []
+  })
+}
+
+/**
+ * The global figures for ONE place: scans recorded at it (QRScan.placeId, the
+ * code's place when scanned), whichever of the owner's codes they came from.
+ */
+async function getPlaceAnalytics(userId: string, placeId: string, days: number): Promise<GlobalAnalyticsResult> {
+  const place = await prisma.place.findFirst({ where: { id: placeId, userId }, select: { id: true, name: true, code: true, city: true } })
+  if (!place) throw new AppError(404, "Place not found")
+
+  const rangeStart = daysAgo(days)
+  const inRange = { placeId, scannedAt: { gte: rangeStart } }
+  const [
+    totalScans, uniqueScans, scansToday, scansThisWeek, scansThisMonth,
+    dailyRows, deviceRows, osRows, browserRows, countryRows, codeRows, codesHere,
+  ] = await Promise.all([
+    prisma.qRScan.count({ where: { placeId } }),
+    prisma.qRScan.count({ where: { placeId, isUnique: true } }),
+    prisma.qRScan.count({ where: { placeId, scannedAt: { gte: startOfDayUTC(new Date()) } } }),
+    prisma.qRScan.count({ where: { placeId, scannedAt: { gte: daysAgo(7) } } }),
+    prisma.qRScan.count({ where: { placeId, scannedAt: { gte: daysAgo(30) } } }),
+    // No daily rollup per place: count the raw rows by UTC day. scannedAt is a
+    // UTC value in a timestamp WITHOUT time zone, and production's session zone
+    // is Asia/Kolkata, so dates go in and out as plain text — never through a
+    // timestamptz conversion, which would shift them by 5½ hours.
+    prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+      SELECT to_char("scannedAt", 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS count
+      FROM qr_scans WHERE "placeId" = ${placeId} AND "scannedAt" >= ${formatDate(rangeStart)}::timestamp
+      GROUP BY 1`,
+    prisma.qRScan.groupBy({ by: ["deviceType"], where: inRange, _count: { id: true }, orderBy: { _count: { id: "desc" } } }),
+    prisma.qRScan.groupBy({ by: ["os"], where: inRange, _count: { id: true }, orderBy: { _count: { id: "desc" } } }),
+    prisma.qRScan.groupBy({ by: ["browser"], where: inRange, _count: { id: true }, orderBy: { _count: { id: "desc" } } }),
+    prisma.qRScan.groupBy({
+      by: ["country", "countryCode"],
+      where: { ...inRange, country: { not: null } },
+      _count: { id: true },
+      orderBy: { _count: { id: "desc" } },
+      take: 20,
+    }),
+    prisma.qRScan.groupBy({ by: ["qrId"], where: { placeId }, _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
+    prisma.qRCode.findMany({ where: { userId, placeId }, select: { isActive: true } }),
+  ])
+
+  const codes = await prisma.qRCode.findMany({
+    where: { id: { in: codeRows.map((r) => r.qrId) }, userId },
+    select: { id: true, name: true, type: true, isActive: true },
+  })
+  const codeById = new Map(codes.map((c) => [c.id, c]))
+
+  return {
+    totalScans,
+    uniqueScans,
+    scansToday,
+    scansThisWeek,
+    scansThisMonth,
+    totalQRs: codesHere.length,
+    activeQRs: codesHere.filter((c) => c.isActive).length,
+    timeline: buildFilledTimeline(dailyRows.map((r) => ({ date: new Date(`${r.day}T00:00:00Z`), count: Number(r.count) })), days),
+    byDevice: withUnknownFallback(deviceRows, "deviceType"),
+    byOS: withUnknownFallback(osRows, "os"),
+    byBrowser: withUnknownFallback(browserRows, "browser"),
+    byCountry: mapCountryRows(countryRows),
+    topQRs: codeRows.flatMap((r) => {
+      const c = codeById.get(r.qrId)
+      return c ? [{ ...c, scanCount: r._count.id }] : []
+    }),
+    byPlace: [],
+    place,
   }
 }

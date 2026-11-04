@@ -21,6 +21,7 @@ import referralRouter from "./referral.routes.js"
 import activityRouter from "./activity.routes.js"
 import ssoRouter from "./sso.routes.js"
 import agencyRouter from "./agency.routes.js"
+import placeRouter from "./place.routes.js"
 
 const router: IRouter = Router()
 
@@ -46,5 +47,6 @@ router.use("/referrals", referralRouter)
 router.use("/activity", activityRouter)
 router.use("/sso", ssoRouter)
 router.use("/agency", agencyRouter)
+router.use("/places", placeRouter)
 
 export default router

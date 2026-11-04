@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
   ArrowLeft, TrendingUp, TrendingDown, Scan, Globe, Smartphone,
-  Monitor, Tablet, RefreshCw, Download, Minus, Zap, Clock,
+  Monitor, Tablet, RefreshCw, Download, Minus, Zap, Clock, MapPin,
 } from "lucide-react"
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getQRAnalytics, getQR, downloadScanCSV } from "@/lib/api"
 import type { ScanTimelinePoint, DeviceBreakdown } from "@/lib/api"
+import { ScanLog } from "@/components/dashboard/ScanLog"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,12 @@ export default function QRAnalyticsPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-zinc-500 text-sm mt-0.5">Performance analytics · Last {days} days</p>
+            <p className="text-zinc-500 text-sm mt-0.5">
+              Performance analytics · Last {days} days
+              {qr?.place && (
+                <> · <Link to={`/app/analytics?place=${qr.place.id}`} className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300"><MapPin size={12} />{qr.place.name}</Link></>
+              )}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -312,7 +318,11 @@ export default function QRAnalyticsPage() {
                 <div className="flex items-center gap-2 bg-zinc-100/50 dark:bg-zinc-800/60 border border-zinc-300 dark:border-zinc-700/50 rounded-xl px-4 py-2.5">
                   <Clock size={14} className="text-zinc-600 dark:text-zinc-400 shrink-0" />
                   <span className="text-zinc-600 dark:text-zinc-400 text-sm">
-                    Last scan: <span className="text-zinc-800 dark:text-zinc-200">{timeAgo(analytics.recentScans[0].scannedAt)}</span>
+                    Last scan:{" "}
+                    <time dateTime={analytics.recentScans[0].scannedAt} className="text-zinc-800 dark:text-zinc-200">
+                      {new Date(analytics.recentScans[0].scannedAt).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                    </time>
+                    <span className="opacity-70 ml-1">({timeAgo(analytics.recentScans[0].scannedAt)})</span>
                   </span>
                 </div>
               )}
@@ -581,74 +591,8 @@ export default function QRAnalyticsPage() {
             </Card>
           </div>
 
-          {/* ── Recent Scans ─────────────────────────────────────────────── */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Recent Scans</CardTitle>
-                <span className="text-zinc-600 text-xs">{analytics.recentScans.length} shown</span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {analytics.recentScans.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                        <th className="text-left text-zinc-600 text-xs font-medium px-6 py-2.5">Location</th>
-                        <th className="text-left text-zinc-600 text-xs font-medium px-3 py-2.5">Device</th>
-                        <th className="hidden md:table-cell text-left text-zinc-600 text-xs font-medium px-3 py-2.5">OS</th>
-                        <th className="hidden md:table-cell text-left text-zinc-600 text-xs font-medium px-3 py-2.5">Browser</th>
-                        <th className="text-right text-zinc-600 text-xs font-medium px-6 py-2.5">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analytics.recentScans.slice(0, 10).map((scan, i, arr) => (
-                        <tr
-                          key={scan.id}
-                          className={`hover:bg-zinc-100/50 dark:hover:bg-zinc-800/40 transition-colors ${i < arr.length - 1 ? "border-b border-zinc-200 dark:border-zinc-800/60" : ""}`}
-                        >
-                          <td className="px-6 py-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base">
-                                {scan.countryCode ? (COUNTRY_FLAGS[scan.countryCode] ?? "🌐") : "🌐"}
-                              </span>
-                              <div className="min-w-0">
-                                {(() => {
-                                  const place = [scan.city, scan.region, scan.country].filter(Boolean)
-                                  const primary = place[0] ?? "Unknown"
-                                  const secondary = place.slice(1).join(", ")
-                                  return (
-                                    <>
-                                      <span className="text-zinc-800 dark:text-zinc-200">{primary}</span>
-                                      {secondary && <span className="text-zinc-500 dark:text-zinc-600 text-xs ml-1">{secondary}</span>}
-                                    </>
-                                  )
-                                })()}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-1.5 text-zinc-400">
-                              {scan.deviceType === "MOBILE" ? <Smartphone size={13} className="text-violet-400" /> :
-                               scan.deviceType === "TABLET" ? <Tablet size={13} className="text-amber-400" /> :
-                               <Monitor size={13} className="text-blue-400" />}
-                              <span className="capitalize text-xs">{scan.deviceType?.toLowerCase() ?? "—"}</span>
-                            </div>
-                          </td>
-                          <td className="hidden md:table-cell px-3 py-3 text-zinc-400 text-xs">{scan.os ?? "—"}</td>
-                          <td className="hidden md:table-cell px-3 py-3 text-zinc-400 text-xs">{scan.browser ?? "—"}</td>
-                          <td className="px-6 py-3 text-right text-zinc-600 text-xs whitespace-nowrap">{timeAgo(scan.scannedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center py-12 text-zinc-600 text-sm">No scans yet</div>
-              )}
-            </CardContent>
-          </Card>
+          {/* ── Scan log (exact date & time, every scan) ───────────────── */}
+          <ScanLog qrId={id!} />
         </>
       )}
     </div>

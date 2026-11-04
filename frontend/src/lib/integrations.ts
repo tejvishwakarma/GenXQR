@@ -51,6 +51,7 @@ export const SCAN_FIELDS: { field: string; desc: string }[] = [
   { field: "browser", desc: "Chrome, Safari, Samsung Browser…" },
   { field: "referrer", desc: "The referring page, if any" },
   { field: "isUnique", desc: "First scan from this device in 4 hours" },
+  { field: "placeName / placeCode / placeId", desc: "The code's place when scanned (Places), if it has one" },
   { field: "id", desc: "The scan's own id" },
 ]
 

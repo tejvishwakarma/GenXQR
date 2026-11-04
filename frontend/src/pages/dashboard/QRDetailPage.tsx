@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import QRCodeStyling from "qr-code-styling"
-import { ArrowLeft, BarChart3, Edit, Trash2, Download, Copy, Check, Power, Loader2, ExternalLink, QrCode, Calendar, Scan, Tag, Settings, GitBranch, FlaskConical, Lock } from "lucide-react"
+import { ArrowLeft, BarChart3, Edit, Trash2, Download, Copy, Check, Power, Loader2, ExternalLink, QrCode, Calendar, Scan, Tag, Settings, GitBranch, FlaskConical, Lock, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import { useWorkspace } from "@/hooks/useWorkspace"
 import { FramedPreview } from "@/components/qr-frames/FramedPreview"
 import { getFrame, type FrameFields } from "@/lib/frames/compose"
 import { downloadQR, type QRDownloadExt } from "@/lib/qrDownload"
+import { CopyToPlacesModal } from "@/components/places/CopyToPlacesModal"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -110,6 +111,7 @@ export default function QRDetailPage() {
   const qrInstance = useRef<QRCodeStyling | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [copyingToPlaces, setCopyingToPlaces] = useState(false)
   const abTesting = usePlanFeature("abTesting")
   const smartRouting = usePlanFeature("smartRouting")
   const { can } = useWorkspace()
@@ -492,6 +494,32 @@ export default function QRDetailPage() {
               </div>
             </Card>
           )}
+
+          {/* Place */}
+          <Card className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-zinc-500 font-medium mb-1">Place</p>
+                {qr.place ? (
+                  <Link to={`/app/analytics?place=${qr.place.id}`} className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-white hover:text-violet-500">
+                    <MapPin size={14} className="text-violet-400 shrink-0" />
+                    <span className="truncate">{qr.place.name}</span>
+                    {qr.place.code && <span className="text-zinc-500 font-normal text-xs shrink-0">{qr.place.code}</span>}
+                  </Link>
+                ) : (
+                  <p className="text-sm text-zinc-500">
+                    Not set.{can("qr:edit") && <> <Link to={`/app/qr/${id}/edit`} className="text-violet-400 hover:text-violet-300">Add the place it&apos;s printed at</Link> to count its scans there.</>}
+                  </p>
+                )}
+              </div>
+              {can("qr:create") && (
+                <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setCopyingToPlaces(true)}>
+                  <MapPin size={14} /> Copy to other places
+                </Button>
+              )}
+            </div>
+          </Card>
+          {copyingToPlaces && <CopyToPlacesModal qr={qr} onClose={() => setCopyingToPlaces(false)} />}
 
           {/* Tags */}
           {qr.tags.length > 0 && (

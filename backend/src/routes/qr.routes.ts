@@ -182,6 +182,35 @@ router.post(
   },
 )
 
+/**
+ * POST /api/qr/:id/copy-to-places  { placeIds }
+ * One active copy of the code per place (qr.service copyQRToPlaces). Each copy
+ * takes a QR slot; places beyond the plan's limit come back in `failed`.
+ */
+router.post(
+  "/:id/copy-to-places",
+  canCreate,
+  apiLimiter,
+  requireQRSlot,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { placeIds } = QRService.copyToPlacesSchema.parse(req.body)
+      const result = await QRService.copyQRToPlaces(req.params["id"] as string, wsOwner(req), placeIds)
+      for (const qr of result.created) {
+        auditQR(req, "qr.copy_to_place", qr.id, { name: qr.name, from: req.params["id"], place: qr.place?.name ?? null })
+      }
+      // qr.created for each copy, one after another like bulk upload, not as a burst.
+      const owner = wsOwner(req)
+      void (async () => {
+        for (const qr of result.created) await deliverWebhookEvent(owner, "qr.created", { qr })
+      })()
+      res.status(201).json({ success: true, data: result })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
 // ─── Smart Routing Rules ──────────────────────────────────────────────────────
 
 const smartRoutingGuard = requirePlanFeature("smartRouting")

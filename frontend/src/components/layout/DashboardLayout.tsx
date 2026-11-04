@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import type { ReactElement } from "react"
-import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History, KeyRound, Briefcase } from "lucide-react"
+import { QrCode, LayoutDashboard, BarChart3, Settings, CreditCard, PlusCircle, Users, Key, Layers, LogOut, ChevronDown, Bell, Search, Menu, X, Sun, Moon, Webhook, ShieldCheck, UserCheck, Flag, Clock, LifeBuoy, Gift, Globe, History, KeyRound, Briefcase, MapPin } from "lucide-react"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
@@ -27,6 +27,7 @@ const navItems: { label: string; href: string; icon: ReactElement; badge?: strin
   { label: "My QR Codes", href: "/app/qr-codes", icon: <QrCode size={18} /> },
   { label: "Create QR", href: "/app/create", icon: <PlusCircle size={18} /> },
   { label: "Analytics", href: "/app/analytics", icon: <BarChart3 size={18} /> },
+  { label: "Places", href: "/app/places", icon: <MapPin size={18} /> },
   { label: "Bulk Generate", href: "/app/bulk-generate", icon: <Layers size={18} /> },
   { label: "Clients", href: "/app/clients", icon: <Briefcase size={18} /> },
   { label: "Team", href: "/app/team", icon: <Users size={18} /> },

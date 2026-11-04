@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   QrCode, Plus, Search, X, Edit, BarChart3, Trash2, Loader2,
-  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight,
+  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight, MapPin,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DownloadMenu } from "@/components/QRDownloadMenu"
 import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
-import { listQRs, deleteQR, toggleQR, duplicateQR, type QRCode } from "@/lib/api"
+import { listQRs, deleteQR, toggleQR, duplicateQR, getPlaces, type QRCode } from "@/lib/api"
 import { useWorkspace } from "@/hooks/useWorkspace"
 
 const TYPE_LABEL: Record<string, string> = {
@@ -39,6 +39,19 @@ export default function MyQRCodesPage() {
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
   const [page, setPage] = useState(1)
+  // Place filter, server-side and in the URL (?place=<id> | none) — the Places page links here.
+  const placeFilter = searchParams.get("place") ?? "all"
+  const { data: placesData } = useQuery({ queryKey: ["places"], queryFn: () => getPlaces(), staleTime: 60_000 })
+  const places = placesData?.data ?? []
+  const setPlaceFilter = (v: string) => {
+    setPage(1)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (v === "all") next.delete("place")
+      else next.set("place", v)
+      return next
+    }, { replace: true })
+  }
 
   // Keep the input in sync if the URL query changes (e.g. header search navigates here again).
   useEffect(() => { setSearchInput(urlQuery); setSearch(urlQuery) }, [urlQuery])
@@ -60,8 +73,8 @@ export default function MyQRCodesPage() {
   }, [searchInput])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["qr-codes", "list", page, search],
-    queryFn: () => listQRs({ page, limit: PAGE_SIZE, search: search || undefined }),
+    queryKey: ["qr-codes", "list", page, search, placeFilter],
+    queryFn: () => listQRs({ page, limit: PAGE_SIZE, search: search || undefined, placeId: placeFilter === "all" ? undefined : placeFilter }),
   })
 
   const qrs: QRCode[] = data?.data ?? []
@@ -90,7 +103,7 @@ export default function MyQRCodesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkOp, setBulkOp] = useState<"delete" | "download" | "activate" | "deactivate" | null>(null)
 
-  useEffect(() => { setSelectedIds(new Set()) }, [page, search, typeFilter, statusFilter])
+  useEffect(() => { setSelectedIds(new Set()) }, [page, search, typeFilter, statusFilter, placeFilter])
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -191,7 +204,7 @@ export default function MyQRCodesPage() {
             <input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by name, slug, or tag…"
+              placeholder="Search by name, tag or place…"
               className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 transition-colors"
             />
             {searchInput && (
@@ -211,6 +224,16 @@ export default function MyQRCodesPage() {
               {uniqueTypes.map((t) => <SelectItem key={t} value={t}>{TYPE_LABEL[t] ?? t}</SelectItem>)}
             </SelectContent>
           </Select>
+          {(places.length > 0 || placeFilter !== "all") && (
+            <Select value={placeFilter} onValueChange={setPlaceFilter}>
+              <SelectTrigger className="w-full sm:w-[180px] h-[42px] text-sm" aria-label="Place"><SelectValue placeholder="All places" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All places</SelectItem>
+                <SelectItem value="none">No place</SelectItem>
+                {places.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-[140px] h-[42px] text-sm"><SelectValue placeholder="All status" /></SelectTrigger>
             <SelectContent>
@@ -241,7 +264,7 @@ export default function MyQRCodesPage() {
               <div className="text-center py-16 text-zinc-500">
                 <QrCode size={32} className="mx-auto mb-3 opacity-30" />
                 <p className="text-sm mb-4">
-                  {search || typeFilter !== "all" || statusFilter !== "all"
+                  {search || typeFilter !== "all" || statusFilter !== "all" || placeFilter !== "all"
                     ? "No QR codes match your filters."
                     : "No QR codes yet."}
                 </p>
@@ -285,7 +308,10 @@ export default function MyQRCodesPage() {
                             <div className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-violet-500 dark:text-violet-400"><QRTypeIcon type={qr.type} size={18} /></div>
                             <div className="min-w-0">
                               <div className="text-zinc-900 dark:text-white text-sm font-medium truncate max-w-[240px]">{qr.name}</div>
-                              <div className="text-zinc-500 text-xs truncate">/{qr.slug}</div>
+                              <div className="text-zinc-500 text-xs truncate max-w-[240px]">
+                                /{qr.slug}
+                                {qr.place && <span className="ml-2 inline-flex items-center gap-0.5"><MapPin size={11} className="text-violet-400" />{qr.place.name}</span>}
+                              </div>
                             </div>
                           </div>
                         </td>

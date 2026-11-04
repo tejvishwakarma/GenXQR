@@ -12,5 +12,8 @@
   { "name": "os", "label": "Operating System", "type": "text" },
   { "name": "browser", "label": "Browser", "type": "text" },
   { "name": "referrer", "label": "Referrer URL", "type": "url" },
-  { "name": "isUnique", "label": "Unique Scan", "type": "boolean" }
+  { "name": "isUnique", "label": "Unique Scan", "type": "boolean" },
+  { "name": "placeName", "label": "Place", "type": "text" },
+  { "name": "placeCode", "label": "Place Location ID", "type": "text" },
+  { "name": "placeId", "label": "Place ID", "type": "text" }
 ]
