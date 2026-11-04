@@ -37,7 +37,18 @@ export default function MyQRCodesPage() {
   const [searchInput, setSearchInput] = useState(urlQuery)
   const [search, setSearch] = useState(urlQuery)
   const [typeFilter, setTypeFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
+  // Status filter in the URL (?status=active | inactive) — the dashboard's Active QRs card links here.
+  const statusParam = searchParams.get("status")
+  const statusFilter = statusParam === "active" || statusParam === "inactive" ? statusParam : "all"
+  const setStatusFilter = (v: string) => {
+    setPage(1)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (v === "all") next.delete("status")
+      else next.set("status", v)
+      return next
+    }, { replace: true })
+  }
   const [page, setPage] = useState(1)
   // Place filter, server-side and in the URL (?place=<id> | none) — the Places page links here.
   const placeFilter = searchParams.get("place") ?? "all"
@@ -73,8 +84,8 @@ export default function MyQRCodesPage() {
   }, [searchInput])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["qr-codes", "list", page, search, placeFilter],
-    queryFn: () => listQRs({ page, limit: PAGE_SIZE, search: search || undefined, placeId: placeFilter === "all" ? undefined : placeFilter }),
+    queryKey: ["qr-codes", "list", page, search, placeFilter, statusFilter],
+    queryFn: () => listQRs({ page, limit: PAGE_SIZE, search: search || undefined, placeId: placeFilter === "all" ? undefined : placeFilter, status: statusFilter === "all" ? undefined : statusFilter }),
   })
 
   const qrs: QRCode[] = data?.data ?? []
@@ -89,13 +100,8 @@ export default function MyQRCodesPage() {
   const { mutate: toggle, isPending: isToggling } = useMutation({ mutationFn: toggleQR, onSuccess: invalidate, onError: (err: unknown) => window.alert(err instanceof Error ? err.message : "Could not change this QR code's status.") })
   const { mutate: duplicate, isPending: isDuplicating } = useMutation({ mutationFn: duplicateQR, onSuccess: invalidate })
 
-  // Client-side type/status filter — narrows the current page.
-  const visibleQRs = useMemo(() => qrs.filter((qr) => {
-    if (typeFilter !== "all" && qr.type !== typeFilter) return false
-    if (statusFilter === "active" && !qr.isActive) return false
-    if (statusFilter === "inactive" && qr.isActive) return false
-    return true
-  }), [qrs, typeFilter, statusFilter])
+  // Client-side type filter — narrows the current page. Status is filtered server-side.
+  const visibleQRs = useMemo(() => qrs.filter((qr) => typeFilter === "all" || qr.type === typeFilter), [qrs, typeFilter])
 
   const uniqueTypes = useMemo(() => [...new Set(qrs.map((q) => q.type))], [qrs])
 
