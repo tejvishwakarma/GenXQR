@@ -10,6 +10,7 @@ import { deliverWebhookEvent, hasWebhookSubscribers } from "./webhook.service.js
 import { logger } from "../logger/index.js"
 import { scanUrlFor } from "./custom-domain.service.js"
 import { csvCell } from "../utils/csv-cell.util.js"
+import { placeResolver } from "./place.service.js"
 
 // Max rows allowed per plan
 const BULK_LIMITS: Record<string, number> = {
@@ -28,6 +29,11 @@ interface CsvRow {
   url: string
   tag?: string
   description?: string
+  /** The place the code is printed for (place.service.ts): name and/or location ID. */
+  place?: string
+  locationId?: string
+  placeCity?: string
+  placeAddress?: string
 }
 
 interface BulkResult {
@@ -44,11 +50,11 @@ interface BulkResult {
  * Download a sample CSV template as a stream.
  */
 export function streamCsvTemplate(res: Response): void {
-  const header = "name,url,tag,description\n"
+  const header = "name,url,tag,description,place,location_id,place_city,place_address\n"
   const sample = [
-    "Restaurant Menu Spring,https://menu.example.com/spring,food,Spring menu QR",
-    "Office WiFi,https://wifi.example.com/office,internal,",
-    "Product Launch,https://launch.example.com,marketing,",
+    "Diwali Offer - MCC Metro,https://example.com/diwali,diwali,Poster at exit 2,Millennium City Centre Metro,DEL-MCC-01,Gurugram,Exit 2",
+    "Diwali Offer - Cyber Hub,https://example.com/diwali,diwali,,Cyber Hub,DEL-CH-01,Gurugram,",
+    "Office WiFi,https://wifi.example.com/office,internal,,,,,",
   ].join("\n")
 
   res.setHeader("Content-Type", "text/csv")
@@ -86,6 +92,10 @@ function parseBulkCsv(buffer: Buffer): CsvRow[] {
     url: (r["url"] ?? "").trim(),
     tag: (r["tag"] ?? "").trim() || undefined,
     description: (r["description"] ?? "").trim() || undefined,
+    place: (r["place"] ?? "").trim() || undefined,
+    locationId: (r["location_id"] ?? "").trim() || undefined,
+    placeCity: (r["place_city"] ?? "").trim() || undefined,
+    placeAddress: (r["place_address"] ?? "").trim() || undefined,
   }))
 }
 
@@ -135,6 +145,8 @@ export async function processBulkCsv(
   const results: BulkResult[] = []
   let created = 0
   let failed = 0
+  // A row's place is matched by location ID or name, or created (place.service).
+  const resolvePlace = placeResolver(userId)
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!
@@ -169,10 +181,20 @@ export async function processBulkCsv(
       continue
     }
 
+    let placeId: string | null
+    try {
+      placeId = await resolvePlace({ name: row.place, code: row.locationId, city: row.placeCity, address: row.placeAddress })
+    } catch (err) {
+      results.push({ row: rowNum, name: row.name, url: row.url, status: "error", error: err instanceof AppError ? `Place: ${err.message}` : "Could not save the place" })
+      failed++
+      continue
+    }
+
     try {
       const qr = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
         data: {
           userId,
+          placeId,
           name: row.name.trim().slice(0, 200),
           type: "URL",
           category: "DYNAMIC",
@@ -238,6 +260,7 @@ export async function streamResultsZip(
     select: {
       id: true, name: true, slug: true, type: true, createdAt: true, content: { select: { data: true } },
       customDomain: { select: { hostname: true, status: true } },
+      place: { select: { name: true, code: true } },
     },
   })
 
@@ -251,11 +274,12 @@ export async function streamResultsZip(
 
   // Add a summary CSV
   const csvLines = [
-    "name,slug,qr_url,scan_url,created_at",
+    // place + location_id: which print goes where.
+    "name,slug,qr_url,scan_url,created_at,place,location_id",
     ...qrs.map((q) => {
       const scanUrl = scanUrlFor(q)
       const qrUrl = `${FRONTEND_URL}/api/qr/${q.id}/image`
-      return [q.name, q.slug, qrUrl, scanUrl, q.createdAt.toISOString()].map(csvCell).join(",")
+      return [q.name, q.slug, qrUrl, scanUrl, q.createdAt.toISOString(), q.place?.name ?? null, q.place?.code ?? null].map(csvCell).join(",")
     }),
   ]
   archive.append(csvLines.join("\n"), { name: "qr_codes.csv" })
@@ -268,6 +292,7 @@ export async function streamResultsZip(
       slug: qr.slug,
       type: qr.type,
       scanUrl: scanUrlFor(qr),
+      place: qr.place,
       content: qr.content?.data,
       createdAt: qr.createdAt.toISOString(),
     }

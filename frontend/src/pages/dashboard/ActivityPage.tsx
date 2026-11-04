@@ -84,6 +84,10 @@ function describe(e: ActivityEntry): string {
       case "qr.activate": return "Turned a code on"
       case "qr.deactivate": return "Turned a code off"
       case "qr.duplicate": return `Duplicated a code${str(m.name) ? ` as “${str(m.name)}”` : ""}`
+      case "qr.copy_to_place": return `Copied a code to ${str(m.place) ? `“${str(m.place)}”` : "a place"}${str(m.name) ? ` as “${str(m.name)}”` : ""}`
+      case "place.create": return `Added place${quoted(m.name)}`
+      case "place.update": return `Edited place${quoted(m.name)}`
+      case "place.delete": return `Deleted place${quoted(m.name)}`
       case "qr.bulk_create": return `Bulk-created ${Number(m.created) || 0} code${Number(m.created) === 1 ? "" : "s"}${Number(m.failed) > 0 ? ` (${Number(m.failed)} rows failed)` : ""}`
       case "qr.routing.add": return "Added a smart-routing rule"
       case "qr.routing.update": return "Changed a smart-routing rule"

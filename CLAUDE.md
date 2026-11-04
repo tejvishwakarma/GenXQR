@@ -342,9 +342,14 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `DELETE /file` — delete an uploaded file by URL
 
 #### `/api/analytics` → `analytics.routes.ts`
-- `GET  /global` — global analytics across all user QR codes (total scans, today, countries, devices)
-- `GET  /qr/:id` — per-QR scan analytics (time series, geo, device, browser breakdown)
-- `GET  /qr/:id/scans` — paginated raw scan list
+- `GET  /global?days=&placeId=` — global analytics across the workspace's codes (+ `byPlace`); with `placeId`, the figures for that one place
+- `GET  /:qrId` — per-QR scan analytics (time series, geo, device, browser breakdown)
+- `GET  /:qrId/scans?page=&limit=&from=&to=` — the scan log: paged, exact times, from/to are ISO instants (the browser's local days)
+- `GET  /:qrId/csv` — the latest 10,000 scans as CSV (incl. place)
+
+#### `/api/places` → `place.routes.ts` (workspace-aware; view = qr:view, add = qr:create, edit = qr:edit, delete = qr:delete)
+- `GET /?days=` (with codeCount, scansInRange, totalScans) · `POST /` · `PATCH /:id` · `DELETE /:id`
+- `POST /api/qr/:id/copy-to-places {placeIds}` — one ACTIVE copy per place, "<name> — <place>", within the QR limit (overflow → `failed`)
 
 #### `/api/billing` → `billing.routes.ts`
 - `GET  /subscription` — current plan + subscription status + trial info
@@ -423,7 +428,8 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
   5. Redirect (`302`) or render landing page (`/l/:slug`)
 
 #### `/v1/*` → `v1.routes.ts` (API-key authenticated developer REST API)
-- `/v1/qr` — CRUD for QR codes (mirrors `/api/qr` but key-auth)
+- `/v1/qr` — CRUD for QR codes (mirrors `/api/qr` but key-auth; `placeId` on create/update and as a list filter)
+- `/v1/places` — the account's places (ids for `placeId`)
 
 #### `/admin-api/*` → `admin.routes.ts` (JWT + ADMIN/SUPER_ADMIN role)
 - `/admin-api/dashboard` — aggregated metrics
@@ -844,6 +850,23 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 - `frameStyle` + `frameText` + `frameColor`
 - Client-side rendering uses `qr-code-styling` library in `CreateQRPage.tsx`
 
+**Places** (built 4 Nov 2026, `services/place.service.ts`, `/app/places`). Where a code is printed — "Millennium
+City Centre Metro", location ID `DEL-MCC-01`, city/address/map pin. Decided with the user: a saved list per workspace
+owner (names and location IDs unique per account ignoring case); every plan; no plan gate.
+- **One code per place.** A printed image can't tell its copies apart, so a place is counted only through its own
+  code(s). Helpers: the place picker on create/edit, "Copy to other places" on a code (`copyQRToPlaces`), and bulk CSV
+  columns `place`, `location_id`, `place_city`, `place_address` (matched by location ID, then name, else created —
+  `placeResolver`; a match is never edited by a row).
+- **Scans record the code's place AT scan time** (`QRScan.placeId`, set in `scan.worker`), so moving a code later
+  doesn't rewrite where earlier scans happened. Exception: a code that had NO place gets one → its unplaced scans go
+  to it (`attributeUnplacedScans`). Deleting a place → codes and scans SetNull; counts per code are untouched.
+- Per-place analytics = `getGlobalAnalytics(…, placeId)` from raw `qr_scans` rows (no daily rollup per place); its
+  timeline groups by `to_char("scannedAt")` with the range as a `::timestamp` text literal — never a timestamptz
+  param, which production's Asia/Kolkata session zone would shift (§17).
+- `qr.scanned` + `GET /v1/qr/:id/scans` carry flat `placeId`/`placeName`/`placeCode` (parity test); Zapier sample +
+  Make output list them — those apps must be re-pushed/deployed for the new fields to show in their editors.
+- Covered by `tests/integration/places.test.ts` (ownership guards break-tested). Migration `20261104110435_places`.
+
 **Logo on scan pages** (decided 23 Oct 2026). `PLAN_LIMITS.scanPageLogo` — every PAID plan —
 shows the account's logo (`User.brandLogoUrl`, Settings → "Branding on scan pages") in a white
 bar at the top of the `/l/:slug` landing page (`ScanPageLogoBar`, rendered once in
@@ -953,8 +976,9 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `DashboardPage.tsx` | `/app/dashboard` | QR code list, search, filter, bulk actions |
 | `CreateQRPage.tsx` | `/app/create`, `/app/qr/:id/edit` | Multi-step QR creator/editor (~111KB, largest file) |
 | `QRDetailPage.tsx` | `/app/qr/:id` | QR detail overview |
-| `QRAnalyticsPage.tsx` | `/app/qr/:id/analytics` | Per-QR charts (Recharts) |
-| `GlobalAnalyticsPage.tsx` | `/app/analytics` | Cross-QR analytics |
+| `QRAnalyticsPage.tsx` | `/app/qr/:id/analytics` | Per-QR charts (Recharts) + Scan Log (`components/dashboard/ScanLog.tsx`: exact local date/time, paged, date range) |
+| `GlobalAnalyticsPage.tsx` | `/app/analytics` | Cross-QR analytics; `?place=<id>` = one place; Top Places card |
+| `PlacesPage.tsx` | `/app/places` | Places: add/edit/delete, codes + scans per place |
 | `QRSettingsPage.tsx` | `/app/qr/:id/settings` | Advanced QR settings (password, scheduling, limits) |
 | `SmartRoutingPage.tsx` | `/app/qr/:id/smart-routing` | Smart routing rule builder |
 | `ABTestPage.tsx` | `/app/qr/:id/ab-test` | A/B test variant manager |

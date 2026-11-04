@@ -25,6 +25,7 @@ import {
   updateQRSchema,
 } from "../services/qr.service.js"
 import { getQRAnalytics } from "../services/analytics.service.js"
+import { listPlaces } from "../services/place.service.js"
 import { logAudit } from "../services/audit.service.js"
 import {
   createWebhook,
@@ -64,6 +65,7 @@ const listSchema = z.object({
   // not a plain string handed to Prisma's enum column, which errors as a 500.
   type: z.nativeEnum(QRType).optional(),
   search: z.string().optional(),
+  placeId: z.string().min(1).max(40).optional(),
   updatedSince: z.string().datetime({ offset: true }).optional(),
   sort: z.enum(["createdAt", "updatedAt"]).default("createdAt"),
 })
@@ -80,6 +82,7 @@ router.get("/qr", async (req, res, next) => {
       limit: query.limit,
       type: query.type,
       search: query.search,
+      placeId: query.placeId,
       updatedSince: query.updatedSince,
       sort: query.sort,
     })
@@ -235,10 +238,29 @@ router.get("/qr/:id/scans", async (req, res, next) => {
         // In the qr.scanned webhook too: the two must carry the same fields, since
         // Zapier/Make/n8n build a Zap's field list from this endpoint's sample.
         isUnique: true,
+        place: { select: { id: true, name: true, code: true } },
       },
     })
 
-    res.json({ success: true, data: scans })
+    // Flat place fields, as in the webhook: automation tools map flat fields.
+    res.json({
+      success: true,
+      data: scans.map(({ place, ...s }) => ({ ...s, placeId: place?.id ?? null, placeName: place?.name ?? null, placeCode: place?.code ?? null })),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// ─── Places ──────────────────────────────────────────────────────────────────
+
+/**
+ * GET /v1/places
+ * The account's places (ids for a code's placeId), with code and scan counts.
+ */
+router.get("/places", async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await listPlaces(uid(req)) })
   } catch (err) {
     next(err)
   }

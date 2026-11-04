@@ -57,6 +57,10 @@ export default {
       os: "iOS",
       browser: "Safari",
       referrer: null,
+      isUnique: true,
+      placeId: "place_01HPAX9K7XPLC",
+      placeName: "Millennium City Centre Metro",
+      placeCode: "DEL-MCC-01",
     },
     outputFields: [
       { key: "id", label: "Scan ID" },
@@ -72,6 +76,10 @@ export default {
       { key: "os", label: "Operating System" },
       { key: "browser", label: "Browser" },
       { key: "referrer", label: "Referrer URL" },
+      { key: "isUnique", label: "Unique Scan", type: "boolean" as const },
+      { key: "placeName", label: "Place" },
+      { key: "placeCode", label: "Place Location ID" },
+      { key: "placeId", label: "Place ID" },
     ],
   },
 }

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom"
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { Upload, FileText, Download, Layers, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
@@ -115,7 +116,7 @@ export default function BulkGeneratePage() {
                     Download template →
                   </a>
                 </div>
-                <code className="text-violet-300 text-xs font-mono block">name,url,tag,description<br />My QR,https://example.com,marketing,Optional description</code>
+                <code className="text-violet-300 text-xs font-mono block break-all">name,url,tag,description,place,location_id<br />Diwali - MCC Metro,https://example.com,diwali,,Millennium City Centre Metro,DEL-MCC-01</code>
               </div>
 
               {uploadMut.error && (
@@ -252,6 +253,12 @@ export default function BulkGeneratePage() {
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>URLs must start with http:// or https://</li>
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span><code>name</code> and <code>url</code> columns are required</li>
               <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span><code>tag</code> and <code>description</code> are optional</li>
+              <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>
+                <span>
+                  <code>place</code> and/or <code>location_id</code> put each code at a <Link to="/app/places" className="text-violet-400 hover:text-violet-300">place</Link> — matched to one you have
+                  (location ID first, then name), or added. <code>place_city</code> and <code>place_address</code> fill in a new place. One row per place = one code per place.
+                </span>
+              </li>
             </ul>
           </Card>
         </div>

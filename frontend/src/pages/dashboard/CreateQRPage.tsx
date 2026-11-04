@@ -20,6 +20,7 @@ import { createQR, updateQR, getQR, uploadFile, getSubscription, getBillingUsage
 import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } from "./VCardEditor"
 import LandingPreview from "./LandingPreview"
 import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashboard/ScanPageLogoSetting"
+import { PlacePicker } from "@/components/places/PlacePicker"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -755,6 +756,10 @@ export default function CreateQRPage() {
       ? existingQR?.data?.customDomainId ?? "genxqr"
       : activeDomains.find((d) => d.isDefault)?.id ?? "genxqr")
   const existingDomain = existingQR?.data?.customDomain
+
+  // Where the code is printed (Places). null = untouched, "" = no place.
+  const [placeChoice, setPlaceChoice] = useState<string | null>(null)
+  const shownPlace = placeChoice ?? existingQR?.data?.placeId ?? ""
   const existingDomainUnverified = isEdit && !!existingQR?.data?.customDomainId
     && !activeDomains.some((d) => d.id === existingQR.data.customDomainId)
 
@@ -974,6 +979,7 @@ export default function CreateQRPage() {
         },
         tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         ...(domainChoice !== null && { customDomainId: domainChoice === "genxqr" ? null : domainChoice }),
+        ...(placeChoice !== null && { placeId: placeChoice || null }),
         // In edit mode, only send newly uploaded files; existing files stay in DB untouched
         uploadedFiles: FILE_TYPES.has(selectedType) ? uploadedFiles : [],
         settings: {
@@ -1241,6 +1247,8 @@ export default function CreateQRPage() {
                       </p>
                     )}
                   </div>
+
+                  <PlacePicker value={shownPlace} onChange={setPlaceChoice} />
 
                   {/* Short-link domain — only when the account has a verified custom domain */}
                   {(activeDomains.length > 0 || existingDomainUnverified) && (

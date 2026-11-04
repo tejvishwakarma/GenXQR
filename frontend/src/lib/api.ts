@@ -1149,6 +1149,9 @@ export interface QRCode {
   /** The account's own domain this code prints with; null = genxqr.com. */
   customDomainId?: string | null
   customDomain?: { hostname: string; status: string } | null
+  /** Where the code is printed (Places). */
+  placeId?: string | null
+  place?: PlaceSummary | null
   /** Server-built scan URL (custom domain when verified). Use scanUrlOf(). */
   scanUrl?: string
   content: { data: Record<string, unknown> } | null
@@ -1183,6 +1186,8 @@ export interface CreateQRPayload {
   category: "DYNAMIC" | "STATIC"
   /** Omit on create for the account default; null = genxqr.com. */
   customDomainId?: string | null
+  /** The place it is printed for; null = none. */
+  placeId?: string | null
   content: { data: Record<string, unknown> }
   design?: {
     primaryColor?: string
@@ -1238,11 +1243,12 @@ export function createQR(payload: CreateQRPayload) {
   })
 }
 
-export function listQRs(params?: { page?: number; limit?: number; search?: string }) {
+export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string }) {
   const query = new URLSearchParams()
   if (params?.page != null) query.set("page", String(params.page))
   if (params?.limit != null) query.set("limit", String(params.limit))
   if (params?.search) query.set("search", params.search)
+  if (params?.placeId) query.set("placeId", params.placeId)
   const qs = query.toString() ? `?${query.toString()}` : ""
   return apiFetch<ListQRsResponse>(`/api/qr${qs}`, { headers: authHeader() })
 }
@@ -1544,13 +1550,93 @@ export interface GlobalAnalytics {
   byOS: OSBreakdown[]
   byBrowser: BrowserBreakdown[]
   byCountry: GeoBreakdown[]
+  /** With a place filter: scans at that place per code, all time. */
   topQRs: Array<{ id: string; name: string; type: string; scanCount: number; isActive: boolean }>
+  /** Places by scans in the period (no place filter only). */
+  byPlace: Array<PlaceSummary & { count: number }>
+  /** The place these figures are for, when filtered. */
+  place: PlaceSummary | null
 }
 
-export function getGlobalAnalytics(days = 30) {
+export function getGlobalAnalytics(days = 30, placeId?: string) {
   return apiFetch<{ success: boolean; data: GlobalAnalytics }>(
-    `/api/analytics/global?days=${days}`,
+    `/api/analytics/global?days=${days}${placeId ? `&placeId=${encodeURIComponent(placeId)}` : ""}`,
     { headers: authHeader() },
+  )
+}
+
+export interface ScanLogEntry extends RecentScan {
+  isUnique: boolean
+  placeName: string | null
+}
+
+/** One page of a code's scans, newest first; from/to are instants (ISO). */
+export function getScanLog(qrId: string, params: { page: number; limit?: number; from?: string; to?: string }) {
+  const q = new URLSearchParams({ page: String(params.page), limit: String(params.limit ?? 25) })
+  if (params.from) q.set("from", params.from)
+  if (params.to) q.set("to", params.to)
+  return apiFetch<{ success: boolean; data: ScanLogEntry[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>(
+    `/api/analytics/${qrId}/scans?${q.toString()}`,
+    { headers: authHeader() },
+  )
+}
+
+// ─── Places ───────────────────────────────────────────────────────────────────
+
+/** What a code carries about its place. */
+export interface PlaceSummary {
+  id: string
+  name: string
+  /** The account's own location ID, e.g. a store code. */
+  code: string | null
+  city: string | null
+}
+
+export interface Place extends PlaceSummary {
+  address: string | null
+  lat: number | null
+  lng: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlaceWithStats extends Place {
+  codeCount: number
+  totalScans: number
+  /** Scans in the `days` asked for. */
+  scansInRange: number
+}
+
+export interface PlaceInput {
+  name: string
+  code?: string | null
+  address?: string | null
+  city?: string | null
+  lat?: number | null
+  lng?: number | null
+}
+
+export function getPlaces(days = 30) {
+  return apiFetch<{ success: boolean; data: PlaceWithStats[] }>(`/api/places?days=${days}`, { headers: authHeader() })
+}
+
+export function createPlace(body: PlaceInput) {
+  return apiFetch<{ success: boolean; data: Place }>("/api/places", { method: "POST", headers: authHeader(), body: JSON.stringify(body) })
+}
+
+export function updatePlace(id: string, body: Partial<PlaceInput>) {
+  return apiFetch<{ success: boolean; data: Place }>(`/api/places/${id}`, { method: "PATCH", headers: authHeader(), body: JSON.stringify(body) })
+}
+
+export function deletePlace(id: string) {
+  return apiFetch<{ success: boolean }>(`/api/places/${id}`, { method: "DELETE", headers: authHeader() })
+}
+
+/** One active copy of a code per place. Places past the plan's QR limit come back in `failed`. */
+export function copyQRToPlaces(id: string, placeIds: string[]) {
+  return apiFetch<{ success: boolean; data: { created: QRCode[]; failed: Array<{ placeId: string; placeName: string; error: string }> } }>(
+    `/api/qr/${id}/copy-to-places`,
+    { method: "POST", headers: authHeader(), body: JSON.stringify({ placeIds }) },
   )
 }
 
@@ -1562,7 +1648,8 @@ export async function downloadScanCSV(qrId: string, qrName: string): Promise<voi
   const token = localStorage.getItem("access_token") ?? ""
   const res = await fetch(`${BASE_URL}/api/analytics/${qrId}/csv`, {
     credentials: "include",
-    headers: { Authorization: `Bearer ${token}` },
+    // authHeader carries the workspace too: without it a team member's export 404'd.
+    headers: { ...authHeader(), Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error(`CSV export failed (${res.status})`)
   const blob = await res.blob()

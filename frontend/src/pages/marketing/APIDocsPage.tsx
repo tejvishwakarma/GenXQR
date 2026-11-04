@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 import {
   Copy, Check, Key, ChevronRight, Menu, X,
   BookOpen, Shield, Zap, AlertTriangle, Radio,
-  List, Plus, Eye, Pencil, Trash2, BarChart2, Power, ScanLine, Plug, ExternalLink,
+  List, Plus, Eye, Pencil, Trash2, BarChart2, Power, ScanLine, Plug, ExternalLink, MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SEOMeta } from "@/components/SEOMeta"
@@ -88,6 +88,7 @@ const NAV = [
     items: [
       { id: "ep-analytics", label: "QR Analytics" },
       { id: "ep-scans",     label: "List Scans" },
+      { id: "ep-places",    label: "List Places" },
     ],
   },
   {
@@ -119,7 +120,8 @@ const ENDPOINTS: Endpoint[] = [
       { name: "page",         type: "integer", desc: "Page number, 1-indexed. Default: 1" },
       { name: "limit",        type: "integer", desc: "Results per page. Default: 20. Max: 50" },
       { name: "type",         type: "string",  desc: "Filter by QR type (URL, PDF, WIFI, VCARD, …)" },
-      { name: "search",       type: "string",  desc: "Matches QR code names (partial, case-insensitive) or an exact tag" },
+      { name: "search",       type: "string",  desc: "Matches QR code names or place names (partial, case-insensitive), an exact tag or a place's location ID" },
+      { name: "placeId",      type: "string",  desc: "Only codes at this place (ids from List Places), or none for codes without a place" },
       { name: "updatedSince", type: "string",  desc: "ISO 8601 timestamp — only QR codes updated at or after this time" },
       { name: "sort",         type: "string",  desc: "createdAt (default) or updatedAt — newest first" },
     ],
@@ -195,6 +197,7 @@ data = res.json()`,
       { name: "content",  type: "object",                   desc: "Type-specific content, wrapped as { data: { … } }. See Content Schemas below." },
       { name: "category", type: "string",                   desc: "DYNAMIC (default) or STATIC" },
       { name: "tags",     type: "string[]",                 desc: "Up to 10 tags, max 50 characters each" },
+      { name: "placeId",  type: "string",                   desc: "The place it is printed at (an id from List Places). Scans are then counted for that place" },
       { name: "design",   type: "object",                   desc: "Colours, dot and corner styles, logo and frame — same fields as design in Get QR Code" },
       { name: "settings", type: "object",                   desc: "Optional: password, activeFrom, activeUntil, scanLimit, fallbackUrl, fbPixelId, gaId, gtmId" },
     ],
@@ -353,6 +356,7 @@ data = res.json()['data']`,
       { name: "name",     type: "string",   desc: "New display name" },
       { name: "content",  type: "object",   desc: "New type-specific content, as { data: { … } }. Replaces existing content entirely." },
       { name: "tags",     type: "string[]", desc: "Replace the tag list (max 10)" },
+      { name: "placeId",  type: "string",   desc: "Move it to another place (null for none). Scans already recorded stay with the place they happened at" },
       { name: "design",   type: "object",   desc: "Design fields to change — fields you omit keep their current value" },
       { name: "settings", type: "object",   desc: "password (\"\" removes it), activeFrom, activeUntil (ISO 8601, null to clear), scanLimit (null to clear), fallbackUrl, fbPixelId, gaId, gtmId" },
     ],
@@ -589,6 +593,8 @@ print('Total scans:', analytics['totalScans'])`,
       { name: "data[].deviceType",   type: "string", desc: "MOBILE, TABLET, DESKTOP or UNKNOWN" },
       { name: "data[].os / browser", type: "string", desc: "Operating system and browser" },
       { name: "data[].referrer",     type: "string", desc: "Referer header, if the scanner sent one" },
+      { name: "data[].isUnique",     type: "boolean", desc: "False for a repeat scan from the same device within 4 hours" },
+      { name: "data[].placeName",    type: "string", desc: "The code's place when it was scanned, with placeId and placeCode (its location ID); null if none" },
     ],
     codes: [
       { code: "200", desc: "Scans returned" },
@@ -625,7 +631,62 @@ scans = res.json()['data']`,
       "deviceType": "MOBILE",
       "os": "Android",
       "browser": "Chrome",
-      "referrer": null
+      "referrer": null,
+      "isUnique": true,
+      "placeId": "clzzzzzzzzzzzzzzzz",
+      "placeName": "Millennium City Centre Metro",
+      "placeCode": "DEL-MCC-01"
+    }
+  ]
+}`,
+  },
+  {
+    id: "ep-places",
+    method: "GET",
+    path: "/v1/places",
+    summary: "List Places",
+    description: "Returns the places in your account — the spots your codes are printed at — with how many codes each has and how many scans each got. Use a place's id as placeId when creating or updating a code. Places are added in the dashboard (Places) or from a bulk upload's place column.",
+    responseFields: [
+      { name: "data[].id",           type: "string",  desc: "Place ID" },
+      { name: "data[].name",         type: "string",  desc: "Place name" },
+      { name: "data[].code",         type: "string",  desc: "Your location ID for it, or null" },
+      { name: "data[].city / address", type: "string", desc: "Where it is, if set" },
+      { name: "data[].lat / lng",    type: "number",  desc: "Map pin, if set" },
+      { name: "data[].codeCount",    type: "integer", desc: "Codes at this place now" },
+      { name: "data[].totalScans",   type: "integer", desc: "Scans recorded at this place, all time" },
+      { name: "data[].scansInRange", type: "integer", desc: "Scans in the last 30 days" },
+    ],
+    codes: [
+      { code: "200", desc: "Places returned" },
+      { code: "401", desc: "Invalid or missing API key" },
+    ],
+    examples: {
+      curl: `curl https://genxqr.com/v1/places \\
+  -H "Authorization: Bearer YOUR_API_KEY"`,
+      node: `const res = await fetch('https://genxqr.com/v1/places', {
+  headers: { 'Authorization': \`Bearer \${process.env.GenXQR_API_KEY}\` }
+})
+const { data } = await res.json()`,
+      python: `res = requests.get(
+    'https://genxqr.com/v1/places',
+    headers={'Authorization': f"Bearer {os.environ['GenXQR_API_KEY']}"}
+)
+places = res.json()['data']`,
+    },
+    responseExample: `{
+  "success": true,
+  "data": [
+    {
+      "id": "clzzzzzzzzzzzzzzzz",
+      "name": "Millennium City Centre Metro",
+      "code": "DEL-MCC-01",
+      "address": "Exit 2",
+      "city": "Gurugram",
+      "lat": 28.4595,
+      "lng": 77.0727,
+      "codeCount": 2,
+      "totalScans": 1840,
+      "scansInRange": 312
     }
   ]
 }`,
@@ -844,7 +905,7 @@ const { data } = await res.json()`,
   },
 ]
 
-const ANALYTICS_IDS = ["ep-analytics", "ep-scans"]
+const ANALYTICS_IDS = ["ep-analytics", "ep-scans", "ep-places"]
 
 // ─── Small components ─────────────────────────────────────────────────────────
 
@@ -1036,7 +1097,10 @@ const WEBHOOK_EVENTS = [
     "os": "Android",
     "browser": "Chrome",
     "referrer": null,
-    "isUnique": true
+    "isUnique": true,
+    "placeId": "clzzzzzzzzzzzzzzzz",
+    "placeName": "Millennium City Centre Metro",
+    "placeCode": "DEL-MCC-01"
   }
 }`,
   },
@@ -1527,6 +1591,7 @@ function Sidebar({ activeSection, onNav }: { activeSection: string; onNav: (id: 
     "ep-delete":    <Trash2 size={12} />,
     "ep-analytics": <BarChart2 size={12} />,
     "ep-scans":     <ScanLine size={12} />,
+    "ep-places":    <MapPin size={12} />,
     "ep-wh-list":   <List size={12} />,
     "ep-wh-create": <Plus size={12} />,
     "ep-wh-get":    <Eye size={12} />,

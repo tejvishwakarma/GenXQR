@@ -32,6 +32,18 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
     Date.UTC(scannedAtDate.getUTCFullYear(), scannedAtDate.getUTCMonth(), scannedAtDate.getUTCDate()),
   )
   const updated = await prisma.$transaction(async (tx) => {
+    // Global scan counter + lastScannedAt. First, so the scan row can carry the
+    // code's place as it is now (QRScan.placeId).
+    const row = await tx.qRCode.update({
+      where: { id: qrId },
+      data: {
+        scanCount: { increment: 1 },
+        ...(isUnique && { uniqueScanCount: { increment: 1 } }),
+        lastScannedAt: scannedAtDate,
+      },
+      select: { userId: true, name: true, slug: true, scanCount: true, place: { select: { id: true, name: true, code: true } } },
+    })
+
     const scan = await tx.qRScan.create({
       data: {
         qrId,
@@ -44,6 +56,7 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
         scannedAt: scannedAtDate,
         isUnique,
         abVariantId: abVariantId ?? null,
+        placeId: row.place?.id ?? null,
         country,
         countryCode,
         city,
@@ -51,17 +64,6 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
         lat,
         lng,
       },
-    })
-
-    // Global scan counter + lastScannedAt
-    const row = await tx.qRCode.update({
-      where: { id: qrId },
-      data: {
-        scanCount: { increment: 1 },
-        ...(isUnique && { uniqueScanCount: { increment: 1 } }),
-        lastScannedAt: scannedAtDate,
-      },
-      select: { userId: true, name: true, slug: true, scanCount: true },
     })
 
     // Daily aggregate — for every code, owned or not (an early return for
@@ -114,6 +116,9 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
     browser,
     referrer: referrer ?? null,
     isUnique,
+    placeId: updated.place?.id ?? null,
+    placeName: updated.place?.name ?? null,
+    placeCode: updated.place?.code ?? null,
   })
 
   // Check monthly scan limit and notify if threshold crossed (fire-and-forget)

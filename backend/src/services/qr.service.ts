@@ -17,6 +17,7 @@ import { safeHttpUrlSchema } from "../utils/safe-url.js"
 import { invalidateQRCache } from "./scan.service.js"
 import { assertDomainForCode, defaultDomainId, scanUrlFor } from "./custom-domain.service.js"
 import { markAttached, removeUnreferencedFiles, resolveAttachments } from "./uploads.service.js"
+import { assertPlaceForCode, attributeUnplacedScans, placeSummarySelect } from "./place.service.js"
 
 /** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
 const LIBRARY_FRAME_PREFIX = /^(shape|premium|occasion):/
@@ -36,6 +37,8 @@ export const createQRSchema = z.object({
    * Omitted on create = the account's default domain; null = genxqr.com.
    */
   customDomainId: z.string().min(1).max(40).nullish(),
+  /** Where the code is printed (place.service.ts). Null = no place. */
+  placeId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).default({ data: {} }),
   design: z
     .object({
@@ -109,6 +112,7 @@ export const updateQRSchema = z.object({
   type: z.nativeEnum(QRType).optional(),
   tags: z.array(z.string().max(50).trim()).max(10).optional(),
   customDomainId: z.string().min(1).max(40).nullish(),
+  placeId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).optional(),
   // Partial and WITHOUT the create defaults: an update changes only the design
   // fields it names. Reusing the create schema filled every omitted field with
@@ -128,6 +132,8 @@ export const listQRSchema = z.object({
   category: z.nativeEnum(QRCategory).optional(),
   search: z.string().max(100).trim().optional(),
   status: z.enum(["active", "inactive"]).optional(),
+  /** A place id, or "none" for codes without a place. */
+  placeId: z.string().min(1).max(40).optional(),
   /**
    * ISO 8601 timestamp — filters to QR codes modified after this time.
    * Used by Zapier/Make/n8n polling triggers to fetch only newly-updated records.
@@ -163,6 +169,8 @@ const qrSelect = {
   lastScannedAt: true,
   customDomainId: true,
   customDomain: { select: { hostname: true, status: true } },
+  placeId: true,
+  place: { select: placeSummarySelect },
   content: { select: { data: true } },
   design: {
     select: {
@@ -399,8 +407,9 @@ export async function createWithinQRLimit<T>(ownerId: string, create: (tx: Prism
 }
 
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
 
+  const placeId = await assertPlaceForCode(userId, requestedPlace)
   const customDomainId = requestedDomain === undefined
     ? await defaultDomainId(userId)
     : await assertDomainForCode(userId, requestedDomain)
@@ -421,6 +430,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
       userId,
       slug,
       customDomainId: customDomainId ?? null,
+      placeId: placeId ?? null,
       isPasswordProtected: !!settings.password,
       passwordHash,
       activeFrom: settings.activeFrom ? new Date(settings.activeFrom) : undefined,
@@ -457,7 +467,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
  * List a user's QR codes with pagination and optional filters.
  */
 export async function listQRs(userId: string, query: z.infer<typeof listQRSchema>) {
-  const { page, limit, type, category, search, status, updatedSince, sort } = query
+  const { page, limit, type, category, search, status, placeId, updatedSince, sort } = query
   const skip = (page - 1) * limit
 
   const where: Prisma.QRCodeWhereInput = {
@@ -467,10 +477,13 @@ export async function listQRs(userId: string, query: z.infer<typeof listQRSchema
     ...(status === "active" && { isActive: true }),
     ...(status === "inactive" && { isActive: false }),
     ...(updatedSince && { updatedAt: { gte: new Date(updatedSince) } }),
+    ...(placeId && { placeId: placeId === "none" ? null : placeId }),
     ...(search && {
       OR: [
         { name: { contains: search, mode: "insensitive" } },
         { tags: { hasSome: [search] } },
+        { place: { name: { contains: search, mode: "insensitive" } } },
+        { place: { code: { equals: search, mode: "insensitive" } } },
       ],
     }),
   }
@@ -517,14 +530,15 @@ export async function getQR(id: string, userId: string) {
 export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
   const existing = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
+    select: { id: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, ...qrData } = input
+  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
 
   await assertFrameAllowed(userId, design, existing.design)
   const customDomainId = await assertDomainForCode(userId, requestedDomain)
+  const placeId = await assertPlaceForCode(userId, requestedPlace)
 
   const uploadedFiles = requestedFiles && requestedFiles.length > 0
     ? await resolveAttachments(userId, requestedFiles, actorId)
@@ -550,6 +564,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
       ...(qrData.type !== undefined && { type: qrData.type }),
       ...(qrData.tags !== undefined && { tags: qrData.tags }),
       ...(customDomainId !== undefined && { customDomainId }),
+      ...(placeId !== undefined && { placeId }),
       ...(settings?.password !== undefined && {
         isPasswordProtected: !!settings.password,
         passwordHash,
@@ -597,6 +612,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
   })
 
   if (uploadedFiles) await markAttached(uploadedFiles.map((f) => f.tempUrl))
+  if (placeId && !existing.placeId) await attributeUnplacedScans(id, placeId)
   await invalidateQRCache(qr.slug)
   logger.info("QR code updated", { qrId: id, userId })
   return serializeQR(qr)
@@ -651,6 +667,48 @@ export async function toggleQR(id: string, userId: string) {
   return updated
 }
 
+type CloneSource = Prisma.QRCodeGetPayload<{ include: { content: true; design: true } }>
+
+/** A new code with the same content, design and settings as `qr` (no scans, no files rows). */
+function cloneData(qr: CloneSource, userId: string, slug: string): Prisma.QRCodeUncheckedCreateInput {
+  return {
+    userId,
+    type: qr.type,
+    category: qr.category,
+    name: qr.name,
+    slug,
+    tags: qr.tags,
+    placeId: qr.placeId,
+    isPasswordProtected: qr.isPasswordProtected,
+    passwordHash: qr.passwordHash,
+    activeFrom: qr.activeFrom,
+    activeUntil: qr.activeUntil,
+    scanLimit: qr.scanLimit,
+    fallbackUrl: qr.fallbackUrl,
+    customDomainId: qr.customDomainId,
+    content: qr.content
+      ? { create: { data: qr.content.data as Prisma.InputJsonValue } }
+      : undefined,
+    design: qr.design
+      ? {
+          create: {
+            ...(Object.fromEntries(
+              (Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]).map((field) => [
+                field,
+                qr.design![field],
+              ]),
+            ) as Prisma.QRDesignCreateWithoutQrCodeInput),
+            frameFields: qr.design.frameFields ?? Prisma.DbNull,
+            paletteId: qr.design.paletteId,
+            fontTitle: qr.design.fontTitle,
+            fontBody: qr.design.fontBody,
+            welcomeScreenUrl: qr.design.welcomeScreenUrl,
+          },
+        }
+      : undefined,
+  }
+}
+
 /**
  * Clone a QR code (new slug, same content + design, inactive by default).
  */
@@ -664,46 +722,55 @@ export async function duplicateQR(id: string, userId: string) {
   const slug = await uniqueSlug()
 
   const newQR = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
-    data: {
-      userId,
-      type: qr.type,
-      category: qr.category,
-      name: `${qr.name} (Copy)`,
-      slug,
-      tags: qr.tags,
-      isActive: false,
-      scanCount: 0,
-      isPasswordProtected: qr.isPasswordProtected,
-      passwordHash: qr.passwordHash,
-      activeFrom: qr.activeFrom,
-      activeUntil: qr.activeUntil,
-      scanLimit: qr.scanLimit,
-      fallbackUrl: qr.fallbackUrl,
-      customDomainId: qr.customDomainId,
-      content: qr.content
-        ? { create: { data: qr.content.data as Prisma.InputJsonValue } }
-        : undefined,
-      design: qr.design
-        ? {
-            create: {
-              ...(Object.fromEntries(
-                (Object.keys(DESIGN_FIELD_DEFAULTS) as WritableDesignField[]).map((field) => [
-                  field,
-                  qr.design![field],
-                ]),
-              ) as Prisma.QRDesignCreateWithoutQrCodeInput),
-              frameFields: qr.design.frameFields ?? Prisma.DbNull,
-              paletteId: qr.design.paletteId,
-              fontTitle: qr.design.fontTitle,
-              fontBody: qr.design.fontBody,
-              welcomeScreenUrl: qr.design.welcomeScreenUrl,
-            },
-          }
-        : undefined,
-    },
+    data: { ...cloneData(qr, userId, slug), name: `${qr.name} (Copy)`, isActive: false },
     select: qrSelect,
   }))
 
   logger.info("QR code duplicated", { originalId: id, newId: newQR.id, userId })
   return serializeQR(newQR)
+}
+
+export const copyToPlacesSchema = z.object({
+  placeIds: z.array(z.string().min(1).max(40)).min(1).max(100),
+})
+
+/**
+ * One copy of a code per place, ready to print: same content, design and
+ * settings, ACTIVE (unlike a duplicate — these are made to be printed now),
+ * named "<name> — <place>". Each copy takes a QR slot; once the plan's limit
+ * is reached the remaining places are reported, not created.
+ */
+export async function copyQRToPlaces(id: string, userId: string, placeIds: string[]) {
+  const qr = await prisma.qRCode.findFirst({
+    where: { id, userId },
+    include: { content: true, design: true },
+  })
+  if (!qr) throw new AppError(404, "QR code not found")
+
+  const unique = [...new Set(placeIds)]
+  const places = await prisma.place.findMany({ where: { id: { in: unique }, userId }, select: { id: true, name: true } })
+  if (places.length !== unique.length) throw new AppError(422, "One or more places are not on this account.")
+  const byId = new Map(places.map((p) => [p.id, p]))
+  // The original's own name without a place suffix it was given by an earlier copy.
+  const base = qr.placeId ? qr.name.replace(/ — [^—]+$/, "") : qr.name
+
+  const created: Array<Awaited<ReturnType<typeof getQR>>> = []
+  const failed: Array<{ placeId: string; placeName: string; error: string }> = []
+  for (const placeId of unique) {
+    const place = byId.get(placeId)!
+    try {
+      const slug = await uniqueSlug()
+      const copy = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
+        data: { ...cloneData(qr, userId, slug), name: `${base} — ${place.name}`.slice(0, 200), placeId, isActive: true },
+        select: qrSelect,
+      }))
+      created.push(serializeQR(copy))
+    } catch (err) {
+      if (!(err instanceof AppError && err.statusCode === 403)) throw err
+      failed.push({ placeId, placeName: place.name, error: "QR code limit reached for your plan" })
+    }
+  }
+
+  logger.info("QR code copied to places", { originalId: id, userId, created: created.length, failed: failed.length })
+  return { created, failed }
 }

@@ -74,6 +74,7 @@ import BulkGeneratePage from "@/pages/dashboard/BulkGeneratePage"
 import TeamPage from "@/pages/dashboard/TeamPage"
 import APIKeysPage from "@/pages/dashboard/APIKeysPage"
 import DomainsPage from "@/pages/dashboard/DomainsPage"
+import PlacesPage from "@/pages/dashboard/PlacesPage"
 import ActivityPage from "@/pages/dashboard/ActivityPage"
 import SsoPage from "@/pages/dashboard/SsoPage"
 import ClientsPage from "@/pages/dashboard/ClientsPage"
@@ -213,6 +214,7 @@ export function AppRoutes() {
           <Route path="qr/:id/ab-test" element={<ABTestPage />} />
           <Route path="qr/:id/settings" element={<QRSettingsPage />} />
           <Route path="analytics" element={<GlobalAnalyticsPage />} />
+          <Route path="places" element={<PlacesPage />} />
           <Route path="bulk-generate" element={<BulkGeneratePage />} />
           <Route path="team" element={<TeamPage />} />
           <Route path="api-keys" element={<APIKeysPage />} />

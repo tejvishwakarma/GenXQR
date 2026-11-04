@@ -1,10 +1,10 @@
 import { useState, useMemo } from "react"
 import { GeoAttribution } from "@/components/GeoAttribution"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import {
   TrendingUp, TrendingDown, Scan, QrCode, Globe, Smartphone,
-  Monitor, Tablet, RefreshCw, Minus, Zap, ArrowUpRight, Activity,
+  Monitor, Tablet, RefreshCw, Minus, Zap, ArrowUpRight, Activity, MapPin,
 } from "lucide-react"
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getGlobalAnalytics } from "@/lib/api"
+import { getGlobalAnalytics, getPlaces } from "@/lib/api"
 import type { ScanTimelinePoint, DeviceBreakdown } from "@/lib/api"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -184,10 +184,22 @@ function DeviceLegend({ data, total }: { data: DeviceBreakdown[]; total: number 
 export default function GlobalAnalyticsPage() {
   const navigate = useNavigate()
   const [days, setDays] = useState(30)
+  // One place's figures (?place=<id>, linked from Places and a code's page).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const placeId = searchParams.get("place") ?? ""
+  const setPlaceId = (v: string) =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (v) next.set("place", v)
+      else next.delete("place")
+      return next
+    }, { replace: true })
+  const { data: placesData } = useQuery({ queryKey: ["places"], queryFn: () => getPlaces(), staleTime: 60_000 })
+  const places = placesData?.data ?? []
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["global-analytics", days],
-    queryFn: () => getGlobalAnalytics(days),
+    queryKey: ["global-analytics", days, placeId],
+    queryFn: () => getGlobalAnalytics(days, placeId || undefined),
     staleTime: 60_000,
   })
 
@@ -233,11 +245,27 @@ export default function GlobalAnalyticsPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <Activity size={22} className="text-violet-400" />
-            Analytics Overview
+            {analytics?.place ? analytics.place.name : "Analytics Overview"}
           </h1>
-          <p className="text-zinc-500 text-sm mt-1">Aggregate performance across all your QR codes</p>
+          <p className="text-zinc-500 text-sm mt-1">
+            {analytics?.place
+              ? <>Scans at this place{analytics.place.code ? ` (${analytics.place.code})` : ""}, from every code printed there · <button type="button" onClick={() => setPlaceId("")} className="text-violet-400 hover:text-violet-300">All places</button></>
+              : "Aggregate performance across all your QR codes"}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {(places.length > 0 || placeId) && (
+            <Select value={placeId || "all"} onValueChange={(v) => setPlaceId(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[180px] h-9 text-xs" aria-label="Place">
+                <MapPin size={13} className="text-violet-400 shrink-0" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All places</SelectItem>
+                {places.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <button
             onClick={() => void refetch()}
             className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
@@ -322,7 +350,7 @@ export default function GlobalAnalyticsPage() {
               accentColor="violet"
             />
             <StatCard
-              label="Total QR Codes"
+              label={analytics.place ? "QR Codes Here" : "Total QR Codes"}
               value={analytics.totalQRs}
               sub={`${analytics.activeQRs} currently active`}
               icon={<QrCode size={18} />}
@@ -572,12 +600,51 @@ export default function GlobalAnalyticsPage() {
             </Card>
           </div>
 
+          {/* ── Top places (all places only) ─────────────────────────────── */}
+          {!analytics.place && analytics.byPlace.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Top Places</CardTitle>
+                  <Link to="/app/places" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
+                    All places <ArrowUpRight size={12} />
+                  </Link>
+                </div>
+                <p className="text-xs text-zinc-500">Scans in the period, by where the code was printed.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {(() => {
+                    const max = Math.max(1, ...analytics.byPlace.map((p) => p.count))
+                    return analytics.byPlace.slice(0, 10).map((p, i) => (
+                      <button key={p.id} type="button" onClick={() => setPlaceId(p.id)} className="w-full flex items-center gap-3 text-left group">
+                        <span className="text-zinc-600 text-xs font-mono w-4 shrink-0 text-right">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <span className="text-zinc-800 dark:text-zinc-200 text-sm truncate group-hover:text-violet-500">
+                              {p.name}
+                              {(p.code || p.city) && <span className="text-zinc-500 text-xs ml-2">{[p.code, p.city].filter(Boolean).join(" · ")}</span>}
+                            </span>
+                            <span className="text-zinc-900 dark:text-white text-xs font-semibold shrink-0">{p.count.toLocaleString()}</span>
+                          </div>
+                          <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-violet-600" style={{ width: `${Math.round((p.count / max) * 100)}%` }} />
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  })()}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* ── Top Performing QR Codes (leaderboard) ───────────────────── */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Top Performing QR Codes</CardTitle>
-                <Link to="/app/dashboard" className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
+                <CardTitle className="text-base">{analytics.place ? "QR Codes at This Place" : "Top Performing QR Codes"}</CardTitle>
+                <Link to={analytics.place ? `/app/qr-codes?place=${analytics.place.id}` : "/app/dashboard"} className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1">
                   View all <ArrowUpRight size={12} />
                 </Link>
               </div>

@@ -82,6 +82,7 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   qrCodes                 QRCode[]
   customDomains           CustomDomain[]
+  places                  Place[]
   ssoConnection           SsoConnection?
   /// Clients this account manages (Agency plan).
   agencyClients           AgencyClient[]           @relation("AgencyClients")
@@ -172,6 +173,10 @@ model QRCode {
   /// so changing this never breaks a code already printed with another domain.
   customDomainId      String?
   customDomain        CustomDomain?      @relation(fields: [customDomainId], references: [id], onDelete: SetNull)
+  /// Where this code is printed (place.service.ts). One code per place: a printed
+  /// image cannot tell its copies apart, so a place is known only through its code.
+  placeId             String?
+  place               Place?             @relation(fields: [placeId], references: [id], onDelete: SetNull)
   tags                String[]
   isActive            Boolean            @default(true)
   /// True when the SYSTEM switched this code off because the owner's plan
@@ -216,7 +221,31 @@ model QRCode {
   @@index([slug])
   @@index([type])
   @@index([createdAt])
+  @@index([placeId])
   @@map("qr_codes")
+}
+
+/// A physical spot an account prints codes for, e.g. "Millennium City Centre
+/// Metro" (place.service.ts). Belongs to the workspace owner.
+model Place {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  /// The account's own reference for it, e.g. a store code "DEL-MCC-01".
+  code      String?
+  address   String?
+  city      String?
+  lat       Float?
+  lng       Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodes   QRCode[]
+  scans     QRScan[]
+
+  @@unique([userId, name])
+  @@unique([userId, code])
+  @@map("places")
 }
 
 model QRContent {
@@ -302,9 +331,14 @@ model QRScan {
   userAgent   String?
   referrer    String?
   abVariantId String?
+  /// The code's place WHEN it was scanned, so moving a code to another place
+  /// later does not rewrite where its earlier scans happened.
+  placeId     String?
+  place       Place?     @relation(fields: [placeId], references: [id], onDelete: SetNull)
   qrCode      QRCode     @relation(fields: [qrId], references: [id], onDelete: Cascade)
 
   @@index([qrId, scannedAt])
+  @@index([placeId, scannedAt])
   @@index([qrId, country])
   @@index([scannedAt])
   @@map("qr_scans")
