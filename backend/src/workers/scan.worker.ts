@@ -32,7 +32,7 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
     Date.UTC(scannedAtDate.getUTCFullYear(), scannedAtDate.getUTCMonth(), scannedAtDate.getUTCDate()),
   )
   const updated = await prisma.$transaction(async (tx) => {
-    await tx.qRScan.create({
+    const scan = await tx.qRScan.create({
       data: {
         qrId,
         ip,
@@ -82,7 +82,7 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
         data: { scanCount: { increment: 1 } },
       })
     }
-    return row
+    return { ...row, scanId: scan.id }
   })
 
   // 100 / 1,000 / 10,000-scan milestone email (fire-and-forget, deduped).
@@ -92,11 +92,28 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
 
   // Fire qr.scanned webhook event (fire-and-forget)
   if (!updated.userId) return
+  // The same fields GET /v1/qr/:id/scans returns (what Zapier/Make/n8n show as
+  // the sample when a Zap is built) — with only qrId/name/slug/scannedAt, every
+  // mapped country/device/QR-name field came out empty on real scans. `id` is
+  // the scan's own id, so automation tools dedupe each scan exactly once.
+  // `name`/`slug` stay for existing webhooks. Never the scanner's IP.
   void deliverWebhookEvent(updated.userId, "qr.scanned", {
+    id: updated.scanId,
     qrId,
+    qrName: updated.name,
+    qrSlug: updated.slug,
     name: updated.name,
     slug: updated.slug,
     scannedAt: scannedAtDate.toISOString(),
+    country,
+    countryCode,
+    city,
+    region,
+    deviceType,
+    os,
+    browser,
+    referrer: referrer ?? null,
+    isUnique,
   })
 
   // Check monthly scan limit and notify if threshold crossed (fire-and-forget)
