@@ -140,9 +140,9 @@ export default function DashboardPage() {
   const inactiveQRs = total - activeQRs
 
   const stats = [
-    { label: "Total QR Codes", value: total.toString(),              change: `${total} created`,              icon: <QrCode size={20} className="text-violet-400" />,  href: "/app/dashboard" },
+    { label: "Total QR Codes", value: total.toString(),              change: `${total} created`,              icon: <QrCode size={20} className="text-violet-400" />,  href: "/app/qr-codes" },
     { label: "Total Scans",    value: totalScans.toLocaleString(),   change: "all time",                      icon: <Scan   size={20} className="text-emerald-400" />, href: "/app/analytics" },
-    { label: "Active QRs",     value: activeQRs.toString(),          change: `${inactiveQRs} inactive`,       icon: <TrendingUp size={20} className="text-blue-400" />, href: "/app/dashboard" },
+    { label: "Active QRs",     value: activeQRs.toString(),          change: `${inactiveQRs} inactive`,       icon: <TrendingUp size={20} className="text-blue-400" />, href: "/app/qr-codes?status=active" },
     { label: "Views Today",    value: analyticsLoading ? "–" : (globalStats?.scansToday ?? 0).toLocaleString(), change: globalStats ? `${globalStats.scansThisWeek.toLocaleString()} this week` : "loading…", icon: <Eye size={20} className="text-amber-400" />, href: "/app/analytics" },
   ]
 

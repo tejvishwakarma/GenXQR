@@ -1247,12 +1247,13 @@ export function createQR(payload: CreateQRPayload) {
   })
 }
 
-export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string }) {
+export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string; status?: "active" | "inactive" }) {
   const query = new URLSearchParams()
   if (params?.page != null) query.set("page", String(params.page))
   if (params?.limit != null) query.set("limit", String(params.limit))
   if (params?.search) query.set("search", params.search)
   if (params?.placeId) query.set("placeId", params.placeId)
+  if (params?.status) query.set("status", params.status)
   const qs = query.toString() ? `?${query.toString()}` : ""
   return apiFetch<ListQRsResponse>(`/api/qr${qs}`, { headers: authHeader() })
 }
