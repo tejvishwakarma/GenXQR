@@ -659,14 +659,18 @@ export const updateAdminUser = (id: string, body: { role?: string; name?: string
   })
 export const deleteAdminUser = (id: string) =>
   adminFetch<{ success: boolean; message: string }>(`/admin-api/users/${id}`, { method: "DELETE" })
-export const changeAdminUserPlan = (id: string, planName: AdminPlanName) =>
+/** noExpiry: the plan never ends (test/partner accounts, e.g. Zapier's reviewers). */
+export const changeAdminUserPlan = (id: string, planName: AdminPlanName, noExpiry = false) =>
   adminFetch<{ success: boolean; data: { userId: string; plan: { name: AdminPlanName; displayName: string } } }>(
     `/admin-api/users/${id}/plan`,
     {
       method: "PATCH",
-      body: JSON.stringify({ planName }),
+      body: JSON.stringify({ planName, ...(noExpiry && { noExpiry }) }),
     },
   )
+
+/** A period end set by an admin's "never expires" (backend subscription-state NO_EXPIRY_YEAR). */
+export const isNoExpiry = (iso: string | null | undefined): boolean => !!iso && new Date(iso).getUTCFullYear() >= 2099
 export const impersonateUser = (id: string) =>
   adminFetch<{ success: boolean; data: { token: string; expiresInSeconds: number } }>(
     `/admin-api/users/${id}/impersonate`,
@@ -1630,6 +1634,15 @@ export function updatePlace(id: string, body: Partial<PlaceInput>) {
 
 export function deletePlace(id: string) {
   return apiFetch<{ success: boolean }>(`/api/places/${id}`, { method: "DELETE", headers: authHeader() })
+}
+
+/** Put codes at a place or take them off it; returns the ids that changed. */
+export function setPlaceCodes(id: string, body: { add?: string[]; remove?: string[] }) {
+  return apiFetch<{ success: boolean; data: { added: string[]; removed: string[] } }>(`/api/places/${id}/codes`, {
+    method: "PUT",
+    headers: authHeader(),
+    body: JSON.stringify(body),
+  })
 }
 
 /** One active copy of a code per place. Places past the plan's QR limit come back in `failed`. */

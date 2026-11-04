@@ -2,7 +2,7 @@ import { isLapsed, pauseCodesForBilling, resumeCodesPausedForBilling } from "./s
 import { z } from "zod"
 import type { Prisma } from "@prisma/client"
 import { countryFilter, effectiveCountry } from "./user-location.service.js"
-import { STATE_FIELDS, subscriptionState } from "./subscription-state.js"
+import { NO_EXPIRY_PERIOD_END, STATE_FIELDS, subscriptionState } from "./subscription-state.js"
 import { prisma } from "../db/prisma.js"
 import { deleteUserAndData } from "./account-erasure.service.js"
 import { invalidateScanQuota } from "./scan-quota.service.js"
@@ -210,8 +210,10 @@ export async function changePlan(
   callerId: string,
   targetId: string,
   planName: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "AGENCY" | "ENTERPRISE",
+  opts: { noExpiry?: boolean } = {},
 ) {
   if (callerRole !== "SUPER_ADMIN") throw new AppError(403, "SUPER_ADMIN role required")
+  if (opts.noExpiry && planName === "FREE") throw new AppError(422, "FREE never expires anyway — choose a paid plan.")
 
   const [targetUser, targetPlan] = await Promise.all([
     prisma.user.findUnique({
@@ -229,7 +231,8 @@ export async function changePlan(
   if (!targetPlan) throw new AppError(400, "Invalid target plan")
 
   const now = new Date()
-  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
+  // One month, like a purchase — or no end at all for a test/partner account.
+  const periodEnd = opts.noExpiry ? NO_EXPIRY_PERIOD_END : new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
 
   await prisma.subscription.upsert({
     where: { userId: targetUser.id },
@@ -273,6 +276,7 @@ export async function changePlan(
         email: targetUser.email,
         fromPlan: targetUser.subscription?.plan.name ?? null,
         toPlan: planName,
+        ...(opts.noExpiry && { noExpiry: true }),
       },
     },
   })

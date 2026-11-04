@@ -238,4 +238,42 @@ describe("places", () => {
     expect(qr).toMatchObject({ placeId: null, scanCount: 1 })
     expect(await prisma.qRScan.count({ where: { qrId: qr.id } })).toBe(1)
   })
+
+  it("should assign codes to a place and take them off it, only the account's own", async () => {
+    const user = await proUser()
+    const other = await proUser()
+    const metro = await addPlace(user, { name: "Metro" })
+    const mall = await addPlace(user, { name: "Mall" })
+    const unplaced = await createQRCode(user.id, { name: "Unplaced" })
+    const atMall = await createQRCode(user.id, { name: "At mall" })
+    await prisma.qRCode.update({ where: { id: atMall.id }, data: { placeId: mall.id } })
+    const theirs = await createQRCode(other.id, { name: "Theirs" })
+    await scan(unplaced.id)
+    await scan(atMall.id)
+
+    const res = await request(app)
+      .put(`/api/places/${metro.id}/codes`)
+      .set(as(user))
+      .send({ add: [unplaced.id, atMall.id, theirs.id] })
+      .expect(200)
+    expect(res.body.data.added.sort()).toEqual([unplaced.id, atMall.id].sort())
+
+    // Another account's code is never touched.
+    expect((await prisma.qRCode.findUnique({ where: { id: theirs.id } }))!.placeId).toBeNull()
+    // The unplaced code's earlier scan comes along; the mall code's stays at the mall.
+    const scans = await prisma.qRScan.findMany({ where: { qrId: { in: [unplaced.id, atMall.id] } }, select: { qrId: true, placeId: true } })
+    expect(scans.find((s) => s.qrId === unplaced.id)!.placeId).toBe(metro.id)
+    expect(scans.find((s) => s.qrId === atMall.id)!.placeId).toBe(mall.id)
+
+    // Removing only takes codes off THIS place.
+    await request(app).put(`/api/places/${mall.id}/codes`).set(as(user)).send({ remove: [unplaced.id] }).expect(200)
+    expect((await prisma.qRCode.findUnique({ where: { id: unplaced.id } }))!.placeId).toBe(metro.id)
+    const off = await request(app).put(`/api/places/${metro.id}/codes`).set(as(user)).send({ remove: [unplaced.id] }).expect(200)
+    expect(off.body.data.removed).toEqual([unplaced.id])
+    expect((await prisma.qRCode.findUnique({ where: { id: unplaced.id } }))!.placeId).toBeNull()
+
+    // Someone else's place can't be used.
+    await request(app).put(`/api/places/${metro.id}/codes`).set(as(other)).send({ add: [theirs.id] }).expect(404)
+    await request(app).put(`/api/places/${metro.id}/codes`).set(as(user)).send({}).expect(422)
+  })
 })

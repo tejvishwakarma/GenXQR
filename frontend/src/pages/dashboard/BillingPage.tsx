@@ -15,7 +15,7 @@ import {
   getSubscription, getBillingUsage, getPlans, getInvoices, downloadInvoice,
   createPaymentOrder, verifyPayment, cancelSubscription, downgradeSubscription,
   getCheckoutQuote, getCreditBalance, type CheckoutPricing, type CouponQuote,
-  getCurrentUser,
+  getCurrentUser, isNoExpiry,
   type Plan, type PlanName, type CheckoutSession, type Invoice,
 } from "@/lib/api"
 
@@ -887,7 +887,9 @@ export default function BillingPage() {
                         <div className="text-zinc-600 dark:text-zinc-400 text-sm">
                           {sub?.isTrialing
                             ? `Trial ends ${formatDate(subscription.trialEndsAt!)}`
-                            : `Active until ${formatDate(subscription.currentPeriodEnd)}`}
+                            : isNoExpiry(subscription.currentPeriodEnd)
+                              ? "No end date"
+                              : `Active until ${formatDate(subscription.currentPeriodEnd)}`}
                         </div>
                       </div>
                     </div>

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { Helmet } from "react-helmet-async"
@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils"
  * An agency's share report for one client (/l/report/<token>, backend
  * agency.service.ts getClientReport). Carries the AGENCY's brand and never
  * GenXQR's: no GenXQR name, logo, analytics or Clarity (lib/site.ts
- * isWhiteLabelPage). Light, print-friendly — "Save as PDF" is the browser's.
+ * isWhiteLabelPage), and its icon / home-screen name in the head (useAgencyHead).
+ * Light, print-friendly — "Save as PDF" is the browser's.
  */
 
 const PERIODS = [7, 30, 90] as const
@@ -53,6 +54,42 @@ function Ranked({ title, rows, empty }: { title: string; rows: Array<{ label: st
   )
 }
 
+/** A blank 1×1 icon: with no icon link at all, browsers fetch /favicon.ico — GenXQR's. */
+const BLANK_ICON = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="
+
+/**
+ * index.html's head carries GenXQR's favicon, home-screen icon and name, and the
+ * PWA manifest (named GenXQR). While the report is open, swap them for the
+ * agency's — its logo, or a blank icon — and restore them on leaving.
+ */
+function useAgencyHead(name: string | undefined, logoUrl: string | null | undefined) {
+  useEffect(() => {
+    if (!name) return
+    const undo: Array<() => void> = []
+    // value null = remove the attribute (an icon's type="image/svg+xml" no longer fits)
+    const setAttr = (el: Element, attr: string, value: string | null) => {
+      const before = el.getAttribute(attr)
+      if (value === null) el.removeAttribute(attr)
+      else el.setAttribute(attr, value)
+      undo.push(() => (before === null ? el.removeAttribute(attr) : el.setAttribute(attr, before)))
+    }
+    const icon = logoUrl || BLANK_ICON
+    document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach((el) => {
+      setAttr(el, "href", icon)
+      setAttr(el, "type", null)
+    })
+    document.querySelectorAll('meta[name="apple-mobile-web-app-title"], meta[name="application-name"]').forEach((el) => setAttr(el, "content", name))
+    document.querySelectorAll('meta[name="theme-color"]').forEach((el) => setAttr(el, "content", "#fafafa"))
+    document.querySelectorAll('link[rel="manifest"]').forEach((el) => {
+      const parent = el.parentNode
+      const next = el.nextSibling
+      el.remove()
+      undo.push(() => parent?.insertBefore(el, next))
+    })
+    return () => undo.reverse().forEach((fn) => fn())
+  }, [name, logoUrl])
+}
+
 export default function ClientReportPage() {
   const { token = "" } = useParams()
   const [days, setDays] = useState<(typeof PERIODS)[number]>(30)
@@ -62,6 +99,7 @@ export default function ClientReportPage() {
     retry: false,
   })
   const r = data?.data
+  useAgencyHead(r?.agency.name, r?.agency.logoUrl)
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 print:bg-white">

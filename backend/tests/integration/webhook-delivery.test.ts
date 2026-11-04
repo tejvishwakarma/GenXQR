@@ -351,6 +351,26 @@ describe("webhook delivery", () => {
       const names = got.map((g) => (g.body.data as { qr: { name: string } }).qr.name).sort()
       expect(names).toEqual(["First", "Second"])
     })
+
+    it("should deliver qr.updated when codes are assigned to a place from the Places page", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`).send(CREATE_BODY).expect(201)
+      const place = await request(app)
+        .post("/api/places").set("Authorization", `Bearer ${user.token}`).send({ name: "Cyber Hub" }).expect(201)
+      await subscribe(["qr.updated"])
+
+      await request(app)
+        .put(`/api/places/${place.body.data.id}/codes`)
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ add: [created.body.data.id] })
+        .expect(200)
+
+      const [got] = await receiver.wait(1)
+      expect(got, "assigning a place raised no qr.updated").toBeDefined()
+      const qr = (got!.body.data as { qr: { id: string; placeId: string } }).qr
+      expect(qr.id).toBe(created.body.data.id)
+      expect(qr.placeId).toBe(place.body.data.id)
+    })
   })
 
   /**

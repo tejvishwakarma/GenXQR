@@ -11,6 +11,7 @@ import {
   deleteAdminUser,
   impersonateUser,
   changeAdminUserPlan,
+  isNoExpiry,
   changeAdminUserPassword,
   verifyAdminUserEmail,
   sendUserPaymentReminder,
@@ -31,6 +32,7 @@ export default function AdminUserDetailPage() {
 
   const [editRole, setEditRole] = useState<string | null>(null)
   const [editPlan, setEditPlan] = useState<AdminPlanName | null>(null)
+  const [noExpiry, setNoExpiry] = useState(false)
   const [showPasswordForm, setShowPasswordForm] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [passwordError, setPasswordError] = useState("")
@@ -88,10 +90,11 @@ export default function AdminUserDetailPage() {
   })
 
   const changePlanMut = useMutation({
-    mutationFn: (planName: AdminPlanName) => changeAdminUserPlan(id!, planName),
+    mutationFn: (planName: AdminPlanName) => changeAdminUserPlan(id!, planName, planName !== "FREE" && noExpiry),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "user", id] })
       setEditPlan(null)
+      setNoExpiry(false)
     },
   })
 
@@ -276,6 +279,12 @@ export default function AdminUserDetailPage() {
                 <span>Status</span>
                 <SubscriptionStateBadge state={u.subscription.state} rawStatus={u.subscription.status} />
               </div>
+              {u.subscription.plan.name !== "FREE" && isNoExpiry(u.subscription.currentPeriodEnd) && (
+                <div className="flex items-center justify-between">
+                  <span>Ends</span>
+                  <span className="text-white font-medium">Never (no-expiry account)</span>
+                </div>
+              )}
 
               {isSuperAdmin && (
                 <div className="pt-3 flex items-center gap-2 flex-wrap">
@@ -300,16 +309,22 @@ export default function AdminUserDetailPage() {
                         <option value="AGENCY">AGENCY</option>
                     <option value="ENTERPRISE">ENTERPRISE</option>
                       </select>
+                      {editPlan !== "FREE" && (
+                        <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer" title="For test or partner accounts, e.g. the one Zapier's reviewers use">
+                          <input type="checkbox" checked={noExpiry} onChange={(e) => setNoExpiry(e.target.checked)} className="accent-violet-600" />
+                          Never expires
+                        </label>
+                      )}
                       <button
                         onClick={() => changePlanMut.mutate(editPlan)}
-                        disabled={changePlanMut.isPending || editPlan === (u.subscription?.plan.name as AdminPlanName)}
+                        disabled={changePlanMut.isPending || (editPlan === (u.subscription?.plan.name as AdminPlanName) && !noExpiry)}
                         className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs rounded-xl transition flex items-center gap-1.5"
                       >
                         {changePlanMut.isPending && <Loader2 size={12} className="animate-spin" />}
                         Save Plan
                       </button>
                       <button
-                        onClick={() => setEditPlan(null)}
+                        onClick={() => { setEditPlan(null); setNoExpiry(false) }}
                         className="px-2 py-1.5 text-zinc-400 hover:text-white text-xs transition"
                       >
                         Cancel
@@ -362,6 +377,12 @@ export default function AdminUserDetailPage() {
                     <option value="AGENCY">AGENCY</option>
                     <option value="ENTERPRISE">ENTERPRISE</option>
                   </select>
+                  {(editPlan ?? "FREE") !== "FREE" && (
+                    <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer" title="For test or partner accounts, e.g. the one Zapier's reviewers use">
+                      <input type="checkbox" checked={noExpiry} onChange={(e) => setNoExpiry(e.target.checked)} className="accent-violet-600" />
+                      Never expires
+                    </label>
+                  )}
                   <button
                     onClick={() => changePlanMut.mutate((editPlan ?? "FREE") as AdminPlanName)}
                     disabled={changePlanMut.isPending}

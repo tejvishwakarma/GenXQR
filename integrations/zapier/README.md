@@ -6,8 +6,7 @@
 > dashboard guides from one place: `frontend/src/lib/integrations.ts`
 > (`ZAPIER_INVITE_URL`; get it with `zapier-platform users:links`). Invite links
 > are per version — pushing a new version means updating that constant.
-> Next: submit for the public App Directory (needs an @genxqr.com admin and a
-> non-expiring Pro test account for integration-testing@zapier.com).
+> Next: the public App Directory — see "Publishing to the App Directory" below.
 
 
 Private Zapier app that lets users connect their GenXQR account to 7,000+ Zapier apps.
@@ -66,10 +65,34 @@ Then for every release:
 pnpm build && zapier-platform push
 ```
 The app starts **private**: invite testers from the Zapier developer platform
-(Manage team → invite). Publishing to the App Directory is a separate review —
-see Zapier's integration publishing requirements (an admin with a @genxqr.com
-address, a non-expiring Pro+ test account for integration-testing@zapier.com,
-live test Zaps with successful runs).
+(Manage team → invite). Publishing to the App Directory is a separate review.
+
+## Publishing to the App Directory
+
+`zapier-platform validate` lists what is still open under **Publishing Tasks**
+(4 Nov 2026: no errors; everything below is outside the code):
+
+1. **Listing details** (developer platform → the app → Settings):
+   - Description (M002, 40–160 characters, starting "GenXQR is a"):
+     `GenXQR is a QR code platform for dynamic QR codes you can edit after printing, with scan analytics by place, location and device.`
+   - Logo (M004): `assets/logo-256.png` (256 × 256, from `frontend/public/favicon.svg`).
+   - Homepage: `https://genxqr.com` (the marketing site, not the app).
+2. **A team member at @genxqr.com** (M005): invite an @genxqr.com address under
+   Manage team, as admin.
+3. **Developer Terms** (U001): accept the latest terms in the developer platform.
+4. **Test account** (Zapier's §7.1): a GenXQR account at
+   `integration-testing@zapier.com` on Pro, created with "Never expires" in the
+   admin panel (Users → the user → Change Plan). Sign it up, force-verify its
+   email in the admin panel, then set the plan. Zapier resets the password
+   through "Forgot password", since they own that inbox.
+5. **Live Zaps for every trigger and action** (T001–T006, Z001, S002): one
+   switched-on Zap using each of New QR Scan, New QR Code, QR Code Updated,
+   QR Code Deleted, Create QR Code, Update Destination, Activate/Deactivate and
+   Delete QR Code, each with at least one successful run.
+6. **3 users with live Zaps** (S001): three different Zapier accounts (not just
+   GenXQR's own) must have a live Zap using the app. Only real customers on the
+   invite link can satisfy this.
+7. Then **Publish → Submit for review** in the developer platform.
 
 ## Plan requirement
 
