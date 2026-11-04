@@ -13,10 +13,12 @@
 export const ZAPIER_INVITE_URL = "https://zapier.com/developer/public-invite/248982/520340/01050314f25cd3202f36f94fcd139d4a/"
 
 /**
- * Make → App Builder → GenXQR → Invite. Not available through Make's API; null
- * until the account owner copies it — the docs then say to ask support.
+ * Created by Make when the app is published (App Builder → GenXQR → Publish;
+ * published 4 Nov 2026, "public, not approved": installable from this link,
+ * not listed in Make's directory). Not available through Make's API. null
+ * makes the docs tell customers to ask support instead.
  */
-export const MAKE_INVITE_URL: string | null = null
+export const MAKE_INVITE_URL: string | null = "https://www.make.com/en/hq/app-invitation/8a75d879ef88e366bf29143e482735cd"
 
 export const INTEGRATIONS_SUPPORT_EMAIL = "support@genxqr.com"
 

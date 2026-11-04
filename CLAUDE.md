@@ -1268,7 +1268,8 @@ workspace owner in `qr`/`team`/`settings`. Admin and billing rows are in neither
   (`zapier-platform users:links`; per version). Deploy: `pnpm build && zapier-platform push` (CLI installed globally with
   npm — under pnpm its deps break). CommonJS needs the root `index.js`.
 - Make app: `integrations/make`, deployed by `scripts/deploy.mjs` (Make API, token `~/.make-token`) to `genxqr-tl8adh`
-  (eu1), PRIVATE — invite link from Make's App Builder into `MAKE_INVITE_URL` (null → docs say "ask support").
+  (eu1), published 4 Nov 2026 (not approved: installable via `MAKE_INVITE_URL`, not in Make's directory). Publishing
+  is one-way: it can't go private again and modules can't be deleted, only hidden.
   Connection checks don't inherit the base: full URL + `{{parameters.apiKey}}`. Detach reads `{{webhook.<field>}}`.
 - n8n: no published node; docs use n8n's Webhook + HTTP Request nodes.
 - The `qr.scanned` webhook and `GET /v1/qr/:id/scans` must carry the same fields — the tools build their field
