@@ -1,5 +1,5 @@
 {
-  "url": "/v1/webhooks/{{webhook.data.webhookId}}",
+  "url": "/v1/webhooks/{{webhook.webhookId}}",
   "method": "DELETE",
   "response": {
     "error": {
