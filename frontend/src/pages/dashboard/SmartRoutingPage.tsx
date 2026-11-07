@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
-  ArrowLeft, Plus, Trash2, Edit2, Check, X, Globe, Smartphone, Clock, Loader2,
+  ArrowLeft, Plus, Trash2, Edit2, Check, X, Globe, Smartphone, Clock, Loader2, Languages,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -36,7 +36,20 @@ const ISO_COUNTRIES = [
   { code: "EG", name: "Egypt" }, { code: "KE", name: "Kenya" },
 ]
 
-type ConditionType = "device" | "time" | "geo"
+/** The languages phones in India (and common visitors') are set to; base codes as in Accept-Language. */
+const LANGUAGES = [
+  { code: "en", name: "English" }, { code: "hi", name: "Hindi" }, { code: "bn", name: "Bengali" },
+  { code: "te", name: "Telugu" }, { code: "mr", name: "Marathi" }, { code: "ta", name: "Tamil" },
+  { code: "ur", name: "Urdu" }, { code: "gu", name: "Gujarati" }, { code: "kn", name: "Kannada" },
+  { code: "ml", name: "Malayalam" }, { code: "or", name: "Odia" }, { code: "pa", name: "Punjabi" },
+  { code: "as", name: "Assamese" }, { code: "ne", name: "Nepali" }, { code: "ar", name: "Arabic" },
+  { code: "zh", name: "Chinese" }, { code: "fr", name: "French" }, { code: "de", name: "German" },
+  { code: "es", name: "Spanish" }, { code: "pt", name: "Portuguese" }, { code: "ru", name: "Russian" },
+  { code: "ja", name: "Japanese" }, { code: "ko", name: "Korean" }, { code: "it", name: "Italian" },
+]
+const languageName = (code: string) => LANGUAGES.find((l) => l.code === code)?.name ?? code
+
+type ConditionType = "device" | "time" | "geo" | "language"
 
 interface RuleForm {
   conditionType: ConditionType
@@ -44,6 +57,7 @@ interface RuleForm {
   timeFrom: string
   timeTo: string
   countries: string[]
+  languages: string[]
   targetUrl: string
   priority: string
   isActive: boolean
@@ -56,6 +70,7 @@ function emptyForm(): RuleForm {
     timeFrom: "9",
     timeTo: "18",
     countries: [],
+    languages: [],
     targetUrl: "",
     priority: "1",
     isActive: true,
@@ -67,6 +82,7 @@ function buildPayload(form: RuleForm): SmartRoutePayload {
   if (form.conditionType === "device") conditionValue = { device: form.device }
   if (form.conditionType === "time") conditionValue = { from: Number(form.timeFrom), to: Number(form.timeTo) }
   if (form.conditionType === "geo") conditionValue = { countries: form.countries }
+  if (form.conditionType === "language") conditionValue = { languages: form.languages }
   return {
     conditionType: form.conditionType,
     conditionValue,
@@ -84,6 +100,7 @@ function formFromRule(rule: SmartRoutingRule): RuleForm {
     timeFrom: String((cv.from as number) ?? 9),
     timeTo: String((cv.to as number) ?? 18),
     countries: (cv.countries as string[]) ?? [],
+    languages: (cv.languages as string[]) ?? [],
     targetUrl: rule.targetUrl,
     priority: String(rule.priority),
     isActive: rule.isActive,
@@ -96,6 +113,7 @@ function conditionLabel(rule: SmartRoutingRule) {
     case "device": return `Device = ${String(cv.device ?? "")}`
     case "time":   return `Time ${String(cv.from ?? "")}:00 → ${String(cv.to ?? "")}:00 UTC`
     case "geo":    return `Countries: ${(cv.countries as string[] | undefined)?.join(", ") ?? ""}`
+    case "language": return `Phone language: ${(cv.languages as string[] | undefined)?.map(languageName).join(", ") ?? ""}`
     default: return rule.conditionType
   }
 }
@@ -136,6 +154,7 @@ export default function SmartRoutingPage() {
     setError("")
     if (!form.targetUrl.startsWith("http")) { setError("Please enter a valid https:// URL"); return }
     if (form.conditionType === "geo" && form.countries.length === 0) { setError("Add at least one country"); return }
+    if (form.conditionType === "language" && form.languages.length === 0) { setError("Choose at least one language"); return }
     const payload = buildPayload(form)
     if (editingId) {
       updateMut.mutate({ ruleId: editingId, p: payload })
@@ -177,7 +196,7 @@ export default function SmartRoutingPage() {
         </Link>
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-white">Smart Routing</h1>
-          <p className="text-zinc-500 text-sm">{qr?.name ?? "..."} — redirect by device, time, or location</p>
+          <p className="text-zinc-500 text-sm">{qr?.name ?? "..."} — redirect by device, time, country or phone language</p>
         </div>
       </div>
 
@@ -198,7 +217,7 @@ export default function SmartRoutingPage() {
       <Card className="border-violet-500/20 bg-violet-500/5">
         <CardContent className="pt-4 pb-4 text-sm text-zinc-600 dark:text-zinc-400 space-y-1">
           <p>Rules are evaluated in <strong className="text-zinc-800 dark:text-zinc-200">priority order</strong> (lowest number first). The first matching rule wins.</p>
-          <p>Geo routing uses IP-based lookup. Device detection uses the User-Agent header.</p>
+          <p>Country uses an IP lookup, device the browser's User-Agent, and language the phone's language setting.</p>
           {!canEdit && <p>Your role in this workspace can view these rules but not change them.</p>}
         </CardContent>
       </Card>
@@ -230,6 +249,7 @@ export default function SmartRoutingPage() {
                 {rule.conditionType === "device" && <Smartphone size={14} className="text-violet-400" />}
                 {rule.conditionType === "time"   && <Clock size={14} className="text-amber-400" />}
                 {rule.conditionType === "geo"    && <Globe size={14} className="text-blue-400" />}
+                {rule.conditionType === "language" && <Languages size={14} className="text-emerald-400" />}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-zinc-700 dark:text-zinc-200 text-sm font-medium">{conditionLabel(rule)}</div>
@@ -272,6 +292,7 @@ export default function SmartRoutingPage() {
                       <SelectItem value="device">Device type</SelectItem>
                       <SelectItem value="time">Time of day (UTC)</SelectItem>
                       <SelectItem value="geo">Country</SelectItem>
+                      <SelectItem value="language">Phone language</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -339,6 +360,29 @@ export default function SmartRoutingPage() {
                         </button>
                       </span>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {form.conditionType === "language" && (
+                <div>
+                  <label className="text-xs text-zinc-500 mb-1 block">Phone language</label>
+                  <p className="text-xs text-zinc-500 mb-2">Matches the language the scanner's phone or browser is set to (its first choice).</p>
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Languages">
+                    {LANGUAGES.map((l) => {
+                      const on = form.languages.includes(l.code)
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => setForm(f => ({ ...f, languages: on ? f.languages.filter(x => x !== l.code) : [...f.languages, l.code] }))}
+                          className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${on ? "bg-violet-600 border-violet-600 text-white" : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:border-violet-500/60"}`}
+                        >
+                          {l.name}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}

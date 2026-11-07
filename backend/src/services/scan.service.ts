@@ -21,7 +21,7 @@ export type ExpiredReason = "deactivated" | "expired" | "limit" | "blocked"
 
 export type QRResolution =
   | { action: "redirect"; url: string }
-  | { action: "pixel_redirect"; url: string; fbPixelId: string | null; gaId: string | null; gtmId: string | null }
+  | { action: "pixel_redirect"; url: string; fbPixelId: string | null; gaId: string | null; gtmId: string | null; linkedinPartnerId: string | null; tiktokPixelId: string | null }
   | { action: "landing"; slug: string; type: string; content: Record<string, unknown>; design: Record<string, unknown> }
   | { action: "password"; slug: string }
   | { action: "expired"; slug: string; fallbackUrl: string | null; reason: ExpiredReason }
@@ -75,6 +75,8 @@ type CachedQR = {
   fbPixelId: string | null
   gaId: string | null
   gtmId: string | null
+  linkedinPartnerId?: string | null
+  tiktokPixelId?: string | null
   abTestEnabled: boolean
   abTestSplitPct: number
   content: Record<string, unknown> | null
@@ -187,6 +189,8 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
       fbPixelId: true,
       gaId: true,
       gtmId: true,
+      linkedinPartnerId: true,
+      tiktokPixelId: true,
       abTestEnabled: true,
       abTestSplitPct: true,
       content: { select: { data: true } },
@@ -249,6 +253,8 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
     fbPixelId: qr.fbPixelId ?? null,
     gaId: qr.gaId ?? null,
     gtmId: qr.gtmId ?? null,
+    linkedinPartnerId: qr.linkedinPartnerId ?? null,
+    tiktokPixelId: qr.tiktokPixelId ?? null,
     abTestEnabled: qr.abTestEnabled,
     abTestSplitPct: qr.abTestSplitPct,
     content: (qr.content?.data as Record<string, unknown>) ?? null,
@@ -267,6 +273,17 @@ async function fetchQRFromDB(slug: string): Promise<CachedQR | null> {
 
 // ─── Smart routing rule evaluator ─────────────────────────────────────────────
 
+/**
+ * The scanner's preferred language, as a base code: "hi-IN,hi;q=0.9,en;q=0.8"
+ * → "hi". Only the first (most preferred) entry counts, so a rule matches the
+ * language the phone is set to, not one the person merely accepts.
+ */
+export function primaryLanguage(acceptLanguage: string | undefined): string | null {
+  const first = (acceptLanguage ?? "").split(",")[0]?.split(";")[0]?.trim().toLowerCase() ?? ""
+  const base = first.split("-")[0] ?? ""
+  return /^[a-z]{2,3}$/.test(base) ? base : null
+}
+
 export function parseDeviceType(userAgent: string): "mobile" | "tablet" | "desktop" {
   const ua = userAgent.toLowerCase()
   if (/tablet|ipad/.test(ua)) return "tablet"
@@ -276,7 +293,7 @@ export function parseDeviceType(userAgent: string): "mobile" | "tablet" | "deskt
 
 function evaluateSmartRoutes(
   rules: CachedQR["smartRoutes"],
-  context: { deviceType: string; hour: number; countryCode: string | null },
+  context: { deviceType: string; hour: number; countryCode: string | null; language: string | null },
 ): string | null {
   for (const rule of rules) {
     const cv = rule.conditionValue
@@ -302,6 +319,14 @@ function evaluateSmartRoutes(
         // conditionValue.countries is an array of ISO-2 country codes
         const countries = Array.isArray(cv.countries) ? (cv.countries as string[]) : []
         if (context.countryCode && countries.map((c) => c.toUpperCase()).includes(context.countryCode.toUpperCase())) {
+          return rule.targetUrl
+        }
+        break
+      }
+      case "language": {
+        // conditionValue.languages: base language codes ("hi", "ta", "en")
+        const languages = Array.isArray(cv.languages) ? (cv.languages as string[]) : []
+        if (context.language && languages.map((l) => l.toLowerCase()).includes(context.language)) {
           return rule.targetUrl
         }
         break
@@ -489,6 +514,8 @@ export async function resolveQRScan(
      * is counted or logged, so a probe of other slugs costs the owner nothing.
      */
     ownerId?: string
+    /** The scanner's Accept-Language header, for language routing rules. */
+    acceptLanguage?: string
   },
 ): Promise<QRResolution> {
   // 1. Cache lookup
@@ -554,7 +581,7 @@ export async function resolveQRScan(
   const deviceType = ua ? parseDeviceType(ua) : "desktop"
   const hour = now.getUTCHours()
   const countryCode = await getCountryCode(ip)
-  const smartUrl = features?.smartRouting ? evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode }) : null
+  const smartUrl = features?.smartRouting ? evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode, language: primaryLanguage(opts?.acceptLanguage) }) : null
   if (smartUrl) {
     logScan()
     return await wrapRedirect(smartUrl, qr)
@@ -600,13 +627,15 @@ async function wrapRedirect(url: string, qr: CachedQR): Promise<QRResolution> {
     return { action: "expired", slug: qr.slug, fallbackUrl: null, reason: "blocked" }
   }
 
-  if (qr.fbPixelId || qr.gaId || qr.gtmId) {
+  if (qr.fbPixelId || qr.gaId || qr.gtmId || qr.linkedinPartnerId || qr.tiktokPixelId) {
     return {
       action: "pixel_redirect",
       url,
       fbPixelId: qr.fbPixelId,
       gaId: qr.gaId,
       gtmId: qr.gtmId,
+      linkedinPartnerId: qr.linkedinPartnerId ?? null,
+      tiktokPixelId: qr.tiktokPixelId ?? null,
     }
   }
   return { action: "redirect", url }

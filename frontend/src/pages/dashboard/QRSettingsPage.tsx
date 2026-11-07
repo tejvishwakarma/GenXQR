@@ -59,6 +59,8 @@ export default function QRSettingsPage() {
   const [fbPixelId, setFbPixelId] = useState("")
   const [gaId, setGaId] = useState("")
   const [gtmId, setGtmId] = useState("")
+  const [linkedinPartnerId, setLinkedinPartnerId] = useState("")
+  const [tiktokPixelId, setTiktokPixelId] = useState("")
   const [successMsg, setSuccessMsg] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
 
@@ -74,6 +76,8 @@ export default function QRSettingsPage() {
     setFbPixelId(qr.fbPixelId ?? "")
     setGaId(qr.gaId ?? "")
     setGtmId(qr.gtmId ?? "")
+    setLinkedinPartnerId(qr.linkedinPartnerId ?? "")
+    setTiktokPixelId(qr.tiktokPixelId ?? "")
   }, [qr])
 
   // "" is the API's sentinel for "remove the password"; omitting the key means
@@ -107,6 +111,8 @@ export default function QRSettingsPage() {
           fbPixelId: fbPixelId || null,
           gaId: gaId || null,
           gtmId: gtmId || null,
+          linkedinPartnerId: linkedinPartnerId.trim() || null,
+          tiktokPixelId: tiktokPixelId.trim() || null,
         },
       }),
     onSuccess: () => {
@@ -320,12 +326,20 @@ export default function QRSettingsPage() {
             <Input placeholder="e.g. 1234567890" value={fbPixelId} onChange={e => setFbPixelId(e.target.value)} className="h-9 text-sm" />
           </div>
           <div>
-            <label className="text-xs text-zinc-500 mb-1 block">Google Analytics 4 Measurement ID</label>
-            <Input placeholder="e.g. G-XXXXXXXXXX" value={gaId} onChange={e => setGaId(e.target.value)} className="h-9 text-sm" />
+            <label className="text-xs text-zinc-500 mb-1 block">Google tag ID — Analytics (G-…) or Google Ads (AW-…)</label>
+            <Input placeholder="e.g. G-XXXXXXXXXX or AW-123456789" value={gaId} onChange={e => setGaId(e.target.value)} className="h-9 text-sm" />
           </div>
           <div>
             <label className="text-xs text-zinc-500 mb-1 block">Google Tag Manager ID</label>
             <Input placeholder="e.g. GTM-XXXXXXX" value={gtmId} onChange={e => setGtmId(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-500 mb-1 block">LinkedIn Insight Tag — Partner ID</label>
+            <Input placeholder="e.g. 1234567" inputMode="numeric" value={linkedinPartnerId} onChange={e => setLinkedinPartnerId(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-500 mb-1 block">TikTok Pixel ID</label>
+            <Input placeholder="e.g. C4ABCDEFGH12345678IJ" value={tiktokPixelId} onChange={e => setTiktokPixelId(e.target.value)} className="h-9 text-sm" />
           </div>
         </CardContent>
       </Card>
@@ -348,7 +362,7 @@ export default function QRSettingsPage() {
                   Smart Routing
                   {!smartRouting.allowed && <PlanChip plan={smartRouting.requiredPlan} />}
                 </div>
-                <div className="text-xs text-zinc-500">Device, time, geo rules</div>
+                <div className="text-xs text-zinc-500">Device, time, country, language rules</div>
               </div>
             </div>
           </Link>

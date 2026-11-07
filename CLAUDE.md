@@ -575,7 +575,9 @@ Standalone tables:
 - `isActive`, `activeFrom`, `activeUntil`, `scanLimit` — scheduling/expiry
 - `isPasswordProtected` + `passwordHash` — password-protected scans
 - `abTestEnabled`, `abTestSplitPct` — A/B test config
-- `fbPixelId`, `gaId`, `gtmId` — tracking pixel injection on landing pages
+- `fbPixelId`, `gaId` (G- Analytics or AW- Google Ads), `gtmId`, `linkedinPartnerId`, `tiktokPixelId` — pixels fired on
+  the `/r/:slug` redirect trampoline (redirect scans only, not landing pages); each ID is format-validated because it
+  is written into an inline script, and every host is in `pixelPageCsp` (LinkedIn/TikTok added 7 Nov 2026)
 - `fallbackUrl` — used when QR is expired/inactive but should redirect somewhere
 
 ---
@@ -863,7 +865,8 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
   1. Password check → redirect to `/r/:slug/password` if locked
   2. Expiry check → redirect to `/r/:slug/expired` or `fallbackUrl`
   3. Scan limit check → same as expiry
-  4. Smart routing evaluation (priority-ordered rules by condition: time-of-day, day-of-week, device, country, OS)
+  4. Smart routing evaluation (priority-ordered rules: `device`, `time` (UTC hours), `geo` (country), `language`
+     — the FIRST Accept-Language entry's base code, `primaryLanguage`; added 7 Nov 2026)
   5. A/B test split (random weighted split between variants)
   6. Log scan via BullMQ queue (async — does not delay redirect)
   7. `302` redirect to resolved URL, OR `200` with landing page HTML if custom landing page set
@@ -887,6 +890,9 @@ create and update (dashboard + `/v1`, 422): UPI = `{upiId (VPA), payeeName, amou
   iPhone has no chooser for `upi://` (it opens whichever app claimed it, often WhatsApp), so on iOS the page shows
   one button per app — `tez://upi/pay?`, `phonepe://pay?`, `paytmmp://upi/pay?` (Razorpay's iOS UPI-intent docs) — plus `upi://` as "Other UPI app".
 - Covered by `tests/integration/qr-types.test.ts`. Migration `20261107100000_upi_google_review_types`.
+
+**UTM builder** (7 Nov 2026, `components/dashboard/UtmBuilder.tsx`): under the URL field of a URL code; reads and
+writes `utm_*` on the URL itself, so the URL stays the one source of truth (nothing stored separately).
 
 **Folders** (built 7 Nov 2026, `services/folder.service.ts`, `components/folders/`). One level per workspace owner,
 a code in at most one, names unique ignoring case; organisation only (no effect on scans). My QR Codes has the
