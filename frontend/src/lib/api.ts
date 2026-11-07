@@ -236,7 +236,8 @@ export interface AuthUser {
 
 export interface LoginResponse {
   success: boolean
-  data: { accessToken: string; user: AuthUser }
+  /** With two-factor on, no session yet: redeem `challenge` with a code (verifyTwoFactor). */
+  data: { accessToken: string; user: AuthUser } | { twoFactorRequired: true; challenge: string }
 }
 
 export function login(email: string, password: string, turnstileToken?: string) {
@@ -244,6 +245,41 @@ export function login(email: string, password: string, turnstileToken?: string) 
     method: "POST",
     body: JSON.stringify({ email, password, turnstileToken }),
   })
+}
+
+/** The second step of a sign-in: an authenticator or recovery code. `next` = where a Google sign-in started. */
+export function verifyTwoFactor(challenge: string, code: string) {
+  return apiFetch<{ success: boolean; data: { accessToken: string; user: AuthUser; next: string | null } }>("/api/auth/2fa/verify", {
+    method: "POST",
+    body: JSON.stringify({ challenge, code }),
+  })
+}
+
+export interface TwoFactorStatus {
+  hasPassword: boolean
+  enabled: boolean
+  enabledAt: string | null
+  recoveryCodesLeft: number
+}
+
+export function getTwoFactorStatus() {
+  return apiFetch<{ success: boolean; data: TwoFactorStatus }>("/api/auth/2fa", { headers: authHeader() })
+}
+
+export function startTwoFactorSetup() {
+  return apiFetch<{ success: boolean; data: { secret: string; otpauthUrl: string } }>("/api/auth/2fa/setup", { method: "POST", headers: authHeader() })
+}
+
+export function enableTwoFactor(code: string) {
+  return apiFetch<{ success: boolean; data: { recoveryCodes: string[] } }>("/api/auth/2fa/enable", { method: "POST", headers: authHeader(), body: JSON.stringify({ code }) })
+}
+
+export function disableTwoFactor(code: string, password?: string) {
+  return apiFetch<{ success: boolean }>("/api/auth/2fa/disable", { method: "POST", headers: authHeader(), body: JSON.stringify({ code, password }) })
+}
+
+export function regenerateRecoveryCodes(code: string) {
+  return apiFetch<{ success: boolean; data: { recoveryCodes: string[] } }>("/api/auth/2fa/recovery-codes", { method: "POST", headers: authHeader(), body: JSON.stringify({ code }) })
 }
 
 export function resendVerificationEmail(email: string) {
@@ -626,6 +662,8 @@ export interface AdminUserPlace {
 }
 export interface AdminUserDetail extends Omit<AdminUser, "country"> {
   avatarUrl: string | null; googleId: string | null; updatedAt: string
+  /** Set while two-factor sign-in is on. */
+  twoFactorEnabledAt: string | null
   /** Mobile number given at checkout or in Settings (10 digits, India). */
   phone: string | null
   subscription: {
@@ -681,6 +719,9 @@ export const changeAdminUserPassword = (id: string, password: string) =>
     method: "POST",
     body: JSON.stringify({ password }),
   })
+/** Turn off a user's two-factor sign-in (SUPER_ADMIN; lost phone and recovery codes). */
+export const resetAdminUserTwoFactor = (id: string) =>
+  adminFetch<{ success: boolean; message: string }>(`/admin-api/users/${id}/reset-2fa`, { method: "POST" })
 export const verifyAdminUserEmail = (id: string) =>
   adminFetch<{ success: boolean; message: string }>(`/admin-api/users/${id}/verify-email`, {
     method: "POST",

@@ -65,10 +65,13 @@ function describe(e: ActivityEntry): string {
   const m = e.metadata ?? {}
   const base = ((): string => {
     switch (e.action) {
-      case "auth.login": return "Signed in"
-      case "auth.login.google": return "Signed in with Google"
+      case "auth.login": return m.twoFactor ? "Signed in with two-factor" : "Signed in"
+      case "auth.login.google": return m.twoFactor ? "Signed in with Google and two-factor" : "Signed in with Google"
       case "auth.login.sso": return `Signed in with SSO${str(m.provider) === "microsoft" ? " (Microsoft)" : str(m.provider) === "google" ? " (Google Workspace)" : ""}`
       case "auth.logout": return "Signed out"
+      case "auth.2fa.enable": return "Turned on two-factor sign-in"
+      case "auth.2fa.disable": return "Turned off two-factor sign-in"
+      case "auth.2fa.recovery_codes": return "Made new two-factor recovery codes"
       case "auth.register": return "Created the account"
       case "auth.password.change": return "Changed the password"
       case "auth.password.reset": return "Reset the password from an email link"

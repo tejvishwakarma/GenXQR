@@ -49,7 +49,7 @@
 **GenXQR** is a full-stack SaaS QR code management platform available at `genxqr.com`.
 
 **Core value proposition:**
-- Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, and coupons.
+- Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, coupons, UPI payment pages and Google reviews.
 - Dynamic QR codes have editable destinations, scan tracking with geolocation/device/browser analytics, A/B testing, smart routing rules (by time, device, geo), password protection, scan limits, expiry dates, and custom landing pages.
 - Plans: FREE → STARTER → PRO → BUSINESS → AGENCY → ENTERPRISE (gated by `plan-gate.middleware.ts`).
 - Team workspaces with OWNER / ADMIN / EDITOR / VIEWER roles.
@@ -310,7 +310,9 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 - `PATCH /preferences` — update notification preferences
 - `GET  /preferences` — get notification preferences
 - `GET  /google` — initiates Google OAuth flow (Passport)
-- `GET  /google/callback` — Google OAuth callback; issues one-time Redis code
+- `GET  /google/callback` — Google OAuth callback; issues one-time Redis code (or, with two-factor on, `/login?tfa=<challenge>`)
+- `POST /2fa/verify {challenge, code}` — second step of a password/Google sign-in; starts the session
+- `GET /2fa` · `POST /2fa/setup` · `POST /2fa/enable {code}` · `POST /2fa/disable {code, password}` · `POST /2fa/recovery-codes {code}` — two-factor settings (§7)
 - `POST /oauth-token` — exchanges one-time code for access token (single-use, 60s TTL)
 - `GET  /gdrive/connect` — initiates Google Drive OAuth
 - `GET  /gdrive/callback` — saves Drive tokens to user record
@@ -346,6 +348,10 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `GET  /:qrId` — per-QR scan analytics (time series, geo, device, browser breakdown)
 - `GET  /:qrId/scans?page=&limit=&from=&to=` — the scan log: paged, exact times, from/to are ISO instants (the browser's local days)
 - `GET  /:qrId/csv` — the latest 10,000 scans as CSV (incl. place)
+
+#### `/api/folders` → `folder.routes.ts` (workspace-aware; view = qr:view, add = qr:create, rename + move = qr:edit, delete = qr:delete)
+- `GET /` (with codeCount) · `POST /` · `PATCH /:id` · `DELETE /:id` (codes stay, unfiled) · `POST /move {ids, folderId|null}`
+- `folderId` on QR create/update and `?folderId=<id>|none` on the list (also `/v1`); `GET /v1/folders`
 
 #### `/api/places` → `place.routes.ts` (workspace-aware; view = qr:view, add = qr:create, edit = qr:edit, delete = qr:delete)
 - `GET /?days=` (with codeCount, scansInRange, totalScans) · `POST /` · `PATCH /:id` · `DELETE /:id`
@@ -434,7 +440,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 
 #### `/admin-api/*` → `admin.routes.ts` (JWT + ADMIN/SUPER_ADMIN role)
 - `/admin-api/dashboard` — aggregated metrics
-- `/admin-api/users` — list/search/get/update/delete users, change plan, impersonate, force-verify-email, change-password, send-reminder
+- `/admin-api/users` — list/search/get/update/delete users, change plan, impersonate, force-verify-email, change-password, send-reminder, `POST /:id/reset-2fa` (SUPER_ADMIN; USER accounts only)
 - `/admin-api/qr-codes` — list / deactivate / delete QR codes
 - `/admin-api/analytics/signups` — daily signup trend
 - `/admin-api/analytics/scans` — daily scan trend
@@ -521,7 +527,7 @@ Schema at: `backend/prisma/schema.prisma`
 | `Role` | USER, ADMIN, SUPER_ADMIN |
 | `PlanName` | FREE, STARTER, PRO, BUSINESS, AGENCY, ENTERPRISE |
 | `SubscriptionStatus` | ACTIVE, CANCELLED, PAST_DUE, TRIALING, PAUSED |
-| `QRType` | URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON |
+| `QRType` | URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW |
 | `QRCategory` | STATIC, DYNAMIC |
 | `FileType` | PDF, MP3, VIDEO, IMAGE |
 | `DeviceType` | MOBILE, TABLET, DESKTOP, UNKNOWN |
@@ -596,6 +602,21 @@ Standalone tables:
 4. `DashboardLayout.tsx` detects `oauth_code` param → calls `POST /api/auth/oauth-token`
 5. Backend exchanges code for access token; returns it; frontend stores in localStorage
 6. `useRef` guard prevents double-exchange in React 18 Strict Mode
+
+**Two-factor sign-in** (built 7 Nov 2026, `services/two-factor.service.ts`, `utils/totp.util.ts`, Settings card
+`components/dashboard/TwoFactorSettings.tsx`, login step `components/auth/TwoFactorStep.tsx`). Any account, any plan.
+- Authenticator-app codes (TOTP, RFC 6238, own implementation) + 10 one-time recovery codes (sha256). A code is
+  accepted once (`User.twoFactorLastStep`); recovery codes are consumed with a conditional update.
+- `loginUser` / `handleGoogleOAuth` return `{ twoFactorUserId }` instead of tokens; the route issues a Redis
+  challenge (5 min, 5 wrong codes, counted atomically) and `POST /2fa/verify` starts the session via
+  `startVerifiedSession`. Google sign-in redirects to `/login?tfa=<challenge>`. **SSO sign-ins skip two-factor**
+  (decided: the company's identity provider runs its own). The admin login page uses the same step.
+- The secret is AES-256-GCM encrypted with a key HKDF-derived from `JWT_ACCESS_SECRET`. **Rotating
+  JWT_ACCESS_SECRET makes every stored secret unreadable** — those users must sign in with a recovery code (or a
+  SUPER_ADMIN resets their two-factor), so plan for that before rotating it.
+- Turning it off needs a code AND the password (when the account has one). Settings actions are rate-limited
+  per IP (`twoFactorLimiter`) and per account (10 wrong codes / 15 min). Covered by `tests/integration/two-factor.test.ts`
+  (RFC test vectors; the login and replay guards break-tested). Migration `20261107120000_two_factor`.
 
 **Token storage pattern:**
 - `access_token` → `localStorage`
@@ -855,6 +876,21 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
 - `frameStyle` + `frameText` + `frameColor`
 - Client-side rendering uses `qr-code-styling` library in `CreateQRPage.tsx`
 
+**UPI and Google review types** (built 7 Nov 2026, `utils/typed-content.util.ts`). Their content is validated on
+create and update (dashboard + `/v1`, 422): UPI = `{upiId (VPA), payeeName, amount?, note?}`, GOOGLE_REVIEW =
+`{reviewUrl (https, Google hosts only — isGoogleReviewHost) | placeId, businessName?}`.
+- GOOGLE_REVIEW is a redirect type (scan.service `REDIRECT_TYPES`) to the review link or
+  `search.google.com/local/writereview?placeid=`.
+- UPI shows a payment page (`UPILandingPage`: Pay button with a `upi://pay` link, copyable UPI ID). UPI apps' OWN
+  scanners only read a code that holds the `upi://` link itself, so a dashboard UPI code is for phone cameras; the
+  free generator's `/generate/upi` makes the direct, untracked kind. Keep the UPI ID's `@` unescaped in upi:// links.
+- Covered by `tests/integration/qr-types.test.ts`. Migration `20261107100000_upi_google_review_types`.
+
+**Folders** (built 7 Nov 2026, `services/folder.service.ts`, `components/folders/`). One level per workspace owner,
+a code in at most one, names unique ignoring case; organisation only (no effect on scans). My QR Codes has the
+folder strip, `?folder=` and "Move to folder"; the editor has a folder picker (a new code starts in `?folder=`).
+Moves and folder deletes raise `qr.updated`. Covered by `tests/integration/folders.test.ts`. Migration `20261107110000_folders`.
+
 **Places** (built 4 Nov 2026, `services/place.service.ts`, `/app/places`). Where a code is printed — "Millennium
 City Centre Metro", location ID `DEL-MCC-01`, city/address/map pin. Decided with the user: a saved list per workspace
 owner (names and location IDs unique per account ignoring case); every plan; no plan gate.
@@ -973,7 +1009,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 #### Static QR Generator (`/src/pages/static-qr/`)
 | File | Routes |
 |---|---|
-| `StaticGeneratePage.tsx` | `/generate`, `/generate/url`, `/generate/wifi`, `/generate/whatsapp`, `/generate/instagram` |
+| `StaticGeneratePage.tsx` | `/generate`, `/generate/url`, `/generate/wifi`, `/generate/whatsapp`, `/generate/instagram`, `/generate/upi` |
 
 #### Dashboard Pages (`/src/pages/dashboard/`)
 | File | Route | Notes |
@@ -984,6 +1020,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 | `QRAnalyticsPage.tsx` | `/app/qr/:id/analytics` | Per-QR charts (Recharts) + Scan Log (`components/dashboard/ScanLog.tsx`: exact local date/time, paged, date range) |
 | `GlobalAnalyticsPage.tsx` | `/app/analytics` | Cross-QR analytics; `?place=<id>` = one place; Top Places card |
 | `PlacesPage.tsx` | `/app/places` | Places: add/edit/delete, codes + scans per place |
+| `MyQRCodesPage.tsx` | `/app/qr-codes` | All codes: folders, filters (`?status=`, `?place=`, `?folder=`, `?q=`), bulk actions |
 | `QRSettingsPage.tsx` | `/app/qr/:id/settings` | Advanced QR settings (password, scheduling, limits) |
 | `SmartRoutingPage.tsx` | `/app/qr/:id/smart-routing` | Smart routing rule builder |
 | `ABTestPage.tsx` | `/app/qr/:id/ab-test` | A/B test variant manager |

@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowLeft, Loader2, Shield, Trash2, UserCheck,
-  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle, Globe, MapPin, Phone,
+  QrCode, Key, Mail, Calendar, Clock, Lock, BellRing, CheckCircle, Globe, MapPin, Phone, ShieldCheck,
 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -14,6 +14,7 @@ import {
   isNoExpiry,
   changeAdminUserPassword,
   verifyAdminUserEmail,
+  resetAdminUserTwoFactor,
   sendUserPaymentReminder,
   getTokenRole,
   startImpersonationSession,
@@ -103,6 +104,11 @@ export default function AdminUserDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "user", id] }),
   })
 
+  const resetTwoFactorMut = useMutation({
+    mutationFn: () => resetAdminUserTwoFactor(id!),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "user", id] }),
+  })
+
   const changePasswordMut = useMutation({
     mutationFn: (password: string) => changeAdminUserPassword(id!, password),
     onSuccess: () => {
@@ -174,6 +180,28 @@ export default function AdminUserDetailPage() {
                   </button>
                 )
               }
+            </div>
+            <div className="flex items-center gap-2 text-zinc-400 flex-wrap">
+              <ShieldCheck size={14} />
+              {u.twoFactorEnabledAt ? (
+                <>
+                  <span className="text-zinc-200">Two-factor sign-in on</span>
+                  {isSuperAdmin && u.role === "USER" && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Turn off two-factor sign-in for ${u.email}? Only do this after confirming who is asking — e.g. they lost their phone and recovery codes.`)) resetTwoFactorMut.mutate()
+                      }}
+                      disabled={resetTwoFactorMut.isPending}
+                      className="flex items-center gap-1 px-2 py-0.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-400 text-xs rounded-lg transition"
+                    >
+                      {resetTwoFactorMut.isPending ? <Loader2 size={10} className="animate-spin" /> : null}
+                      Reset two-factor
+                    </button>
+                  )}
+                </>
+              ) : (
+                <span>Two-factor sign-in off</span>
+              )}
             </div>
             <div className="flex items-center gap-2 text-zinc-400">
               <Phone size={14} />

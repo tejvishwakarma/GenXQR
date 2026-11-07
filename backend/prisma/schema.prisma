@@ -19,6 +19,14 @@ model User {
   normalizedEmail         String?
   emailVerified           Boolean                  @default(false)
   passwordHash            String?
+  /// Two-factor sign-in (authenticator app, TOTP; two-factor.service.ts). The
+  /// secret is AES-GCM encrypted with a key derived from JWT_ACCESS_SECRET.
+  twoFactorSecret         String?
+  twoFactorEnabledAt      DateTime?
+  /// The last TOTP time step accepted, so one code cannot be used twice.
+  twoFactorLastStep       Int?
+  /// sha256 of each unused recovery code.
+  twoFactorRecoveryHashes String[]                 @default([])
   name                    String
   /// Customer mobile number, 10 digits, no country code. Collected at first
   /// checkout because Cashfree requires one on every order; reused afterwards so
