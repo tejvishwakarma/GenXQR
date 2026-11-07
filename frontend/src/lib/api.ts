@@ -1188,6 +1188,8 @@ export interface QRCode {
   fbPixelId: string | null
   gaId: string | null
   gtmId: string | null
+  linkedinPartnerId?: string | null
+  tiktokPixelId?: string | null
   createdAt: string
   updatedAt: string
   lastScannedAt: string | null
@@ -1273,6 +1275,8 @@ export interface CreateQRPayload {
     fbPixelId?: string | null
     gaId?: string | null
     gtmId?: string | null
+    linkedinPartnerId?: string | null
+    tiktokPixelId?: string | null
   }
 }
 
@@ -1766,7 +1770,7 @@ export interface SmartRoutingRule {
   id: string
   qrId: string
   priority: number
-  conditionType: "device" | "time" | "geo"
+  conditionType: "device" | "time" | "geo" | "language"
   conditionValue: Record<string, unknown>
   targetUrl: string
   isActive: boolean
@@ -1774,7 +1778,7 @@ export interface SmartRoutingRule {
 }
 
 export interface SmartRoutePayload {
-  conditionType: "device" | "time" | "geo"
+  conditionType: "device" | "time" | "geo" | "language"
   conditionValue: Record<string, unknown>
   targetUrl: string
   priority: number
@@ -1872,6 +1876,8 @@ export interface PixelSettings {
   fbPixelId?: string | null
   gaId?: string | null
   gtmId?: string | null
+  linkedinPartnerId?: string | null
+  tiktokPixelId?: string | null
 }
 
 export function updatePixelSettings(qrId: string, pixels: PixelSettings) {
