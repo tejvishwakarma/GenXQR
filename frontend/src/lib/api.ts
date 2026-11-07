@@ -1156,6 +1156,9 @@ export interface QRCode {
   /** Where the code is printed (Places). */
   placeId?: string | null
   place?: PlaceSummary | null
+  /** The folder it is filed in (Folders). */
+  folderId?: string | null
+  folder?: { id: string; name: string } | null
   /** Server-built scan URL (custom domain when verified). Use scanUrlOf(). */
   scanUrl?: string
   content: { data: Record<string, unknown> } | null
@@ -1192,6 +1195,8 @@ export interface CreateQRPayload {
   customDomainId?: string | null
   /** The place it is printed for; null = none. */
   placeId?: string | null
+  /** The folder it is filed in; null = none. */
+  folderId?: string | null
   content: { data: Record<string, unknown> }
   design?: {
     primaryColor?: string
@@ -1247,13 +1252,14 @@ export function createQR(payload: CreateQRPayload) {
   })
 }
 
-export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string; status?: "active" | "inactive" }) {
+export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string; folderId?: string; status?: "active" | "inactive" }) {
   const query = new URLSearchParams()
   if (params?.page != null) query.set("page", String(params.page))
   if (params?.limit != null) query.set("limit", String(params.limit))
   if (params?.search) query.set("search", params.search)
   if (params?.placeId) query.set("placeId", params.placeId)
   if (params?.status) query.set("status", params.status)
+  if (params?.folderId) query.set("folderId", params.folderId)
   const qs = query.toString() ? `?${query.toString()}` : ""
   return apiFetch<ListQRsResponse>(`/api/qr${qs}`, { headers: authHeader() })
 }
@@ -1643,6 +1649,42 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
     method: "PUT",
     headers: authHeader(),
     body: JSON.stringify(body),
+  })
+}
+
+// ─── Folders ──────────────────────────────────────────────────────────────────
+
+export interface Folder {
+  id: string
+  name: string
+  codeCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export function getFolders() {
+  return apiFetch<{ success: boolean; data: Folder[] }>("/api/folders", { headers: authHeader() })
+}
+
+export function createFolder(name: string) {
+  return apiFetch<{ success: boolean; data: Folder }>("/api/folders", { method: "POST", headers: authHeader(), body: JSON.stringify({ name }) })
+}
+
+export function renameFolder(id: string, name: string) {
+  return apiFetch<{ success: boolean; data: Folder }>(`/api/folders/${id}`, { method: "PATCH", headers: authHeader(), body: JSON.stringify({ name }) })
+}
+
+/** The folder goes; its codes stay, in no folder. */
+export function deleteFolder(id: string) {
+  return apiFetch<{ success: boolean }>(`/api/folders/${id}`, { method: "DELETE", headers: authHeader() })
+}
+
+/** File codes in a folder, or take them out (null). Returns the ids that moved. */
+export function moveToFolder(ids: string[], folderId: string | null) {
+  return apiFetch<{ success: boolean; data: { moved: string[] } }>("/api/folders/move", {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify({ ids, folderId }),
   })
 }
 

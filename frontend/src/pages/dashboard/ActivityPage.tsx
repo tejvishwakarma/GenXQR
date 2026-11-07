@@ -93,6 +93,10 @@ function describe(e: ActivityEntry): string {
         const parts = [num(m.added) ? `put ${num(m.added)} code${num(m.added) === 1 ? "" : "s"} there` : "", num(m.removed) ? `took ${num(m.removed)} off it` : ""].filter(Boolean)
         return `Changed the codes at place${quoted(m.name)}${parts.length ? `: ${parts.join(", ")}` : ""}`
       }
+      case "folder.create": return `Added folder${quoted(m.name)}`
+      case "folder.rename": return `Renamed a folder to${quoted(m.name)}`
+      case "folder.delete": return `Deleted folder${quoted(m.name)}${Number(m.codes) > 0 ? ` (its ${Number(m.codes)} code${Number(m.codes) === 1 ? "" : "s"} kept)` : ""}`
+      case "folder.move": return `${e.entityId ? "Moved" : "Took"} ${Number(m.moved) || 0} code${Number(m.moved) === 1 ? "" : "s"} ${e.entityId ? "into a folder" : "out of their folder"}`
       case "qr.bulk_create": return `Bulk-created ${Number(m.created) || 0} code${Number(m.created) === 1 ? "" : "s"}${Number(m.failed) > 0 ? ` (${Number(m.failed)} rows failed)` : ""}`
       case "qr.routing.add": return "Added a smart-routing rule"
       case "qr.routing.update": return "Changed a smart-routing rule"

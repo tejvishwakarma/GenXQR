@@ -83,6 +83,7 @@ model User {
   qrCodes                 QRCode[]
   customDomains           CustomDomain[]
   places                  Place[]
+  folders                 Folder[]
   ssoConnection           SsoConnection?
   /// Clients this account manages (Agency plan).
   agencyClients           AgencyClient[]           @relation("AgencyClients")
@@ -177,6 +178,9 @@ model QRCode {
   /// image cannot tell its copies apart, so a place is known only through its code.
   placeId             String?
   place               Place?             @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  /// The folder it is filed in (folder.service.ts). Organisation only: no effect on scans.
+  folderId            String?
+  folder              Folder?            @relation(fields: [folderId], references: [id], onDelete: SetNull)
   tags                String[]
   isActive            Boolean            @default(true)
   /// True when the SYSTEM switched this code off because the owner's plan
@@ -222,6 +226,7 @@ model QRCode {
   @@index([type])
   @@index([createdAt])
   @@index([placeId])
+  @@index([folderId])
   @@map("qr_codes")
 }
 
@@ -246,6 +251,20 @@ model Place {
   @@unique([userId, name])
   @@unique([userId, code])
   @@map("places")
+}
+
+/// A folder of codes, per workspace owner (built 7 Nov 2026). One level, no nesting.
+model Folder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  qrCodes   QRCode[]
+
+  @@unique([userId, name])
+  @@map("folders")
 }
 
 model QRContent {

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { useForm, Controller } from "react-hook-form"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import QRCodeStyling, { type DotType, type CornerSquareType } from "qr-code-styling"
@@ -21,6 +21,7 @@ import { VCardEditor, buildVCardContent, DEFAULT_VCARD_DATA, type VCardData } fr
 import LandingPreview from "./LandingPreview"
 import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashboard/ScanPageLogoSetting"
 import { PlacePicker } from "@/components/places/PlacePicker"
+import { FolderPicker } from "@/components/folders/FolderPicker"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -788,6 +789,10 @@ export default function CreateQRPage() {
   // Where the code is printed (Places). null = untouched, "" = no place.
   const [placeChoice, setPlaceChoice] = useState<string | null>(null)
   const shownPlace = placeChoice ?? existingQR?.data?.placeId ?? ""
+  // Its folder. null = untouched; a new code starts in the folder it was created from (?folder=).
+  const [folderChoice, setFolderChoice] = useState<string | null>(null)
+  const startFolder = useSearchParams()[0].get("folder")
+  const shownFolder = folderChoice ?? (isEdit ? existingQR?.data?.folderId ?? "" : startFolder ?? "")
   const existingDomainUnverified = isEdit && !!existingQR?.data?.customDomainId
     && !activeDomains.some((d) => d.id === existingQR.data.customDomainId)
 
@@ -1008,6 +1013,7 @@ export default function CreateQRPage() {
         tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         ...(domainChoice !== null && { customDomainId: domainChoice === "genxqr" ? null : domainChoice }),
         ...(placeChoice !== null && { placeId: placeChoice || null }),
+        ...((folderChoice !== null || (!isEdit && shownFolder)) && { folderId: shownFolder || null }),
         // In edit mode, only send newly uploaded files; existing files stay in DB untouched
         uploadedFiles: FILE_TYPES.has(selectedType) ? uploadedFiles : [],
         settings: {
@@ -1277,6 +1283,8 @@ export default function CreateQRPage() {
                   </div>
 
                   <PlacePicker value={shownPlace} onChange={setPlaceChoice} />
+
+                  <FolderPicker value={shownFolder} onChange={setFolderChoice} />
 
                   {/* Short-link domain — only when the account has a verified custom domain */}
                   {(activeDomains.length > 0 || existingDomainUnverified) && (
