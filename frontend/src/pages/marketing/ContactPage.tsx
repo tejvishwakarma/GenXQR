@@ -208,7 +208,7 @@ export default function ContactPage() {
                     name="category"
                     value={category}
                     onChange={(e) => edit(setCategory)(e.target.value as ContactCategory)}
-                    className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors appearance-none"
+                    className="w-full rounded-xl border border-line bg-paper-pure px-4 py-2.5 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors"
                   >
                     {SUBJECTS.map((subject) => (
                       <option key={subject.value} value={subject.value}>{subject.label}</option>
