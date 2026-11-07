@@ -884,6 +884,8 @@ create and update (dashboard + `/v1`, 422): UPI = `{upiId (VPA), payeeName, amou
 - UPI shows a payment page (`UPILandingPage`: Pay button with a `upi://pay` link, copyable UPI ID). UPI apps' OWN
   scanners only read a code that holds the `upi://` link itself, so a dashboard UPI code is for phone cameras; the
   free generator's `/generate/upi` makes the direct, untracked kind. Keep the UPI ID's `@` unescaped in upi:// links.
+  iPhone has no chooser for `upi://` (it opens whichever app claimed it, often WhatsApp), so on iOS the page shows
+  one button per app — `tez://upi/pay?`, `phonepe://pay?`, `paytmmp://upi/pay?` (Razorpay's iOS UPI-intent docs) — plus `upi://` as "Other UPI app".
 - Covered by `tests/integration/qr-types.test.ts`. Migration `20261107100000_upi_google_review_types`.
 
 **Folders** (built 7 Nov 2026, `services/folder.service.ts`, `components/folders/`). One level per workspace owner,
