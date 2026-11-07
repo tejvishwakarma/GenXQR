@@ -991,6 +991,11 @@ function FilePage({
 
 /* --- UPI payment --- */
 function UpiPage({ upiId, name, amount, note, accent }: { upiId: string; name: string; amount: string; note: string; accent: string }) {
+  // As the payment page shows it (UPILandingPage): ₹1,000 / ₹99.50.
+  const n = Number(amount)
+  const shownAmount = amount && Number.isFinite(n) && n > 0
+    ? n.toLocaleString("en-IN", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
+    : ""
   return (
     <div className="flex flex-col items-center pt-8 px-5 text-center gap-3">
       <div className="w-16 h-16 rounded-full flex items-center justify-center shadow" style={{ background: tint(accent, 0.85) }}>
@@ -999,7 +1004,7 @@ function UpiPage({ upiId, name, amount, note, accent }: { upiId: string; name: s
       <div>
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pay</p>
         <p className="text-[15px] font-black text-gray-900 mt-1 leading-tight">{name || "Your business"}</p>
-        {amount && <p className="text-[20px] font-black text-gray-900 mt-1">₹{amount}</p>}
+        {shownAmount && <p className="text-[20px] font-black text-gray-900 mt-1">₹{shownAmount}</p>}
         {note && <p className="text-[9.5px] text-gray-500 mt-1">{note}</p>}
       </div>
       <div className="w-full bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-left flex items-center justify-between">
@@ -1009,8 +1014,9 @@ function UpiPage({ upiId, name, amount, note, accent }: { upiId: string; name: s
         </div>
         <Copy size={12} className="text-gray-400 shrink-0" />
       </div>
-      <div className="w-full">
-        <CTA label={amount ? `Pay ₹${amount} with UPI app` : "Pay with UPI app"} accent={accent} />
+      {/* Same width as the UPI ID card; the amount is already shown above, as on the real page. */}
+      <div className="w-full rounded-xl py-2.5 px-3 text-center text-white text-[11px] font-bold shadow" style={{ background: accent }}>
+        Pay with UPI app
       </div>
     </div>
   )
