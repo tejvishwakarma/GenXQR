@@ -65,10 +65,13 @@ function describe(e: ActivityEntry): string {
   const m = e.metadata ?? {}
   const base = ((): string => {
     switch (e.action) {
-      case "auth.login": return "Signed in"
-      case "auth.login.google": return "Signed in with Google"
+      case "auth.login": return m.twoFactor ? "Signed in with two-factor" : "Signed in"
+      case "auth.login.google": return m.twoFactor ? "Signed in with Google and two-factor" : "Signed in with Google"
       case "auth.login.sso": return `Signed in with SSO${str(m.provider) === "microsoft" ? " (Microsoft)" : str(m.provider) === "google" ? " (Google Workspace)" : ""}`
       case "auth.logout": return "Signed out"
+      case "auth.2fa.enable": return "Turned on two-factor sign-in"
+      case "auth.2fa.disable": return "Turned off two-factor sign-in"
+      case "auth.2fa.recovery_codes": return "Made new two-factor recovery codes"
       case "auth.register": return "Created the account"
       case "auth.password.change": return "Changed the password"
       case "auth.password.reset": return "Reset the password from an email link"
@@ -93,6 +96,10 @@ function describe(e: ActivityEntry): string {
         const parts = [num(m.added) ? `put ${num(m.added)} code${num(m.added) === 1 ? "" : "s"} there` : "", num(m.removed) ? `took ${num(m.removed)} off it` : ""].filter(Boolean)
         return `Changed the codes at place${quoted(m.name)}${parts.length ? `: ${parts.join(", ")}` : ""}`
       }
+      case "folder.create": return `Added folder${quoted(m.name)}`
+      case "folder.rename": return `Renamed a folder to${quoted(m.name)}`
+      case "folder.delete": return `Deleted folder${quoted(m.name)}${Number(m.codes) > 0 ? ` (its ${Number(m.codes)} code${Number(m.codes) === 1 ? "" : "s"} kept)` : ""}`
+      case "folder.move": return `${e.entityId ? "Moved" : "Took"} ${Number(m.moved) || 0} code${Number(m.moved) === 1 ? "" : "s"} ${e.entityId ? "into a folder" : "out of their folder"}`
       case "qr.bulk_create": return `Bulk-created ${Number(m.created) || 0} code${Number(m.created) === 1 ? "" : "s"}${Number(m.failed) > 0 ? ` (${Number(m.failed)} rows failed)` : ""}`
       case "qr.routing.add": return "Added a smart-routing rule"
       case "qr.routing.update": return "Changed a smart-routing rule"

@@ -26,6 +26,7 @@ import {
 } from "../services/qr.service.js"
 import { getQRAnalytics } from "../services/analytics.service.js"
 import { listPlaces } from "../services/place.service.js"
+import { listFolders } from "../services/folder.service.js"
 import { logAudit } from "../services/audit.service.js"
 import {
   createWebhook,
@@ -261,6 +262,18 @@ router.get("/qr/:id/scans", async (req, res, next) => {
 router.get("/places", async (req, res, next) => {
   try {
     res.json({ success: true, data: await listPlaces(uid(req)) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * GET /v1/folders
+ * The account's folders (ids for a code's folderId), with code counts.
+ */
+router.get("/folders", async (req, res, next) => {
+  try {
+    res.json({ success: true, data: await listFolders(uid(req)) })
   } catch (err) {
     next(err)
   }

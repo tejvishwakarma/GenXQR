@@ -22,7 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
   SOCIAL_MEDIA: "Social Media", VCARD: "Business Card", IMAGE_GALLERY: "Image Gallery",
   BUSINESS: "Business Info", APP: "App Download", MP3: "Audio / MP3", MENU: "Restaurant Menu",
   WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook", COUPON: "Coupon",
+  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
 }
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -30,11 +30,11 @@ const TYPE_EMOJI: Record<string, string> = {
   SOCIAL_MEDIA: "👥", VCARD: "👤", IMAGE_GALLERY: "🖼️",
   BUSINESS: "🏢", APP: "📱", MP3: "🎵", MENU: "🍽️",
   WIFI: "📶", WHATSAPP: "💬", INSTAGRAM: "📸",
-  FACEBOOK: "📘", COUPON: "🏷️",
+  FACEBOOK: "📘", COUPON: "🏷️", UPI: "₹", GOOGLE_REVIEW: "⭐",
 }
 
 // Types that redirect directly (no landing page)
-const REDIRECT_TYPES = new Set(["URL", "WIFI", "WHATSAPP", "INSTAGRAM"])
+const REDIRECT_TYPES = new Set(["URL", "WIFI", "WHATSAPP", "INSTAGRAM", "GOOGLE_REVIEW"])
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

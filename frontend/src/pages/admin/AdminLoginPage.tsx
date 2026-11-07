@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { Shield, Eye, EyeOff, Loader2 } from "lucide-react"
-import { login } from "@/lib/api"
+import { login, type AuthUser } from "@/lib/api"
 import { getTokenRole } from "@/lib/api"
+import { TwoFactorStep } from "@/components/auth/TwoFactorStep"
 
 export default function AdminLoginPage() {
   const navigate = useNavigate()
@@ -11,6 +12,21 @@ export default function AdminLoginPage() {
   const [showPwd, setShowPwd] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [challenge, setChallenge] = useState<string | null>(null)
+
+  function finish(session: { accessToken: string; user: AuthUser }) {
+    localStorage.setItem("access_token", session.accessToken)
+    localStorage.setItem("user", JSON.stringify(session.user))
+    const role = getTokenRole()
+    if (role !== "ADMIN" && role !== "SUPER_ADMIN") {
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("user")
+      setChallenge(null)
+      setError("Access denied. This account does not have admin privileges.")
+      return
+    }
+    navigate("/admin", { replace: true })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -18,6 +34,10 @@ export default function AdminLoginPage() {
     setLoading(true)
     try {
       const res = await login(email, password)
+      if ("twoFactorRequired" in res.data) {
+        setChallenge(res.data.challenge)
+        return
+      }
       localStorage.setItem("access_token", res.data.accessToken)
       localStorage.setItem("user", JSON.stringify(res.data.user))
 
@@ -53,6 +73,9 @@ export default function AdminLoginPage() {
 
         {/* Card */}
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-8 shadow-2xl animate-fade-in">
+          {challenge ? (
+            <TwoFactorStep challenge={challenge} onDone={finish} onRestart={() => { setChallenge(null); setPassword("") }} />
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-sm">
@@ -104,6 +127,7 @@ export default function AdminLoginPage() {
               {loading ? "Signing in…" : "Sign In to Admin"}
             </button>
           </form>
+          )}
         </div>
 
         <p className="text-center text-zinc-600 text-xs mt-6">

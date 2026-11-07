@@ -236,7 +236,8 @@ export interface AuthUser {
 
 export interface LoginResponse {
   success: boolean
-  data: { accessToken: string; user: AuthUser }
+  /** With two-factor on, no session yet: redeem `challenge` with a code (verifyTwoFactor). */
+  data: { accessToken: string; user: AuthUser } | { twoFactorRequired: true; challenge: string }
 }
 
 export function login(email: string, password: string, turnstileToken?: string) {
@@ -244,6 +245,41 @@ export function login(email: string, password: string, turnstileToken?: string) 
     method: "POST",
     body: JSON.stringify({ email, password, turnstileToken }),
   })
+}
+
+/** The second step of a sign-in: an authenticator or recovery code. `next` = where a Google sign-in started. */
+export function verifyTwoFactor(challenge: string, code: string) {
+  return apiFetch<{ success: boolean; data: { accessToken: string; user: AuthUser; next: string | null } }>("/api/auth/2fa/verify", {
+    method: "POST",
+    body: JSON.stringify({ challenge, code }),
+  })
+}
+
+export interface TwoFactorStatus {
+  hasPassword: boolean
+  enabled: boolean
+  enabledAt: string | null
+  recoveryCodesLeft: number
+}
+
+export function getTwoFactorStatus() {
+  return apiFetch<{ success: boolean; data: TwoFactorStatus }>("/api/auth/2fa", { headers: authHeader() })
+}
+
+export function startTwoFactorSetup() {
+  return apiFetch<{ success: boolean; data: { secret: string; otpauthUrl: string } }>("/api/auth/2fa/setup", { method: "POST", headers: authHeader() })
+}
+
+export function enableTwoFactor(code: string) {
+  return apiFetch<{ success: boolean; data: { recoveryCodes: string[] } }>("/api/auth/2fa/enable", { method: "POST", headers: authHeader(), body: JSON.stringify({ code }) })
+}
+
+export function disableTwoFactor(code: string, password?: string) {
+  return apiFetch<{ success: boolean }>("/api/auth/2fa/disable", { method: "POST", headers: authHeader(), body: JSON.stringify({ code, password }) })
+}
+
+export function regenerateRecoveryCodes(code: string) {
+  return apiFetch<{ success: boolean; data: { recoveryCodes: string[] } }>("/api/auth/2fa/recovery-codes", { method: "POST", headers: authHeader(), body: JSON.stringify({ code }) })
 }
 
 export function resendVerificationEmail(email: string) {
@@ -626,6 +662,8 @@ export interface AdminUserPlace {
 }
 export interface AdminUserDetail extends Omit<AdminUser, "country"> {
   avatarUrl: string | null; googleId: string | null; updatedAt: string
+  /** Set while two-factor sign-in is on. */
+  twoFactorEnabledAt: string | null
   /** Mobile number given at checkout or in Settings (10 digits, India). */
   phone: string | null
   subscription: {
@@ -681,6 +719,9 @@ export const changeAdminUserPassword = (id: string, password: string) =>
     method: "POST",
     body: JSON.stringify({ password }),
   })
+/** Turn off a user's two-factor sign-in (SUPER_ADMIN; lost phone and recovery codes). */
+export const resetAdminUserTwoFactor = (id: string) =>
+  adminFetch<{ success: boolean; message: string }>(`/admin-api/users/${id}/reset-2fa`, { method: "POST" })
 export const verifyAdminUserEmail = (id: string) =>
   adminFetch<{ success: boolean; message: string }>(`/admin-api/users/${id}/verify-email`, {
     method: "POST",
@@ -1156,6 +1197,9 @@ export interface QRCode {
   /** Where the code is printed (Places). */
   placeId?: string | null
   place?: PlaceSummary | null
+  /** The folder it is filed in (Folders). */
+  folderId?: string | null
+  folder?: { id: string; name: string } | null
   /** Server-built scan URL (custom domain when verified). Use scanUrlOf(). */
   scanUrl?: string
   content: { data: Record<string, unknown> } | null
@@ -1192,6 +1236,8 @@ export interface CreateQRPayload {
   customDomainId?: string | null
   /** The place it is printed for; null = none. */
   placeId?: string | null
+  /** The folder it is filed in; null = none. */
+  folderId?: string | null
   content: { data: Record<string, unknown> }
   design?: {
     primaryColor?: string
@@ -1247,13 +1293,14 @@ export function createQR(payload: CreateQRPayload) {
   })
 }
 
-export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string; status?: "active" | "inactive" }) {
+export function listQRs(params?: { page?: number; limit?: number; search?: string; placeId?: string; folderId?: string; status?: "active" | "inactive" }) {
   const query = new URLSearchParams()
   if (params?.page != null) query.set("page", String(params.page))
   if (params?.limit != null) query.set("limit", String(params.limit))
   if (params?.search) query.set("search", params.search)
   if (params?.placeId) query.set("placeId", params.placeId)
   if (params?.status) query.set("status", params.status)
+  if (params?.folderId) query.set("folderId", params.folderId)
   const qs = query.toString() ? `?${query.toString()}` : ""
   return apiFetch<ListQRsResponse>(`/api/qr${qs}`, { headers: authHeader() })
 }
@@ -1643,6 +1690,42 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
     method: "PUT",
     headers: authHeader(),
     body: JSON.stringify(body),
+  })
+}
+
+// ─── Folders ──────────────────────────────────────────────────────────────────
+
+export interface Folder {
+  id: string
+  name: string
+  codeCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export function getFolders() {
+  return apiFetch<{ success: boolean; data: Folder[] }>("/api/folders", { headers: authHeader() })
+}
+
+export function createFolder(name: string) {
+  return apiFetch<{ success: boolean; data: Folder }>("/api/folders", { method: "POST", headers: authHeader(), body: JSON.stringify({ name }) })
+}
+
+export function renameFolder(id: string, name: string) {
+  return apiFetch<{ success: boolean; data: Folder }>(`/api/folders/${id}`, { method: "PATCH", headers: authHeader(), body: JSON.stringify({ name }) })
+}
+
+/** The folder goes; its codes stay, in no folder. */
+export function deleteFolder(id: string) {
+  return apiFetch<{ success: boolean }>(`/api/folders/${id}`, { method: "DELETE", headers: authHeader() })
+}
+
+/** File codes in a folder, or take them out (null). Returns the ids that moved. */
+export function moveToFolder(ids: string[], folderId: string | null) {
+  return apiFetch<{ success: boolean; data: { moved: string[] } }>("/api/folders/move", {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify({ ids, folderId }),
   })
 }
 

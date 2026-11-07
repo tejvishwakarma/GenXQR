@@ -1,4 +1,6 @@
+import { useState } from "react"
 import type { PublicQRFile } from "@/lib/api"
+import { copyText } from "@/lib/clipboard"
 
 interface Props {
   name: string
@@ -49,6 +51,7 @@ export default function CouponLandingPage({ name, content }: Props) {
   const discount = content.discount as string | undefined
   const description = content.description as string | undefined
   const code = content.code as string | undefined
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle")
   // Accept both field names for backwards compatibility
   const expiresAt = (content.expiresAt ?? content.validUntil) as string | undefined
   const terms = content.terms as string | undefined
@@ -94,16 +97,18 @@ export default function CouponLandingPage({ name, content }: Props) {
             {/* Code box + visual barcode */}
             {code && (
               <div
-                className="border-2 border-dashed rounded-xl p-3 text-center cursor-pointer select-none"
+                className="border-2 border-dashed rounded-xl p-3 text-center cursor-pointer"
                 style={{ borderColor: accent }}
-                onClick={() => void navigator.clipboard.writeText(code)}
+                onClick={() => void copyText(code).then((ok) => { setCopy(ok ? "copied" : "failed"); if (ok) setTimeout(() => setCopy("idle"), 2000) })}
               >
                 <p className="text-xs text-gray-500 mb-1">Coupon Code</p>
-                <p className="font-mono text-2xl font-black tracking-widest" style={{ color: accent }}>{code}</p>
+                <p className="font-mono text-2xl font-black tracking-widest select-all" style={{ color: accent }}>{code}</p>
                 <div className="mt-3 px-2">
                   <VisualBarcode code={code} />
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Tap to copy</p>
+                <p className="text-xs text-gray-400 mt-2" aria-live="polite">
+                  {copy === "copied" ? "Copied" : copy === "failed" ? "Press and hold the code to copy it" : "Tap to copy"}
+                </p>
               </div>
             )}
 

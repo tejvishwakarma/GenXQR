@@ -18,6 +18,8 @@ import { invalidateQRCache } from "./scan.service.js"
 import { assertDomainForCode, defaultDomainId, scanUrlFor } from "./custom-domain.service.js"
 import { markAttached, removeUnreferencedFiles, resolveAttachments } from "./uploads.service.js"
 import { assertPlaceForCode, attributeUnplacedScans, placeSummarySelect } from "./place.service.js"
+import { normalizeTypedContent } from "../utils/typed-content.util.js"
+import { assertFolderForCode, folderSummarySelect } from "./folder.service.js"
 
 /** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
 const LIBRARY_FRAME_PREFIX = /^(shape|premium|occasion):/
@@ -39,6 +41,8 @@ export const createQRSchema = z.object({
   customDomainId: z.string().min(1).max(40).nullish(),
   /** Where the code is printed (place.service.ts). Null = no place. */
   placeId: z.string().min(1).max(40).nullish(),
+  /** The folder it is filed in (folder.service.ts). Null = none. */
+  folderId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).default({ data: {} }),
   design: z
     .object({
@@ -113,6 +117,7 @@ export const updateQRSchema = z.object({
   tags: z.array(z.string().max(50).trim()).max(10).optional(),
   customDomainId: z.string().min(1).max(40).nullish(),
   placeId: z.string().min(1).max(40).nullish(),
+  folderId: z.string().min(1).max(40).nullish(),
   content: z.object({ data: z.record(z.string(), z.unknown()) }).optional(),
   // Partial and WITHOUT the create defaults: an update changes only the design
   // fields it names. Reusing the create schema filled every omitted field with
@@ -134,6 +139,8 @@ export const listQRSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
   /** A place id, or "none" for codes without a place. */
   placeId: z.string().min(1).max(40).optional(),
+  /** A folder id, or "none" for codes in no folder. */
+  folderId: z.string().min(1).max(40).optional(),
   /**
    * ISO 8601 timestamp — filters to QR codes modified after this time.
    * Used by Zapier/Make/n8n polling triggers to fetch only newly-updated records.
@@ -171,6 +178,8 @@ const qrSelect = {
   customDomain: { select: { hostname: true, status: true } },
   placeId: true,
   place: { select: placeSummarySelect },
+  folderId: true,
+  folder: { select: folderSummarySelect },
   content: { select: { data: true } },
   design: {
     select: {
@@ -407,9 +416,11 @@ export async function createWithinQRLimit<T>(ownerId: string, create: (tx: Prism
 }
 
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const { design, settings, content: rawContent, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, folderId: requestedFolder, ...qrData } = input
+  const content = { data: normalizeTypedContent(qrData.type, rawContent.data) }
 
   const placeId = await assertPlaceForCode(userId, requestedPlace)
+  const folderId = await assertFolderForCode(userId, requestedFolder)
   const customDomainId = requestedDomain === undefined
     ? await defaultDomainId(userId)
     : await assertDomainForCode(userId, requestedDomain)
@@ -431,6 +442,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
       slug,
       customDomainId: customDomainId ?? null,
       placeId: placeId ?? null,
+      folderId: folderId ?? null,
       isPasswordProtected: !!settings.password,
       passwordHash,
       activeFrom: settings.activeFrom ? new Date(settings.activeFrom) : undefined,
@@ -467,7 +479,7 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
  * List a user's QR codes with pagination and optional filters.
  */
 export async function listQRs(userId: string, query: z.infer<typeof listQRSchema>) {
-  const { page, limit, type, category, search, status, placeId, updatedSince, sort } = query
+  const { page, limit, type, category, search, status, placeId, folderId, updatedSince, sort } = query
   const skip = (page - 1) * limit
 
   const where: Prisma.QRCodeWhereInput = {
@@ -478,6 +490,7 @@ export async function listQRs(userId: string, query: z.infer<typeof listQRSchema
     ...(status === "inactive" && { isActive: false }),
     ...(updatedSince && { updatedAt: { gte: new Date(updatedSince) } }),
     ...(placeId && { placeId: placeId === "none" ? null : placeId }),
+    ...(folderId && { folderId: folderId === "none" ? null : folderId }),
     ...(search && {
       OR: [
         { name: { contains: search, mode: "insensitive" } },
@@ -530,15 +543,17 @@ export async function getQR(id: string, userId: string) {
 export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
   const existing = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
+    select: { id: true, type: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const { design, settings, content: rawContent, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, folderId: requestedFolder, ...qrData } = input
+  const content = rawContent && { data: normalizeTypedContent(qrData.type ?? existing.type, rawContent.data) }
 
   await assertFrameAllowed(userId, design, existing.design)
   const customDomainId = await assertDomainForCode(userId, requestedDomain)
   const placeId = await assertPlaceForCode(userId, requestedPlace)
+  const folderId = await assertFolderForCode(userId, requestedFolder)
 
   const uploadedFiles = requestedFiles && requestedFiles.length > 0
     ? await resolveAttachments(userId, requestedFiles, actorId)
@@ -565,6 +580,7 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
       ...(qrData.tags !== undefined && { tags: qrData.tags }),
       ...(customDomainId !== undefined && { customDomainId }),
       ...(placeId !== undefined && { placeId }),
+      ...(folderId !== undefined && { folderId }),
       ...(settings?.password !== undefined && {
         isPasswordProtected: !!settings.password,
         passwordHash,
@@ -679,6 +695,7 @@ function cloneData(qr: CloneSource, userId: string, slug: string): Prisma.QRCode
     slug,
     tags: qr.tags,
     placeId: qr.placeId,
+    folderId: qr.folderId,
     isPasswordProtected: qr.isPasswordProtected,
     passwordHash: qr.passwordHash,
     activeFrom: qr.activeFrom,

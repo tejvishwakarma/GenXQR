@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { attributionQueryParam } from "@/lib/attribution"
 import { referralQueryParam } from "@/lib/referralLink"
-import { login, resendVerificationEmail, startSsoLogin, ApiError } from "@/lib/api"
+import { login, resendVerificationEmail, startSsoLogin, ApiError, type AuthUser } from "@/lib/api"
+import { TwoFactorStep } from "@/components/auth/TwoFactorStep"
 import { Turnstile, TURNSTILE_ENABLED, type TurnstileHandle } from "@/components/Turnstile"
 
 // Stable decorative scan chart bars (no random — consistent across renders)
@@ -26,8 +27,10 @@ const SSO_ERRORS: Record<string, string> = {
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const next = searchParams.get("next") ?? "/app/dashboard"
+  // Two-factor step: from a password sign-in, or ?tfa= from a Google sign-in.
+  const [challenge, setChallenge] = useState<string | null>(() => searchParams.get("tfa"))
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -59,14 +62,8 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await login(email, password, turnstileToken ?? undefined)
-      localStorage.setItem("access_token", res.data.accessToken)
-      localStorage.setItem("user", JSON.stringify(res.data.user))
-      const role = res.data.user.role
-      if ((role === "ADMIN" || role === "SUPER_ADMIN") && next === "/app/dashboard") {
-        navigate("/admin", { replace: true })
-      } else {
-        navigate(next, { replace: true })
-      }
+      if ("twoFactorRequired" in res.data) setChallenge(res.data.challenge)
+      else finish(res.data)
     } catch (err) {
       if (err instanceof ApiError && err.message === "sso_required") {
         setSsoMode(true)
@@ -80,6 +77,25 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function finish(session: { accessToken: string; user: AuthUser; next?: string | null }) {
+    localStorage.setItem("access_token", session.accessToken)
+    localStorage.setItem("user", JSON.stringify(session.user))
+    const target = session.next ?? next
+    const role = session.user.role
+    if ((role === "ADMIN" || role === "SUPER_ADMIN") && target === "/app/dashboard") {
+      navigate("/admin", { replace: true })
+    } else {
+      navigate(target, { replace: true })
+    }
+  }
+
+  function restartSignIn() {
+    setChallenge(null)
+    setPassword("")
+    setTurnstileToken(null)
+    if (searchParams.has("tfa")) setSearchParams((p) => { p.delete("tfa"); return p }, { replace: true })
   }
 
   async function handleSso(e: React.FormEvent) {
@@ -189,6 +205,9 @@ export default function LoginPage() {
           </div>
 
           <div className="glass-card p-5 sm:p-8 rounded-2xl">
+            {challenge ? (
+              <TwoFactorStep challenge={challenge} onDone={finish} onRestart={restartSignIn} />
+            ) : (<>
             {/* Desktop heading */}
             <div className="hidden lg:block mb-6">
               <h2 className="text-xl font-bold text-white mb-1">Welcome back</h2>
@@ -312,6 +331,7 @@ export default function LoginPage() {
               </Button>
             </form>
             )}
+            </>)}
 
             <p className="text-center text-zinc-500 text-sm mt-6">
               Don't have an account?{" "}

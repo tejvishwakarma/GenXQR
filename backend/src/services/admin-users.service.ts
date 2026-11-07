@@ -10,6 +10,7 @@ import { AppError } from "../middleware/error.middleware.js"
 import { signAccessToken } from "../utils/jwt.js"
 import { hashPassword } from "../utils/password.js"
 import { getUserPlanLimits } from "./billing.service.js"
+import { clearTwoFactor } from "./two-factor.service.js"
 import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail } from "./email.service.js"
 import { env } from "../config/env.js"
 
@@ -88,7 +89,7 @@ export async function getUserDetail(userId: string, callerRole: AdminRole) {
     select: {
       id: true, name: true, email: true, role: true,
       emailVerified: true, createdAt: true, updatedAt: true, lastLoginAt: true,
-      avatarUrl: true, googleId: true,
+      avatarUrl: true, googleId: true, twoFactorEnabledAt: true,
       // The mobile number given at checkout (or in Settings) — every admin may
       // see it, e.g. to call a customer about a payment (decided 24 Oct 2026).
       phone: true,
@@ -395,6 +396,23 @@ export async function impersonateUser(adminId: string, adminRole: AdminRole, tar
 }
 
 // ─── POST /admin-api/users/:id/verify-email ─────────────────────────────────────
+
+/**
+ * Turns off someone's two-factor sign-in — for a person who lost their phone
+ * AND their recovery codes. SUPER_ADMIN only, and never on another admin.
+ */
+export async function resetTwoFactor(callerRole: AdminRole, callerId: string, targetId: string) {
+  if (callerRole !== "SUPER_ADMIN") throw new AppError(403, "Only SUPER_ADMINs can reset two-factor sign-in")
+  const target = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, email: true, role: true, twoFactorEnabledAt: true } })
+  if (!target) throw new AppError(404, "User not found")
+  if (target.role !== "USER" && target.id !== callerId) throw new AppError(403, "An admin's two-factor sign-in can only be reset by themselves")
+  if (!target.twoFactorEnabledAt) return { message: "Two-factor sign-in is not on" }
+  await clearTwoFactor(targetId)
+  await prisma.auditLog.create({
+    data: { userId: callerId, action: "admin.user.reset_2fa", category: "admin", entityId: targetId, entityType: "User", metadata: { targetEmail: target.email } },
+  })
+  return { message: "Two-factor sign-in turned off" }
+}
 
 export async function forceVerifyEmail(callerRole: AdminRole, callerId: string, targetId: string) {
   if (callerRole !== "SUPER_ADMIN") throw new AppError(403, "Only SUPER_ADMINs can force-verify accounts")

@@ -219,7 +219,7 @@ export function JobApplicationModal({ jobTitle, onClose }: Props) {
                 <select
                   value={form.experience}
                   onChange={(e) => setField("experience", e.target.value)}
-                  className={`${input(false)} appearance-none`}
+                  className={input(false)}
                 >
                   <option value="">— Select —</option>
                   {EXPERIENCE_OPTIONS.map((o) => (

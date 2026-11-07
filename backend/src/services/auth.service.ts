@@ -87,6 +87,11 @@ export interface NotificationPrefs {
   productUpdates: boolean
 }
 
+/** A finished sign-in, or — for an account with two-factor on — who still has to give a code. */
+export type SignInResult =
+  | { accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "USER" | "ADMIN" | "SUPER_ADMIN"; avatarUrl: string | null } }
+  | { twoFactorUserId: string }
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function buildTokenPair(userId: string, email: string, role: "USER" | "ADMIN" | "SUPER_ADMIN" = "USER") {
@@ -227,7 +232,7 @@ export async function registerUser(input: z.infer<typeof registerSchema>) {
 export async function loginUser(
   input: z.infer<typeof loginSchema>,
   ip: string,
-): Promise<{ accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "USER" | "ADMIN" | "SUPER_ADMIN"; avatarUrl: string | null } }> {
+): Promise<SignInResult> {
   const user = await prisma.user.findUnique({
     where: { email: input.email }
   })
@@ -247,6 +252,8 @@ export async function loginUser(
   }
   // Checked after the password, so only someone who has it learns the domain uses SSO.
   if (await requiredSsoFor(user.email, user.id)) throw new AppError(403, "sso_required")
+  // Two-factor on: no session yet. The route hands out a challenge for the code.
+  if (user.twoFactorEnabledAt) return { twoFactorUserId: user.id }
 
   await prisma.user.update({
     where: { id: user.id },
@@ -544,7 +551,7 @@ export async function handleGoogleOAuth(
   attribution: UserAttributionData | null = null,
   /** Referral code from the sign-up link — likewise, new accounts only. */
   referralCode: string | null = null,
-): Promise<{ accessToken: string; refreshToken: string; user: { id: string; email: string; name: string; role: "USER" | "ADMIN" | "SUPER_ADMIN"; avatarUrl: string | null } }> {
+): Promise<SignInResult> {
   const emailBlockEntry = await prisma.blocklist.findFirst({
     where: { type: "email", value: profile.email },
     select: { isActive: true, isPermanent: true }
@@ -610,7 +617,7 @@ export async function handleGoogleOAuth(
         data: {
           googleId: profile.id,
           avatarUrl: profile.avatarUrl ?? user!.avatarUrl,
-          ...(takeOver ? { passwordHash: null, emailVerified: true } : {}),
+          ...(takeOver ? { passwordHash: null, emailVerified: true, twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorRecoveryHashes: [] } : {}),
         },
       })
     })
@@ -622,6 +629,9 @@ export async function handleGoogleOAuth(
   if (createdUser && !wasEverBlocked) {
     await ensureVerifiedTrialSubscription(user.id)
   }
+
+  // Two-factor on: no session yet (the route hands out a challenge for the code).
+  if (user.twoFactorEnabledAt) return { twoFactorUserId: user.id }
 
   await prisma.user.update({
     where: { id: user.id },

@@ -371,6 +371,26 @@ describe("webhook delivery", () => {
       expect(qr.id).toBe(created.body.data.id)
       expect(qr.placeId).toBe(place.body.data.id)
     })
+
+    it("should deliver qr.updated when codes are moved into a folder", async () => {
+      const created = await request(app)
+        .post("/v1/qr").set("Authorization", `Bearer ${apiKey}`).send(CREATE_BODY).expect(201)
+      const folder = await request(app)
+        .post("/api/folders").set("Authorization", `Bearer ${user.token}`).send({ name: "Diwali 2026" }).expect(201)
+      await subscribe(["qr.updated"])
+
+      await request(app)
+        .post("/api/folders/move")
+        .set("Authorization", `Bearer ${user.token}`)
+        .send({ ids: [created.body.data.id], folderId: folder.body.data.id })
+        .expect(200)
+
+      const [got] = await receiver.wait(1)
+      expect(got, "moving a code into a folder raised no qr.updated").toBeDefined()
+      const qr = (got!.body.data as { qr: { id: string; folderId: string } }).qr
+      expect(qr.id).toBe(created.body.data.id)
+      expect(qr.folderId).toBe(folder.body.data.id)
+    })
   })
 
   /**

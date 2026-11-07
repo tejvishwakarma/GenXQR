@@ -18,7 +18,9 @@ import {
   refreshLimiter,
   registerLimiter,
   ssoLimiter,
+  twoFactorLimiter,
 } from "../middleware/rateLimit.middleware.js"
+import * as TwoFactor from "../services/two-factor.service.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import * as AuthService from "../services/auth.service.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
@@ -146,10 +148,14 @@ router.post(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const input = AuthService.loginSchema.parse(req.body)
-      const { accessToken, refreshToken, user } = await AuthService.loginUser(
-        input,
-        req.ip ?? "",
-      )
+      const result = await AuthService.loginUser(input, req.ip ?? "")
+      if (!("accessToken" in result)) {
+        // Right password, two-factor on: the session waits for the code (POST /2fa/verify).
+        const challenge = await TwoFactor.createChallenge(result.twoFactorUserId, "password")
+        res.json({ success: true, data: { twoFactorRequired: true, challenge } })
+        return
+      }
+      const { accessToken, refreshToken, user } = result
       logAudit({ userId: user.id, action: "auth.login", category: "auth", entityId: user.id, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
       res
         .cookie("refresh_token", refreshToken, REFRESH_COOKIE_OPTIONS)
@@ -719,13 +725,20 @@ router.get(
       const storedRef = await redis.get(`oauth:ref:${returnedState}`)
       if (storedRef !== null) await redis.del(`oauth:ref:${returnedState}`)
 
-      const { accessToken, refreshToken } = await AuthService.handleGoogleOAuth(
+      const result = await AuthService.handleGoogleOAuth(
         profile,
         req.ip ?? "",
         storedAttribution !== null ? parseAttributionParam(storedAttribution) : null,
         storedRef,
       )
       const nextPath = safeFrontendPath(storedNextPath, "/app/dashboard")
+      if (!("accessToken" in result)) {
+        // Two-factor on: to the login page's code step; no session until the code.
+        const challenge = await TwoFactor.createChallenge(result.twoFactorUserId, "google", nextPath)
+        res.redirect(`${env.FRONTEND_URL}/login?tfa=${challenge}`)
+        return
+      }
+      const { accessToken, refreshToken } = result
 
       // Store the access token server-side under a short-lived one-time code.
       // The frontend redeems the code via POST /api/auth/oauth-token within 60 s.
@@ -764,6 +777,93 @@ router.get(
     }
   },
 )
+
+// ─── Two-factor sign-in (services/two-factor.service.ts) ──────────────────────
+
+/**
+ * POST /api/auth/2fa/verify {challenge, code} — the second step of a password or
+ * Google sign-in. Starts the session the first step held back.
+ */
+router.post("/2fa/verify", twoFactorLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { challenge, code } = TwoFactor.verifyChallengeSchema.parse(req.body)
+    const done = await TwoFactor.redeemChallenge(challenge, code)
+    const user = await prisma.user.findUnique({
+      where: { id: done.userId },
+      select: { id: true, email: true, name: true, role: true, avatarUrl: true },
+    })
+    if (!user) throw new AppError(401, "This sign-in has expired. Sign in again.")
+    const { accessToken, refreshToken } = await AuthService.startVerifiedSession(user, req.ip ?? "", false)
+    logAudit({
+      userId: user.id, action: done.method === "google" ? "auth.login.google" : "auth.login", category: "auth",
+      entityId: user.id, entityType: "User", metadata: { twoFactor: true }, ip: req.ip, userAgent: req.headers["user-agent"],
+    })
+    res
+      .cookie("refresh_token", refreshToken, REFRESH_COOKIE_OPTIONS)
+      .json({ success: true, data: { accessToken, user: { ...user, avatarUrl: user.avatarUrl ?? null }, next: done.next ?? null } })
+  } catch (err) {
+    next(err)
+  }
+})
+
+const audit2fa = (req: Request, action: string) => {
+  const userId = (req.user as unknown as AccessTokenPayload).sub
+  logAudit({ userId, action, category: "auth", entityId: userId, entityType: "User", ip: req.ip, userAgent: req.headers["user-agent"] })
+}
+const me = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
+
+/** GET /api/auth/2fa — whether it is on, and how many recovery codes are left. */
+router.get("/2fa", requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    res.json({ success: true, data: await TwoFactor.getStatus(me(req)) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/** POST /api/auth/2fa/setup — a new secret (and otpauth link) to add to an authenticator app. */
+router.post("/2fa/setup", requireAuth, forbidWhileImpersonating, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    res.json({ success: true, data: await TwoFactor.startSetup(me(req)) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/** POST /api/auth/2fa/enable {code} — confirms the app works; returns the recovery codes, once. */
+router.post("/2fa/enable", requireAuth, forbidWhileImpersonating, twoFactorLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { code } = TwoFactor.codeSchema.parse(req.body)
+    const result = await TwoFactor.confirmSetup(me(req), code)
+    audit2fa(req, "auth.2fa.enable")
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/** POST /api/auth/2fa/disable {code, password} */
+router.post("/2fa/disable", requireAuth, forbidWhileImpersonating, twoFactorLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    await TwoFactor.disable(me(req), TwoFactor.disableSchema.parse(req.body))
+    audit2fa(req, "auth.2fa.disable")
+    res.json({ success: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/** POST /api/auth/2fa/recovery-codes {code} — a fresh set; the old ones stop working. */
+router.post("/2fa/recovery-codes", requireAuth, forbidWhileImpersonating, twoFactorLimiter, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { code } = TwoFactor.codeSchema.parse(req.body)
+    const result = await TwoFactor.regenerateRecoveryCodes(me(req), code)
+    audit2fa(req, "auth.2fa.recovery_codes")
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+})
 
 // ─── Single sign-on (services/sso.service.ts) ─────────────────────────────────
 

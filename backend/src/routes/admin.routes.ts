@@ -252,6 +252,23 @@ router.post(
 )
 
 /**
+ * POST /admin-api/users/:id/reset-2fa
+ * Turn off a user's two-factor sign-in (SUPER_ADMIN; lost phone and codes).
+ */
+router.post(
+  "/users/:id/reset-2fa",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const caller = req.user as unknown as AccessTokenPayload
+      const { message } = await AdminUsersService.resetTwoFactor(caller.role, caller.sub, req.params["id"] as string)
+      res.json({ success: true, message })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
  * POST /admin-api/users/:id/password
  * Force-set a user's password (SUPER_ADMIN only).
  */

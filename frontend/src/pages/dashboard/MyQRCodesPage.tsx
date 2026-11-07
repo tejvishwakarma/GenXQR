@@ -4,7 +4,7 @@ import { createPortal } from "react-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   QrCode, Plus, Search, X, Edit, BarChart3, Trash2, Loader2,
-  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight, MapPin,
+  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight, MapPin, FolderOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,13 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DownloadMenu } from "@/components/QRDownloadMenu"
 import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
-import { listQRs, deleteQR, toggleQR, duplicateQR, getPlaces, type QRCode } from "@/lib/api"
+import { listQRs, deleteQR, toggleQR, duplicateQR, getPlaces, getFolders, moveToFolder, type QRCode } from "@/lib/api"
+import { FolderBar } from "@/components/folders/FolderBar"
 import { useWorkspace } from "@/hooks/useWorkspace"
 
 const TYPE_LABEL: Record<string, string> = {
   URL: "URL", PDF: "PDF", VIDEO: "Video", LINKS: "Multi-Link", SOCIAL_MEDIA: "Social",
   VCARD: "vCard", IMAGE_GALLERY: "Gallery", BUSINESS: "Business", APP: "App", MP3: "Audio",
-  MENU: "Menu", WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", COUPON: "Coupon",
+  MENU: "Menu", WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
 }
 const PAGE_SIZE = 20
 
@@ -64,6 +65,20 @@ export default function MyQRCodesPage() {
     }, { replace: true })
   }
 
+  // Folder filter in the URL (?folder=<id> | none).
+  const folderFilter = searchParams.get("folder") ?? "all"
+  const setFolderFilter = (v: string) => {
+    setPage(1)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (v === "all") next.delete("folder")
+      else next.set("folder", v)
+      return next
+    }, { replace: true })
+  }
+  const { data: foldersData } = useQuery({ queryKey: ["folders"], queryFn: getFolders, staleTime: 30_000 })
+  const folders = foldersData?.data ?? []
+
   // Keep the input in sync if the URL query changes (e.g. header search navigates here again).
   useEffect(() => { setSearchInput(urlQuery); setSearch(urlQuery) }, [urlQuery])
 
@@ -84,8 +99,13 @@ export default function MyQRCodesPage() {
   }, [searchInput])
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["qr-codes", "list", page, search, placeFilter, statusFilter],
-    queryFn: () => listQRs({ page, limit: PAGE_SIZE, search: search || undefined, placeId: placeFilter === "all" ? undefined : placeFilter, status: statusFilter === "all" ? undefined : statusFilter }),
+    queryKey: ["qr-codes", "list", page, search, placeFilter, statusFilter, folderFilter],
+    queryFn: () => listQRs({
+      page, limit: PAGE_SIZE, search: search || undefined,
+      placeId: placeFilter === "all" ? undefined : placeFilter,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      folderId: folderFilter === "all" ? undefined : folderFilter,
+    }),
   })
 
   const qrs: QRCode[] = data?.data ?? []
@@ -107,9 +127,9 @@ export default function MyQRCodesPage() {
 
   // ─── Bulk selection ─────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkOp, setBulkOp] = useState<"delete" | "download" | "activate" | "deactivate" | null>(null)
+  const [bulkOp, setBulkOp] = useState<"delete" | "download" | "activate" | "deactivate" | "move" | null>(null)
 
-  useEffect(() => { setSelectedIds(new Set()) }, [page, search, typeFilter, statusFilter, placeFilter])
+  useEffect(() => { setSelectedIds(new Set()) }, [page, search, typeFilter, statusFilter, placeFilter, folderFilter])
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -148,6 +168,19 @@ export default function MyQRCodesPage() {
     setBulkOp(null)
     void invalidate()
   }, [selectedIds, visibleQRs, invalidate])
+
+  const handleBulkMove = useCallback(async (folderId: string | null) => {
+    const ids = [...selectedIds]
+    if (!ids.length) return
+    setBulkOp("move")
+    try { await moveToFolder(ids, folderId) } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Could not move these codes.")
+    }
+    setSelectedIds(new Set())
+    setBulkOp(null)
+    void invalidate()
+    void queryClient.invalidateQueries({ queryKey: ["folders"] })
+  }, [selectedIds, invalidate, queryClient])
 
   const handleBulkDownload = useCallback(async () => {
     const targets = visibleQRs.filter((q) => selectedIds.has(q.id))
@@ -197,11 +230,13 @@ export default function MyQRCodesPage() {
             </p>
           </div>
           {can("qr:create") && (
-            <Link to="/app/create" className="shrink-0">
+            <Link to={folders.some((f) => f.id === folderFilter) ? `/app/create?folder=${folderFilter}` : "/app/create"} className="shrink-0">
               <Button className="w-full sm:w-auto"><Plus size={16} /> Create QR Code</Button>
             </Link>
           )}
         </div>
+
+        <FolderBar value={folderFilter} onChange={setFolderFilter} />
 
         {/* Toolbar: search + filters */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -270,7 +305,9 @@ export default function MyQRCodesPage() {
               <div className="text-center py-16 text-zinc-500">
                 <QrCode size={32} className="mx-auto mb-3 opacity-30" />
                 <p className="text-sm mb-4">
-                  {search || typeFilter !== "all" || statusFilter !== "all" || placeFilter !== "all"
+                  {folderFilter !== "all" && !search && typeFilter === "all" && statusFilter === "all" && placeFilter === "all"
+                    ? "No QR codes in this folder yet. Select codes under All codes and use Move to folder."
+                    : search || typeFilter !== "all" || statusFilter !== "all" || placeFilter !== "all"
                     ? "No QR codes match your filters."
                     : "No QR codes yet."}
                 </p>
@@ -317,6 +354,7 @@ export default function MyQRCodesPage() {
                               <div className="text-zinc-500 text-xs truncate max-w-[240px]">
                                 /{qr.slug}
                                 {qr.place && <span className="ml-2 inline-flex items-center gap-0.5"><MapPin size={11} className="text-violet-400" />{qr.place.name}</span>}
+                                {qr.folder && folderFilter !== qr.folder.id && <span className="ml-2 inline-flex items-center gap-0.5"><FolderOpen size={11} className="text-violet-400" />{qr.folder.name}</span>}
                               </div>
                             </div>
                           </div>
@@ -388,6 +426,20 @@ export default function MyQRCodesPage() {
               {bulkOp === "download" ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}<span className="hidden sm:inline">Download</span>
             </button>
             {can("qr:edit") && <>
+            <label className="relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-violet-500 hover:bg-violet-500/10 transition-colors shrink-0 cursor-pointer" title="Move selected to a folder">
+              {bulkOp === "move" ? <Loader2 size={13} className="animate-spin" /> : <FolderOpen size={13} />}<span className="hidden sm:inline">Move to folder</span>
+              <select
+                aria-label="Move selected to a folder"
+                value=""
+                disabled={!!bulkOp}
+                onChange={(e) => { const v = e.target.value; if (v) void handleBulkMove(v === "none" ? null : v) }}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              >
+                <option value="">Move to folder…</option>
+                {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                <option value="none">Take out of folder</option>
+              </select>
+            </label>
             <button onClick={() => void handleBulkToggle(true)} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 shrink-0" title="Activate selected">
               {bulkOp === "activate" ? <Loader2 size={13} className="animate-spin" /> : <Power size={13} />}<span className="hidden sm:inline">Activate</span>
             </button>

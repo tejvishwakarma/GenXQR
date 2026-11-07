@@ -49,6 +49,7 @@ export const PUBLIC_ROUTES = [
   { path: "/generate/wifi", changefreq: "monthly", priority: "0.8" },
   { path: "/generate/whatsapp", changefreq: "monthly", priority: "0.8" },
   { path: "/generate/instagram", changefreq: "monthly", priority: "0.8" },
+  { path: "/generate/upi", changefreq: "monthly", priority: "0.8" },
   { path: "/scanner", changefreq: "monthly", priority: "0.8" },
 
   // Content
