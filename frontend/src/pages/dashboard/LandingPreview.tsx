@@ -10,7 +10,7 @@ import { useWatch, type Control } from "react-hook-form"
 import {
   Phone, Mail, MapPin, Globe, Wifi, MessageCircle,
   Music, FileText, Video, Smartphone, Building2,
-  Image as ImageIcon, ChevronRight, QrCode,
+  Image as ImageIcon, ChevronRight, QrCode, IndianRupee, Star, Copy,
 } from "lucide-react"
 import type { VCardData } from "./VCardEditor"
 import { SocialIcon } from "@/components/ui/social-icon"
@@ -989,6 +989,51 @@ function FilePage({
   )
 }
 
+/* --- UPI payment --- */
+function UpiPage({ upiId, name, amount, note, accent }: { upiId: string; name: string; amount: string; note: string; accent: string }) {
+  return (
+    <div className="flex flex-col items-center pt-8 px-5 text-center gap-3">
+      <div className="w-16 h-16 rounded-full flex items-center justify-center shadow" style={{ background: tint(accent, 0.85) }}>
+        <IndianRupee size={28} style={{ color: accent }} />
+      </div>
+      <div>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Pay</p>
+        <p className="text-[15px] font-black text-gray-900 mt-1 leading-tight">{name || "Your business"}</p>
+        {amount && <p className="text-[20px] font-black text-gray-900 mt-1">₹{amount}</p>}
+        {note && <p className="text-[9.5px] text-gray-500 mt-1">{note}</p>}
+      </div>
+      <div className="w-full bg-white rounded-xl p-3 shadow-sm border border-gray-100 text-left flex items-center justify-between">
+        <div className="min-w-0">
+          <p className="text-[8px] font-medium text-gray-400 uppercase tracking-wide">UPI ID</p>
+          <p className="text-[10.5px] font-semibold text-gray-800 truncate">{upiId || "yourshop@okhdfcbank"}</p>
+        </div>
+        <Copy size={12} className="text-gray-400 shrink-0" />
+      </div>
+      <div className="w-full">
+        <CTA label={amount ? `Pay ₹${amount} with UPI app` : "Pay with UPI app"} accent={accent} />
+      </div>
+    </div>
+  )
+}
+
+/* --- Google review (a redirect: shows where the scan lands) --- */
+function ReviewPage({ business }: { business: string }) {
+  return (
+    <div className="flex flex-col items-center pt-10 px-5 text-center gap-3">
+      <div className="flex gap-1">
+        {[0, 1, 2, 3, 4].map((i) => <Star key={i} size={20} className="text-amber-400 fill-amber-400" />)}
+      </div>
+      <p className="text-[13px] font-bold text-gray-900">{business || "Your business"}</p>
+      <p className="text-[9.5px] text-gray-500 leading-snug">
+        Scanning opens Google's review form for this business, ready for a star rating.
+      </p>
+      <div className="w-full">
+        <CTA label="Write a review on Google" accent="#1a73e8" />
+      </div>
+    </div>
+  )
+}
+
 /* --- Fallback --- */
 function FallbackPage({ type, accent }: { type: string; accent: string }) {
   return (
@@ -1124,6 +1169,12 @@ export default function LandingPreview({
             accent={accent}
           />
         )
+
+      case "upi":
+        return <UpiPage upiId={s(v.upi_id)} name={s(v.upi_name)} amount={s(v.upi_amount)} note={s(v.upi_note)} accent={accent} />
+
+      case "review":
+        return <ReviewPage business={s(v.review_business)} />
 
       case "pdf":
         return <FilePage type="pdf" accent={accent} />

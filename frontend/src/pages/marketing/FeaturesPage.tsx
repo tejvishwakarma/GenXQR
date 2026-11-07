@@ -85,7 +85,7 @@ const FEATURES_JSON_LD = [
         "name": "What features does GenXQR include?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR includes dynamic QR codes you can edit after printing, real-time scan analytics (city, device, OS, browser), smart routing by country or device, A/B testing, password protection, scan limits, team workspaces, a REST API, and webhook events. It supports 16 QR content types: URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and multi-link pages.",
+          "text": "GenXQR includes dynamic QR codes you can edit after printing, real-time scan analytics (city, device, OS, browser), smart routing by country or device, A/B testing, password protection, scan limits, team workspaces, a REST API, and webhook events. It supports 18 QR content types: URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, multi-link pages, UPI payment and Google review.",
         },
       },
       {
@@ -184,7 +184,7 @@ const features: Feature[] = [
     category: "Content Types",
     icon: Layers,
     tint: "amber",
-    title: "16 QR types — one tool covers them all",
+    title: "18 QR types — one tool covers them all",
     desc: "From a simple URL to a restaurant menu, a contact card, or a Spotify playlist — GenXQR generates the right QR type for every situation.",
     items: [
       "URL, WiFi, WhatsApp, Instagram",
@@ -259,7 +259,7 @@ const howItWorks = [
     icon: ScanLine,
     tint: "violet" as IconTint,
     title: "Pick a QR type and add your content",
-    desc: "Choose from 16 content types — URL, PDF, vCard, menu, WiFi, and more. Paste your link or fill in the form. Done in under a minute.",
+    desc: "Choose from 18 content types — URL, PDF, vCard, menu, WiFi, and more. Paste your link or fill in the form. Done in under a minute.",
   },
   {
     step: "2",
@@ -283,7 +283,7 @@ const howItWorks = [
 const faqs = [
   {
     q: "What features does GenXQR include?",
-    a: "GenXQR includes dynamic QR codes (editable after printing), real-time scan analytics by city, device, OS and browser, smart routing rules, A/B testing, password protection, scan limits, team seats, a REST API, and webhook events. It supports 16 QR content types — URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, and multi-link pages.",
+    a: "GenXQR includes dynamic QR codes (editable after printing), real-time scan analytics by city, device, OS and browser, smart routing rules, A/B testing, password protection, scan limits, team seats, a REST API, and webhook events. It supports 18 QR content types — URL, WiFi, WhatsApp, vCard, PDF, video, MP3, image gallery, menu, social media, Facebook, Instagram, coupon, app download, business card, multi-link pages, UPI payment and Google review.",
   },
   {
     q: "Can I edit a QR code after it is printed?",
@@ -312,7 +312,7 @@ export default function FeaturesPage() {
       {/* Deliverable 8: JSON-LD schema */}
       <SEOMeta
         title="QR Code Generator: Analytics, Routing & API"
-        description="Create QR codes that track every scan by city and device, update after printing, and route by country or OS. 16 types, A/B testing, REST API. Free to start."
+        description="Create QR codes that track every scan by city and device, update after printing, and route by country or OS. 18 types, A/B testing, REST API. Free to start."
         url="/features"
         jsonLd={FEATURES_JSON_LD}
       />

@@ -18,6 +18,7 @@ import { invalidateQRCache } from "./scan.service.js"
 import { assertDomainForCode, defaultDomainId, scanUrlFor } from "./custom-domain.service.js"
 import { markAttached, removeUnreferencedFiles, resolveAttachments } from "./uploads.service.js"
 import { assertPlaceForCode, attributeUnplacedScans, placeSummarySelect } from "./place.service.js"
+import { normalizeTypedContent } from "../utils/typed-content.util.js"
 
 /** Library frames (frontend/src/lib/frames/catalog.ts) are stored as "<group>:<file>". */
 const LIBRARY_FRAME_PREFIX = /^(shape|premium|occasion):/
@@ -407,7 +408,8 @@ export async function createWithinQRLimit<T>(ownerId: string, create: (tx: Prism
 }
 
 export async function createQR(userId: string, input: z.infer<typeof createQRSchema>, actorId: string = userId) {
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const { design, settings, content: rawContent, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const content = { data: normalizeTypedContent(qrData.type, rawContent.data) }
 
   const placeId = await assertPlaceForCode(userId, requestedPlace)
   const customDomainId = requestedDomain === undefined
@@ -530,11 +532,12 @@ export async function getQR(id: string, userId: string) {
 export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
   const existing = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
+    select: { id: true, type: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
-  const { design, settings, content, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const { design, settings, content: rawContent, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, ...qrData } = input
+  const content = rawContent && { data: normalizeTypedContent(qrData.type ?? existing.type, rawContent.data) }
 
   await assertFrameAllowed(userId, design, existing.design)
   const customDomainId = await assertDomainForCode(userId, requestedDomain)

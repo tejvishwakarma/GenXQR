@@ -32,7 +32,7 @@ const PRICING_JSON_LD = [
         "name": "Starter",
         "price": "299",
         "priceCurrency": "INR",
-        "description": "50 dynamic QR codes with scan analytics, 5,000 scans/month, all 16 QR types, PNG & SVG download.",
+        "description": "50 dynamic QR codes with scan analytics, 5,000 scans/month, all 18 QR types, PNG & SVG download.",
       },
       {
         "@type": "Offer",
@@ -156,7 +156,7 @@ const plans = [
     features: [
       "50 QR codes you can edit after printing",
       "Scan analytics — city, device & browser tracked",
-      "All 16 QR types — URL, PDF, menu, vCard, WiFi & more",
+      "All 18 QR types — URL, PDF, menu, vCard, WiFi & more",
       "PNG + SVG download — print or digital ready",
       "86 print-ready QR frames — colourful shapes, premium & occasion designs",
       "Your logo at the top of your scan pages",
@@ -243,7 +243,7 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
   { feature: "Dynamic QR codes",          free: false,    starter: "50",         pro: "250",          business: "2,000" },
   { feature: "Scan analytics",            free: false,    starter: true,         pro: true,           business: true },
   { feature: "Scans per month",           free: false,    starter: "5,000",      pro: "50,000",       business: "500,000" },
-  { feature: "All 16 QR types",           free: false,    starter: true,         pro: true,           business: true },
+  { feature: "All 18 QR types",           free: false,    starter: true,         pro: true,           business: true },
   { feature: "Custom design & logo",      free: "Colours, no logo", starter: true,         pro: true,           business: true },
   { feature: "QR frames (86 designs)",    free: false,    starter: true,         pro: true,           business: true },
   { feature: "Your logo on scan pages",   free: false,    starter: true,         pro: true,           business: true },

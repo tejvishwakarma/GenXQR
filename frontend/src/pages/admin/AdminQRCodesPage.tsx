@@ -20,6 +20,8 @@ const TYPE_COLORS: Record<string, string> = {
   PHONE:  "bg-green-500/15 text-green-300 ring-green-500/30",
   WIFI:   "bg-cyan-500/15 text-cyan-300 ring-cyan-500/30",
   VCARD:  "bg-indigo-500/15 text-indigo-300 ring-indigo-500/30",
+  UPI:    "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30",
+  GOOGLE_REVIEW: "bg-yellow-500/15 text-yellow-300 ring-yellow-500/30",
 }
 
 const CAT_COLORS: Record<string, string> = {

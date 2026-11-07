@@ -18,6 +18,7 @@ import WiFiLandingPage from "./templates/WiFiLandingPage"
 import CouponLandingPage from "./templates/CouponLandingPage"
 import FacebookLandingPage from "./templates/FacebookLandingPage"
 import URLLandingPage from "./templates/URLLandingPage"
+import UPILandingPage from "./templates/UPILandingPage"
 
 export default function LandingPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -83,6 +84,7 @@ export default function LandingPage() {
       case "WIFI":          return <WiFiLandingPage {...props} />
       case "COUPON":        return <CouponLandingPage {...props} />
       case "FACEBOOK":      return <FacebookLandingPage {...props} />
+      case "UPI":           return <UPILandingPage {...props} />
       default:              return null
     }
   })()

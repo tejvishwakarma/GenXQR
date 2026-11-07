@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom"
 import {
   QrCode, Wifi, MessageCircle, Instagram, ArrowRight,
   Download, Palette, Phone, MessageSquare, ChevronDown,
-  BarChart3, RefreshCw, Shield, Zap,
+  BarChart3, RefreshCw, Shield, Zap, IndianRupee,
 } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import QRCodeStyling, {
@@ -99,13 +99,14 @@ const GENERATE_JSON_LD = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type QRTypeId = "url" | "wifi" | "whatsapp" | "instagram" | "sms" | "phone"
+type QRTypeId = "url" | "wifi" | "whatsapp" | "instagram" | "upi" | "sms" | "phone"
 
 const qrTypes: { id: QRTypeId; label: string; icon: React.ReactNode; desc: string }[] = [
   { id: "url",       label: "URL / Website", icon: <QrCode size={20} />,       desc: "Link to any page or offer" },
   { id: "wifi",      label: "WiFi",          icon: <Wifi size={20} />,          desc: "Connect guests instantly" },
   { id: "whatsapp",  label: "WhatsApp",      icon: <MessageCircle size={20} />, desc: "Open a chat directly" },
   { id: "instagram", label: "Instagram",     icon: <Instagram size={20} />,     desc: "Drive profile follows" },
+  { id: "upi",       label: "UPI Payment",   icon: <IndianRupee size={20} />,   desc: "Get paid by any UPI app" },
   { id: "sms",       label: "SMS",           icon: <MessageSquare size={20} />, desc: "Pre-filled text message" },
   { id: "phone",     label: "Phone",         icon: <Phone size={20} />,         desc: "One tap to call" },
 ]
@@ -158,6 +159,15 @@ function buildQRData(
     }
     case "instagram":
       return `https://instagram.com/${fields.username || ""}`
+    case "upi": {
+      // NPCI's UPI link, read directly by GPay, PhonePe, Paytm, BHIM and bank apps.
+      // The UPI ID goes in as written (its @ unescaped): some UPI apps don't decode %40.
+      const upiId = (fields.upiId || "").trim().replace(/[^a-zA-Z0-9.@_-]/g, "")
+      const amount = (fields.upiAmount || "").trim()
+      const am = /^\d{1,6}(\.\d{1,2})?$/.test(amount) && Number(amount) > 0 ? `&am=${Number(amount).toFixed(2)}` : ""
+      const note = (fields.upiNote || "").trim().slice(0, 50)
+      return `upi://pay?pa=${upiId}&pn=${encodeURIComponent((fields.upiName || "").trim())}${am}&cu=INR${note ? `&tn=${encodeURIComponent(note)}` : ""}`
+    }
     case "sms": {
       const num = (fields.smsPhone || "").replace(/[^+\d]/g, "")
       const body = encodeURIComponent(fields.smsBody || "")
@@ -259,6 +269,13 @@ const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string;
     accent: "link your profile",
     intro: "Enter your Instagram username and get a QR code that opens your profile at instagram.com when scanned. Print it on packaging, menus or signage to turn visitors into followers.",
   },
+  upi: {
+    title: "Free UPI QR Code Generator — Get Paid by Any UPI App",
+    description: "Make a free UPI payment QR code from your UPI ID, with an optional fixed amount. Scans in Google Pay, PhonePe, Paytm and BHIM. PNG download, no account needed.",
+    h1: "Free UPI QR code generator —",
+    accent: "get paid by any UPI app",
+    intro: "Enter your UPI ID and the name payments go to, and optionally a fixed amount and a note. The code holds a standard UPI payment link, so customers scan it in Google Pay, PhonePe, Paytm, BHIM or their bank's app and the details are filled in for them. Check a small test payment before you print.",
+  },
 }
 
 const TYPE_FROM_PATH: Record<string, QRTypeId> = {
@@ -266,6 +283,7 @@ const TYPE_FROM_PATH: Record<string, QRTypeId> = {
   "/generate/wifi": "wifi",
   "/generate/whatsapp": "whatsapp",
   "/generate/instagram": "instagram",
+  "/generate/upi": "upi",
 }
 
 export default function StaticGeneratePage() {
@@ -535,6 +553,52 @@ export default function StaticGeneratePage() {
                       onChange={(e) => setField("username", e.target.value)}
                     />
                   </div>
+                </div>
+              )}
+
+              {activeType === "upi" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="label-text">UPI ID</label>
+                    <Input
+                      placeholder="yourshop@okhdfcbank"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={fields.upiId ?? ""}
+                      onChange={(e) => setField("upiId", e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label-text">Pay to (name shown to the customer)</label>
+                    <Input
+                      placeholder="Blue Cafe"
+                      value={fields.upiName ?? ""}
+                      onChange={(e) => setField("upiName", e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label-text">Amount in ₹ (optional)</label>
+                      <Input
+                        inputMode="decimal"
+                        placeholder="Customer enters it"
+                        value={fields.upiAmount ?? ""}
+                        onChange={(e) => setField("upiAmount", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label-text">Note (optional)</label>
+                      <Input
+                        maxLength={50}
+                        placeholder="Order 123"
+                        value={fields.upiNote ?? ""}
+                        onChange={(e) => setField("upiNote", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-ink-soft leading-relaxed">
+                    The payment details are stored in the code itself, so it can't be changed or tracked after printing. For a code you can edit, with scan counts, use a dynamic UPI code in your GenXQR dashboard.
+                  </p>
                 </div>
               )}
 

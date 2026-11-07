@@ -126,7 +126,7 @@ const FAQ_JSON_LD = [
         "name": "How many QR code types does GenXQR support?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR supports 16 QR content types: URL, PDF, Video, Multi-Link (social page), Social Media, vCard (contact card), Image Gallery, Business Info, App Download, MP3, Restaurant Menu, WiFi, WhatsApp, Instagram, Facebook, and Coupon.",
+          "text": "GenXQR supports 18 QR content types: URL, PDF, Video, Multi-Link (social page), Social Media, vCard (contact card), Image Gallery, Business Info, App Download, MP3, Restaurant Menu, WiFi, WhatsApp, Instagram, Facebook, Coupon, UPI Payment, and Google Review.",
         },
       },
       {
@@ -161,7 +161,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         q: "What is GenXQR?",
-        a: "GenXQR is a QR code platform for Indian businesses. Create static QR codes (free, no account) or dynamic QR codes (editable after printing, with scan analytics). Supports 16 QR types — URL, WiFi, WhatsApp, vCard, PDF, menu, coupon, and more. Plans start at ₹299/month. The free plan lets you create static QR codes with no expiry and no credit card required.",
+        a: "GenXQR is a QR code platform for Indian businesses. Create static QR codes (free, no account) or dynamic QR codes (editable after printing, with scan analytics). Supports 18 QR types — URL, WiFi, WhatsApp, vCard, PDF, menu, coupon, UPI payment, Google review and more. Plans start at ₹299/month. The free plan lets you create static QR codes with no expiry and no credit card required.",
       },
       {
         q: "Is GenXQR free?",
@@ -192,7 +192,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         q: "How many QR types does GenXQR support?",
-        a: "GenXQR supports 16 QR content types: URL, PDF, Video, Multi-Link social page, Social Media, vCard (contact card), Image Gallery, Business Info, App Download, MP3, Restaurant Menu, WiFi, WhatsApp, Instagram, Facebook, and Coupon.",
+        a: "GenXQR supports 18 QR content types: URL, PDF, Video, Multi-Link social page, Social Media, vCard (contact card), Image Gallery, Business Info, App Download, MP3, Restaurant Menu, WiFi, WhatsApp, Instagram, Facebook, Coupon, UPI Payment, and Google Review.",
       },
       {
         q: "How do I create a QR code for a restaurant menu?",

@@ -34,6 +34,7 @@ const footerLinks = {
     { label: "WiFi QR Code", href: "/generate/wifi" },
     { label: "WhatsApp QR Code", href: "/generate/whatsapp" },
     { label: "Instagram QR Code", href: "/generate/instagram" },
+    { label: "UPI QR Code", href: "/generate/upi" },
   ],
 }
 

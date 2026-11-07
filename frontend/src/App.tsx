@@ -199,6 +199,7 @@ export function AppRoutes() {
           <Route path="/generate/wifi" element={<StaticGeneratePage />} />
           <Route path="/generate/whatsapp" element={<StaticGeneratePage />} />
           <Route path="/generate/instagram" element={<StaticGeneratePage />} />
+          <Route path="/generate/upi" element={<StaticGeneratePage />} />
         </Route>
 
         {/* Dashboard Layout */}

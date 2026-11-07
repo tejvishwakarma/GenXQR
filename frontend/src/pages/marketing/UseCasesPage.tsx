@@ -61,7 +61,7 @@ const USE_CASES_JSON_LD = [
       "Dynamic QR codes — editable after printing",
       "Real-time scan analytics by city, device, and OS",
       "Smart routing by country, device, or time of day",
-      "16 QR content types",
+      "18 QR content types",
       "Bulk QR generation from CSV",
       "Password-protected QR codes",
       "Scan limits and scheduled expiry",
@@ -291,7 +291,7 @@ const capabilities: { icon: ComponentType<{ size?: number; className?: string }>
   {
     icon: Layers,
     tint: "amber",
-    title: "16 QR types",
+    title: "18 QR types",
     desc: "URL, WiFi, WhatsApp, vCard, PDF, video, menu, coupon, social media — one tool covers every content type.",
     link: { to: "/features", label: "See all types →" },
   },

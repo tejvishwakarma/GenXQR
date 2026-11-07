@@ -6,6 +6,7 @@ import { env } from "../config/env.js"
 import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { isDestinationBlocked, isOwnerBlocked } from "./blocklist.service.js"
+import { googleReviewUrl } from "../utils/typed-content.util.js"
 import { isOverScanQuota, recordAccountScan } from "./scan-quota.service.js"
 import type { QRCode, QRContent, QRDesign, SmartRoutingRule, ABTestVariant } from "@prisma/client"
 
@@ -95,7 +96,7 @@ type CachedQR = {
 
 // ─── Direct-redirect QR types (no landing page) ────────────────────────────────
 
-const REDIRECT_TYPES = new Set(["WHATSAPP", "INSTAGRAM"])
+const REDIRECT_TYPES = new Set(["WHATSAPP", "INSTAGRAM", "GOOGLE_REVIEW"])
 
 // ─── Cache helpers ─────────────────────────────────────────────────────────────
 
@@ -343,7 +344,7 @@ function normalizeUrl(raw: unknown): string | null {
 /**
  * Builds a direct destination for the content types that have one.
  *
- * NOTE: step 9's REDIRECT_TYPES gate only lets WHATSAPP and INSTAGRAM through, so
+ * NOTE: step 9's REDIRECT_TYPES gate only lets WHATSAPP, INSTAGRAM and GOOGLE_REVIEW through, so
  * a URL or FACEBOOK code normally lands on its landing page instead. The password
  * path has always redirected those two straight to their target, and that
  * behaviour is preserved deliberately rather than quietly changed — see the
@@ -364,6 +365,8 @@ export function buildDestinationFromContent(type: string, content: Record<string
         : null
     case "FACEBOOK":
       return normalizeUrl(content.pageUrl ?? content.url)
+    case "GOOGLE_REVIEW":
+      return googleReviewUrl(content)
     default:
       return null
   }

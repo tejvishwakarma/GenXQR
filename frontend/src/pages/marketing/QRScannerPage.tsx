@@ -1,4 +1,4 @@
-import { Camera, Upload, AlertCircle, CheckCircle2, X, ExternalLink, Copy, FlipHorizontal, Wifi, Phone, Mail, MessageSquare, User, MapPin, Globe, Lock, Eye, EyeOff, Download, FileText } from "lucide-react"
+import { Camera, Upload, AlertCircle, CheckCircle2, X, ExternalLink, Copy, FlipHorizontal, Wifi, Phone, Mail, MessageSquare, User, MapPin, Globe, Lock, Eye, EyeOff, Download, FileText, IndianRupee } from "lucide-react"
 import React, { useRef, useState, useEffect, useCallback } from "react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, MktCard } from "@/components/marketing/ui"
@@ -6,7 +6,7 @@ import { PageHero } from "@/components/marketing/PageHero"
 import {
   decodeImageData, parseQRData,
   type ParsedQR, type ParsedVCard, type ParsedWiFi, type ParsedURL,
-  type ParsedSMS, type ParsedTel, type ParsedEmail, type ParsedWhatsApp, type ParsedText,
+  type ParsedSMS, type ParsedTel, type ParsedEmail, type ParsedWhatsApp, type ParsedText, type ParsedUPI,
 } from "@/lib/qrDecode"
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -184,6 +184,20 @@ function TelView({ data }: { data: ParsedTel }) {
   )
 }
 
+function UPIView({ data }: { data: ParsedUPI }) {
+  return (
+    <div className="space-y-1">
+      <FieldRow icon={<IndianRupee size={14} />} label="UPI ID" value={data.upiId} />
+      {data.name && <FieldRow icon={<User size={14} />} label="Pay to" value={data.name} />}
+      {data.amount && <FieldRow icon={<IndianRupee size={14} />} label="Amount" value={`₹${data.amount}`} />}
+      {data.note && <FieldRow icon={<FileText size={14} />} label="Note" value={data.note} />}
+      <ActionButton className="w-full mt-3" onClick={() => { window.location.href = data.url }}>
+        <IndianRupee size={14} /> Pay with UPI app
+      </ActionButton>
+    </div>
+  )
+}
+
 function EmailView({ data }: { data: ParsedEmail }) {
   const qs = [
     data.subject ? `subject=${encodeURIComponent(data.subject)}` : "",
@@ -243,6 +257,7 @@ const TYPE_CONFIG: Record<ParsedQR["type"], { label: string; icon: React.ReactNo
   tel:      { label: "Phone Number",  icon: <Phone size={18} />,         color: "text-teal-500"    },
   email:    { label: "Email",         icon: <Mail size={18} />,          color: "text-amber-500"   },
   whatsapp: { label: "WhatsApp",      icon: <MessageSquare size={18} />, color: "text-green-500"   },
+  upi:      { label: "UPI Payment",   icon: <IndianRupee size={18} />,   color: "text-emerald-600" },
   text:     { label: "Plain Text",    icon: <FileText size={18} />,      color: "text-ink-faint"   },
 }
 
@@ -281,6 +296,7 @@ function ScanResultModal({ result, onClose, onClear }: { result: ScanResult; onC
         {parsed.type === "tel"      && <TelView   data={parsed} />}
         {parsed.type === "email"    && <EmailView data={parsed} />}
         {parsed.type === "whatsapp" && <WAppView  data={parsed} />}
+        {parsed.type === "upi"      && <UPIView   data={parsed} />}
         {parsed.type === "text"     && <TextView  data={parsed} />}
 
         {/* Footer */}

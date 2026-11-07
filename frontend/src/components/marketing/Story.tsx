@@ -1,6 +1,6 @@
 import {
   Link2, List, Contact, Building2, Smartphone, FileText, Video, Music, Images,
-  UtensilsCrossed, Ticket, Share2, MessageCircle, Wifi, Palette, BarChart3, RefreshCw,
+  UtensilsCrossed, Ticket, Share2, MessageCircle, Wifi, Palette, BarChart3, RefreshCw, IndianRupee, Star,
   Instagram, Facebook,
 } from "lucide-react"
 import { Link } from "react-router-dom"
@@ -83,6 +83,8 @@ const GROUPS = [
       { icon: Building2, label: "Business info" },
       { icon: Smartphone, label: "App download" },
       { icon: Ticket, label: "Coupon" },
+      { icon: IndianRupee, label: "UPI payment", href: "/generate/upi" },
+      { icon: Star, label: "Google review" },
     ],
   },
   {

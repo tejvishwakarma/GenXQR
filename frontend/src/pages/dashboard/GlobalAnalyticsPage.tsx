@@ -30,7 +30,7 @@ const TYPE_EMOJI: Record<string, string> = {
   SOCIAL_MEDIA: "👥", VCARD: "👤", IMAGE_GALLERY: "🖼️",
   BUSINESS: "🏢", APP: "📱", MP3: "🎵", MENU: "🍽️",
   WIFI: "📶", WHATSAPP: "💬", INSTAGRAM: "📸",
-  FACEBOOK: "📘", COUPON: "🏷️",
+  FACEBOOK: "📘", COUPON: "🏷️", UPI: "₹", GOOGLE_REVIEW: "⭐",
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -38,7 +38,7 @@ const TYPE_LABEL: Record<string, string> = {
   SOCIAL_MEDIA: "Social", VCARD: "vCard", IMAGE_GALLERY: "Gallery",
   BUSINESS: "Business", APP: "App", MP3: "Audio", MENU: "Menu",
   WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook", COUPON: "Coupon",
+  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
 }
 
 const DEVICE_COLORS = ["#7c3aed", "#3b82f6", "#f59e0b"]

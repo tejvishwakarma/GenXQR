@@ -193,7 +193,7 @@ data = res.json()`,
     description: "Creates a new QR code. It is assigned a unique slug which is embedded in the scannable URL (https://genxqr.com/r/<slug>). New QR codes are active immediately.",
     bodyParams: [
       { name: "name",     type: "string",  required: true,  desc: "Display name for the QR code (max 200 characters)" },
-      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON" },
+      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW" },
       { name: "content",  type: "object",                   desc: "Type-specific content, wrapped as { data: { … } }. See Content Schemas below." },
       { name: "category", type: "string",                   desc: "DYNAMIC (default) or STATIC" },
       { name: "tags",     type: "string[]",                 desc: "Up to 10 tags, max 50 characters each" },
@@ -1806,6 +1806,8 @@ export default function APIDocsPage() {
                 { type: "INSTAGRAM", schema: `{ "data": { "username": "yourhandle" } }` },
                 { type: "VCARD", schema: `{ "data": { "fullName": "Raj Sharma", "organization": "Acme", "title": "Founder", "phone": "+91...", "email": "raj@..." } }` },
                 { type: "FACEBOOK", schema: `{ "data": { "url": "https://facebook.com/yourpage" } }` },
+                { type: "UPI", schema: `{ "data": { "upiId": "shop@okhdfcbank", "payeeName": "Blue Cafe", "amount": "250.00", "note": "Table 4" } }\n// amount and note optional; a scan opens a payment page` },
+                { type: "GOOGLE_REVIEW", schema: `{ "data": { "reviewUrl": "https://g.page/r/.../review" } }\n// or { "placeId": "ChIJ..." }; a scan redirects to Google's review form` },
               ].map((item) => (
                 <div key={item.type} className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">
                   <div className="px-4 py-2.5 bg-zinc-900/50 border-b border-zinc-800">

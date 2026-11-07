@@ -99,7 +99,8 @@ export interface ParsedTel    { type: "tel";      phone: string }
 export interface ParsedEmail  { type: "email";    address: string; subject?: string; body?: string }
 export interface ParsedWhatsApp { type: "whatsapp"; phone: string; message?: string; url: string }
 export interface ParsedText  { type: "text";     text: string }
-export type ParsedQR = ParsedVCard | ParsedWiFi | ParsedURL | ParsedSMS | ParsedTel | ParsedEmail | ParsedWhatsApp | ParsedText
+export interface ParsedUPI   { type: "upi";      upiId: string; name?: string; amount?: string; note?: string; url: string }
+export type ParsedQR = ParsedVCard | ParsedWiFi | ParsedURL | ParsedSMS | ParsedTel | ParsedEmail | ParsedWhatsApp | ParsedUPI | ParsedText
 
 function parseVCard(raw: string): ParsedVCard {
   const field = (re: RegExp) => { const m = re.exec(raw); return m ? m[1].trim() : undefined }
@@ -169,6 +170,12 @@ export function parseQRData(text: string): ParsedQR {
   if (/^(sms:|smsto:)/i.test(t)) return parseSMS(t)
   if (/^tel:/i.test(t))          return { type: "tel", phone: t.replace(/^tel:/i, "").trim() }
   if (/^mailto:/i.test(t))       return parseMailto(t)
+  if (/^upi:\/\/pay\?/i.test(t)) {
+    // NPCI's UPI payment link: pa = UPI ID, pn = name, am = amount, tn = note.
+    const q = new URLSearchParams(t.slice(t.indexOf("?") + 1))
+    const upiId = q.get("pa")
+    if (upiId) return { type: "upi", upiId, name: q.get("pn") ?? undefined, amount: q.get("am") ?? undefined, note: q.get("tn") ?? undefined, url: t }
+  }
   if (/^https?:\/\/wa\.me\//i.test(t)) {
     try {
       const u = new URL(t)

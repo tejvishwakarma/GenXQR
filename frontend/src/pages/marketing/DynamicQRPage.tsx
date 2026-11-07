@@ -743,7 +743,7 @@ export default function DynamicQRPage() {
                 <Link to="/features" className="text-accent hover:text-accent-ink underline underline-offset-2">
                   dynamic QR codes
                 </Link>,{" "}
-                scan analytics, all 16 QR types, and no ads.
+                scan analytics, all 18 QR types, and no ads.
                 Pay with UPI, net banking, or card.
               </>
             }

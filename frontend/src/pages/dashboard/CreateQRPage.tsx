@@ -7,7 +7,7 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, FileText, Video, Globe,
   Users, Image, Building2, Smartphone, Music, List, Facebook, Tag,
   ChevronRight, ChevronLeft, ChevronDown, Check, Palette, ArrowLeft,
-  Upload, Loader2, X, Clock, ScanLine,
+  Upload, Loader2, X, Clock, ScanLine, IndianRupee, Star,
 } from "lucide-react"
 import * as Tabs from "@radix-ui/react-tabs"
 import * as SelectPrimitive from "@radix-ui/react-select"
@@ -49,6 +49,8 @@ const qrTypes = [
   { id: "instagram",label: "Instagram",       icon: <Instagram size={22} />,    desc: "Link to Instagram profile",            category: "basic" },
   { id: "facebook", label: "Facebook",        icon: <Facebook size={22} />,     desc: "Facebook page or profile",             category: "page"  },
   { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupon with code and expiry",  category: "page"  },
+  { id: "upi",      label: "UPI Payment",     icon: <IndianRupee size={22} />,  desc: "Payment page for any UPI app",         category: "page"  },
+  { id: "review",   label: "Google Review",   icon: <Star size={22} />,         desc: "Straight to your Google review form",  category: "basic" },
 ]
 
 const DOT_STYLES: { value: DotType; label: string }[] = [
@@ -162,7 +164,7 @@ const TYPE_MAP: Record<string, string> = {
   social: "SOCIAL_MEDIA", vcard: "VCARD", gallery: "IMAGE_GALLERY",
   business: "BUSINESS", app: "APP", mp3: "MP3", menu: "MENU",
   wifi: "WIFI", whatsapp: "WHATSAPP", instagram: "INSTAGRAM",
-  facebook: "FACEBOOK", coupon: "COUPON",
+  facebook: "FACEBOOK", coupon: "COUPON", upi: "UPI", review: "GOOGLE_REVIEW",
 }
 
 const FILE_TYPES = new Set(["pdf", "video", "mp3", "gallery"])
@@ -307,6 +309,16 @@ function populateFormFromQR(
     case "whatsapp":  v.phone = String(d.phone ?? ""); v.message = String(d.message ?? ""); break
     case "instagram": v.instagram_username = String(d.username ?? ""); break
     case "facebook":  v.facebook_url = String(d.url ?? ""); break
+    case "upi":
+      v.upi_id = String(d.upiId ?? "")
+      v.upi_name = String(d.payeeName ?? "")
+      v.upi_amount = String(d.amount ?? "")
+      v.upi_note = String(d.note ?? "")
+      break
+    case "review":
+      v.review_link = String(d.reviewUrl ?? d.placeId ?? "")
+      v.review_business = String(d.businessName ?? "")
+      break
     case "vcard":
       v.first_name = String(d.firstName ?? "")
       v.last_name = String(d.lastName ?? "")
@@ -436,6 +448,8 @@ interface FormValues {
   restaurant_name: string; section_name: string; item_name: string; item_price: string
   coupon_title: string; coupon_discount: string; coupon_code: string
   coupon_valid_until: string; coupon_terms: string
+  upi_id: string; upi_name: string; upi_amount: string; upi_note: string
+  review_link: string; review_business: string
   link_title_1: string; link_url_1: string
   link_title_2: string; link_url_2: string
   link_title_3: string; link_url_3: string
@@ -454,6 +468,8 @@ const DEFAULT_VALUES: FormValues = {
   restaurant_name: "", section_name: "", item_name: "", item_price: "",
   coupon_title: "", coupon_discount: "", coupon_code: "",
   coupon_valid_until: "", coupon_terms: "",
+  upi_id: "", upi_name: "", upi_amount: "", upi_note: "",
+  review_link: "", review_business: "",
   link_title_1: "", link_url_1: "", link_title_2: "", link_url_2: "",
   link_title_3: "", link_url_3: "",
 }
@@ -477,6 +493,13 @@ function buildContent(type: string, v: FormValues, files: UploadedFileInfo[], ex
     case "whatsapp":  return { phone: v.phone, message: v.message }
     case "instagram": return { username: v.instagram_username }
     case "facebook":  return { url: ensureHttps(v.facebook_url) }
+    case "upi":       return { upiId: v.upi_id, payeeName: v.upi_name, amount: v.upi_amount, note: v.upi_note }
+    case "review": {
+      // A review link, or a bare Place ID (ChIJ…); the server checks either.
+      const link = v.review_link.trim()
+      const where = /^https?:\/\/|^[a-z0-9-]+\.[a-z]/i.test(link) ? { reviewUrl: ensureHttps(link) } : { placeId: link }
+      return { ...where, businessName: v.review_business }
+    }
     case "vcard":     return buildVCardContent(
       vcardData,
       vcardData.firstName,
@@ -721,6 +744,11 @@ export default function CreateQRPage() {
         setStep(1)
         break
       }
+      case "upi":
+        setSelectedType("upi")
+        reset({ ...DEFAULT_VALUES, upi_id: parsed.upiId, upi_name: parsed.name ?? "", upi_amount: parsed.amount ?? "", upi_note: parsed.note ?? "" })
+        setStep(1)
+        break
       default: {
         // sms, tel, email, plain text — no matching GenXQR QR type to auto-fill
         // into yet. Surface what was decoded so the user can copy it manually.
@@ -1355,6 +1383,53 @@ export default function CreateQRPage() {
                       <label className="label-text">Facebook Page or Profile URL</label>
                       <Input {...register("facebook_url")} placeholder="https://facebook.com/yourpage" />
                     </div>
+                  )}
+
+                  {/* UPI payment */}
+                  {selectedType === "upi" && (
+                    <>
+                      <div>
+                        <label className="label-text">UPI ID</label>
+                        <Input {...register("upi_id")} placeholder="yourshop@okhdfcbank" autoCapitalize="none" spellCheck={false} />
+                      </div>
+                      <div>
+                        <label className="label-text">Pay To (name shown to the customer)</label>
+                        <Input {...register("upi_name")} placeholder="Blue Cafe" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label-text">Amount in ₹ (optional)</label>
+                          <Input {...register("upi_amount")} inputMode="decimal" placeholder="Customer enters it" />
+                        </div>
+                        <div>
+                          <label className="label-text">Note (optional)</label>
+                          <Input {...register("upi_note")} maxLength={50} placeholder="Table 4" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-zinc-500 leading-relaxed">
+                        People scan this code with their phone camera. It opens a payment page with a Pay button for their UPI app, and you can change the UPI ID or amount at any time.
+                        UPI apps' own scanners (GPay, PhonePe, Paytm) only read codes that hold the payment details directly. For one of those, use the free{" "}
+                        <Link to="/generate/upi" target="_blank" className="text-violet-500 hover:underline">UPI QR generator</Link> (no tracking, can't be edited).
+                      </p>
+                    </>
+                  )}
+
+                  {/* Google review */}
+                  {selectedType === "review" && (
+                    <>
+                      <div>
+                        <label className="label-text">Google Review Link or Place ID</label>
+                        <Input {...register("review_link")} placeholder="https://g.page/r/…/review" autoCapitalize="none" spellCheck={false} />
+                        <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
+                          In your Google Business Profile, choose <strong>Ask for reviews</strong> (or <strong>Get more reviews</strong>) and copy the link. Or paste your Place ID from Google's{" "}
+                          <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noreferrer" className="text-violet-500 hover:underline">Place ID finder</a>.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="label-text">Business Name (optional, for your records)</label>
+                        <Input {...register("review_business")} placeholder="Blue Cafe" />
+                      </div>
+                    </>
                   )}
 
                   {/* vCard */}

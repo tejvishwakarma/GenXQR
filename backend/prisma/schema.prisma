@@ -970,6 +970,8 @@ enum QRType {
   INSTAGRAM
   FACEBOOK
   COUPON
+  UPI
+  GOOGLE_REVIEW
 }
 
 enum QRCategory {
