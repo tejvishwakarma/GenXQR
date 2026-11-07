@@ -1,5 +1,6 @@
 import { useState } from "react"
 import type { PublicQRFile } from "@/lib/api"
+import { copyText } from "@/lib/clipboard"
 
 interface Props {
   name: string
@@ -18,9 +19,11 @@ export default function WiFiLandingPage({ content }: Props) {
   const [copied, setCopied] = useState<"ssid" | "password" | null>(null)
 
   const copy = (text: string, field: "ssid" | "password") => {
-    void navigator.clipboard.writeText(text)
-    setCopied(field)
-    setTimeout(() => setCopied(null), 2000)
+    void copyText(text).then((ok) => {
+      if (!ok) return
+      setCopied(field)
+      setTimeout(() => setCopied(null), 2000)
+    })
   }
 
   return (

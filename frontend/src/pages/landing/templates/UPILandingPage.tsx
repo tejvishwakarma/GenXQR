@@ -1,5 +1,6 @@
 import { useState } from "react"
 import type { PublicQRFile } from "@/lib/api"
+import { copyText } from "@/lib/clipboard"
 
 interface Props {
   name: string
@@ -19,16 +20,17 @@ export default function UPILandingPage({ content }: Props) {
   const payeeName = typeof content.payeeName === "string" ? content.payeeName : ""
   const amount = typeof content.amount === "string" ? content.amount : ""
   const note = typeof content.note === "string" ? content.note : ""
-  const [copied, setCopied] = useState(false)
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle")
 
   // The UPI ID goes in as written (its @ unescaped): some UPI apps don't decode %40.
   const payLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}`
     + (amount ? `&am=${amount}` : "") + "&cu=INR" + (note ? `&tn=${encodeURIComponent(note)}` : "")
 
-  const copy = () => {
-    void navigator.clipboard.writeText(upiId)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copyId = () => {
+    void copyText(upiId).then((ok) => {
+      setCopy(ok ? "copied" : "failed")
+      if (ok) setTimeout(() => setCopy("idle"), 2000)
+    })
   }
 
   return (
@@ -48,14 +50,19 @@ export default function UPILandingPage({ content }: Props) {
           <div className="p-5 border-b border-gray-100">
             <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">UPI ID</p>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-base font-bold text-gray-900 break-all">{upiId}</p>
+              <p className="text-base font-bold text-gray-900 break-all select-all">{upiId}</p>
               <button
-                onClick={copy}
+                type="button"
+                onClick={copyId}
+                aria-live="polite"
                 className="shrink-0 px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-xs font-medium text-gray-600"
               >
-                {copied ? "Copied" : "Copy"}
+                {copy === "copied" ? "Copied" : "Copy"}
               </button>
             </div>
+            {copy === "failed" && (
+              <p className="text-xs text-amber-600 mt-2">This browser blocked copying. Press and hold the UPI ID to copy it.</p>
+            )}
           </div>
           <div className="p-5">
             <a
