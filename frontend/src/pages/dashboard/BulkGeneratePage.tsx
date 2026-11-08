@@ -116,7 +116,7 @@ export default function BulkGeneratePage() {
                     Download template →
                   </a>
                 </div>
-                <code className="text-violet-300 text-xs font-mono block break-all">name,url,tag,description,place,location_id<br />Diwali - MCC Metro,https://example.com,diwali,,Millennium City Centre Metro,DEL-MCC-01</code>
+                <code className="text-violet-300 text-xs font-mono block break-all">name,url,tag,description,place,location_id,folder<br />Diwali - MCC Metro,https://example.com,diwali,,Millennium City Centre Metro,DEL-MCC-01,Diwali 2026</code>
               </div>
 
               {uploadMut.error && (
@@ -258,6 +258,9 @@ export default function BulkGeneratePage() {
                   <code>place</code> and/or <code>location_id</code> put each code at a <Link to="/app/places" className="text-violet-400 hover:text-violet-300">place</Link> — matched to one you have
                   (location ID first, then name), or added. <code>place_city</code> and <code>place_address</code> fill in a new place. One row per place = one code per place.
                 </span>
+              </li>
+              <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5">•</span>
+                <span><code>folder</code> files each code in a folder by name — one you have, or a new one</span>
               </li>
             </ul>
           </Card>

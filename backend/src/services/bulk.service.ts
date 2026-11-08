@@ -11,6 +11,7 @@ import { logger } from "../logger/index.js"
 import { scanUrlFor } from "./custom-domain.service.js"
 import { csvCell } from "../utils/csv-cell.util.js"
 import { placeResolver } from "./place.service.js"
+import { folderResolver } from "./folder.service.js"
 
 // Max rows allowed per plan
 const BULK_LIMITS: Record<string, number> = {
@@ -34,6 +35,8 @@ interface CsvRow {
   locationId?: string
   placeCity?: string
   placeAddress?: string
+  /** Folder name (folder.service.ts): matched ignoring case, else created. */
+  folder?: string
 }
 
 interface BulkResult {
@@ -50,11 +53,11 @@ interface BulkResult {
  * Download a sample CSV template as a stream.
  */
 export function streamCsvTemplate(res: Response): void {
-  const header = "name,url,tag,description,place,location_id,place_city,place_address\n"
+  const header = "name,url,tag,description,place,location_id,place_city,place_address,folder\n"
   const sample = [
-    "Diwali Offer - MCC Metro,https://example.com/diwali,diwali,Poster at exit 2,Millennium City Centre Metro,DEL-MCC-01,Gurugram,Exit 2",
-    "Diwali Offer - Cyber Hub,https://example.com/diwali,diwali,,Cyber Hub,DEL-CH-01,Gurugram,",
-    "Office WiFi,https://wifi.example.com/office,internal,,,,,",
+    "Diwali Offer - MCC Metro,https://example.com/diwali,diwali,Poster at exit 2,Millennium City Centre Metro,DEL-MCC-01,Gurugram,Exit 2,Diwali 2026",
+    "Diwali Offer - Cyber Hub,https://example.com/diwali,diwali,,Cyber Hub,DEL-CH-01,Gurugram,,Diwali 2026",
+    "Office WiFi,https://wifi.example.com/office,internal,,,,,,",
   ].join("\n")
 
   res.setHeader("Content-Type", "text/csv")
@@ -96,6 +99,7 @@ function parseBulkCsv(buffer: Buffer): CsvRow[] {
     locationId: (r["location_id"] ?? "").trim() || undefined,
     placeCity: (r["place_city"] ?? "").trim() || undefined,
     placeAddress: (r["place_address"] ?? "").trim() || undefined,
+    folder: (r["folder"] ?? "").trim() || undefined,
   }))
 }
 
@@ -147,6 +151,7 @@ export async function processBulkCsv(
   let failed = 0
   // A row's place is matched by location ID or name, or created (place.service).
   const resolvePlace = placeResolver(userId)
+  const resolveFolder = folderResolver(userId)
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!
@@ -190,11 +195,21 @@ export async function processBulkCsv(
       continue
     }
 
+    let folderId: string | null
+    try {
+      folderId = await resolveFolder(row.folder)
+    } catch (err) {
+      results.push({ row: rowNum, name: row.name, url: row.url, status: "error", error: err instanceof AppError ? `Folder: ${err.message}` : "Could not save the folder" })
+      failed++
+      continue
+    }
+
     try {
       const qr = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
         data: {
           userId,
           placeId,
+          folderId,
           name: row.name.trim().slice(0, 200),
           type: "URL",
           category: "DYNAMIC",
