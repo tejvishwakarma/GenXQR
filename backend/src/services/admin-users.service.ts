@@ -11,7 +11,7 @@ import { signAccessToken } from "../utils/jwt.js"
 import { hashPassword } from "../utils/password.js"
 import { getUserPlanLimits } from "./billing.service.js"
 import { clearTwoFactor } from "./two-factor.service.js"
-import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail } from "./email.service.js"
+import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail, sendSecurityNotice } from "./email.service.js"
 import { env } from "../config/env.js"
 
 type AdminRole = "USER" | "ADMIN" | "SUPER_ADMIN"
@@ -408,6 +408,7 @@ export async function resetTwoFactor(callerRole: AdminRole, callerId: string, ta
   if (target.role !== "USER" && target.id !== callerId) throw new AppError(403, "An admin's two-factor sign-in can only be reset by themselves")
   if (!target.twoFactorEnabledAt) return { message: "Two-factor sign-in is not on" }
   await clearTwoFactor(targetId)
+  void sendSecurityNotice(targetId, { kind: "2fa_reset_by_support" })
   await prisma.auditLog.create({
     data: { userId: callerId, action: "admin.user.reset_2fa", category: "admin", entityId: targetId, entityType: "User", metadata: { targetEmail: target.email } },
   })

@@ -637,6 +637,8 @@ Standalone tables:
 - The secret is AES-256-GCM encrypted with a key HKDF-derived from `JWT_ACCESS_SECRET`. **Rotating
   JWT_ACCESS_SECRET makes every stored secret unreadable** — those users must sign in with a recovery code (or a
   SUPER_ADMIN resets their two-factor), so plan for that before rotating it.
+- The owner is emailed (`sendSecurityNotice`, email.service) when two-factor is turned on/off, recovery codes are remade,
+  support resets it, or an AI app is connected (OAuth consent) — fire-and-forget, the app name escaped (anyone can register one).
 - Turning it off needs a code AND the password (when the account has one). Settings actions are rate-limited
   per IP (`twoFactorLimiter`) and per account (10 wrong codes / 15 min). Covered by `tests/integration/two-factor.test.ts`
   (RFC test vectors; the login and replay guards break-tested). Migration `20261107120000_two_factor`.
@@ -937,7 +939,8 @@ writes `utm_*` on the URL itself, so the URL stays the one source of truth (noth
 **Folders** (built 7 Nov 2026, `services/folder.service.ts`, `components/folders/`). One level per workspace owner,
 a code in at most one, names unique ignoring case; organisation only (no effect on scans). My QR Codes has the
 folder strip, `?folder=` and "Move to folder"; the editor has a folder picker (a new code starts in `?folder=`).
-Moves and folder deletes raise `qr.updated`. Covered by `tests/integration/folders.test.ts`. Migration `20261107110000_folders`.
+Moves and folder deletes raise `qr.updated`. Bulk CSV has a `folder` column (by name, created if missing — `folderResolver`).
+Covered by `tests/integration/folders.test.ts`. Migration `20261107110000_folders`.
 
 **Places** (built 4 Nov 2026, `services/place.service.ts`, `/app/places`). Where a code is printed — "Millennium
 City Centre Metro", location ID `DEL-MCC-01`, city/address/map pin. Decided with the user: a saved list per workspace

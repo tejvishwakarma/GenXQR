@@ -427,6 +427,91 @@ export async function sendPasswordChangedEmail(to: string, name: string): Promis
   })
 }
 
+// ─── Security notices ─────────────────────────────────────────────────────────
+
+/**
+ * Changes to how an account signs in or who can act for it. Sent whoever made
+ * the change, so a person whose account was taken over hears about it.
+ */
+export type SecurityNotice =
+  | { kind: "2fa_on" }
+  | { kind: "2fa_off" }
+  | { kind: "2fa_reset_by_support" }
+  | { kind: "recovery_codes" }
+  | { kind: "ai_app_connected"; app: string }
+
+const SECURITY_COPY: Record<SecurityNotice["kind"], { subject: string; title: string; body: string; ifNotYou: string }> = {
+  "2fa_on": {
+    subject: "Two-factor sign-in is on — GenXQR",
+    title: "Two-factor sign-in is on",
+    body: "From now on, signing in to GenXQR with your password or Google also needs a code from your authenticator app. Keep your recovery codes somewhere safe — they are how you get in if you lose your phone.",
+    ifNotYou: "your account may be compromised. Reset your password with \"Forgot password\" on the sign-in page, then contact us at support@genxqr.com.",
+  },
+  "2fa_off": {
+    subject: "Two-factor sign-in was turned off — GenXQR",
+    title: "Two-factor sign-in was turned off",
+    body: "Signing in to GenXQR no longer asks for a code from your authenticator app.",
+    ifNotYou: "your account may be compromised. Reset your password with \"Forgot password\" on the sign-in page, turn two-factor sign-in back on in Settings, and contact us at support@genxqr.com.",
+  },
+  "2fa_reset_by_support": {
+    subject: "Two-factor sign-in was turned off by GenXQR support",
+    title: "Support turned off your two-factor sign-in",
+    body: "GenXQR support turned off two-factor sign-in on your account, usually because the phone and recovery codes were lost. You can turn it on again in Settings.",
+    ifNotYou: "and you did not ask support for this, reset your password with \"Forgot password\" on the sign-in page and reply to support@genxqr.com straight away.",
+  },
+  recovery_codes: {
+    subject: "New two-factor recovery codes — GenXQR",
+    title: "New recovery codes were made",
+    body: "A new set of two-factor recovery codes was made for your GenXQR account. The old codes no longer work.",
+    ifNotYou: "your account may be compromised. Reset your password with \"Forgot password\" on the sign-in page and contact us at support@genxqr.com.",
+  },
+  ai_app_connected: {
+    subject: "An AI app was connected to your GenXQR account",
+    title: "An AI app was connected",
+    body: "",
+    ifNotYou: "disconnect it in the dashboard under API Keys → Connected AI apps, change your password, and contact us at support@genxqr.com.",
+  },
+}
+
+export function buildSecurityNoticeEmail(name: string, notice: SecurityNotice): string {
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+  const copy = SECURITY_COPY[notice.kind]
+  const body = notice.kind === "ai_app_connected"
+    ? `<strong>${escapeHtml(notice.app)}</strong> can now see your QR codes, places, folders and scan analytics, and create, edit and delete QR codes on your account.`
+    : escapeHtml(copy.body)
+  const inner = `
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;letter-spacing:-0.4px;line-height:1.35;font-family:${font}">
+      ${escapeHtml(copy.title)}
+    </h1>
+    <p style="margin:0 0 8px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:${font}">Hi ${escapeHtml(name)},</p>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:${font}">${body}</p>
+    <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin-bottom:24px">
+      <tr>
+        <td style="padding:14px 16px;background:#fef2f2;border-left:3px solid #ef4444;border-radius:6px">
+          <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.65;font-family:${font}">
+            <strong>If this wasn't you</strong>, ${escapeHtml(copy.ifNotYou)}
+          </p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:${font}">
+      We never ask for your password or codes by email, and this message contains no link to sign in with.
+    </p>`
+  return buildEmailShell(copy.subject, inner)
+}
+
+/** Fire-and-forget from the caller: a mail outage must not undo or fail the change. */
+export async function sendSecurityNotice(userId: string, notice: SecurityNotice): Promise<void> {
+  try {
+    const { prisma } = await import("../db/prisma.js")
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } })
+    if (!user) return
+    await sendEmail({ to: user.email, subject: SECURITY_COPY[notice.kind].subject, html: buildSecurityNoticeEmail(user.name, notice) })
+  } catch (err) {
+    logger.warn("Security notice email failed", { userId, kind: notice.kind, error: err instanceof Error ? err.message : String(err) })
+  }
+}
+
 // ─── Renewal reminder emails ──────────────────────────────────────────────────
 
 /**

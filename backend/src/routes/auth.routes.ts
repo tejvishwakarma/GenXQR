@@ -21,6 +21,7 @@ import {
   twoFactorLimiter,
 } from "../middleware/rateLimit.middleware.js"
 import * as TwoFactor from "../services/two-factor.service.js"
+import { sendSecurityNotice } from "../services/email.service.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
 import * as AuthService from "../services/auth.service.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
@@ -836,6 +837,7 @@ router.post("/2fa/enable", requireAuth, forbidWhileImpersonating, twoFactorLimit
     const { code } = TwoFactor.codeSchema.parse(req.body)
     const result = await TwoFactor.confirmSetup(me(req), code)
     audit2fa(req, "auth.2fa.enable")
+    void sendSecurityNotice(me(req), { kind: "2fa_on" })
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)
@@ -847,6 +849,7 @@ router.post("/2fa/disable", requireAuth, forbidWhileImpersonating, twoFactorLimi
   try {
     await TwoFactor.disable(me(req), TwoFactor.disableSchema.parse(req.body))
     audit2fa(req, "auth.2fa.disable")
+    void sendSecurityNotice(me(req), { kind: "2fa_off" })
     res.json({ success: true })
   } catch (err) {
     next(err)
@@ -859,6 +862,7 @@ router.post("/2fa/recovery-codes", requireAuth, forbidWhileImpersonating, twoFac
     const { code } = TwoFactor.codeSchema.parse(req.body)
     const result = await TwoFactor.regenerateRecoveryCodes(me(req), code)
     audit2fa(req, "auth.2fa.recovery_codes")
+    void sendSecurityNotice(me(req), { kind: "recovery_codes" })
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

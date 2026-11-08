@@ -6,6 +6,7 @@ import { forbidWhileImpersonating } from "../middleware/impersonation.middleware
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
 import { logAudit } from "../services/audit.service.js"
+import { sendSecurityNotice } from "../services/email.service.js"
 import * as OAuth from "../services/oauth.service.js"
 
 /**
@@ -34,6 +35,7 @@ router.post("/requests/:id", forbidWhileImpersonating, async (req: Request, res:
     const result = await OAuth.answerRequest(user, String(req.params["id"]), approve)
     if (approve) {
       logAudit({ userId: user.id, action: "oauth.connect", category: "auth", entityType: "OAuthClient", metadata: { app: result.clientName }, ip: req.ip, userAgent: req.headers["user-agent"] })
+      void sendSecurityNotice(user.id, { kind: "ai_app_connected", app: result.clientName })
     }
     res.json({ success: true, data: { redirect: result.redirect } })
   } catch (err) {

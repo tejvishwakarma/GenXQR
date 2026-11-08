@@ -98,3 +98,23 @@ export async function moveCodesToFolder(ownerId: string, input: z.infer<typeof m
   if (ids.length) await prisma.qRCode.updateMany({ where: { id: { in: ids } }, data: { folderId: folderId ?? null } })
   return ids
 }
+
+/**
+ * For bulk upload: a row's folder by name (ignoring case), created if the
+ * account has none of that name. Cached per batch, so 500 rows into one folder
+ * make one lookup.
+ */
+export function folderResolver(ownerId: string) {
+  const cache = new Map<string, string>()
+  return async (rawName: string | undefined): Promise<string | null> => {
+    const name = rawName?.trim().slice(0, 80) ?? ""
+    if (!name) return null
+    const key = name.toLowerCase()
+    const hit = cache.get(key)
+    if (hit) return hit
+    const found = await prisma.folder.findFirst({ where: { userId: ownerId, name: { equals: name, mode: "insensitive" } }, select: { id: true } })
+    const id = found?.id ?? (await createFolder(ownerId, { name })).id
+    cache.set(key, id)
+    return id
+  }
+}

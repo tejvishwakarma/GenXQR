@@ -101,6 +101,27 @@ describe("folders", () => {
     expect((await prisma.folder.findUnique({ where: { id: folder.id } }))?.name).toBe("Private")
   })
 
+  it("should file bulk CSV rows into folders by name, creating them once", async () => {
+    const user = await proUser()
+    const existing = await addFolder(user, "Menus")
+    const csv = [
+      "name,url,folder",
+      "A,https://example.com/a,menus",
+      "B,https://example.com/b,Diwali 2026",
+      "C,https://example.com/c,DIWALI 2026",
+      "D,https://example.com/d,",
+    ].join("\n")
+    const res = await request(app).post("/api/bulk/csv").set(as(user)).attach("file", Buffer.from(csv), "codes.csv")
+    expect(res.status, JSON.stringify(res.body)).toBe(201)
+    const codes = await prisma.qRCode.findMany({ where: { userId: user.id }, select: { name: true, folder: { select: { id: true, name: true } } } })
+    const folderOf = Object.fromEntries(codes.map((c) => [c.name, c.folder]))
+    expect(folderOf["A"]?.id).toBe(existing.id)
+    expect(folderOf["B"]?.name).toBe("Diwali 2026")
+    expect(folderOf["C"]?.id).toBe(folderOf["B"]?.id)
+    expect(folderOf["D"]).toBeNull()
+    expect(await prisma.folder.count({ where: { userId: user.id } })).toBe(2)
+  })
+
   it("should list folders on /v1 and accept folderId there", async () => {
     const user = await proUser()
     const folder = await addFolder(user, "API")
