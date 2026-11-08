@@ -1,3 +1,4 @@
+import { ConnectedApps } from "@/components/dashboard/ConnectedApps"
 import { IntegrationsGuide } from "@/components/dashboard/IntegrationsGuide"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -599,6 +600,8 @@ export default function APIKeysPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ConnectedApps />
     </div>
   )
 }

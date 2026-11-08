@@ -15,12 +15,14 @@ export interface ApiCaller {
   userAgent?: string
   /** Where it came from, for the activity log: "api" (REST) or "mcp". */
   via: "api" | "mcp"
+  /** The AI app, when MCP was reached with an OAuth token instead of a key. */
+  oauthClientId?: string | null
 }
 
 function audit(c: ApiCaller, action: string, entityId: string, metadata: Record<string, unknown> = {}): void {
   logAudit({
     userId: c.userId, action, category: "qr", entityId, entityType: "QRCode",
-    metadata: { ...metadata, via: c.via, apiKeyId: c.apiKeyId }, ip: c.ip, userAgent: c.userAgent,
+    metadata: { ...metadata, via: c.via, apiKeyId: c.apiKeyId, ...(c.oauthClientId && { oauthClientId: c.oauthClientId }) }, ip: c.ip, userAgent: c.userAgent,
   })
 }
 

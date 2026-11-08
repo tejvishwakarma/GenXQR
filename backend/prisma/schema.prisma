@@ -93,6 +93,7 @@ model User {
   places                  Place[]
   folders                 Folder[]
   designTemplates         DesignTemplate[]
+  oauthTokens             OAuthToken[]
   ssoConnection           SsoConnection?
   /// Clients this account manages (Agency plan).
   agencyClients           AgencyClient[]           @relation("AgencyClients")
@@ -263,6 +264,48 @@ model Place {
   @@unique([userId, name])
   @@unique([userId, code])
   @@map("places")
+}
+
+/// An app registered for "Sign in with GenXQR" to the MCP server (OAuth 2.1
+/// dynamic client registration, oauth.service.ts). Anyone may register one:
+/// nothing is trusted about a client — a person approves each connection.
+model OAuthClient {
+  id              String       @id
+  /// As issued at registration (the SDK compares it directly); worthless
+  /// without a user's approval and the PKCE verifier.
+  secret          String?
+  secretExpiresAt Int?
+  /// The registered client metadata: client_name, redirect_uris, …
+  metadata        Json
+  createdAt       DateTime     @default(now())
+  tokens          OAuthToken[]
+
+  @@map("oauth_clients")
+}
+
+/// A connection a user approved: one access + refresh token pair; refreshing
+/// rotates it into a new row of the same grant. Tokens are stored hashed.
+model OAuthToken {
+  id               String      @id @default(cuid())
+  grantId          String
+  clientId         String
+  userId           String
+  accessHash       String      @unique
+  refreshHash      String?     @unique
+  scopes           String[]
+  resource         String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  rotatedAt        DateTime?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  client           OAuthClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([grantId])
+  @@map("oauth_tokens")
 }
 
 /// One answer to a FORM code's form, sent from its scan page (built 8 Nov 2026).

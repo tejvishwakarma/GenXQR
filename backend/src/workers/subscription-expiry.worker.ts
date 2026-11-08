@@ -7,6 +7,7 @@ import { sweepPendingUploads } from "../services/uploads.service.js"
 import { refreshGeoDatabase } from "../services/geo.service.js"
 import { fillMissingUserLocations } from "../services/user-location.service.js"
 import { purgeExpiredAuditLogs } from "../services/audit.service.js"
+import { sweepOAuth } from "../services/oauth.service.js"
 import { reconcileRefunds } from "../services/refund.service.js"
 import { refreshPendingDomains } from "../services/custom-domain.service.js"
 import { syncAgencyClients } from "../services/agency.service.js"
@@ -70,6 +71,9 @@ async function processExpiryJob(_job: Job): Promise<void> {
     logger.error("Checking pending custom domains failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Uploads never attached within a day are deleted, so they cannot pile up.
+  await sweepOAuth().catch((err) =>
+    logger.error("OAuth housekeeping failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
   await sweepPendingUploads().catch((err) =>
     logger.error("Sweeping unattached uploads failed", { error: err instanceof Error ? err.message : String(err) }),
   )

@@ -1465,9 +1465,17 @@ function IntegrationsSection() {
         <h2 className="text-ink font-display font-bold text-2xl mb-4">AI assistants (MCP)</h2>
         <p className="text-ink-soft text-sm leading-relaxed mb-4">
           GenXQR is an MCP server (Model Context Protocol), so AI assistants such as Claude, Cursor and other MCP clients can manage your codes in plain language — &ldquo;make a QR code for our Diwali menu and put it in the Diwali folder&rdquo;, &ldquo;which of my codes got the most scans this week?&rdquo;.
-          It uses an API key like the rest of this API (Pro plan or higher), and counts against the same rate limit and monthly quota.
+          It needs API access (Pro plan or higher) and counts against the same rate limit and monthly quota as the rest of this API.
+          Apps that sign in (claude.ai, ChatGPT) need no API key; the others use one.
         </p>
-        <p className="text-ink font-semibold text-sm mb-2">Server URL</p>
+        <p className="text-ink font-semibold text-sm mb-2">claude.ai, Claude Desktop and ChatGPT — sign in, no key</p>
+        <ol className="list-decimal pl-5 space-y-1 text-ink-soft text-sm mb-6">
+          <li>Claude: Settings → Connectors → Add custom connector. ChatGPT: add a custom connector (in developer mode, on plans where ChatGPT offers it).</li>
+          <li>Name it GenXQR and enter the URL <code className="text-accent bg-accent-soft px-1 rounded">https://genxqr.com/v1/mcp</code>. Leave any client ID and secret fields empty.</li>
+          <li>Connect: you are sent to GenXQR, sign in if needed, and choose Allow. The app then works with your codes.</li>
+          <li>To disconnect, use API Keys → Connected AI apps in the dashboard (or remove the connector in the app).</li>
+        </ol>
+        <p className="text-ink font-semibold text-sm mb-2">Clients that take a server URL and a header — with an API key</p>
         <CodeBlock lang="bash" code={`https://genxqr.com/v1/mcp\n# Header: Authorization: Bearer gxqr_live_...`} />
         <p className="text-ink font-semibold text-sm mt-6 mb-2">Claude Code</p>
         <CodeBlock lang="bash" code={`claude mcp add --transport http genxqr https://genxqr.com/v1/mcp \\\n  --header "Authorization: Bearer gxqr_live_..."`} />
@@ -1480,7 +1488,7 @@ function IntegrationsSection() {
     }
   }
 }`} />
-        <p className="text-ink font-semibold text-sm mt-6 mb-2">Claude Desktop (through the mcp-remote bridge)</p>
+        <p className="text-ink font-semibold text-sm mt-6 mb-2">Claude Desktop with an API key instead (through the mcp-remote bridge)</p>
         <CodeBlock lang="json" code={`{
   "mcpServers": {
     "genxqr": {
@@ -1515,7 +1523,7 @@ function IntegrationsSection() {
         </div>
         <p className="text-ink-soft text-sm leading-relaxed">
           Changes made through MCP send the same webhooks as the dashboard and appear in your activity log. Use a separate API key for each assistant, so you can revoke one on its own.
-          Claude.ai and ChatGPT &ldquo;connectors&rdquo; that sign in with OAuth are not supported yet — use a client that can send the API key header.
+          Sign-in uses OAuth 2.1 with PKCE and dynamic client registration (discovery at <code className="text-accent">/.well-known/oauth-authorization-server</code>); access tokens last an hour and refresh for up to 30 days.
         </p>
         <div className="mt-6 border-t border-line" />
       </section>

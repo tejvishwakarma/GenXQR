@@ -6,6 +6,8 @@ declare global {
       user?: AccessTokenPayload
       /** Set by requireApiKey middleware when request authenticates via API key */
       apiKeyId?: string
+      /** Set instead of apiKeyId when /v1/mcp is called with an OAuth access token (oauth.service) */
+      oauthClientId?: string
     }
   }
 }

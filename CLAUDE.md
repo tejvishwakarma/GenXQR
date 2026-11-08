@@ -442,8 +442,20 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
   `McpServer` per request, JSON responses; GET/DELETE answer 405). Behind the same key/limit/quota as all of /v1, and
   under nginx's existing `/v1/` location (no vhost change). Tools: list/get/create/update/delete codes,
   set_qr_code_active, get_qr_analytics, list_places, list_folders. Changes go through `services/api-actions.service.ts`
-  (shared with the REST routes) so webhooks + activity log match; audit `metadata.via` = "mcp". OAuth-based connectors
-  (claude.ai/ChatGPT) are not supported — clients must send the API key header. Covered by `tests/integration/mcp.test.ts`.
+  (shared with the REST routes) so webhooks + activity log match; audit `metadata.via` = "mcp". Covered by `tests/integration/mcp.test.ts`.
+- **OAuth 2.1 for MCP** ("Sign in with GenXQR", built 8 Nov 2026 — claude.ai / ChatGPT connectors): `services/oauth.service.ts`
+  (provider) + the MCP SDK's handlers in `routes/oauth.routes.ts`: `/.well-known/oauth-protected-resource/v1/mcp` (RFC 9728),
+  `/.well-known/oauth-authorization-server` (RFC 8414; issuer = the site origin from FRONTEND_URL),
+  `/v1/oauth/{authorize,token,register,revoke}` (mounted BEFORE the /v1 router; exempt from the site CORS — the SDK sends its own).
+  Public dynamic client registration (redirect URIs: https, loopback http, or an app scheme); consent at
+  `/app/oauth/authorize` (`/api/oauth/requests/:id`), codes in Redis 10 min single-use bound to client + redirect + PKCE;
+  tokens `gxqr_oat_` 1 h / refresh 30 d, sha256-stored, rotated, replay > 30 s ends the grant; resource-bound to /v1/mcp only.
+  `requireApiKeyOrMcpToken` accepts them on /v1/mcp (plan apiAccess + blocklist on every use) and sends the
+  `WWW-Authenticate: Bearer resource_metadata=…` challenge. Users disconnect apps under API Keys → Connected AI apps
+  (`/api/oauth/connections`). Expiry worker `sweepOAuth` drops never-connected clients after a day.
+  **nginx: the `/.well-known/oauth-` location in deploy/cloudpanel-vhost-nodejs.conf must be in the live vhost** (manual
+  CloudPanel step). Covered by `tests/integration/mcp-oauth.test.ts` (client binding, resource, refresh replay and
+  redirect-URI guards break-tested).
 - `/v1/qr` — CRUD for QR codes (mirrors `/api/qr` but key-auth; `placeId` on create/update and as a list filter)
 - `/v1/places` — the account's places (ids for `placeId`)
 

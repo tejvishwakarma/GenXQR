@@ -11,7 +11,7 @@ import { QRType } from "@prisma/client"
 import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { prisma } from "../db/prisma.js"
-import { requireApiKey, requireApiQuota } from "../middleware/apikey.middleware.js"
+import { requireApiKeyOrMcpToken, requireApiQuota } from "../middleware/apikey.middleware.js"
 import { v1Limiter } from "../middleware/rateLimit.middleware.js"
 import { requireQRSlot } from "../middleware/plan-gate.middleware.js"
 import {
@@ -53,7 +53,7 @@ function auditApi(req: Request, action: string, category: "qr" | "webhook", enti
 // then count the call against the monthly quota. Order matters both ways: the
 // limiter reads req.user.sub set by requireApiKey, and the quota comes after
 // the limiter so a rate-limited call is never counted.
-router.use(requireApiKey)
+router.use(requireApiKeyOrMcpToken)
 router.use(v1Limiter)
 router.use(requireApiQuota)
 

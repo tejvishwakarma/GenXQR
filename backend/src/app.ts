@@ -12,6 +12,7 @@ import { errorHandler } from "./middleware/error.middleware.js"
 import { apiLimiter } from "./middleware/rateLimit.middleware.js"
 import router from "./routes/index.js"
 import v1Router from "./routes/v1.routes.js"
+import oauthRouter from "./routes/oauth.routes.js"
 import scanRouter from "./routes/scan.routes.js"
 import widgetRouter from "./routes/widget.routes.js"
 import adminRouter from "./routes/admin.routes.js"
@@ -84,6 +85,9 @@ const GATEWAY_CALLBACK_PATHS = new Set([
 
 app.use((req, res, next) => {
   if (GATEWAY_CALLBACK_PATHS.has(req.path)) return next()
+  // OAuth for AI apps (routes/oauth.routes.ts): the MCP SDK's handlers send
+  // their own CORS (any origin, no cookies), which browser-based MCP clients need.
+  if (req.path.startsWith("/.well-known/oauth-") || req.path.startsWith("/v1/oauth/")) return next()
   cors({
     origin: (origin, cb) => {
       // Allow requests with no origin (curl, mobile apps, server-to-server)
@@ -150,6 +154,8 @@ app.use("/api", apiLimiter)
 app.use("/api", router)
 
 // ─── Developer REST API (API key auth) ───────────────────────────────────────
+// Before /v1: its endpoints sit under /v1/oauth/ but must not need an API key.
+app.use(oauthRouter)
 app.use("/v1", v1Router)
 
 // ─── Admin API (ADMIN / SUPER_ADMIN role required) ────────────────────────────
