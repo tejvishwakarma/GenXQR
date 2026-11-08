@@ -45,11 +45,18 @@ const pwaConfig = VitePWA({
     // (scripts/prerender.mjs), and serving it for app routes would flash
     // homepage markup before React replaced it.
     navigateFallback: '/app-shell.html',
+    // Server paths a browser can NAVIGATE to must not get the app shell. /v1/
+    // is the OAuth sign-in for AI apps (/v1/oauth/authorize): served the shell,
+    // it showed the app's 404 to anyone who had visited the site before.
     navigateFallbackDenylist: [
       /^\/api\//,
       /^\/admin-api\//,
       /^\/r\//,
       /^\/uploads\//,
+      /^\/v1\//,
+      /^\/\.well-known\//,
+      /^\/health$/,
+      /^\/widget\.js$/,
     ],
     globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
     // The QR frame library (~2.6 MB of SVGs and fonts, public/frames) is
