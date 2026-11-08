@@ -68,6 +68,7 @@ const NAV = [
       { id: "integrations-zapier", label: "Zapier" },
       { id: "integrations-make",   label: "Make" },
       { id: "integrations-n8n",    label: "n8n" },
+      { id: "integrations-mcp",    label: "AI assistants (MCP)" },
     ],
   },
   {
@@ -1457,6 +1458,65 @@ function IntegrationsSection() {
           <a href="#webhooks-events" className="text-accent hover:text-accent-ink underline underline-offset-2">Events &amp; Payloads</a>, the endpoints under QR Codes and Analytics below.
         </p>
         <IntegrationSteps steps={N8N_STEPS} />
+        <div className="mt-6 border-t border-line" />
+      </section>
+
+      <section id="integrations-mcp" className="scroll-mt-32 mb-16">
+        <h2 className="text-ink font-display font-bold text-2xl mb-4">AI assistants (MCP)</h2>
+        <p className="text-ink-soft text-sm leading-relaxed mb-4">
+          GenXQR is an MCP server (Model Context Protocol), so AI assistants such as Claude, Cursor and other MCP clients can manage your codes in plain language — &ldquo;make a QR code for our Diwali menu and put it in the Diwali folder&rdquo;, &ldquo;which of my codes got the most scans this week?&rdquo;.
+          It uses an API key like the rest of this API (Pro plan or higher), and counts against the same rate limit and monthly quota.
+        </p>
+        <p className="text-ink font-semibold text-sm mb-2">Server URL</p>
+        <CodeBlock lang="bash" code={`https://genxqr.com/v1/mcp\n# Header: Authorization: Bearer gxqr_live_...`} />
+        <p className="text-ink font-semibold text-sm mt-6 mb-2">Claude Code</p>
+        <CodeBlock lang="bash" code={`claude mcp add --transport http genxqr https://genxqr.com/v1/mcp \\\n  --header "Authorization: Bearer gxqr_live_..."`} />
+        <p className="text-ink font-semibold text-sm mt-6 mb-2">Cursor and other clients with remote MCP (mcp.json)</p>
+        <CodeBlock lang="json" code={`{
+  "mcpServers": {
+    "genxqr": {
+      "url": "https://genxqr.com/v1/mcp",
+      "headers": { "Authorization": "Bearer gxqr_live_..." }
+    }
+  }
+}`} />
+        <p className="text-ink font-semibold text-sm mt-6 mb-2">Claude Desktop (through the mcp-remote bridge)</p>
+        <CodeBlock lang="json" code={`{
+  "mcpServers": {
+    "genxqr": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://genxqr.com/v1/mcp", "--header", "Authorization:\${GENXQR_AUTH}"],
+      "env": { "GENXQR_AUTH": "Bearer gxqr_live_..." }
+    }
+  }
+}`} />
+        <p className="text-ink font-semibold text-sm mt-6 mb-2">Tools</p>
+        <div className="border border-line rounded-xl overflow-hidden mb-4">
+          <table className="w-full text-xs">
+            <tbody>
+              {[
+                ["list_qr_codes", "Your codes, newest first; filter by search, type, folder or place"],
+                ["get_qr_code", "One code with its content, design, settings and scan URL"],
+                ["create_qr_code", "A new dynamic code of any type (content as in Content Schemas)"],
+                ["update_qr_code", "Change a code's name, content, tags, folder or place — the print keeps working"],
+                ["set_qr_code_active", "Switch a code on or off"],
+                ["delete_qr_code", "Delete a code permanently (assistants are told to confirm first)"],
+                ["get_qr_analytics", "Scans over the last 1–90 days by day, country, city, device, OS and browser"],
+                ["list_places", "Your places, for placeId"],
+                ["list_folders", "Your folders, for folderId"],
+              ].map(([name, desc]) => (
+                <tr key={name} className="border-b border-line last:border-0">
+                  <td className="px-4 py-2 font-mono text-accent whitespace-nowrap align-top">{name}</td>
+                  <td className="px-4 py-2 text-ink-soft">{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-ink-soft text-sm leading-relaxed">
+          Changes made through MCP send the same webhooks as the dashboard and appear in your activity log. Use a separate API key for each assistant, so you can revoke one on its own.
+          Claude.ai and ChatGPT &ldquo;connectors&rdquo; that sign in with OAuth are not supported yet — use a client that can send the API key header.
+        </p>
         <div className="mt-6 border-t border-line" />
       </section>
     </>
