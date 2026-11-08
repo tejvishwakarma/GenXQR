@@ -30,8 +30,8 @@ function escapeForHtml(s: string): string {
 export function pixelPageCsp(nonce: string): string {
   return [
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' https://www.googletagmanager.com https://connect.facebook.net`,
-    "connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net",
+    `script-src 'nonce-${nonce}' https://www.googletagmanager.com https://connect.facebook.net https://snap.licdn.com https://analytics.tiktok.com`,
+    "connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net https://px.ads.linkedin.com https://analytics.tiktok.com",
     "img-src https: data:",
     "frame-src https://www.googletagmanager.com",
     "base-uri 'none'",
@@ -101,7 +101,11 @@ router.get(
       }
       const base = host.base
 
-      const resolution = await resolveQRScan(slug, ip, ua, ref, host.kind === "custom" ? { ownerId: host.ownerId } : undefined)
+      const acceptLanguage = typeof req.headers["accept-language"] === "string" ? req.headers["accept-language"] : undefined
+      const resolution = await resolveQRScan(slug, ip, ua, ref, {
+        acceptLanguage,
+        ...(host.kind === "custom" && { ownerId: host.ownerId }),
+      })
 
       // Never let a scan response be cached. The whole premise of a dynamic QR is
       // that its destination can change after the code is printed, so a cached
@@ -125,7 +129,7 @@ router.get(
         case "pixel_redirect": {
           // Serve a small HTML trampoline that fires tracking pixels,
           // then redirects immediately via window.location.
-          const { url, fbPixelId, gaId, gtmId } = resolution
+          const { url, fbPixelId, gaId, gtmId, linkedinPartnerId, tiktokPixelId } = resolution
           if (!isSafeHttpUrl(url)) {
             res.status(400).send("Invalid destination URL")
             return
@@ -138,6 +142,8 @@ router.get(
           const safeGaId   = gaId       ? escapeForJS(gaId)       : null
           const safeGtmId  = gtmId      ? escapeForJS(gtmId)      : null
           const safeFbId   = fbPixelId  ? escapeForJS(fbPixelId)  : null
+          const safeLiId   = linkedinPartnerId ? escapeForJS(linkedinPartnerId) : null
+          const safeTtId   = tiktokPixelId     ? escapeForJS(tiktokPixelId)     : null
           // Every inline script carries a per-response nonce, and this response
           // sends its own CSP allowing exactly those scripts plus the tracker
           // hosts. The site-wide CSP (nginx, script-src 'self') blocks inline
@@ -156,6 +162,13 @@ router.get(
           const fbSnippet = safeFbId
             ? `<script ${n}>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${safeFbId}');fbq('track','PageView');</script>`
             : ""
+          // LinkedIn Insight Tag and TikTok Pixel: their standard base snippets.
+          const liSnippet = safeLiId
+            ? `<script ${n}>window._linkedin_partner_id='${safeLiId}';window._linkedin_data_partner_ids=window._linkedin_data_partner_ids||[];window._linkedin_data_partner_ids.push('${safeLiId}');(function(l){if(!l){window.lintrk=function(a,b){window.lintrk.q.push([a,b])};window.lintrk.q=[]}var s=document.getElementsByTagName("script")[0];var b=document.createElement("script");b.async=true;b.nonce='${nonce}';b.src="https://snap.licdn.com/li.lms-analytics/insight.min.js";s.parentNode.insertBefore(b,s);})(window.lintrk);</script>`
+            : ""
+          const ttSnippet = safeTtId
+            ? `<script ${n}>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript";o.async=!0;o.nonce='${nonce}';o.src=r+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load('${safeTtId}');ttq.page();}(window,document,'ttq');</script>`
+            : ""
           // If scripts are blocked anyway (extensions, strict browsers), the meta
           // refresh and the link still get the scanner to the destination.
           const htmlUrl = escapeForHtml(url)
@@ -164,7 +177,7 @@ router.get(
           res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="robots" content="noindex">
 <meta http-equiv="refresh" content="2;url=${htmlUrl}">
-${gaSnippet}${gtmSnippet}${fbSnippet}
+${gaSnippet}${gtmSnippet}${fbSnippet}${liSnippet}${ttSnippet}
 <script ${n}>setTimeout(function(){window.location.replace('${escapedUrl}');},150);</script>
 </head><body><noscript><a href="${htmlUrl}">Continue</a></noscript></body></html>`)
           break
@@ -278,6 +291,7 @@ router.post(
 
       const resolution = await resolveQRScan(slug, ip, ua, ref, {
         passwordVerified: true,
+        acceptLanguage: typeof req.headers["accept-language"] === "string" ? req.headers["accept-language"] : undefined,
         ...(host.kind === "custom" && { ownerId: host.ownerId }),
       })
 
