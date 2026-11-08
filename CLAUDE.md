@@ -1375,7 +1375,9 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
   - Static assets matching `**/*.{js,css,html,svg,png,ico,woff2}` — precached (`frames/**` excluded)
   - `/locales/*.json` is not precached or runtime-cached (no such rule exists); nginx serves it with stale-while-revalidate
   - NO API responses are cached. The old `/^\/api\/public\//` rule never matched (Workbox tests the full URL) and was removed on purpose: `/api/public/qr` can return unlocked password-protected content (23 Oct 2026).
-- Excluded from SW: `/api/`, `/admin-api/`, `/r/`, `/uploads/`
+- Excluded from SW (`navigateFallbackDenylist`): `/api/`, `/admin-api/`, `/r/`, `/uploads/`, `/v1/`, `/.well-known/`, `/health`, `/widget.js`.
+  Any server path a browser can NAVIGATE to must be listed, or returning visitors get the app shell's 404 (found 8 Nov 2026:
+  the AI-app sign-in at /v1/oauth/authorize 404'd for anyone who had visited genxqr.com before).
 - `navigateFallback` is `/app-shell.html`, not `/index.html` — `index.html` is the prerendered homepage, and serving it for every offline navigation would flash the homepage before React swaps routes
 - SW disabled in dev (`devOptions.enabled: false`) to avoid stale cache issues
 
