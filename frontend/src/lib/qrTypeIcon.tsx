@@ -1,7 +1,7 @@
 import {
   Globe, FileText, Video, List, Users, Contact, Images, Building2,
   Smartphone, Music, UtensilsCrossed, Wifi, MessageCircle, Instagram,
-  Facebook, Ticket, QrCode, IndianRupee, Star, type LucideIcon,
+  Facebook, Ticket, QrCode, IndianRupee, Star, CalendarDays, ClipboardList, type LucideIcon,
 } from "lucide-react"
 
 /**
@@ -27,6 +27,8 @@ const QR_TYPE_ICONS: Record<string, LucideIcon> = {
   COUPON: Ticket,
   UPI: IndianRupee,
   GOOGLE_REVIEW: Star,
+  EVENT: CalendarDays,
+  FORM: ClipboardList,
 }
 
 export function QRTypeIcon({ type, size = 18, className }: { type: string; size?: number; className?: string }) {

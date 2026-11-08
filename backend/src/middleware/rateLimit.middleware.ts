@@ -67,6 +67,8 @@ export const authLimiter = makeAuthLimiter("account", 10)
  * only a ceiling against abuse. Sized for many tabs and many people per IP.
  */
 export const refreshLimiter = makeAuthLimiter("refresh", 300)
+/** Answers to FORM codes from their public scan pages (form-response.service). */
+export const formResponseLimiter = makeAuthLimiter("form-response", 60, "Too many responses from this network. Please try again later.")
 /** Two-factor codes, at sign-in and in settings (each challenge also allows only 5 tries). */
 export const twoFactorLimiter = makeAuthLimiter("two-factor", 30, "Too many two-factor attempts. Please try again in 15 minutes.")
 /** "Sign in with SSO": proves nothing by itself (the provider does), so sized for an office arriving at once. */

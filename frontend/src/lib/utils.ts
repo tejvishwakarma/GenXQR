@@ -29,3 +29,18 @@ export function readStoredValue(key: string): string | null {
     return null
   }
 }
+
+/**
+ * The page's accent: the code's page colour, unless it is too light to carry
+ * white text (codes made through the API default it to white), then its dot colour.
+ */
+export function readableAccent(design: Record<string, unknown>): string {
+  const light = (c: string) => {
+    const h = c.replace("#", "")
+    if (!/^[0-9a-f]{6}$/i.test(h)) return true
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))
+    return 0.299 * r! + 0.587 * g! + 0.114 * b! > 186
+  }
+  for (const c of [design.secondaryColor, design.primaryColor]) if (typeof c === "string" && !light(c)) return c
+  return "#7c3aed"
+}

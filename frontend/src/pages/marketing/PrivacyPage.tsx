@@ -24,7 +24,11 @@ const sections = [
     content: "Depending on your location, you may have the right to access, correct, delete, or restrict the processing of your personal data. You can exercise these rights directly through your Account Settings or by contacting our Data Protection Officer.",
   },
   {
-    title: "6. Data Retention",
+    title: "6. Answers to Forms on Scan Pages",
+    content: "Some QR codes open a form made by the business that printed them (for example a feedback or enquiry form). If you answer one, your answers go to that business: GenXQR stores them on its behalf, shows them only to that business's account (and sends them to it by email or to its own systems if it has set that up), and deletes them when the business deletes them, the code, or its account. For questions about those answers, or to have them removed, contact the business; you can also write to us and we will pass the request on.",
+  },
+  {
+    title: "7. Data Retention",
     content: "We retain your account data for as long as your account exists. Scan analytics are kept while your account has an active plan or trial, and for 3 months after it ends (when the account moves to the Free plan); the scan records are then deleted. Your QR codes are not deleted at that point — they stay paused and can be renewed. When you delete your account, we delete your QR codes, uploaded files, all scan data and any GenXQR credit. We keep a one-way hash of your email address (not the address itself) after you delete your account, so the same person cannot receive another free trial or reuse a once-per-customer coupon, and, if you joined through a referral link, cannot be referred again by the same person. The sign-up and latest sign-in locations stored with your account are deleted with it. Each entry in the activity log is kept for 3 years and then deleted, including after you delete your account, so that fraud, abuse or security incidents can be investigated later; once your account is deleted its entries are no longer linked to an account, but until they are deleted they still contain the IP addresses and browsers used, and some entries, such as the one recording your sign-up, contain your email address. You can export your data at any time before account deletion.",
   },
 ]
@@ -37,7 +41,7 @@ export default function PrivacyPage() {
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />
-      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: October 31, 2026" />
+      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: November 8, 2026" />
       <LegalBody>
         <LegalStats
           items={[

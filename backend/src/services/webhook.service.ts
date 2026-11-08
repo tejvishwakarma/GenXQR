@@ -15,6 +15,7 @@ export type WebhookEvent =
   | "qr.updated"
   | "qr.deleted"
   | "qr.scanned"
+  | "form.submitted"
   | "subscription.activated"
   | "subscription.cancelled"
   | "test"
@@ -24,6 +25,7 @@ export const WEBHOOK_EVENTS: WebhookEvent[] = [
   "qr.updated",
   "qr.deleted",
   "qr.scanned",
+  "form.submitted",
   "subscription.activated",
   "subscription.cancelled",
   "test",

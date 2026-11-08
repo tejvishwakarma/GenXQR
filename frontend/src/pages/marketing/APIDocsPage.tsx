@@ -193,7 +193,7 @@ data = res.json()`,
     description: "Creates a new QR code. It is assigned a unique slug which is embedded in the scannable URL (https://genxqr.com/r/<slug>). New QR codes are active immediately.",
     bodyParams: [
       { name: "name",     type: "string",  required: true,  desc: "Display name for the QR code (max 200 characters)" },
-      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW" },
+      { name: "type",     type: "string",  required: true,  desc: "QR type. One of: URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW, EVENT, FORM" },
       { name: "content",  type: "object",                   desc: "Type-specific content, wrapped as { data: { … } }. See Content Schemas below." },
       { name: "category", type: "string",                   desc: "DYNAMIC (default) or STATIC" },
       { name: "tags",     type: "string[]",                 desc: "Up to 10 tags, max 50 characters each" },
@@ -898,7 +898,7 @@ const { data } = await res.json()`,
     responseExample: `{
   "success": true,
   "data": [
-    "qr.created", "qr.updated", "qr.deleted", "qr.scanned",
+    "qr.created", "qr.updated", "qr.deleted", "qr.scanned", "form.submitted",
     "subscription.activated", "subscription.cancelled", "test"
   ]
 }`,
@@ -1807,6 +1807,8 @@ export default function APIDocsPage() {
                 { type: "VCARD", schema: `{ "data": { "fullName": "Raj Sharma", "organization": "Acme", "title": "Founder", "phone": "+91...", "email": "raj@..." } }` },
                 { type: "FACEBOOK", schema: `{ "data": { "url": "https://facebook.com/yourpage" } }` },
                 { type: "UPI", schema: `{ "data": { "upiId": "shop@okhdfcbank", "payeeName": "Blue Cafe", "amount": "250.00", "note": "Table 4" } }\n// amount and note optional; a scan opens a payment page` },
+                { type: "EVENT", schema: `{ "data": { "title": "Diwali Mela", "start": "2026-11-20T19:00", "end": "2026-11-20T22:30", "timeZone": "Asia/Kolkata", "venue": "Cyber Hub", "link": "https://…" } }\n// start/end: the event's local time in timeZone; end, venue, address, description, organizer, link optional` },
+                { type: "FORM", schema: `{ "data": { "title": "Feedback", "notify": true, "fields": [ { "id": "name", "label": "Name", "type": "text", "required": true }, { "id": "rating", "label": "How was it?", "type": "rating" } ] } }\n// field types: text, textarea, email, phone, rating (1–5), select (with "options"); responses → form.submitted webhook` },
                 { type: "GOOGLE_REVIEW", schema: `{ "data": { "reviewUrl": "https://g.page/r/.../review" } }\n// or { "placeId": "ChIJ..." }; a scan redirects to Google's review form` },
               ].map((item) => (
                 <div key={item.type} className="border border-zinc-800 rounded-xl overflow-hidden bg-zinc-950">

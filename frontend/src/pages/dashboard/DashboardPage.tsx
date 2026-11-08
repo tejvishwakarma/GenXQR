@@ -25,7 +25,7 @@ const TYPE_LABEL: Record<string, string> = {
   SOCIAL_MEDIA: "Social", VCARD: "vCard", IMAGE_GALLERY: "Gallery",
   BUSINESS: "Business", APP: "App", MP3: "Audio", MENU: "Menu",
   WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
+  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review", EVENT: "Event", FORM: "Form",
 }
 
 // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

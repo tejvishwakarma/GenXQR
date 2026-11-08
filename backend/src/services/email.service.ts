@@ -778,6 +778,27 @@ export function buildContactConfirmationEmail(reference: string): string {
   return buildEmailShell("We've received your message — GenXQR", inner)
 }
 
+/**
+ * To a FORM code's owner when someone answers its form (the form's "email me"
+ * switch). Every answer is escaped: they come from anyone who scanned the code.
+ */
+export function buildFormResponseEmail(opts: { formTitle: string; answers: Array<{ label: string; value: string }>; responsesUrl: string }): string {
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+  const rows = opts.answers
+    .map((a) => `<tr><td style="padding:8px 12px 8px 0;vertical-align:top;font-size:13px;color:#71717a;font-family:${font};white-space:nowrap">${escapeHtml(a.label)}</td><td style="padding:8px 0;font-size:14px;color:#18181b;font-family:${font};white-space:pre-wrap">${escapeHtml(a.value) || "—"}</td></tr>`)
+    .join("")
+  const inner = `
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#0f0f11;line-height:1.3;font-family:${font}">
+      New response: ${escapeHtml(opts.formTitle)}
+    </h1>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border-collapse:collapse">${rows}</table>
+    <a href="${escapeHtml(opts.responsesUrl)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;font-family:${font}">See all responses</a>
+    <p style="margin:20px 0 0;font-size:12px;color:#a1a1aa;line-height:1.6;font-family:${font}">
+      You get this because "email me each response" is on for this form. Turn it off in the code's content.
+    </p>`
+  return buildEmailShell(`New response: ${opts.formTitle}`, inner)
+}
+
 // ─── Job Application email ────────────────────────────────────────────────────
 
 /**

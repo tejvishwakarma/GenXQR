@@ -20,7 +20,7 @@ import { useWorkspace } from "@/hooks/useWorkspace"
 const TYPE_LABEL: Record<string, string> = {
   URL: "URL", PDF: "PDF", VIDEO: "Video", LINKS: "Multi-Link", SOCIAL_MEDIA: "Social",
   VCARD: "vCard", IMAGE_GALLERY: "Gallery", BUSINESS: "Business", APP: "App", MP3: "Audio",
-  MENU: "Menu", WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
+  MENU: "Menu", WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review", EVENT: "Event", FORM: "Form",
 }
 const PAGE_SIZE = 20
 

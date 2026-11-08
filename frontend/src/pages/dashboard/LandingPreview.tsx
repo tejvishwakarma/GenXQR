@@ -10,8 +10,9 @@ import { useWatch, type Control } from "react-hook-form"
 import {
   Phone, Mail, MapPin, Globe, Wifi, MessageCircle,
   Music, FileText, Video, Smartphone, Building2,
-  Image as ImageIcon, ChevronRight, QrCode, IndianRupee, Star, Copy,
+  Image as ImageIcon, ChevronRight, QrCode, IndianRupee, Star, Copy, CalendarDays,
 } from "lucide-react"
+import type { FormDraft } from "@/components/dashboard/FormBuilder"
 import type { VCardData } from "./VCardEditor"
 import { SocialIcon } from "@/components/ui/social-icon"
 
@@ -35,6 +36,8 @@ export interface LandingPreviewProps {
   businessSocialLinks?: Array<{ platform: string; url: string }>
   /** The account's scan-page logo (paid plans), shown above the content as on the real page. */
   pageLogoUrl?: string | null
+  /** The questions of a FORM code. */
+  formDraft?: FormDraft
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1040,6 +1043,52 @@ function ReviewPage({ business }: { business: string }) {
   )
 }
 
+/* --- Event --- */
+function EventPage({ title, start, end, venue, accent }: { title: string; start: string; end: string; venue: string; accent: string }) {
+  const when = (iso: string) => {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+  }
+  return (
+    <div className="flex flex-col">
+      <HeroBanner accent={accent}>
+        <div className="flex items-center gap-2 text-white/80 text-[9px] font-semibold uppercase tracking-wide">
+          <CalendarDays size={12} /> Event
+        </div>
+        <p className="text-white font-black text-[15px] mt-1 leading-tight">{title || "Your event"}</p>
+      </HeroBanner>
+      <div className="px-1">
+        <Row icon={<CalendarDays size={11} />} label="When" value={[when(start), end ? `– ${when(end)}` : ""].filter(Boolean).join(" ") || "Date & time"} />
+        <Row icon={<MapPin size={11} />} label="Where" value={venue || "Venue"} />
+      </div>
+      <CTA label="Add to calendar" accent={accent} />
+    </div>
+  )
+}
+
+/* --- Lead / feedback form --- */
+function FormPage({ form, accent }: { form?: FormDraft; accent: string }) {
+  const fields = form?.fields ?? []
+  return (
+    <div className="flex flex-col px-4 pt-6 gap-2.5">
+      <p className="text-[14px] font-black text-gray-900 leading-tight">{form?.title || "Your form"}</p>
+      {form?.intro && <p className="text-[9.5px] text-gray-500 leading-snug">{form.intro}</p>}
+      {fields.slice(0, 5).map((f, i) => (
+        <div key={i}>
+          <p className="text-[9px] font-medium text-gray-600 mb-1">{f.label || `Question ${i + 1}`}{f.required && <span className="text-red-500"> *</span>}</p>
+          {f.type === "rating" ? (
+            <div className="flex gap-0.5">{[0, 1, 2, 3, 4].map((s) => <Star key={s} size={13} className="text-gray-300" />)}</div>
+          ) : (
+            <div className={`rounded-lg border border-gray-200 bg-white ${f.type === "textarea" ? "h-10" : "h-6"}`} />
+          )}
+        </div>
+      ))}
+      {fields.length > 5 && <p className="text-[9px] text-gray-400">+{fields.length - 5} more</p>}
+      <div className="-mx-4"><CTA label={form?.submitLabel || "Send"} accent={accent} /></div>
+    </div>
+  )
+}
+
 /* --- Fallback --- */
 function FallbackPage({ type, accent }: { type: string; accent: string }) {
   return (
@@ -1073,6 +1122,7 @@ export default function LandingPreview({
   businessHoursMap = {},
   businessSocialLinks = [],
   pageLogoUrl = null,
+  formDraft,
 }: LandingPreviewProps) {
   // useWatch subscribes only to this component, not the parent — efficient re-renders
   const v = useWatch({ control }) as Record<string, string>
@@ -1181,6 +1231,12 @@ export default function LandingPreview({
 
       case "review":
         return <ReviewPage business={s(v.review_business)} />
+
+      case "event":
+        return <EventPage title={s(v.event_title)} start={s(v.event_start)} end={s(v.event_end)} venue={s(v.event_venue)} accent={accent} />
+
+      case "form":
+        return <FormPage form={formDraft} accent={accent} />
 
       case "pdf":
         return <FilePage type="pdf" accent={accent} />

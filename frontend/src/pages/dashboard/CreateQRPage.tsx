@@ -7,7 +7,7 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, FileText, Video, Globe,
   Users, Image, Building2, Smartphone, Music, List, Facebook, Tag,
   ChevronRight, ChevronLeft, ChevronDown, Check, Palette, ArrowLeft,
-  Upload, Loader2, X, Clock, ScanLine, IndianRupee, Star,
+  Upload, Loader2, X, Clock, ScanLine, IndianRupee, Star, CalendarDays, ClipboardList,
 } from "lucide-react"
 import * as Tabs from "@radix-ui/react-tabs"
 import * as SelectPrimitive from "@radix-ui/react-select"
@@ -24,6 +24,7 @@ import { PlacePicker } from "@/components/places/PlacePicker"
 import { FolderPicker } from "@/components/folders/FolderPicker"
 import { UtmBuilder } from "@/components/dashboard/UtmBuilder"
 import { DesignTemplates } from "@/components/dashboard/DesignTemplates"
+import { FormBuilder, DEFAULT_FORM, formContent, formDraftFromContent, type FormDraft } from "@/components/dashboard/FormBuilder"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -54,6 +55,8 @@ const qrTypes = [
   { id: "coupon",   label: "Coupon",          icon: <Tag size={22} />,          desc: "Digital coupon with code and expiry",  category: "page"  },
   { id: "upi",      label: "UPI Payment",     icon: <IndianRupee size={22} />,  desc: "Payment page for any UPI app",         category: "page"  },
   { id: "review",   label: "Google Review",   icon: <Star size={22} />,         desc: "Straight to your Google review form",  category: "basic" },
+  { id: "event",    label: "Event",           icon: <CalendarDays size={22} />, desc: "Date, venue, add to calendar",         category: "page"  },
+  { id: "form",     label: "Lead / Feedback Form", icon: <ClipboardList size={22} />, desc: "Collect names, numbers or ratings", category: "page"  },
 ]
 
 const DOT_STYLES: { value: DotType; label: string }[] = [
@@ -160,6 +163,7 @@ interface ContentExtras {
   businessCategory: string
   businessDescription: string
   businessSocialLinks: SocialLinkDraft[]
+  formDraft: FormDraft
 }
 
 const TYPE_MAP: Record<string, string> = {
@@ -168,6 +172,7 @@ const TYPE_MAP: Record<string, string> = {
   business: "BUSINESS", app: "APP", mp3: "MP3", menu: "MENU",
   wifi: "WIFI", whatsapp: "WHATSAPP", instagram: "INSTAGRAM",
   facebook: "FACEBOOK", coupon: "COUPON", upi: "UPI", review: "GOOGLE_REVIEW",
+  event: "EVENT", form: "FORM",
 }
 
 const FILE_TYPES = new Set(["pdf", "video", "mp3", "gallery"])
@@ -318,6 +323,17 @@ function populateFormFromQR(
       v.upi_amount = String(d.amount ?? "")
       v.upi_note = String(d.note ?? "")
       break
+    case "event":
+      v.event_title = String(d.title ?? "")
+      v.event_start = String(d.start ?? "")
+      v.event_end = String(d.end ?? "")
+      v.event_tz = String(d.timeZone ?? "Asia/Kolkata")
+      v.event_venue = String(d.venue ?? "")
+      v.event_address = String(d.address ?? "")
+      v.event_description = String(d.description ?? "")
+      v.event_organizer = String(d.organizer ?? "")
+      v.event_link = String(d.link ?? "")
+      break
     case "review":
       v.review_link = String(d.reviewUrl ?? d.placeId ?? "")
       v.review_business = String(d.businessName ?? "")
@@ -453,6 +469,8 @@ interface FormValues {
   coupon_valid_until: string; coupon_terms: string
   upi_id: string; upi_name: string; upi_amount: string; upi_note: string
   review_link: string; review_business: string
+  event_title: string; event_start: string; event_end: string; event_tz: string
+  event_venue: string; event_address: string; event_description: string; event_organizer: string; event_link: string
   link_title_1: string; link_url_1: string
   link_title_2: string; link_url_2: string
   link_title_3: string; link_url_3: string
@@ -473,6 +491,8 @@ const DEFAULT_VALUES: FormValues = {
   coupon_valid_until: "", coupon_terms: "",
   upi_id: "", upi_name: "", upi_amount: "", upi_note: "",
   review_link: "", review_business: "",
+  event_title: "", event_start: "", event_end: "", event_tz: "Asia/Kolkata",
+  event_venue: "", event_address: "", event_description: "", event_organizer: "", event_link: "",
   link_title_1: "", link_url_1: "", link_title_2: "", link_url_2: "",
   link_title_3: "", link_url_3: "",
 }
@@ -488,7 +508,7 @@ function buildContent(type: string, v: FormValues, files: UploadedFileInfo[], ex
     vcardData, socialLinks, socialProfileName, socialBio,
     dynamicLinks, linksTitle, linksBio,
     menuSections, restaurantDesc, menuCurrency,
-    businessHoursMap, businessCategory, businessDescription, businessSocialLinks,
+    businessHoursMap, businessCategory, businessDescription, businessSocialLinks, formDraft,
   } = extras
   switch (type) {
     case "url":       return { url: ensureHttps(v.url) }
@@ -497,6 +517,12 @@ function buildContent(type: string, v: FormValues, files: UploadedFileInfo[], ex
     case "instagram": return { username: v.instagram_username }
     case "facebook":  return { url: ensureHttps(v.facebook_url) }
     case "upi":       return { upiId: v.upi_id, payeeName: v.upi_name, amount: v.upi_amount, note: v.upi_note }
+    case "event": return {
+      title: v.event_title, start: v.event_start, end: v.event_end, timeZone: v.event_tz,
+      venue: v.event_venue, address: v.event_address, description: v.event_description,
+      organizer: v.event_organizer, link: v.event_link ? ensureHttps(v.event_link) : "",
+    }
+    case "form": return formContent(formDraft)
     case "review": {
       // A review link, or a bare Place ID (ChIJ…); the server checks either.
       const link = v.review_link.trim()
@@ -677,6 +703,7 @@ export default function CreateQRPage() {
   const [socialProfileName, setSocialProfileName] = useState("")
   const [socialBio, setSocialBio] = useState("")
   const [dynamicLinks, setDynamicLinks] = useState<LinkDraft[]>([{ label: "", url: "", description: "" }])
+  const [formDraft, setFormDraft] = useState<FormDraft>(DEFAULT_FORM)
   const [linksTitle, setLinksTitle] = useState("")
   const [linksBio, setLinksBio] = useState("")
   const [menuSections, setMenuSections] = useState<MenuSectionDraft[]>([emptySection()])
@@ -836,6 +863,7 @@ export default function CreateQRPage() {
     }
     const design = existingQR.data.design
     setFrameFields((design?.frameFields ?? {}) as FrameFields)
+    if (existingQR.data.type === "FORM") setFormDraft(formDraftFromContent((existingQR.data.content?.data ?? {}) as Record<string, unknown>))
     if (getFrame(design?.frameStyle)?.group === "shape") setShapeColorPick(design?.frameColor ?? null)
   }, [existingQR, reset])
 
@@ -1028,7 +1056,7 @@ export default function CreateQRPage() {
           socialLinks, socialProfileName, socialBio,
           dynamicLinks, linksTitle, linksBio,
           menuSections, restaurantDesc, menuCurrency,
-          businessHoursMap, businessCategory, businessDescription, businessSocialLinks,
+          businessHoursMap, businessCategory, businessDescription, businessSocialLinks, formDraft,
         }) },
         design: currentDesign(),
         tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
@@ -1416,6 +1444,62 @@ export default function CreateQRPage() {
                       <Input {...register("facebook_url")} placeholder="https://facebook.com/yourpage" />
                     </div>
                   )}
+
+                  {/* Event */}
+                  {selectedType === "event" && (
+                    <>
+                      <div>
+                        <label className="label-text">Event name</label>
+                        <Input {...register("event_title")} maxLength={150} placeholder="Diwali Mela 2026" />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label-text">Starts</label>
+                          <Input type="datetime-local" {...register("event_start")} />
+                        </div>
+                        <div>
+                          <label className="label-text">Ends (optional)</label>
+                          <Input type="datetime-local" {...register("event_end")} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label-text">Time zone</label>
+                        <select {...register("event_tz")} className="w-full h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 text-sm text-zinc-900 dark:text-white">
+                          {["Asia/Kolkata", "Asia/Dubai", "Asia/Singapore", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "UTC"].map((tz) => (
+                            <option key={tz} value={tz}>{tz.replace("_", " ")}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label-text">Venue (optional)</label>
+                          <Input {...register("event_venue")} maxLength={150} placeholder="Cyber Hub" />
+                        </div>
+                        <div>
+                          <label className="label-text">Address (optional)</label>
+                          <Input {...register("event_address")} maxLength={300} placeholder="DLF Cyber City, Gurugram" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label-text">About the event (optional)</label>
+                        <textarea {...register("event_description")} maxLength={2000} rows={3} className="input-field resize-none" placeholder="Food stalls, music and fireworks from 7 pm." />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label-text">Organiser (optional)</label>
+                          <Input {...register("event_organizer")} maxLength={100} placeholder="Blue Cafe" />
+                        </div>
+                        <div>
+                          <label className="label-text">Tickets / registration link (optional)</label>
+                          <Input {...register("event_link")} placeholder="https://…" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-zinc-500">The scan page shows the details with Google Calendar and Apple / Outlook buttons, and a map link for the address.</p>
+                    </>
+                  )}
+
+                  {/* Lead / feedback form */}
+                  {selectedType === "form" && <FormBuilder value={formDraft} onChange={setFormDraft} />}
 
                   {/* UPI payment */}
                   {selectedType === "upi" && (
@@ -2428,6 +2512,7 @@ export default function CreateQRPage() {
                 primaryColor={pageAccentColor}
                 socialLinks={socialLinks}
                 dynamicLinks={dynamicLinks}
+                formDraft={formDraft}
                 linksTitle={linksTitle}
                 menuSections={menuSections}
                 menuCurrency={menuCurrency}

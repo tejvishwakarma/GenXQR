@@ -41,7 +41,7 @@ export const SITE_NAME = "GenXQR"
 export const SITE_TAGLINE = "QR Code Generator with Analytics"
 
 export const SITE_DESCRIPTION =
-  "Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. 18 QR types including URL, vCard, Wi-Fi, PDF, and menus. Free plan available."
+  "Create dynamic QR codes with editable destinations, real-time scan analytics, A/B testing, and smart routing. 20 QR types including URL, vCard, Wi-Fi, PDF, and menus. Free plan available."
 
 /** Default social share image. Must be an absolute URL for crawlers. */
 export const OG_IMAGE_PATH = "/og-image.png"
