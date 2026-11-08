@@ -38,6 +38,7 @@
     "lucide-react": "^0.511.0",
     "marked": "^18.1.1",
     "qr-code-styling": "^1.9.2",
+    "qrcode-generator": "1.5.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-helmet-async": "^3.0.0",

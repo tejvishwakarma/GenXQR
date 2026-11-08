@@ -396,6 +396,14 @@ export default function QRDetailPage() {
             >
               {libraryFrame ? "PDF — Print quality" : "PDF — Editable Vector"}
             </button>
+            <button
+              onClick={() => handleDownload("eps")}
+              disabled={isDownloading}
+              title="Vector EPS for print shops: the plain code in your colours, without frame, logo or dot style"
+              className="mt-1.5 w-full py-1.5 rounded-lg text-xs font-semibold text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors disabled:opacity-40"
+            >
+              EPS — plain code for print shops
+            </button>
             {downloadError && (
               <p className="mt-2 text-center text-xs text-red-500" role="alert">{downloadError}</p>
             )}
