@@ -1697,6 +1697,35 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
   })
 }
 
+// ─── Design templates ─────────────────────────────────────────────────────────
+
+/** A saved QR design: the same fields a code's design takes. */
+export interface DesignTemplate {
+  id: string
+  name: string
+  design: {
+    primaryColor?: string; backgroundColor?: string; secondaryColor?: string
+    dotStyle?: string; cornerSquareStyle?: string
+    frameStyle?: string | null; frameText?: string | null; frameColor?: string | null
+    frameFields?: Record<string, string> | null
+    logoUrl?: string | null; logoSize?: number
+  }
+  createdAt: string
+  updatedAt: string
+}
+
+export function getDesignTemplates() {
+  return apiFetch<{ success: boolean; data: DesignTemplate[] }>("/api/design-templates", { headers: authHeader() })
+}
+
+export function createDesignTemplate(name: string, design: DesignTemplate["design"]) {
+  return apiFetch<{ success: boolean; data: DesignTemplate }>("/api/design-templates", { method: "POST", headers: authHeader(), body: JSON.stringify({ name, design }) })
+}
+
+export function deleteDesignTemplate(id: string) {
+  return apiFetch<{ success: boolean }>(`/api/design-templates/${id}`, { method: "DELETE", headers: authHeader() })
+}
+
 // ─── Folders ──────────────────────────────────────────────────────────────────
 
 export interface Folder {
