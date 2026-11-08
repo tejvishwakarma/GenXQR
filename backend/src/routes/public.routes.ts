@@ -7,8 +7,93 @@ import { resolveScanHost } from "../services/custom-domain.service.js"
 import { requestHost } from "./scan.routes.js"
 import { REPORT_DAYS, getClientReport } from "../services/agency.service.js"
 import { AppError } from "../middleware/error.middleware.js"
+import { buildIcs, type EventContent } from "../utils/event-calendar.util.js"
+import { recordResponse } from "../services/form-response.service.js"
+import { formResponseLimiter } from "../middleware/rateLimit.middleware.js"
+import { requireTurnstile } from "../middleware/turnstile.middleware.js"
 
 const router: IRouter = Router()
+
+// ─── GET /api/public/qr/:slug — Fetch QR content for landing page rendering ──
+// Called by the frontend /l/:slug page AFTER /r/:slug already logged the scan.
+
+const SLUG = /^[a-zA-Z0-9_-]{4,32}$/
+
+/**
+ * A code whose scan page may be served to this request: on this host, unlocked
+ * if password-protected, and passing the same gate as a scan (scan.service
+ * unavailableFor: switched off, outside its dates, over its scan limit or the
+ * owner's quota, owner blocked — and links in the content on the destination
+ * blocklist). The page content, the event's calendar file and form answers all
+ * go through here, so none of them is reachable when the page is not.
+ */
+async function servableQR(req: Request, slug: string) {
+  if (!slug || !SLUG.test(slug)) return { status: "missing" as const }
+  const qr = await prisma.qRCode.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      // Selected only to resolve the owner's plan for the branding decision.
+      // Never returned — see the response below.
+      userId: true,
+      type: true,
+      name: true,
+      slug: true,
+      isActive: true,
+      isPasswordProtected: true,
+      activeFrom: true,
+      activeUntil: true,
+      scanLimit: true,
+      scanCount: true,
+      content: { select: { data: true } },
+      design: {
+        select: {
+          primaryColor: true,
+          secondaryColor: true,
+          backgroundColor: true,
+          foregroundColor: true,
+          dotStyle: true,
+          cornerSquareStyle: true,
+          cornerDotStyle: true,
+          logoUrl: true,
+          frameStyle: true,
+          frameText: true,
+          frameColor: true,
+          fontTitle: true,
+          fontBody: true,
+          welcomeScreenUrl: true,
+        },
+      },
+      files: {
+        select: {
+          id: true,
+          fileType: true,
+          fileName: true,
+          fileUrl: true,
+          mimeType: true,
+        },
+      },
+    },
+  })
+
+  // Password-protected QRs must never serve content from this unauthenticated
+  // endpoint. Content is only released after a successful password check via
+  // POST /r/:slug/password. Returning 404 here avoids leaking the protected
+  // destination/credentials to anyone who knows the slug.
+  // …unless the visitor carries the short-lived proof of having entered the
+  // password (POST /r/:slug/password → /l/<slug>?access=…).
+  // On a customer's own domain only their codes exist (custom-domain.service).
+  const host = await resolveScanHost(requestHost(req))
+  const foreign = host.kind === "unknown" || (host.kind === "custom" && qr?.userId !== host.ownerId)
+
+  const access = typeof req.query["access"] === "string" ? req.query["access"] : ""
+  const unlocked = qr?.isPasswordProtected === true && access !== "" && verifyQRUnlock(access, slug)
+  if (!qr || foreign || (qr.isPasswordProtected && !unlocked)) return { status: "missing" as const }
+
+  const reason = (await scanAvailability(slug)) ?? ((await contentHasBlockedLink(qr.content?.data)) ? "blocked" : null)
+  if (reason) return { status: "unavailable" as const, reason, qr }
+  return { status: "ok" as const, qr }
+}
 
 // ─── GET /api/public/qr/:slug — Fetch QR content for landing page rendering ──
 // Called by the frontend /l/:slug page AFTER /r/:slug already logged the scan.
@@ -17,85 +102,17 @@ router.get(
   "/qr/:slug",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const slug = String(req.params["slug"] ?? "")
-      if (!slug || !/^[a-zA-Z0-9_-]{4,32}$/.test(slug)) {
+      const found = await servableQR(req, String(req.params["slug"] ?? ""))
+      if (found.status === "missing") {
         res.status(404).json({ success: false, error: "QR code not found" })
         return
       }
-
-      const qr = await prisma.qRCode.findUnique({
-        where: { slug },
-        select: {
-          id: true,
-          // Selected only to resolve the owner's plan for the branding decision.
-          // Never returned — see the response below.
-          userId: true,
-          type: true,
-          name: true,
-          slug: true,
-          isActive: true,
-          isPasswordProtected: true,
-          activeFrom: true,
-          activeUntil: true,
-          scanLimit: true,
-          scanCount: true,
-          content: { select: { data: true } },
-          design: {
-            select: {
-              primaryColor: true,
-              secondaryColor: true,
-              backgroundColor: true,
-              foregroundColor: true,
-              dotStyle: true,
-              cornerSquareStyle: true,
-              cornerDotStyle: true,
-              logoUrl: true,
-              frameStyle: true,
-              frameText: true,
-              frameColor: true,
-              fontTitle: true,
-              fontBody: true,
-              welcomeScreenUrl: true,
-            },
-          },
-          files: {
-            select: {
-              id: true,
-              fileType: true,
-              fileName: true,
-              fileUrl: true,
-              mimeType: true,
-            },
-          },
-        },
-      })
-
-      // Password-protected QRs must never serve content from this unauthenticated
-      // endpoint. Content is only released after a successful password check via
-      // POST /r/:slug/password. Returning 404 here avoids leaking the protected
-      // destination/credentials to anyone who knows the slug.
-      // …unless the visitor carries the short-lived proof of having entered the
-      // password (POST /r/:slug/password → /l/<slug>?access=…).
-      // On a customer's own domain only their codes exist (custom-domain.service).
-      const host = await resolveScanHost(requestHost(req))
-      const foreign = host.kind === "unknown" || (host.kind === "custom" && qr?.userId !== host.ownerId)
-
-      const access = typeof req.query["access"] === "string" ? req.query["access"] : ""
-      const unlocked = qr?.isPasswordProtected === true && access !== "" && verifyQRUnlock(access, slug)
-      if (!qr || foreign || (qr.isPasswordProtected && !unlocked)) {
-        res.status(404).json({ success: false, error: "QR code not found" })
+      // The reason, never the content, so the page can show the expired notice.
+      if (found.status === "unavailable") {
+        res.json({ success: true, data: { slug: found.qr.slug, isActive: false, unavailableReason: found.reason } })
         return
       }
-
-      // The same gate as a scan (scan.service unavailableFor): switched off,
-      // outside its dates, over its scan limit or the owner's quota, or the owner
-      // blocked — and links in the content on the destination blocklist. The
-      // reason, never the content, so the page can show the expired notice.
-      const reason = (await scanAvailability(slug)) ?? ((await contentHasBlockedLink(qr.content?.data)) ? "blocked" : null)
-      if (reason) {
-        res.json({ success: true, data: { slug: qr.slug, isActive: false, unavailableReason: reason } })
-        return
-      }
+      const qr = found.qr
 
       /**
        * Whether the landing page shows "Powered by GenXQR".
@@ -138,6 +155,47 @@ router.get(
     }
   },
 )
+
+/**
+ * GET /api/public/qr/:slug/calendar.ics — an EVENT code's event for Apple
+ * Calendar / Outlook (the scan page's "Add to calendar"). Same gate as the page.
+ */
+router.get("/qr/:slug/calendar.ics", async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const found = await servableQR(req, String(req.params["slug"] ?? ""))
+    if (found.status !== "ok" || found.qr.type !== "EVENT") {
+      res.status(404).json({ success: false, error: "Event not found" })
+      return
+    }
+    const ics = buildIcs(found.qr.content?.data as unknown as EventContent, found.qr.id)
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8")
+    res.setHeader("Content-Disposition", 'inline; filename="event.ics"')
+    res.setHeader("Cache-Control", "no-store")
+    res.send(ics)
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * POST /api/public/qr/:slug/responses — an answer to a FORM code's form, from
+ * its scan page. Same gate as the page, rate-limited per IP, Turnstile when on.
+ */
+router.post("/qr/:slug/responses", formResponseLimiter, requireTurnstile, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const found = await servableQR(req, String(req.params["slug"] ?? ""))
+    if (found.status !== "ok" || found.qr.type !== "FORM") {
+      res.status(404).json({ success: false, error: "This form isn't available." })
+      return
+    }
+    const { qr } = found
+    const answers = (req.body as { answers?: unknown } | undefined)?.answers
+    await recordResponse({ id: qr.id, name: qr.name, userId: qr.userId, content: (qr.content?.data ?? {}) as Record<string, unknown> }, answers)
+    res.status(201).json({ success: true })
+  } catch (err) {
+    next(err)
+  }
+})
 
 /**
  * GET /api/public/branding/:slug

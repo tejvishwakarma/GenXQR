@@ -96,6 +96,7 @@ function describe(e: ActivityEntry): string {
         const parts = [num(m.added) ? `put ${num(m.added)} code${num(m.added) === 1 ? "" : "s"} there` : "", num(m.removed) ? `took ${num(m.removed)} off it` : ""].filter(Boolean)
         return `Changed the codes at place${quoted(m.name)}${parts.length ? `: ${parts.join(", ")}` : ""}`
       }
+      case "qr.form_response.delete": return "Deleted a form response"
       case "template.create": return `Saved design template${quoted(m.name)}`
       case "template.rename": return `Renamed a design template to${quoted(m.name)}`
       case "template.delete": return `Deleted design template${quoted(m.name)}`

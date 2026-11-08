@@ -1,8 +1,8 @@
 import { AppError } from "../middleware/error.middleware.js"
 
 /**
- * Content rules for the QR types whose content has a fixed meaning: UPI and
- * GOOGLE_REVIEW. Every other type's content is free-form JSON (qr.service).
+ * Content rules for the QR types whose content has a fixed meaning: UPI,
+ * GOOGLE_REVIEW, EVENT and FORM. Every other type's content is free-form JSON (qr.service).
  * Checked on create and update, so the dashboard, /v1 and duplicates all agree.
  */
 
@@ -28,6 +28,26 @@ export function googleReviewUrl(content: Record<string, unknown>): string | null
 }
 
 const str = (v: unknown, max: number): string => (typeof v === "string" ? v.trim().slice(0, max) : "")
+
+/** An event's wall-clock time in its own time zone, as the editor sends it: "2026-11-20T19:00". */
+export const LOCAL_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
+
+export function isTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** A field on a FORM code's form. */
+export const FORM_FIELD_TYPES = ["text", "email", "phone", "textarea", "rating", "select"] as const
+export type FormField = { id: string; label: string; type: (typeof FORM_FIELD_TYPES)[number]; required: boolean; options?: string[] }
+const FIELD_ID = /^[a-z0-9_]{1,30}$/
+const httpsUrl = (v: string): boolean => {
+  try { return new URL(v).protocol === "https:" } catch { return false }
+}
 
 /**
  * Validates and normalises the content of a UPI or GOOGLE_REVIEW code (throws 422).
@@ -68,6 +88,64 @@ export function normalizeTypedContent(type: string, data: Record<string, unknown
       throw new AppError(422, "Enter your Google review link or your Place ID.")
     }
     return { placeId, ...(businessName && { businessName }) }
+  }
+
+  if (type === "EVENT") {
+    const title = str(data.title, 150)
+    if (!title) throw new AppError(422, "Give the event a name.")
+    const start = str(data.start, 16)
+    if (!LOCAL_DATETIME.test(start) || Number.isNaN(Date.parse(`${start}:00Z`))) throw new AppError(422, "Choose when the event starts.")
+    const end = str(data.end, 16)
+    if (end && (!LOCAL_DATETIME.test(end) || Number.isNaN(Date.parse(`${end}:00Z`)) || end < start)) {
+      throw new AppError(422, "The end must be after the start.")
+    }
+    const timeZone = str(data.timeZone, 64) || "Asia/Kolkata"
+    if (!isTimeZone(timeZone)) throw new AppError(422, "Unknown time zone.")
+    const rawLink = str(data.link, 2000)
+    if (rawLink && !httpsUrl(rawLink)) throw new AppError(422, "The ticket or registration link must start with https://.")
+    // Stored as the parser writes it: no raw line breaks (it goes into a calendar file).
+    const link = rawLink ? new URL(rawLink).toString() : ""
+    const venue = str(data.venue, 150)
+    const address = str(data.address, 300)
+    const description = str(data.description, 2000)
+    const organizer = str(data.organizer, 100)
+    return {
+      title, start, timeZone,
+      ...(end && { end }), ...(venue && { venue }), ...(address && { address }),
+      ...(description && { description }), ...(organizer && { organizer }), ...(link && { link }),
+    }
+  }
+
+  if (type === "FORM") {
+    const title = str(data.title, 150)
+    if (!title) throw new AppError(422, "Give the form a title.")
+    const raw = Array.isArray(data.fields) ? data.fields : []
+    if (raw.length === 0 || raw.length > 15) throw new AppError(422, "A form needs between 1 and 15 questions.")
+    const seen = new Set<string>()
+    const fields: FormField[] = raw.map((f, i) => {
+      const o = (f && typeof f === "object" ? f : {}) as Record<string, unknown>
+      const id = str(o.id, 30) || `q${i + 1}`
+      const label = str(o.label, 100)
+      const fieldType = FORM_FIELD_TYPES.find((t) => t === o.type)
+      if (!FIELD_ID.test(id) || seen.has(id)) throw new AppError(422, `Question ${i + 1} has an invalid or repeated id.`)
+      if (!label) throw new AppError(422, `Question ${i + 1} needs a label.`)
+      if (!fieldType) throw new AppError(422, `Question ${i + 1} has an unknown type.`)
+      seen.add(id)
+      const field: FormField = { id, label, type: fieldType, required: o.required === true }
+      if (fieldType === "select") {
+        const options = (Array.isArray(o.options) ? o.options : []).map((x) => str(x, 100)).filter(Boolean)
+        if (options.length < 2 || options.length > 20) throw new AppError(422, `"${label}" needs 2 to 20 choices.`)
+        field.options = [...new Set(options)]
+      }
+      return field
+    })
+    const intro = str(data.intro, 1000)
+    const submitLabel = str(data.submitLabel, 40)
+    const thankYou = str(data.thankYou, 300)
+    return {
+      title, fields, notify: data.notify === true,
+      ...(intro && { intro }), ...(submitLabel && { submitLabel }), ...(thankYou && { thankYou }),
+    }
   }
 
   return data

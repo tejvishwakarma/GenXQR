@@ -223,6 +223,7 @@ model QRCode {
   linkedinPartnerId   String?
   tiktokPixelId       String?
   abVariants          ABTestVariant[]
+  formResponses       FormResponse[]
   abuseReports        AbuseReport[]
   user                User?              @relation(fields: [userId], references: [id])
   content             QRContent?
@@ -262,6 +263,20 @@ model Place {
   @@unique([userId, name])
   @@unique([userId, code])
   @@map("places")
+}
+
+/// One answer to a FORM code's form, sent from its scan page (built 8 Nov 2026).
+/// `data` is [{ id, label, value }] — labels copied in, so later edits to the
+/// form do not change what an older response says.
+model FormResponse {
+  id        String   @id @default(cuid())
+  qrId      String
+  data      Json
+  createdAt DateTime @default(now())
+  qrCode    QRCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+
+  @@index([qrId, createdAt])
+  @@map("form_responses")
 }
 
 /// A saved QR design ("brand template"), per workspace owner (built 8 Nov 2026).
@@ -1019,6 +1034,8 @@ enum QRType {
   COUPON
   UPI
   GOOGLE_REVIEW
+  EVENT
+  FORM
 }
 
 enum QRCategory {

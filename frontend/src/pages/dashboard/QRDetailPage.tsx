@@ -13,6 +13,7 @@ import { useWorkspace } from "@/hooks/useWorkspace"
 import { FramedPreview } from "@/components/qr-frames/FramedPreview"
 import { getFrame, type FrameFields } from "@/lib/frames/compose"
 import { downloadQR, type QRDownloadExt } from "@/lib/qrDownload"
+import { FormResponses } from "@/components/dashboard/FormResponses"
 import { CopyToPlacesModal } from "@/components/places/CopyToPlacesModal"
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -22,7 +23,7 @@ const TYPE_LABEL: Record<string, string> = {
   SOCIAL_MEDIA: "Social Media", VCARD: "Business Card", IMAGE_GALLERY: "Image Gallery",
   BUSINESS: "Business Info", APP: "App Download", MP3: "Audio / MP3", MENU: "Restaurant Menu",
   WIFI: "WiFi", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review",
+  FACEBOOK: "Facebook", COUPON: "Coupon", UPI: "UPI Payment", GOOGLE_REVIEW: "Google Review", EVENT: "Event", FORM: "Form",
 }
 
 const TYPE_EMOJI: Record<string, string> = {
@@ -30,7 +31,7 @@ const TYPE_EMOJI: Record<string, string> = {
   SOCIAL_MEDIA: "👥", VCARD: "👤", IMAGE_GALLERY: "🖼️",
   BUSINESS: "🏢", APP: "📱", MP3: "🎵", MENU: "🍽️",
   WIFI: "📶", WHATSAPP: "💬", INSTAGRAM: "📸",
-  FACEBOOK: "📘", COUPON: "🏷️", UPI: "₹", GOOGLE_REVIEW: "⭐",
+  FACEBOOK: "📘", COUPON: "🏷️", UPI: "₹", GOOGLE_REVIEW: "⭐", EVENT: "📅", FORM: "📝",
 }
 
 // Types that redirect directly (no landing page)
@@ -671,6 +672,8 @@ export default function QRDetailPage() {
           </div>
         </div>
       </div>
+
+      {qr.type === "FORM" && <FormResponses qrId={qr.id} name={qr.name} />}
     </div>
   )
 }

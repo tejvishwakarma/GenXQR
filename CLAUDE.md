@@ -49,7 +49,7 @@
 **GenXQR** is a full-stack SaaS QR code management platform available at `genxqr.com`.
 
 **Core value proposition:**
-- Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, coupons, UPI payment pages and Google reviews.
+- Create **static** and **dynamic** QR codes for URLs, PDFs, videos, vCards, WiFi credentials, social media profiles, business cards, app downloads, image galleries, audio (MP3), menus, WhatsApp, Instagram, Facebook, coupons, UPI payment pages, Google reviews, events and lead/feedback forms.
 - Dynamic QR codes have editable destinations, scan tracking with geolocation/device/browser analytics, A/B testing, smart routing rules (by time, device, geo), password protection, scan limits, expiry dates, and custom landing pages.
 - Plans: FREE → STARTER → PRO → BUSINESS → AGENCY → ENTERPRISE (gated by `plan-gate.middleware.ts`).
 - Team workspaces with OWNER / ADMIN / EDITOR / VIEWER roles.
@@ -323,6 +323,9 @@ VITE_PUBLIC_BASE_URL=""           # e.g. "https://192.168.1.x:5173" for LAN QR s
 
 #### `/api/public` → `public.routes.ts`
 - `GET  /qr/:slug` — minimal QR content for the `/l/:slug` landing page (post-scan; 404s if inactive/password-protected)
+- `GET  /qr/:slug/calendar.ics` — an EVENT code's calendar file · `POST /qr/:slug/responses {answers, turnstileToken}` —
+  an answer to a FORM code (formResponseLimiter + requireTurnstile). All three go through `servableQR` (public.routes):
+  host isolation, password access token, and the scan gate — a new public scan-page endpoint must use it too.
 - `GET  /stats` — aggregate platform stats for the homepage (`qrCodesGenerated`, `activeBusinesses`, `totalScans` — no uptime figure: there is no SLA)
 - `GET  /site-content` — changelog + careers section content (from `PlatformSetting`, with static fallbacks)
 
@@ -527,7 +530,7 @@ Schema at: `backend/prisma/schema.prisma`
 | `Role` | USER, ADMIN, SUPER_ADMIN |
 | `PlanName` | FREE, STARTER, PRO, BUSINESS, AGENCY, ENTERPRISE |
 | `SubscriptionStatus` | ACTIVE, CANCELLED, PAST_DUE, TRIALING, PAUSED |
-| `QRType` | URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW |
+| `QRType` | URL, PDF, VIDEO, LINKS, SOCIAL_MEDIA, VCARD, IMAGE_GALLERY, BUSINESS, APP, MP3, MENU, WIFI, WHATSAPP, INSTAGRAM, FACEBOOK, COUPON, UPI, GOOGLE_REVIEW, EVENT, FORM |
 | `QRCategory` | STATIC, DYNAMIC |
 | `FileType` | PDF, MP3, VIDEO, IMAGE |
 | `DeviceType` | MOBILE, TABLET, DESKTOP, UNKNOWN |
@@ -891,6 +894,16 @@ create and update (dashboard + `/v1`, 422): UPI = `{upiId (VPA), payeeName, amou
   one button per app — `tez://upi/pay?`, `phonepe://pay?`, `paytmmp://upi/pay?` (Razorpay's iOS UPI-intent docs) — plus `upi://` as "Other UPI app".
 - Covered by `tests/integration/qr-types.test.ts`. Migration `20261107100000_upi_google_review_types`.
 
+**Event and lead-form types** (8 Nov 2026). EVENT content = `{title, start, end?, timeZone, venue?, address?,
+description?, organizer?, link?}` with start/end the event's WALL-CLOCK time in its zone ("2026-11-20T19:00"); the .ics
+converts to UTC (`utils/event-calendar.util.ts zonedToUtc`, no VTIMEZONE needed), Google Calendar gets wall-clock + `ctz`.
+FORM content = `{title, intro?, fields[1–15]: {id, label, type text|textarea|email|phone|rating|select, required, options?},
+submitLabel?, thankYou?, notify}`. Answers (`FormResponse`, labels copied in) are checked against the fields
+(`form-response.service checkAnswers`), capped 50,000 per code, sent as the `form.submitted` webhook and — if `notify` —
+emailed to the owner (≤ 20/hour per code, replyTo = an email answer). Owner: `GET/DELETE /api/qr/:id/responses`, `/csv`
+(csvCell). Privacy policy §6 covers answers (GenXQR stores them for the business). Scan pages use `readableAccent`: codes
+made through the API default the page colour to white. Covered by `tests/integration/event-form-types.test.ts`.
+
 **Brand templates** (8 Nov 2026, `services/design-template.service.ts`, `/api/design-templates`, editor component
 `components/dashboard/DesignTemplates.tsx`). A saved QR design per workspace owner (names unique ignoring case, max
 100), validated by the QR design schema; applied to the editor's state client-side. The logo is its own column so
@@ -1190,7 +1203,7 @@ Access: `/admin/*` — requires JWT with `ADMIN` or `SUPER_ADMIN` role.
 - **The audit log is kept 3 years** (decided 24 Oct 2026, for investigations): rows survive account deletion
   (`userId` → SetNull) with their IP, user agent and metadata (the sign-up row holds the email), and
   `purgeExpiredAuditLogs` (audit.service, expiry worker) deletes entries older than `AUDIT_LOG_RETENTION_YEARS`.
-  The Privacy policy (§1, §2, §6) and the GDPR page state this — keep them in step if it changes.
+  The Privacy policy (§1, §2, §7 Data Retention) and the GDPR page state this — keep them in step if it changes.
 - **Phone numbers** (`User.phone`, 10 digits, saved by create-order before the Cashfree call, or in Settings) are
   shown to every admin on the user page and searchable in the Users list (decided 24 Oct 2026). Billing refreshes
   the cached user after a checkout attempt and Settings seeds its form only from a fetch made on opening —

@@ -77,7 +77,7 @@ const ABOUT_JSON_LD = [
         "name": "What is GenXQR used for?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR is used to create QR codes that can be edited after printing and track every scan by city, device, and time. Common uses include: restaurant digital menus (update prices without reprinting), product packaging (fix outdated guides without a recall), event badges (change speaker sessions after printing), campaign flyers (swap landing pages mid-campaign), business cards (update contact details), and WiFi sharing. GenXQR supports 18 QR content types.",
+          "text": "GenXQR is used to create QR codes that can be edited after printing and track every scan by city, device, and time. Common uses include: restaurant digital menus (update prices without reprinting), product packaging (fix outdated guides without a recall), event badges (change speaker sessions after printing), campaign flyers (swap landing pages mid-campaign), business cards (update contact details), and WiFi sharing. GenXQR supports 20 QR content types.",
         },
       },
       {
@@ -150,7 +150,7 @@ const milestones: Milestone[] = [
     quarter: "Q1 2026",
     label: "Live now",
     title: "GenXQR launched",
-    desc: "The full platform shipped: dynamic QR codes, real-time scan analytics (city, device, OS), smart routing, A/B testing, team workspaces, REST API, and 18 QR types. Everything you see on this site is live today.",
+    desc: "The full platform shipped: dynamic QR codes, real-time scan analytics (city, device, OS), smart routing, A/B testing, team workspaces, REST API, and 20 QR types. Everything you see on this site is live today.",
     status: "live",
   },
   {
@@ -222,7 +222,7 @@ const faqs = [
   },
   {
     q: "What is GenXQR used for?",
-    a: "GenXQR is used to create QR codes that can be edited after printing and track every scan by city, device, and time. Common uses: restaurant digital menus (update prices without reprinting), product packaging (fix outdated guides without a recall), event badges (change sessions after printing), campaign flyers (swap landing pages mid-campaign), business cards, and WiFi sharing. GenXQR supports 18 QR content types.",
+    a: "GenXQR is used to create QR codes that can be edited after printing and track every scan by city, device, and time. Common uses: restaurant digital menus (update prices without reprinting), product packaging (fix outdated guides without a recall), event badges (change sessions after printing), campaign flyers (swap landing pages mid-campaign), business cards, and WiFi sharing. GenXQR supports 20 QR content types.",
   },
   {
     q: "Is GenXQR safe to use?",

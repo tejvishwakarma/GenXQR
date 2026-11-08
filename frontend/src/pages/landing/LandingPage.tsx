@@ -19,6 +19,8 @@ import CouponLandingPage from "./templates/CouponLandingPage"
 import FacebookLandingPage from "./templates/FacebookLandingPage"
 import URLLandingPage from "./templates/URLLandingPage"
 import UPILandingPage from "./templates/UPILandingPage"
+import EventLandingPage from "./templates/EventLandingPage"
+import FormLandingPage from "./templates/FormLandingPage"
 
 export default function LandingPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -85,6 +87,8 @@ export default function LandingPage() {
       case "COUPON":        return <CouponLandingPage {...props} />
       case "FACEBOOK":      return <FacebookLandingPage {...props} />
       case "UPI":           return <UPILandingPage {...props} />
+      case "EVENT":         return <EventLandingPage {...props} slug={slug!} access={access} />
+      case "FORM":          return <FormLandingPage {...props} slug={slug!} access={access} />
       default:              return null
     }
   })()

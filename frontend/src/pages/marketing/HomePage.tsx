@@ -32,7 +32,7 @@ const HOME_JSON_LD = [
     "operatingSystem": "Web",
     "publisher": { "@id": ORG_ID },
     "description":
-      "QR code generator and management platform with dynamic QR codes, real-time analytics, A/B testing, smart routing, and 18 QR code types. Free static QR generator and a 14-day Pro trial with no credit card.",
+      "QR code generator and management platform with dynamic QR codes, real-time analytics, A/B testing, smart routing, and 20 QR code types. Free static QR generator and a 14-day Pro trial with no credit card.",
     "url": absoluteUrl("/"),
     "offers": {
       "@type": "AggregateOffer",
@@ -49,7 +49,7 @@ const HOME_JSON_LD = [
       "Real-time scan analytics",
       "Smart routing by device, location, and time",
       "A/B testing for QR codes",
-      "18 QR code types",
+      "20 QR code types",
       "Team workspaces",
       "Public REST API",
       "Custom landing pages",
@@ -99,7 +99,7 @@ const HOME_JSON_LD = [
         "name": "What types of QR codes can I create with GenXQR?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR supports 18 QR code types: URL, Multi-link page, PDF, Video, Social Media, vCard, Menu, WiFi, Image Gallery, App download, Coupon, Audio, Business profile, WhatsApp, Instagram, Facebook, UPI payment, and Google review. All types support dynamic mode, meaning the content can be changed after printing.",
+          "text": "GenXQR supports 20 QR code types: URL, Multi-link page, PDF, Video, Social Media, vCard, Menu, WiFi, Image Gallery, App download, Coupon, Audio, Business profile, WhatsApp, Instagram, Facebook, UPI payment, Google review, Event, and Lead form. All types support dynamic mode, meaning the content can be changed after printing.",
         },
       },
     ],
@@ -127,7 +127,7 @@ const faqs = [
   },
   {
     q: "What types of QR codes can I create?",
-    a: "GenXQR supports 18 QR code types: URL, Multi-link page, PDF, Video, Social Media, vCard, Menu, WiFi, Image Gallery, App download, Coupon, Audio, Business profile, WhatsApp, Instagram, Facebook, UPI payment, and Google review. All types support dynamic mode, meaning the content can be changed after printing.",
+    a: "GenXQR supports 20 QR code types: URL, Multi-link page, PDF, Video, Social Media, vCard, Menu, WiFi, Image Gallery, App download, Coupon, Audio, Business profile, WhatsApp, Instagram, Facebook, UPI payment, Google review, Event, and Lead form. All types support dynamic mode, meaning the content can be changed after printing.",
   },
 ]
 
@@ -138,7 +138,7 @@ export default function HomePage() {
     <div className="bg-paper">
       <SEOMeta
         title="QR Code Generator with Analytics & Smart Routing"
-        description="Create QR codes you can edit after printing. Track every scan by city, device & time. 18 QR types, smart routing, A/B testing. 14-day free trial — no credit card needed."
+        description="Create QR codes you can edit after printing. Track every scan by city, device & time. 20 QR types, smart routing, A/B testing. 14-day free trial — no credit card needed."
         url="/"
         jsonLd={HOME_JSON_LD}
       />

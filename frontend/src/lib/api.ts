@@ -1477,6 +1477,48 @@ export function updateBrandingSettings(input: { brandName?: string | null; brand
 }
 
 /** `access`: the short-lived token a correct QR password hands over (/l/<slug>?access=…). */
+/** The scan page's .ics for an EVENT code (opens in Apple Calendar / Outlook). */
+export function eventCalendarUrl(slug: string, access?: string | null): string {
+  return `${import.meta.env.VITE_API_URL ?? ""}/api/public/qr/${slug}/calendar.ics${access ? `?access=${encodeURIComponent(access)}` : ""}`
+}
+
+/** An answer to a FORM code's form, from its scan page. */
+export function submitFormResponse(slug: string, answers: Record<string, string>, access?: string | null, turnstileToken?: string) {
+  const qs = access ? `?access=${encodeURIComponent(access)}` : ""
+  return apiFetch<{ success: boolean }>(`/api/public/qr/${slug}/responses${qs}`, {
+    method: "POST",
+    body: JSON.stringify({ answers, turnstileToken }),
+  })
+}
+
+export interface FormResponseRow {
+  id: string
+  data: Array<{ id: string; label: string; value: string }>
+  createdAt: string
+}
+
+export function getFormResponses(qrId: string, page = 1) {
+  return apiFetch<{ success: boolean; data: FormResponseRow[]; pagination: { page: number; total: number; totalPages: number } }>(
+    `/api/qr/${qrId}/responses?page=${page}`, { headers: authHeader() },
+  )
+}
+
+export function deleteFormResponse(qrId: string, responseId: string) {
+  return apiFetch<{ success: boolean }>(`/api/qr/${qrId}/responses/${responseId}`, { method: "DELETE", headers: authHeader() })
+}
+
+/** Downloads every response as CSV. */
+export async function downloadFormResponsesCsv(qrId: string, name: string): Promise<void> {
+  const res = await fetch(`${import.meta.env.VITE_API_URL ?? ""}/api/qr/${qrId}/responses/csv`, { headers: authHeader(), credentials: "include" })
+  if (!res.ok) throw new Error("Could not download the responses.")
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `${name.replace(/[^a-z0-9_-]/gi, "_")}-responses.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 export function getPublicQR(slug: string, access?: string | null) {
   const qs = access ? `?access=${encodeURIComponent(access)}` : ""
   return apiFetch<{ success: boolean; data: PublicQRData }>(`/api/public/qr/${slug}${qs}`)

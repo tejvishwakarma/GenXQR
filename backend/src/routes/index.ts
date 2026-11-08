@@ -24,12 +24,14 @@ import agencyRouter from "./agency.routes.js"
 import placeRouter from "./place.routes.js"
 import folderRouter from "./folder.routes.js"
 import designTemplateRouter from "./design-template.routes.js"
+import formResponseRouter from "./form-response.routes.js"
 
 const router: IRouter = Router()
 
 router.use("/auth", authRouter)
 router.use("/static", staticRouter)
 router.use("/public", publicRouter)
+router.use("/qr", formResponseRouter)
 router.use("/qr", qrRouter)
 router.use("/domains", customDomainRouter)
 router.use("/upload", uploadRouter)

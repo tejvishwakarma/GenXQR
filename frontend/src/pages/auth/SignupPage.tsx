@@ -13,7 +13,7 @@ const perks = [
   { icon: <BarChart3 size={15} />, text: "Real-time scan analytics" },
   { icon: <RefreshCw size={15} />, text: "Dynamic QR — edit after printing" },
   { icon: <Shield size={15} />, text: "Password-protected QR codes" },
-  { icon: <QrCode size={15} />, text: "All 18 QR content types" },
+  { icon: <QrCode size={15} />, text: "All 20 QR content types" },
 ]
 
 export default function SignupPage() {
