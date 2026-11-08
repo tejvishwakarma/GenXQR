@@ -438,6 +438,12 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
   5. Redirect (`302`) or render landing page (`/l/:slug`)
 
 #### `/v1/*` → `v1.routes.ts` (API-key authenticated developer REST API)
+- `POST /v1/mcp` — GenXQR as an MCP server (`routes/mcp.ts`, built 8 Nov 2026): Streamable HTTP, stateless (a fresh
+  `McpServer` per request, JSON responses; GET/DELETE answer 405). Behind the same key/limit/quota as all of /v1, and
+  under nginx's existing `/v1/` location (no vhost change). Tools: list/get/create/update/delete codes,
+  set_qr_code_active, get_qr_analytics, list_places, list_folders. Changes go through `services/api-actions.service.ts`
+  (shared with the REST routes) so webhooks + activity log match; audit `metadata.via` = "mcp". OAuth-based connectors
+  (claude.ai/ChatGPT) are not supported — clients must send the API key header. Covered by `tests/integration/mcp.test.ts`.
 - `/v1/qr` — CRUD for QR codes (mirrors `/api/qr` but key-auth; `placeId` on create/update and as a list filter)
 - `/v1/places` — the account's places (ids for `placeId`)
 

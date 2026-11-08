@@ -15,12 +15,8 @@ import { requireApiKey, requireApiQuota } from "../middleware/apikey.middleware.
 import { v1Limiter } from "../middleware/rateLimit.middleware.js"
 import { requireQRSlot } from "../middleware/plan-gate.middleware.js"
 import {
-  createQR,
   listQRs,
   getQR,
-  updateQR,
-  deleteQR,
-  toggleQR,
   createQRSchema,
   updateQRSchema,
 } from "../services/qr.service.js"
@@ -28,18 +24,22 @@ import { getQRAnalytics } from "../services/analytics.service.js"
 import { listPlaces } from "../services/place.service.js"
 import { listFolders } from "../services/folder.service.js"
 import { logAudit } from "../services/audit.service.js"
+import { handleMcp, mcpMethodNotAllowed } from "./mcp.js"
+import { apiCreateQR, apiDeleteQR, apiToggleQR, apiUpdateQR, type ApiCaller } from "../services/api-actions.service.js"
 import {
   createWebhook,
   deleteWebhook,
   listWebhooks,
   getWebhookWithSecret,
-  deliverWebhookEvent,
   WEBHOOK_EVENTS,
   type WebhookEvent,
 } from "../services/webhook.service.js"
 
 const router: IRouter = Router()
 const uid = (req: Request) => (req.user as unknown as AccessTokenPayload).sub
+const caller = (req: Request): ApiCaller => ({
+  userId: uid(req), apiKeyId: req.apiKeyId ?? null, ip: req.ip, userAgent: req.headers["user-agent"], via: "api",
+})
 
 /** Activity-log entry for a change made through the developer API (via: "api" marks the source). */
 function auditApi(req: Request, action: string, category: "qr" | "webhook", entityId: string, metadata: Record<string, unknown> = {}): void {
@@ -56,6 +56,12 @@ function auditApi(req: Request, action: string, category: "qr" | "webhook", enti
 router.use(requireApiKey)
 router.use(v1Limiter)
 router.use(requireApiQuota)
+
+// ─── MCP (AI assistants) ──────────────────────────────────────────────────────
+// Same key, limit and quota as everything else here (routes/mcp.ts).
+router.post("/mcp", handleMcp)
+router.get("/mcp", mcpMethodNotAllowed)
+router.delete("/mcp", mcpMethodNotAllowed)
 
 // ─── QR Codes ─────────────────────────────────────────────────────────────────
 
@@ -99,13 +105,8 @@ router.get("/qr", async (req, res, next) => {
  */
 router.post("/qr", requireQRSlot, async (req, res, next) => {
   try {
-    const input = createQRSchema.parse(req.body)
-    const qr = await createQR(uid(req), input)
-    // Same events qr.routes.ts fires. Without these, a QR created through the
-    // developer API raised no qr.created — so an integration's own "New QR Code"
-    // trigger never saw anything it created, or anything another integration did.
-    void deliverWebhookEvent(uid(req), "qr.created", { qr })
-    auditApi(req, "qr.create", "qr", qr.id, { name: qr.name, type: qr.type })
+    // Webhook + activity log as the dashboard does (api-actions.service).
+    const qr = await apiCreateQR(caller(req), createQRSchema.parse(req.body))
     res.status(201).json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -133,9 +134,7 @@ router.patch("/qr/:id", async (req, res, next) => {
   try {
     // Same validation as the dashboard route (qr.routes.ts). This used to pass
     // req.body straight through, skipping every rule in updateQRSchema.
-    const qr = await updateQR(req.params.id!, uid(req), updateQRSchema.parse(req.body))
-    void deliverWebhookEvent(uid(req), "qr.updated", { qr })
-    auditApi(req, "qr.update", "qr", qr.id, { name: qr.name })
+    const qr = await apiUpdateQR(caller(req), req.params.id!, updateQRSchema.parse(req.body))
     res.json({ success: true, data: qr })
   } catch (err) {
     next(err)
@@ -148,12 +147,7 @@ router.patch("/qr/:id", async (req, res, next) => {
  */
 router.patch("/qr/:id/toggle", async (req, res, next) => {
   try {
-    const result = await toggleQR(req.params.id!, uid(req))
-    // Same as the dashboard toggle: on/off is an update for qr.updated subscribers.
-    void getQR(result.id, uid(req))
-      .then((qr) => deliverWebhookEvent(uid(req), "qr.updated", { qr }))
-      .catch(() => undefined)
-    auditApi(req, result.isActive ? "qr.activate" : "qr.deactivate", "qr", result.id)
+    const result = await apiToggleQR(caller(req), req.params.id!)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)
@@ -166,12 +160,7 @@ router.patch("/qr/:id/toggle", async (req, res, next) => {
  */
 router.delete("/qr/:id", async (req, res, next) => {
   try {
-    // Read the name before deleting: the qr.deleted payload carries it, and after
-    // the row is gone there is nothing left to read it from.
-    const existing = await getQR(req.params.id!, uid(req))
-    await deleteQR(req.params.id!, uid(req))
-    void deliverWebhookEvent(uid(req), "qr.deleted", { qrId: req.params.id!, name: existing?.name ?? "" })
-    auditApi(req, "qr.delete", "qr", req.params.id!, { name: existing?.name ?? "" })
+    await apiDeleteQR(caller(req), req.params.id!)
     res.status(204).end()
   } catch (err) {
     next(err)

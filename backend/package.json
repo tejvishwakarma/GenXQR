@@ -24,6 +24,7 @@
     "seed": "node --env-file=.env prisma/seed.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@prisma/client": "^5.22.0",
     "@types/multer": "^2.1.0",
     "archiver": "^7.0.1",
