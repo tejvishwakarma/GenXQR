@@ -149,9 +149,10 @@ export function DashboardLayout() {
       return
     }
 
-    // No OAuth code — standard auth guard
+    // No OAuth code — standard auth guard. Back to this page after signing in
+    // (the AI-app consent page, /app/oauth/authorize, depends on it).
     if (!localStorage.getItem("access_token")) {
-      navigate("/login", { replace: true })
+      navigate(`/login?next=${encodeURIComponent(location.pathname + location.search)}`, { replace: true })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate])

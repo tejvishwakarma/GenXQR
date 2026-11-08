@@ -29,6 +29,18 @@ export function scanUrlOf(qr: Pick<QRCode, "slug" | "scanUrl" | "customDomain">)
   return `${getQrBaseUrl()}/r/${qr.slug}`
 }
 
+/**
+ * /login, coming back here afterwards when "here" is a dashboard page — so a
+ * signed-out visitor to e.g. the AI-app consent page (/app/oauth/authorize)
+ * returns to it after signing in.
+ */
+function loginUrl(): string {
+  const here = window.location.pathname + window.location.search
+  // The dashboard's own guard may already have moved to /login?next=…: keep that.
+  if (window.location.pathname === "/login") return here
+  return here.startsWith("/app/") ? `/login?next=${encodeURIComponent(here)}` : "/login"
+}
+
 export class ApiError extends Error {
   readonly status: number
   constructor(status: number, message: string) {
@@ -185,7 +197,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         throw new ApiError(401, "Impersonation session expired. Returned to admin session.")
       }
       clearClientSession()
-      window.location.href = "/login"
+      window.location.href = loginUrl()
       throw new ApiError(401, "Session expired. Please log in again.")
     }
 
@@ -204,14 +216,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       if (retryRes.ok) return retryRes.json() as Promise<T>
       if (retryRes.status === 401) {
         clearClientSession()
-        window.location.href = "/login"
+        window.location.href = loginUrl()
         throw new ApiError(401, "Session expired. Please log in again.")
       }
       throw new ApiError(retryRes.status, await parseErrorBody(retryRes))
     }
     // Refresh token also expired — full logout
     clearClientSession()
-    window.location.href = "/login"
+    window.location.href = loginUrl()
     throw new ApiError(401, "Session expired. Please log in again.")
   }
 
@@ -369,7 +381,7 @@ export async function uploadAvatar(file: File): Promise<{ avatarUrl: string }> {
       res = await doRequest(newToken)
     } else {
       clearClientSession()
-      window.location.href = "/login"
+      window.location.href = loginUrl()
       throw new ApiError(401, "Session expired. Please log in again.")
     }
   }
@@ -400,7 +412,7 @@ export async function removeAvatar(): Promise<void> {
       res = await doRequest(newToken)
     } else {
       clearClientSession()
-      window.location.href = "/login"
+      window.location.href = loginUrl()
       throw new ApiError(401, "Session expired. Please log in again.")
     }
   }
@@ -1737,6 +1749,32 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
     headers: authHeader(),
     body: JSON.stringify(body),
   })
+}
+
+// ─── AI apps (OAuth for the MCP server) ──────────────────────────────────────
+
+export function getOAuthRequest(id: string) {
+  return apiFetch<{ success: boolean; data: { clientName: string; redirectHost: string; planAllows: boolean } }>(`/api/oauth/requests/${id}`, { headers: authHeader() })
+}
+
+/** Approve or decline; returns where to send the browser (back to the app). */
+export function answerOAuthRequest(id: string, approve: boolean) {
+  return apiFetch<{ success: boolean; data: { redirect: string } }>(`/api/oauth/requests/${id}`, { method: "POST", headers: authHeader(), body: JSON.stringify({ approve }) })
+}
+
+export interface OAuthConnection {
+  clientId: string
+  name: string
+  connectedAt: string
+  lastUsedAt: string | null
+}
+
+export function getOAuthConnections() {
+  return apiFetch<{ success: boolean; data: OAuthConnection[] }>("/api/oauth/connections", { headers: authHeader() })
+}
+
+export function revokeOAuthConnection(clientId: string) {
+  return apiFetch<{ success: boolean }>(`/api/oauth/connections/${encodeURIComponent(clientId)}`, { method: "DELETE", headers: authHeader() })
 }
 
 // ─── Design templates ─────────────────────────────────────────────────────────

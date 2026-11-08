@@ -69,6 +69,8 @@ function describe(e: ActivityEntry): string {
       case "auth.login.google": return m.twoFactor ? "Signed in with Google and two-factor" : "Signed in with Google"
       case "auth.login.sso": return `Signed in with SSO${str(m.provider) === "microsoft" ? " (Microsoft)" : str(m.provider) === "google" ? " (Google Workspace)" : ""}`
       case "auth.logout": return "Signed out"
+      case "oauth.connect": return `Connected an AI app${quoted(m.app)}`
+      case "oauth.disconnect": return "Disconnected an AI app"
       case "auth.2fa.enable": return "Turned on two-factor sign-in"
       case "auth.2fa.disable": return "Turned off two-factor sign-in"
       case "auth.2fa.recovery_codes": return "Made new two-factor recovery codes"

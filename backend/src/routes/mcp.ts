@@ -176,6 +176,7 @@ export async function handleMcp(req: Request, res: Response): Promise<void> {
   const caller: ApiCaller = {
     userId: (req.user as unknown as AccessTokenPayload).sub,
     apiKeyId: req.apiKeyId ?? null,
+    oauthClientId: req.oauthClientId ?? null,
     ip: req.ip,
     userAgent: req.headers["user-agent"],
     via: "mcp",

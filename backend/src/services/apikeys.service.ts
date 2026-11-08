@@ -241,7 +241,7 @@ export async function verifyApiKey(
  * verifyApiKey, ahead of the limiter, and a client hammering the API spent its
  * monthly quota on requests that were answered with a rate-limit 429.
  */
-export async function meterApiCall(userId: string, keyId: string, apiCallsLimit: number): Promise<void> {
+export async function meterApiCall(userId: string, keyId: string | null, apiCallsLimit: number): Promise<void> {
   // ── Finding #8: enforce the monthly call quota, don't just notify ──────────
   // callCount is all-time and the old check only sent an email. This is an
   // atomic per-user, per-calendar-month Redis counter that REJECTS once the plan
@@ -272,10 +272,12 @@ export async function meterApiCall(userId: string, keyId: string, apiCallsLimit:
   // Bump per-key stats + fire the 80%/100% warning email asynchronously.
   void (async () => {
     try {
-      await prisma.apiKey.update({
-        where: { id: keyId },
-        data: { lastUsedAt: new Date(), callCount: { increment: 1 } },
-      })
+      if (keyId) {
+        await prisma.apiKey.update({
+          where: { id: keyId },
+          data: { lastUsedAt: new Date(), callCount: { increment: 1 } },
+        })
+      }
       const { limits: freshLimits, planName } = await getUserPlanLimits(userId)
       if (freshLimits.apiCallsLimit > 0) {
         const month = new Date().toISOString().slice(0, 7)

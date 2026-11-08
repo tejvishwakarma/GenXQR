@@ -73,6 +73,7 @@ import GlobalAnalyticsPage from "@/pages/dashboard/GlobalAnalyticsPage"
 import BulkGeneratePage from "@/pages/dashboard/BulkGeneratePage"
 import TeamPage from "@/pages/dashboard/TeamPage"
 import APIKeysPage from "@/pages/dashboard/APIKeysPage"
+import OAuthAuthorizePage from "@/pages/dashboard/OAuthAuthorizePage"
 import DomainsPage from "@/pages/dashboard/DomainsPage"
 import PlacesPage from "@/pages/dashboard/PlacesPage"
 import ActivityPage from "@/pages/dashboard/ActivityPage"
@@ -219,6 +220,7 @@ export function AppRoutes() {
           <Route path="bulk-generate" element={<BulkGeneratePage />} />
           <Route path="team" element={<TeamPage />} />
           <Route path="api-keys" element={<APIKeysPage />} />
+          <Route path="oauth/authorize" element={<OAuthAuthorizePage />} />
           <Route path="webhooks" element={<WebhooksPage />} />
           <Route path="domains" element={<DomainsPage />} />
           <Route path="activity" element={<ActivityPage />} />

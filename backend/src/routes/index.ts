@@ -24,6 +24,7 @@ import agencyRouter from "./agency.routes.js"
 import placeRouter from "./place.routes.js"
 import folderRouter from "./folder.routes.js"
 import designTemplateRouter from "./design-template.routes.js"
+import oauthConsentRouter from "./oauth-consent.routes.js"
 import formResponseRouter from "./form-response.routes.js"
 
 const router: IRouter = Router()
@@ -54,5 +55,6 @@ router.use("/agency", agencyRouter)
 router.use("/places", placeRouter)
 router.use("/folders", folderRouter)
 router.use("/design-templates", designTemplateRouter)
+router.use("/oauth", oauthConsentRouter)
 
 export default router
