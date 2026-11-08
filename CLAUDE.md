@@ -1430,6 +1430,10 @@ Configured in `vite.config.ts` via `vite-plugin-pwa`:
   `always`. Our vhost therefore does not repeat the first two (that sent each twice). It still sets
   `Referrer-Policy: strict-origin-when-cross-origin`: browsers apply the last value, which is ours. Don't edit
   global_settings — CloudPanel owns it and other sites depend on it.
+- **`/.well-known/security.txt`** (RFC 9116, 8 Nov 2026) is a static file in `frontend/public/.well-known/`, served by an exact
+  `location =` in the vhost (it outranks CloudPanel's regex `.well-known` block, which serves from the site root).
+  Contact = support@genxqr.com. **Its `Expires:` (1 Nov 2027) must be moved forward before then** — an expired file
+  tells researchers it is stale.
 - Nginx-level rate limiting is intentionally omitted (the per-site Vhost Editor can't declare `limit_req_zone`, which is an `http{}`-context-only directive) — rate limiting is enforced at the app layer instead (`rateLimit.middleware.ts`, Redis-backed).
 
 **PM2 config** (`ecosystem.config.cjs`):
