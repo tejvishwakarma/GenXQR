@@ -220,10 +220,11 @@ const SmartRouteConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("device"), device: z.enum(["mobile", "tablet", "desktop"]) }),
   z.object({ type: z.literal("time"),   from: z.number().int().min(0).max(23), to: z.number().int().min(0).max(23) }),
   z.object({ type: z.literal("geo"),    countries: z.array(z.string().length(2)).min(1).max(50) }),
+  z.object({ type: z.literal("language"), languages: z.array(z.string().regex(/^[a-z]{2,3}$/i)).min(1).max(30) }),
 ])
 
 const SmartRouteBodySchema = z.object({
-  conditionType:  z.enum(["device", "time", "geo"]),
+  conditionType:  z.enum(["device", "time", "geo", "language"]),
   conditionValue: z.record(z.unknown()),
   targetUrl:      safeHttpUrlSchema,
   priority:       z.number().int().min(1).max(100),

@@ -22,6 +22,7 @@ import LandingPreview from "./LandingPreview"
 import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashboard/ScanPageLogoSetting"
 import { PlacePicker } from "@/components/places/PlacePicker"
 import { FolderPicker } from "@/components/folders/FolderPicker"
+import { UtmBuilder } from "@/components/dashboard/UtmBuilder"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -690,7 +691,7 @@ export default function CreateQRPage() {
   const qrRef = useRef<HTMLDivElement>(null)
   const qrInstance = useRef<QRCodeStyling | null>(null)
 
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, control, reset, setValue, watch, formState: { errors } } = useForm<FormValues>({
     defaultValues: DEFAULT_VALUES,
   })
 
@@ -1319,6 +1320,9 @@ export default function CreateQRPage() {
                     <div>
                       <label className="label-text">Website URL</label>
                       <Input {...register("url")} placeholder="https://example.com" />
+                      <div className="mt-3">
+                        <UtmBuilder url={watch("url") ?? ""} onChange={(u) => setValue("url", u, { shouldDirty: true })} />
+                      </div>
                     </div>
                   )}
 

@@ -15,7 +15,7 @@ import { createUser, giveSubscription, seedPlans } from "../helpers/factories.js
  * its own (see deploy/*.conf).
  */
 
-async function makePixelCode(pixels: { gaId?: string; gtmId?: string; fbPixelId?: string }) {
+async function makePixelCode(pixels: { gaId?: string; gtmId?: string; fbPixelId?: string; linkedinPartnerId?: string; tiktokPixelId?: string }) {
   const user = await createUser()
   await giveSubscription(user.id, "PRO")
   const slug = `px${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`.slice(0, 12)
@@ -53,6 +53,28 @@ describe("pixel redirect page", () => {
     const scripts = res.text.match(/<script\b[^>]*>/g) ?? []
     expect(scripts.length).toBeGreaterThanOrEqual(3)
     for (const tag of scripts) expect(tag).toContain(`nonce="${nonce}"`)
+  })
+
+  it("should fire LinkedIn and TikTok pixels under the same nonce CSP", async () => {
+    const slug = await makePixelCode({ linkedinPartnerId: "1234567", tiktokPixelId: "CABCDEFGHIJ1234567890" })
+    const res = await request(app).get(`/r/${slug}`).expect(200)
+    const csp = res.headers["content-security-policy"] as string
+    const nonce = /'nonce-([^']+)'/.exec(csp)?.[1]
+    expect(csp).toContain("https://snap.licdn.com")
+    expect(csp).toContain("https://analytics.tiktok.com")
+    expect(res.text).toContain("_linkedin_data_partner_ids.push('1234567')")
+    expect(res.text).toContain("ttq.load('CABCDEFGHIJ1234567890')")
+    for (const tag of res.text.match(/<script\b[^>]*>/g) ?? []) expect(tag).toContain(`nonce="${nonce}"`)
+  })
+
+  it("should refuse pixel IDs that are not IDs (they are written into a script)", async () => {
+    const user = await createUser()
+    await giveSubscription(user.id, "PRO")
+    const create = (settings: Record<string, string>) => request(app).post("/api/qr").set("Authorization", `Bearer ${user.token}`)
+      .send({ name: "x", type: "URL", content: { data: { url: "https://example.com" } }, settings })
+    await create({ linkedinPartnerId: "12');alert(1);//" }).expect(422)
+    await create({ tiktokPixelId: "C1'};alert(1);//" }).expect(422)
+    await create({ linkedinPartnerId: "1234567", tiktokPixelId: "CABCDEFGHIJ1234567890" }).expect(201)
   })
 
   it("should use a fresh nonce on every response", async () => {

@@ -95,6 +95,8 @@ export const createQRSchema = z.object({
       fbPixelId: z.string().regex(/^\d{1,20}$/, "FB Pixel ID must be a numeric string (up to 20 digits)").nullish(),
       gaId: z.string().regex(/^(G|UA|AW|DC)-[A-Z0-9-]+$/i, "GA ID must match G-XXXX / UA-XXXX-X / AW-XXXX / DC-XXXX format").nullish(),
       gtmId: z.string().regex(/^GTM-[A-Z0-9]+$/i, "GTM container ID must match GTM-XXXX format").nullish(),
+      linkedinPartnerId: z.string().regex(/^\d{1,12}$/, "LinkedIn Partner ID must be numeric (up to 12 digits)").nullish(),
+      tiktokPixelId: z.string().regex(/^[A-Z0-9]{10,30}$/i, "TikTok Pixel ID must be 10–30 letters and digits").nullish(),
     })
     .default({}),
   uploadedFiles: z
@@ -171,6 +173,8 @@ const qrSelect = {
   fbPixelId: true,
   gaId: true,
   gtmId: true,
+  linkedinPartnerId: true,
+  tiktokPixelId: true,
   createdAt: true,
   updatedAt: true,
   lastScannedAt: true,
@@ -452,6 +456,8 @@ export async function createQR(userId: string, input: z.infer<typeof createQRSch
       fbPixelId: settings.fbPixelId ?? undefined,
       gaId: settings.gaId ?? undefined,
       gtmId: settings.gtmId ?? undefined,
+      linkedinPartnerId: settings.linkedinPartnerId ?? undefined,
+      tiktokPixelId: settings.tiktokPixelId ?? undefined,
       content: { create: { data: content.data as Prisma.InputJsonValue } },
       design: { create: { ...buildDesignCreate(design), frameFields: frameFieldsValue(design.frameFields) } },
       files:
@@ -596,6 +602,8 @@ export async function updateQR(id: string, userId: string, input: z.infer<typeof
       ...(settings?.fbPixelId !== undefined && { fbPixelId: settings.fbPixelId }),
       ...(settings?.gaId !== undefined && { gaId: settings.gaId }),
       ...(settings?.gtmId !== undefined && { gtmId: settings.gtmId }),
+      ...(settings?.linkedinPartnerId !== undefined && { linkedinPartnerId: settings.linkedinPartnerId }),
+      ...(settings?.tiktokPixelId !== undefined && { tiktokPixelId: settings.tiktokPixelId }),
       ...(content !== undefined && {
         content: {
           upsert: {

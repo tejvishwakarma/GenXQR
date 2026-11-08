@@ -219,6 +219,8 @@ model QRCode {
   fbPixelId           String?
   gaId                String?
   gtmId               String?
+  linkedinPartnerId   String?
+  tiktokPixelId       String?
   abVariants          ABTestVariant[]
   abuseReports        AbuseReport[]
   user                User?              @relation(fields: [userId], references: [id])
