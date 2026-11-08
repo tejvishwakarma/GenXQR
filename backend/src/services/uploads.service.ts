@@ -36,21 +36,22 @@ export function toDiskPath(fileUrl: string): string | null {
 
 /**
  * Whether anything still points at this uploaded file. Uploads are used in more
- * places than QRFile attachments — a QR design's centre logo, images inside a
+ * places than QRFile attachments — a QR design's (or saved template's) centre logo, images inside a
  * code's content (e.g. a vCard photo), an account's avatar and white-label logo
  * — so ALL of them are checked before any file is deleted.
  */
 export async function isFileReferenced(url: string): Promise<boolean> {
-  const [files, pending, designs, users, contents] = await Promise.all([
+  const [files, pending, designs, templates, users, contents] = await Promise.all([
     prisma.qRFile.count({ where: { OR: [{ fileUrl: url }, { thumbnailUrl: url }] } }),
     prisma.pendingUpload.count({ where: { path: url } }),
     prisma.qRDesign.count({ where: { logoUrl: url } }),
+    prisma.designTemplate.count({ where: { logoUrl: url } }),
     prisma.user.count({ where: { OR: [{ avatarUrl: url }, { brandLogoUrl: url }] } }),
     // Content is free-form JSON; an exact substring match (strpos, not LIKE, so
     // "_" in a filename is not a wildcard) finds the path wherever it sits.
     prisma.$queryRaw<Array<{ n: bigint }>>`SELECT COUNT(*)::bigint AS n FROM qr_content WHERE strpos(data::text, ${url}) > 0`,
   ])
-  return files + pending + designs + users + Number(contents[0]?.n ?? 0) > 0
+  return files + pending + designs + templates + users + Number(contents[0]?.n ?? 0) > 0
 }
 
 /** Deletes these files from disk unless something still uses them (isFileReferenced). */

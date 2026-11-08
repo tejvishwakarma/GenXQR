@@ -8,12 +8,13 @@
  * it. One renderer means one result wherever the button is.
  */
 import QRCodeStyling, { type CornerSquareType, type DotType } from "qr-code-styling"
+import qrcodeGenerator from "qrcode-generator"
 import jsPDF from "jspdf"
 import { svg2pdf } from "svg2pdf.js"
 import { scanUrlOf, type QRCode } from "@/lib/api"
 import { getFrame, renderFramed, type FrameFields } from "@/lib/frames/compose"
 
-export type QRDownloadExt = "png" | "svg" | "pdf" | "jpeg" | "webp"
+export type QRDownloadExt = "png" | "svg" | "pdf" | "jpeg" | "webp" | "eps"
 
 /** The file for one code in one format: its saved design, frame included. */
 export async function renderQRDownload(qr: QRCode, ext: QRDownloadExt): Promise<{ blob: Blob; filename: string }> {
@@ -32,6 +33,8 @@ export async function renderQRDownload(qr: QRCode, ext: QRDownloadExt): Promise<
     imageOptions: { hideBackgroundDots: true, imageSize: (d?.logoSize ?? 35) / 100, margin: 8, crossOrigin: "anonymous" },
     qrOptions: { errorCorrectionLevel: "H" as const },
   }
+
+  if (ext === "eps") return { blob: renderEps(sharedOpts.data, primaryColor, d?.backgroundColor ?? "#ffffff", qr.name), filename }
 
   const libraryFrame = getFrame(frameStyle)
   if (libraryFrame) {
@@ -66,6 +69,63 @@ export async function renderQRDownload(qr: QRCode, ext: QRDownloadExt): Promise<
   }
   if (!blob) throw new Error("could not render the QR code")
   return { blob, filename }
+}
+
+// ─── EPS ──────────────────────────────────────────────────────────────────────
+
+/** "#0f766e" / "#abc" → "0.059 0.463 0.431" for PostScript's setrgbcolor; anything else → black. */
+function psColor(hex: string): string {
+  let h = hex.trim().replace(/^#/, "")
+  if (/^[0-9a-f]{3}$/i.test(h)) h = h.split("").map((c) => c + c).join("")
+  if (!/^[0-9a-f]{6}/i.test(h)) return "0 0 0"
+  return [0, 2, 4].map((i) => (parseInt(h.slice(i, i + 2), 16) / 255).toFixed(3)).join(" ")
+}
+
+/**
+ * The code as an EPS — what print shops and older design tools ask for. Pure
+ * vector, drawn from the same matrix qr-code-styling uses (qrcode-generator,
+ * level H): square modules in the code's colours on its background, with the
+ * standard 4-module quiet zone. Dot styles, frame and logo are not drawn (EPS
+ * has no way to reuse the SVG artwork), so it is the plain, maximally readable code.
+ */
+function renderEps(data: string, fg: string, bg: string, title: string): Blob {
+  const qr = qrcodeGenerator(0, "H")
+  qr.addData(data)
+  qr.make()
+  const n = qr.getModuleCount()
+  const quiet = 4
+  const unit = 8 // points per module
+  const size = (n + quiet * 2) * unit
+  const rects: string[] = []
+  for (let r = 0; r < n; r++) {
+    // Runs of dark modules in a row become one rectangle: smaller file, no hairline seams.
+    let c = 0
+    while (c < n) {
+      if (!qr.isDark(r, c)) { c++; continue }
+      const start = c
+      while (c < n && qr.isDark(r, c)) c++
+      const x = (start + quiet) * unit
+      const y = (n - 1 - r + quiet) * unit // PostScript's origin is bottom-left
+      rects.push(`${x} ${y} ${(c - start) * unit} ${unit} rectfill`)
+    }
+  }
+  const safeTitle = title.replace(/[^\x20-\x7e]/g, "").replace(/[()\\]/g, "").slice(0, 80)
+  const eps = [
+    "%!PS-Adobe-3.0 EPSF-3.0",
+    `%%BoundingBox: 0 0 ${size} ${size}`,
+    `%%HiResBoundingBox: 0 0 ${size} ${size}`,
+    `%%Title: (${safeTitle})`,
+    "%%Creator: GenXQR",
+    "%%Pages: 1",
+    "%%EndComments",
+    `${psColor(bg)} setrgbcolor 0 0 ${size} ${size} rectfill`,
+    `${psColor(fg)} setrgbcolor`,
+    ...rects,
+    "showpage",
+    "%%EOF",
+    "",
+  ].join("\n")
+  return new Blob([eps], { type: "application/postscript" })
 }
 
 export function saveBlob(blob: Blob, filename: string) {

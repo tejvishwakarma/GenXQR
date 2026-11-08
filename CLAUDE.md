@@ -891,6 +891,15 @@ create and update (dashboard + `/v1`, 422): UPI = `{upiId (VPA), payeeName, amou
   one button per app — `tez://upi/pay?`, `phonepe://pay?`, `paytmmp://upi/pay?` (Razorpay's iOS UPI-intent docs) — plus `upi://` as "Other UPI app".
 - Covered by `tests/integration/qr-types.test.ts`. Migration `20261107100000_upi_google_review_types`.
 
+**Brand templates** (8 Nov 2026, `services/design-template.service.ts`, `/api/design-templates`, editor component
+`components/dashboard/DesignTemplates.tsx`). A saved QR design per workspace owner (names unique ignoring case, max
+100), validated by the QR design schema; applied to the editor's state client-side. The logo is its own column so
+`isFileReferenced` counts it — a new place that holds an upload URL must be added there too, or clean-up deletes the file.
+
+**EPS download** (8 Nov 2026, `renderEps` in `lib/qrDownload.ts`): vector EPS of the plain code — square modules in the
+code's colours, 4-module quiet zone, from `qrcode-generator` (the matrix qr-code-styling uses, level H). No frame, logo or
+dot style; the menus say so.
+
 **UTM builder** (7 Nov 2026, `components/dashboard/UtmBuilder.tsx`): under the URL field of a URL code; reads and
 writes `utm_*` on the URL itself, so the URL stays the one source of truth (nothing stored separately).
 

@@ -96,6 +96,7 @@ export function DownloadMenu({ qr }: { qr: QRCode }) {
     { ext: "jpeg", label: "JPEG", hint: "Smaller file size" },
     { ext: "webp", label: "WebP", hint: "Modern web format" },
     { ext: "pdf",  label: "PDF",  hint: "Ready to print" },
+    { ext: "eps",  label: "EPS",  hint: "Vector for print shops (plain code)" },
   ]
 
   return (

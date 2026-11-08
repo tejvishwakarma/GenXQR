@@ -23,6 +23,7 @@ import { ScanPageLogoSetting, useScanPageLogoPreview } from "@/components/dashbo
 import { PlacePicker } from "@/components/places/PlacePicker"
 import { FolderPicker } from "@/components/folders/FolderPicker"
 import { UtmBuilder } from "@/components/dashboard/UtmBuilder"
+import { DesignTemplates } from "@/components/dashboard/DesignTemplates"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
 import type { ParsedQR } from "@/lib/qrDecode"
 import { useWorkspace } from "@/hooks/useWorkspace"
@@ -973,6 +974,48 @@ export default function CreateQRPage() {
     }
   }, [selectedType])
 
+  /** The design as the API takes it — for saving a code and for saving it as a template. */
+  const currentDesign = () => ({
+    primaryColor,
+    backgroundColor: bgColor,
+    dotStyle: dotStyle as string,
+    cornerSquareStyle: cornerStyle as string,
+    frameStyle,
+    frameText,
+    // Classic frames keep their colour in frameBgColor; a library shape
+    // stores its colour, and premium/occasion artwork has none.
+    frameColor: libraryFrame
+      ? libraryFrame.group === "shape" ? shapeColor(libraryFrame, shapeColorPick) : undefined
+      : frameBgColor,
+    // Only text for fields this frame has, and only non-empty values.
+    frameFields: libraryFrame
+      ? Object.fromEntries(
+          libraryFrame.fields
+            .map((f) => [f.id, frameFields[f.id]?.trim() ?? ""] as const)
+            .filter(([, v]) => v !== ""),
+        )
+      : null,
+    logoSize,
+    ...(logoUrl ? { logoUrl } : {}),
+    ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),
+  })
+
+  /** Applies a saved template; fields it doesn't have stay as they are. */
+  const applyDesign = (d: import("@/lib/api").DesignTemplate["design"]) => {
+    if (d.primaryColor) setPrimaryColor(d.primaryColor)
+    if (d.backgroundColor) setBgColor(d.backgroundColor)
+    if (d.secondaryColor) setPageAccentColor(d.secondaryColor)
+    if (d.dotStyle) setDotStyle(d.dotStyle as DotType)
+    if (d.cornerSquareStyle) setCornerStyle(d.cornerSquareStyle as CornerSquareType)
+    if (d.frameStyle !== undefined) setFrameStyle(d.frameStyle ?? "none")
+    if (d.frameText) setFrameText(d.frameText)
+    setFrameFields((d.frameFields ?? {}) as FrameFields)
+    if (getFrame(d.frameStyle ?? "")?.group === "shape") setShapeColorPick(d.frameColor ?? null)
+    else if (d.frameColor) setFrameBgColor(d.frameColor)
+    if (d.logoUrl !== undefined) setLogoUrl(d.logoUrl ?? null)
+    if (d.logoSize) setLogoSize(d.logoSize)
+  }
+
   const onSubmit = handleSubmit(
     async (values) => {
       setSubmitError(null)
@@ -987,30 +1030,7 @@ export default function CreateQRPage() {
           menuSections, restaurantDesc, menuCurrency,
           businessHoursMap, businessCategory, businessDescription, businessSocialLinks,
         }) },
-        design: {
-          primaryColor,
-          backgroundColor: bgColor,
-          dotStyle: dotStyle as string,
-          cornerSquareStyle: cornerStyle as string,
-          frameStyle,
-          frameText,
-          // Classic frames keep their colour in frameBgColor; a library shape
-          // stores its colour, and premium/occasion artwork has none.
-          frameColor: libraryFrame
-            ? libraryFrame.group === "shape" ? shapeColor(libraryFrame, shapeColorPick) : undefined
-            : frameBgColor,
-          // Only text for fields this frame has, and only non-empty values.
-          frameFields: libraryFrame
-            ? Object.fromEntries(
-                libraryFrame.fields
-                  .map((f) => [f.id, frameFields[f.id]?.trim() ?? ""] as const)
-                  .filter(([, v]) => v !== ""),
-              )
-            : null,
-          logoSize,
-          ...(logoUrl ? { logoUrl } : {}),
-          ...(pageAccentColor ? { secondaryColor: pageAccentColor } : {}),
-        },
+        design: currentDesign(),
         tags: values.tags ? values.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         ...(domainChoice !== null && { customDomainId: domainChoice === "genxqr" ? null : domainChoice }),
         ...(placeChoice !== null && { placeId: placeChoice || null }),
@@ -2061,6 +2081,8 @@ export default function CreateQRPage() {
               <div>
                 <h2 className="text-zinc-900 dark:text-white font-semibold text-lg mb-5">Design Your QR Code</h2>
                 <div className="space-y-6 max-w-lg">
+
+                  <DesignTemplates current={currentDesign} onApply={applyDesign} />
 
                   {/* ── QR Code Colors ── */}
                   <div>

@@ -92,6 +92,7 @@ model User {
   customDomains           CustomDomain[]
   places                  Place[]
   folders                 Folder[]
+  designTemplates         DesignTemplate[]
   ssoConnection           SsoConnection?
   /// Clients this account manages (Agency plan).
   agencyClients           AgencyClient[]           @relation("AgencyClients")
@@ -261,6 +262,23 @@ model Place {
   @@unique([userId, name])
   @@unique([userId, code])
   @@map("places")
+}
+
+/// A saved QR design ("brand template"), per workspace owner (built 8 Nov 2026).
+/// `design` holds the QRDesign fields; the logo is its own column so file
+/// clean-up can see it (uploads.service isFileReferenced).
+model DesignTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  design    Json
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("design_templates")
 }
 
 /// A folder of codes, per workspace owner (built 7 Nov 2026). One level, no nesting.
