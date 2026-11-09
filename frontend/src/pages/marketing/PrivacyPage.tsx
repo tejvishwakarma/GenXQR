@@ -13,7 +13,7 @@ const sections = [
   },
   {
     title: "3. Data Security",
-    content: "Security is our top priority. We implement industry-standard security measures including AES-256-GCM encryption for data at rest and TLS 1.3 for data in transit. Passwords are cryptographically hashed using bcrypt (cost factor 12). We regularly audit our systems for vulnerabilities.",
+    content: "Everything sent between your browser or app and GenXQR is encrypted with HTTPS (TLS 1.2 or 1.3); plain HTTP requests are redirected to HTTPS. We never store your password, only a bcrypt hash of it (cost factor 12). API keys, sign-in sessions and the access tokens of apps you connect are also stored only as one-way hashes, so they cannot be read back from our database, and two-factor sign-in secrets are encrypted with AES-256-GCM. Our database and uploaded files are kept on servers we operate, and the database cannot be reached from the internet. We have our code and servers checked for security weaknesses and fix the problems found. No system is completely secure, so we also recommend turning on two-factor sign-in in your account settings.",
   },
   {
     title: "4. Third-Party Services",
@@ -41,11 +41,11 @@ export default function PrivacyPage() {
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />
-      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: November 8, 2026" />
+      <LegalHero icon={Shield} title={<>Privacy <span className="text-accent">Policy</span></>} subtitle="Last updated: November 9, 2026" />
       <LegalBody>
         <LegalStats
           items={[
-            { icon: Lock, tint: "violet", label: "Encrypted", sub: "AES-256 at rest" },
+            { icon: Lock, tint: "violet", label: "Encrypted", sub: "HTTPS on every page" },
             { icon: Database, tint: "blue", label: "Secure storage", sub: "On servers we operate" },
             { icon: Eye, tint: "emerald", label: "No selling", sub: "Your data is yours" },
           ]}
