@@ -62,6 +62,8 @@ export interface PlanLimits {
   activityLog: boolean
   /** Single sign-on (Google Workspace / Microsoft Entra ID) for the account's company domain — Business and above (decided 31 Oct 2026). */
   sso: boolean
+  /** Export QR images + codes.csv to Google Drive (gdrive.service) — Business and above (decided 9 Nov 2026). */
+  driveExport: boolean
   /** How many clients the account can manage as an agency (agency.service.ts) — Agency 15, Enterprise 50 (decided 1 Nov 2026). */
   agencyClientsLimit: number
 }
@@ -97,6 +99,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: false,
     activityLog: false,
     sso: false,
+    driveExport: false,
     agencyClientsLimit: 0,
   },
   STARTER: {
@@ -118,6 +121,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: false,
     sso: false,
+    driveExport: false,
     agencyClientsLimit: 0,
   },
   // 9 Nov 2026: 250 → 150 codes, 50,000 → unlimited scans. Subscriptions that
@@ -141,6 +145,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: false,
+    driveExport: false,
     agencyClientsLimit: 0,
   },
   // 9 Nov 2026: 2,000 → 1,000 codes, 500,000 → unlimited scans (legacy: 2,000).
@@ -163,6 +168,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: true,
+    driveExport: true,
     agencyClientsLimit: 0,
   },
   // Decided 1 Nov 2026 from competitors' agency tiers (Hovercode Business Plus,
@@ -187,6 +193,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: true,
+    driveExport: true,
     agencyClientsLimit: 15,
   },
   ENTERPRISE: {
@@ -208,6 +215,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     scanPageLogo: true,
     activityLog: true,
     sso: true,
+    driveExport: true,
     agencyClientsLimit: 50,
   },
 }
@@ -416,6 +424,7 @@ function clientLimits(agency: PlanLimits, c: ManagedClient): PlanLimits {
     smartRouting: agency.smartRouting && f.smartRouting,
     bulkGeneration: agency.bulkGeneration && f.bulkGeneration,
     sso: false,
+    driveExport: false,
     agencyClientsLimit: 0,
   }
 }

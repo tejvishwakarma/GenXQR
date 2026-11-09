@@ -43,6 +43,7 @@ const REQUIRED_PLAN: Record<GatedFeature, string> = {
   activityLog: "Pro",
   whiteLabel: "Business",
   sso: "Business",
+  driveExport: "Business",
   prioritySupport: "Business",
 }
 

@@ -408,7 +408,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 
 #### `/api/gdrive` → `gdrive.routes.ts`
 - `GET /status` · `GET /auth-url` (+ `/connect`) · `GET /callback` · `POST /disconnect`
-- `POST /export {qrIds?}` — one JSON file of the codes' data to the user's Drive (no images, no plan gate; §9)
+- `POST /export/start {qrIds, format}` · `POST /export/:exportId/files/:qrId` (multipart `file`) — Business+ export (§9)
 
 #### `/api/team` → `team.routes.ts`
 - `GET  /` — get user's team (one team per user-owner model)
@@ -872,9 +872,16 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
   - All other uploads: `Content-Disposition: attachment` + restrictive CSP
 - `QRFile` model tracks DB reference (fileUrl, mimeType, sizeBytes as BigInt, thumbnailUrl, driveFileId)
 - BigInt serialized to Number via `(BigInt.prototype as any).toJSON = () => Number(this)` in `app.ts`
-- Optional Google Drive export (Settings): `POST /api/gdrive/export` writes ONE JSON file of the codes' data (≤ 500) to a
-  "GenXQR Exports" folder — no images, and no plan gate (any account). Removed from the pricing page 9 Nov 2026: it was
-  listed as a Business feature, which it is not. Needs `GOOGLE_DRIVE_REDIRECT_URI` + that URI on the Google OAuth client.
+- **Google Drive export** (built 9 Nov 2026, `PLAN_LIMITS.driveExport` — Business, Agency, Enterprise; connecting is gated
+  too). Replaced a JSON-only export that every plan had. `services/gdrive.service.ts` + `lib/driveExport.ts`: `start` checks
+  every code is the CALLER's own (personal feature — no workspace), makes "GenXQR Exports/GenXQR export <IST date>" with
+  `codes.csv` (csvCell; name, type, status, scan_url, destination, scans, folder, place, image_file) and names one file per
+  code (name + slug). The BROWSER draws each code with `renderQRDownload` (frames/logos only exist client-side) and POSTs it;
+  the server checks the magic bytes for the chosen format (png/svg/pdf), claims the code with Redis HDEL (once each, 2 h
+  session bound to the user) and streams it to Drive. UI: Settings card (format + "Export all", ≤ 1,000) and "Save to Drive"
+  on selected codes in My QR Codes (PNG). Scope `drive.file` (only files GenXQR creates). Needs `GOOGLE_DRIVE_REDIRECT_URI`
+  + that URI on the Google OAuth client + the Drive API enabled — not verified on production yet.
+  Covered by `tests/integration/drive-export.test.ts` (Google stubbed; ownership, owner-bound session, once-only break-tested).
 - **Storage accounting** (`services/uploads.service.ts`, security audit 22 Oct 2026). Every upload
   writes a `PendingUpload` row with the size/MIME the SERVER measured. The quota
   (`storageUsedBytes`) = attached `QRFile` bytes + pending bytes; attaching (`resolveAttachments`)
