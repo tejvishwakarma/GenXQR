@@ -1126,7 +1126,7 @@ export default function CreateQRPage() {
             You're on the <span className="text-zinc-300 font-medium">Free plan</span> which allows up to <span className="text-zinc-300 font-medium">{qrLimit} QR codes</span>.
           </p>
           <p className="text-zinc-500 text-sm mb-8">
-            Upgrade to a paid plan to create QR codes again: 50 on Starter, 250 on Pro, 2,000 on Business.
+            Upgrade to a paid plan to create QR codes again: 50 on Starter, 150 on Pro, 1,000 on Business.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/app/billing">

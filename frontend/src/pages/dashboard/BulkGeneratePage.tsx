@@ -50,7 +50,7 @@ export default function BulkGeneratePage() {
     <div className="space-y-6 animate-fade-in max-w-5xl">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white">Bulk Generate</h1>
-        <p className="text-zinc-500 text-sm mt-1">Upload a CSV to generate QR codes in one batch: up to 100 rows on Pro, 5,000 on Business.</p>
+        <p className="text-zinc-500 text-sm mt-1">Upload a CSV to generate QR codes in one batch: up to 100 rows on Pro, 1,000 on Business.</p>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_300px] gap-6">

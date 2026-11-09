@@ -16,6 +16,7 @@ import {
   getUserInvoices,
   PLAN_LIMITS,
   PLAN_PRICES_INR,
+  UNLIMITED_SCANS,
   priceCheckout,
   ownReleasableHoldIds,
 } from "../services/billing.service.js"
@@ -547,7 +548,8 @@ router.get(
         data: {
           planName,
           qrCodes:   { used: qrCount,                                      limit: limits.dynamicQRLimit     },
-          scans:     { used: scansThisMonth,                                limit: limits.scanLimitPerMonth,
+          // -1 = unlimited (Pro and above since 9 Nov 2026).
+          scans:     { used: scansThisMonth,                                limit: limits.scanLimitPerMonth >= UNLIMITED_SCANS ? -1 : limits.scanLimitPerMonth,
                        /** When the monthly scan count resets (anchored on the plan's start date). */
                        resetsAt: quota.windowEnd.toISOString() },
           storageGB: { used: Math.round(storageGBUsed * 100) / 100,        limit: limits.fileStorageGB      },

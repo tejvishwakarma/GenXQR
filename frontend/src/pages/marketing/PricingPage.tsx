@@ -39,21 +39,21 @@ const PRICING_JSON_LD = [
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "250 dynamic QR codes, 50,000 scans/month, 5 team seats, A/B testing, smart routing, REST API, bulk generation.",
+        "description": "150 dynamic QR codes, unlimited scans, 5 team seats, A/B testing, smart routing, REST API, bulk generation.",
       },
       {
         "@type": "Offer",
         "name": "Business",
         "price": "2499",
         "priceCurrency": "INR",
-        "description": "2,000 dynamic QR codes, 500,000 scans/month, 20 team seats, white-label branding, webhooks, 100,000 API calls/month.",
+        "description": "1,000 dynamic QR codes, unlimited scans, 20 team seats, white-label branding, webhooks, 100,000 API calls/month.",
       },
       {
         "@type": "Offer",
         "name": "Agency",
         "price": "5999",
         "priceCurrency": "INR",
-        "description": "Manage up to 15 clients, each with its own QR codes, brand and custom domain, from one pool of 5,000 dynamic QR codes and 1,000,000 scans/month. Agency-branded client reports.",
+        "description": "Manage up to 15 clients, each with its own QR codes, brand and custom domain, from one pool of 5,000 dynamic QR codes, with unlimited scans. Agency-branded client reports.",
       },
     ],
   },
@@ -180,15 +180,15 @@ const plans = [
     priceYearly: 649,
     yearlySaving: 1800,
     perDay: { monthly: "₹27", yearly: "₹22" },
-    desc: "250 dynamic QR codes, A/B testing, smart routing — the full marketer's toolkit.",
+    desc: "150 dynamic QR codes, unlimited scans, A/B testing, smart routing — the full marketer's toolkit.",
     cta: "Start free trial",
     ctaVariant: "default" as const,
     href: "/signup?plan=pro",
     highlight: true,
     features: [
-      "250 QR codes you can update any time",
+      "150 QR codes you can update any time",
       "Full analytics — geo & device breakdown",
-      "50,000 scans/month",
+      "Unlimited scans",
       "A/B testing — split-test two destinations, compare scans",
       "Smart routing — different pages by country, device or time of day",
       "Scheduled activation & auto-expiry",
@@ -214,18 +214,18 @@ const plans = [
     priceYearly: 1999,
     yearlySaving: 6000,
     perDay: { monthly: "₹83", yearly: "₹67" },
-    desc: "2,000 QR codes for teams, agencies, and brands that run at scale.",
+    desc: "1,000 QR codes and unlimited scans for teams and brands that run at scale.",
     cta: "Start free trial",
     ctaVariant: "glow" as const,
     href: "/signup?plan=business",
     highlight: false,
     features: [
-      "2,000 QR codes — 8× Pro's limit",
+      "1,000 QR codes — over 6× Pro's limit",
       "Everything in Pro +",
-      "500,000 scans/month",
+      "Unlimited scans",
       "20 team seats (incl. yours) — admin, editor & viewer roles",
       "White-label scan pages — your brand, not ours",
-      "Bulk generate up to 5,000 QR codes from CSV",
+      "Bulk generate up to 1,000 QR codes from CSV",
       "100,000 API calls/month",
       "Google Drive export",
       "Priority phone & email support",
@@ -240,16 +240,16 @@ const plans = [
 type CellValue = boolean | string
 
 const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pro: CellValue; business: CellValue }[] = [
-  { feature: "Dynamic QR codes",          free: false,    starter: "50",         pro: "250",          business: "2,000" },
+  { feature: "Dynamic QR codes",          free: false,    starter: "50",         pro: "150",          business: "1,000" },
   { feature: "Scan analytics",            free: false,    starter: true,         pro: true,           business: true },
-  { feature: "Scans per month",           free: false,    starter: "5,000",      pro: "50,000",       business: "500,000" },
+  { feature: "Scans per month",           free: false,    starter: "5,000",      pro: "Unlimited",    business: "Unlimited" },
   { feature: "All 20 QR types",           free: false,    starter: true,         pro: true,           business: true },
   { feature: "Custom design & logo",      free: "Colours, no logo", starter: true,         pro: true,           business: true },
   { feature: "QR frames (86 designs)",    free: false,    starter: true,         pro: true,           business: true },
   { feature: "Your logo on scan pages",   free: false,    starter: true,         pro: true,           business: true },
   { feature: "A/B testing",               free: false,    starter: false,        pro: true,           business: true },
   { feature: "Smart routing",             free: false,    starter: false,        pro: true,           business: true },
-  { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "5,000 QRs" },
+  { feature: "Bulk QR generation",        free: false,    starter: false,        pro: "100 QRs",      business: "1,000 QRs" },
   { feature: "REST API",                  free: false,    starter: false,        pro: "10K calls/mo", business: "100K calls/mo" },
   { feature: "Team seats (incl. owner)",  free: false,    starter: false,        pro: "5 seats",      business: "20 seats" },
   { feature: "White-label scan pages",    free: false,    starter: false,        pro: false,          business: true },
@@ -265,7 +265,7 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
 const faqItems = [
   {
     q: "Do you have a plan for agencies?",
-    a: "Yes — the Agency plan (₹5,999/month, or ₹4,999/month billed yearly). Manage up to 15 clients from one login: each client gets its own workspace, QR codes, brand on its scan pages and custom domain, and you decide how much of your plan each one gets (QR codes, monthly scans, domains, storage and features). Share an analytics report per client under your agency's brand. Your plan's pool is 5,000 dynamic QR codes, 1,000,000 scans a month, 15 custom domains, 100 GB of storage and 10 team seats for your own staff.",
+    a: "Yes — the Agency plan (₹5,999/month, or ₹4,999/month billed yearly). Manage up to 15 clients from one login: each client gets its own workspace, QR codes, brand on its scan pages and custom domain, and you decide how much of your plan each one gets (QR codes, domains, storage and features). Share an analytics report per client under your agency's brand. Your plan's pool is 5,000 dynamic QR codes, 15 custom domains, 100 GB of storage and 10 team seats for your own staff, and scans are unlimited for you and every client.",
   },
   {
     q: "Can I switch plans any time?",
@@ -596,7 +596,7 @@ export default function PricingPage() {
             <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-sm text-ink-soft">
               <li>Up to 15 clients, each in its own workspace</li>
               <li>Each client&apos;s own brand and custom domain on scan pages</li>
-              <li>Split 5,000 QR codes and 1,000,000 scans/month between clients</li>
+              <li>Split 5,000 QR codes between clients, with unlimited scans for all</li>
               <li>Per-client limits and feature switches</li>
               <li>Client reports under your agency&apos;s brand</li>
               <li>Everything in Business, 10 seats for your team</li>

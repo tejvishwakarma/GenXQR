@@ -66,6 +66,17 @@ export interface PlanLimits {
   agencyClientsLimit: number
 }
 
+/**
+ * "Unlimited" monthly scans (decided 9 Nov 2026, from competitors: Hovercode, QR TIGER
+ * and QR Code Generator PRO's mid tiers don't cap scans). Pro and above are not capped;
+ * the Terms' fair-use clause covers abuse. Stored as a number, not Infinity, because it
+ * also lives in the plans table and in agency client caps.
+ */
+export const UNLIMITED_SCANS = 999_999_999
+
+/** Whether a scan limit is actually enforced: 0 (FREE) and UNLIMITED_SCANS are not. */
+export const hasScanCap = (limit: number) => limit > 0 && limit < UNLIMITED_SCANS
+
 export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   FREE: {
     dynamicQRLimit: 0,   // Post-trial: no QR creation without a paid subscription
@@ -109,9 +120,11 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     sso: false,
     agencyClientsLimit: 0,
   },
+  // 9 Nov 2026: 250 → 150 codes, 50,000 → unlimited scans. Subscriptions that
+  // existed before keep 250 (Subscription.legacyQRLimit).
   PRO: {
-    dynamicQRLimit: 250,
-    scanLimitPerMonth: 50000,
+    dynamicQRLimit: 150,
+    scanLimitPerMonth: UNLIMITED_SCANS,
     fileStorageGB: 5,
     teamSeatsLimit: 5,
     apiCallsLimit: 10000,
@@ -130,9 +143,10 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
     sso: false,
     agencyClientsLimit: 0,
   },
+  // 9 Nov 2026: 2,000 → 1,000 codes, 500,000 → unlimited scans (legacy: 2,000).
   BUSINESS: {
-    dynamicQRLimit: 2000,
-    scanLimitPerMonth: 500000,
+    dynamicQRLimit: 1000,
+    scanLimitPerMonth: UNLIMITED_SCANS,
     fileStorageGB: 50,
     teamSeatsLimit: 20,
     apiCallsLimit: 100000,
@@ -156,7 +170,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   // up to 15 clients; everything in Business besides.
   AGENCY: {
     dynamicQRLimit: 5000,
-    scanLimitPerMonth: 1000000,
+    scanLimitPerMonth: UNLIMITED_SCANS,
     fileStorageGB: 100,
     teamSeatsLimit: 10,
     apiCallsLimit: 250000,
@@ -177,7 +191,7 @@ export const PLAN_LIMITS: Record<PlanName, PlanLimits> = {
   },
   ENTERPRISE: {
     dynamicQRLimit: 999999,
-    scanLimitPerMonth: 999999999,
+    scanLimitPerMonth: UNLIMITED_SCANS,
     fileStorageGB: 1000,
     teamSeatsLimit: 999,
     apiCallsLimit: 999999999,
@@ -316,7 +330,7 @@ export async function getUserPlanLimits(userId: string): Promise<{
 
   return {
     planName,
-    limits: await withClientAllocations(userId, PLAN_LIMITS[planName] ?? PLAN_LIMITS["FREE"]),
+    limits: await withClientAllocations(userId, withLegacyQRLimit(sub, planName)),
     isTrialing: sub.status === "TRIALING",
     trialEndsAt: sub.trialEndsAt,
     subscriptionStatus: sub.status,
@@ -351,6 +365,7 @@ export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits>
     where: { userId },
     select: {
       status: true, trialEndsAt: true, currentPeriodEnd: true, codesPauseAt: true,
+      legacyQRLimit: true, legacyQRLimitPlan: true,
       plan: { select: { name: true } },
     },
   })
@@ -361,7 +376,21 @@ export async function getPlanLimitsReadOnly(userId: string): Promise<PlanLimits>
 
   if (isLapsed(sub)) return PLAN_LIMITS["FREE"]
 
-  return withClientAllocations(userId, PLAN_LIMITS[sub.plan.name as PlanName] ?? PLAN_LIMITS["FREE"])
+  return withClientAllocations(userId, withLegacyQRLimit(sub, sub.plan.name as PlanName))
+}
+
+/**
+ * The plan's limits, with the code limit a subscription kept when the plan's was
+ * lowered (9 Nov 2026: Pro 250 → 150, Business 2,000 → 1,000). Only while it is
+ * still on THAT plan: a Business customer who moves to Pro gets Pro's limit.
+ */
+function withLegacyQRLimit(
+  sub: { legacyQRLimit: number | null; legacyQRLimitPlan: PlanName | null },
+  planName: PlanName,
+): PlanLimits {
+  const limits = PLAN_LIMITS[planName] ?? PLAN_LIMITS["FREE"]
+  if (sub.legacyQRLimitPlan !== planName || sub.legacyQRLimit == null || sub.legacyQRLimit <= limits.dynamicQRLimit) return limits
+  return { ...limits, dynamicQRLimit: sub.legacyQRLimit }
 }
 
 /**
@@ -374,7 +403,9 @@ function clientLimits(agency: PlanLimits, c: ManagedClient): PlanLimits {
   return {
     ...agency,
     dynamicQRLimit: c.maxCodes,
-    scanLimitPerMonth: c.maxScansPerMonth,
+    // An agency with unlimited scans gives every client unlimited scans; the
+    // per-client scan cap applies only under a plan that caps scans.
+    scanLimitPerMonth: hasScanCap(agency.scanLimitPerMonth) ? c.maxScansPerMonth : agency.scanLimitPerMonth,
     fileStorageGB: c.maxStorageGB,
     customDomains: agency.customDomains && c.maxDomains > 0,
     customDomainsLimit: c.maxDomains,
@@ -401,7 +432,7 @@ async function withClientAllocations(userId: string, limits: PlanLimits): Promis
     ...limits,
     dynamicQRLimit: Math.max(0, limits.dynamicQRLimit - a.codes),
     // Never 0: a scan limit of 0 means "not enforced" (scan-quota.service).
-    scanLimitPerMonth: Math.max(1, limits.scanLimitPerMonth - a.scans),
+    scanLimitPerMonth: hasScanCap(limits.scanLimitPerMonth) ? Math.max(1, limits.scanLimitPerMonth - a.scans) : limits.scanLimitPerMonth,
     fileStorageGB: Math.max(0, limits.fileStorageGB - a.storageGB),
     customDomainsLimit: Math.max(0, limits.customDomainsLimit - a.domains),
   }

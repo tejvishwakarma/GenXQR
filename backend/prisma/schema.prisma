@@ -163,6 +163,11 @@ model Subscription {
   /// is kept for 3 months after this, then purged (subscription-expiry.service).
   /// Null while a plan is live; cleared on payment and on an admin plan grant.
   lapsedAt           DateTime?
+  /// The code limit this subscription kept when its plan's was lowered (9 Nov 2026:
+  /// Pro 250 → 150, Business 2,000 → 1,000), applied only while it is on
+  /// legacyQRLimitPlan (billing.service withLegacyQRLimit).
+  legacyQRLimit      Int?
+  legacyQRLimitPlan  PlanName?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   invoices           Invoice[]

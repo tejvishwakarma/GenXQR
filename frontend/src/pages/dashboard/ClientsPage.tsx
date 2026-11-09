@@ -30,9 +30,11 @@ import {
 
 const DEFAULT_CAPS: AgencyClientCaps = { maxCodes: 100, maxScansPerMonth: 20_000, maxDomains: 1, maxStorageGB: 2 }
 const DEFAULT_FEATURES: AgencyClientFeatures = { abTesting: true, smartRouting: true, bulkGeneration: true }
+// No "Scans / month" field: Agency and Enterprise have unlimited scans (9 Nov 2026), so
+// the backend ignores a client's scan cap (billing.service clientLimits). maxScansPerMonth
+// is still sent (DEFAULT_CAPS) in case a plan that caps scans can ever have clients.
 const CAP_FIELDS: { key: keyof AgencyClientCaps; label: string }[] = [
   { key: "maxCodes", label: "QR codes" },
-  { key: "maxScansPerMonth", label: "Scans / month" },
   { key: "maxDomains", label: "Custom domains" },
   { key: "maxStorageGB", label: "Storage (GB)" },
 ]
@@ -69,13 +71,13 @@ function CapsAndFeatures({
 }) {
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {CAP_FIELDS.map((f) => (
           <label key={f.key} className="text-xs text-zinc-500 space-y-1">
             <span>{f.label}</span>
             <Input
               type="number"
-              min={f.key === "maxCodes" || f.key === "maxScansPerMonth" ? 1 : 0}
+              min={f.key === "maxCodes" ? 1 : 0}
               value={caps[f.key]}
               onChange={(e) => onCaps({ ...caps, [f.key]: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
             />
@@ -99,7 +101,15 @@ function CapsAndFeatures({
   )
 }
 
-function Meter({ label, used, cap }: { label: string; used: number; cap: number }) {
+function Meter({ label, used, cap }: { label: string; used: number; cap: number | "unlimited" }) {
+  if (cap === "unlimited") {
+    return (
+      <div className="min-w-0">
+        <div className="flex justify-between text-xs text-zinc-500"><span>{label}</span><span>{n(used)} / Unlimited</span></div>
+        <div className="mt-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+      </div>
+    )
+  }
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0
   return (
     <div className="min-w-0">
@@ -183,7 +193,7 @@ function ClientRow({ c, onError }: { c: AgencyClient; onError: (msg: string) => 
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Meter label="QR codes" used={c.usage.codes} cap={c.caps.maxCodes} />
-        <Meter label="Scans this month" used={c.usage.scansThisMonth} cap={c.caps.maxScansPerMonth} />
+        <Meter label="Scans this month" used={c.usage.scansThisMonth} cap="unlimited" />
         <Meter label="Custom domains" used={c.usage.domains} cap={c.caps.maxDomains} />
       </div>
 
@@ -256,12 +266,17 @@ function PoolSummary({ clients, pool }: { clients: AgencyClient[]; pool: NonNull
   const items: { label: string; given: number; total: number; unit?: string }[] = [
     { label: "Clients", given: clients.length, total: pool.clients },
     { label: "QR codes given", given: sum("maxCodes"), total: pool.codes },
-    { label: "Scans / month given", given: sum("maxScansPerMonth"), total: pool.scansPerMonth },
     { label: "Domains given", given: sum("maxDomains"), total: pool.domains },
     { label: "Storage given", given: sum("maxStorageGB"), total: pool.storageGB, unit: " GB" },
   ]
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <Card>
+        <CardContent className="p-4">
+          <p className="text-xs text-zinc-500">Scans / month</p>
+          <p className="mt-1 text-lg font-semibold text-zinc-900 dark:text-white">Unlimited</p>
+        </CardContent>
+      </Card>
       {items.map((i) => (
         <Card key={i.label}>
           <CardContent className="p-4">
@@ -323,7 +338,7 @@ export default function ClientsPage() {
           <CardContent className="py-10 text-center space-y-3">
             <Briefcase size={28} className="text-zinc-400 mx-auto" />
             <p className="text-zinc-900 dark:text-white font-semibold">Managing clients is part of the Agency plan</p>
-            <p className="text-zinc-500 text-sm max-w-md mx-auto">Up to 15 clients, each with its own codes, brand and custom domain, sharing one pool of 5,000 codes and 1,000,000 scans a month.</p>
+            <p className="text-zinc-500 text-sm max-w-md mx-auto">Up to 15 clients, each with its own codes, brand and custom domain, sharing one pool of 5,000 codes, with unlimited scans.</p>
             <Link to="/app/billing" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
               <Sparkles size={14} /> See plans
             </Link>

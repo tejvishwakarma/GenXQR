@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest"
 import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
-import { getUserPlanLimits } from "../../src/services/billing.service.js"
+import { UNLIMITED_SCANS, getUserPlanLimits } from "../../src/services/billing.service.js"
 import { getScanQuota } from "../../src/services/scan-quota.service.js"
 import { syncAgencyClients } from "../../src/services/agency.service.js"
 import { deleteUserAndData } from "../../src/services/account-erasure.service.js"
@@ -80,10 +80,13 @@ describe("agency plan", () => {
       const a = await agency()
       const res = await addClient(a.token, { name: "Cafe", ...caps({ maxCodes: 300, maxScansPerMonth: 50_000, maxDomains: 2, maxStorageGB: 5 }) })
       const client = await getUserPlanLimits(res.body.data.userId)
-      expect(client.limits).toMatchObject({ dynamicQRLimit: 300, scanLimitPerMonth: 50_000, customDomainsLimit: 2, fileStorageGB: 5, apiAccess: false, agencyClientsLimit: 0 })
+      // Scans are unlimited on Agency (9 Nov 2026): the client's scan cap is not applied, nothing is taken from the pool.
+      expect(client.limits).toMatchObject({ dynamicQRLimit: 300, scanLimitPerMonth: UNLIMITED_SCANS, customDomainsLimit: 2, fileStorageGB: 5, apiAccess: false, agencyClientsLimit: 0 })
       const own = await getUserPlanLimits(a.id)
-      expect(own.limits).toMatchObject({ dynamicQRLimit: 4700, scanLimitPerMonth: 950_000, customDomainsLimit: 13, fileStorageGB: 95 })
-      expect((await getScanQuota(res.body.data.userId)).limit).toBe(50_000)
+      expect(own.limits).toMatchObject({ dynamicQRLimit: 4700, scanLimitPerMonth: UNLIMITED_SCANS, customDomainsLimit: 13, fileStorageGB: 95 })
+      expect((await getScanQuota(res.body.data.userId)).limit).toBe(0) // not enforced
+      // With nothing to share out, a client's scan cap never runs the pool dry.
+      expect((await addClient(a.token, { name: "Bakery", ...caps({ maxCodes: 10, maxScansPerMonth: 1_000_000_000, maxDomains: 0, maxStorageGB: 0 }) })).status).toBe(201)
     })
   })
 

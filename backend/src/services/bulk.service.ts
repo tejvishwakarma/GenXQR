@@ -18,7 +18,7 @@ const BULK_LIMITS: Record<string, number> = {
   FREE: 0,
   STARTER: 10,
   PRO: 100,
-  BUSINESS: 5000,
+  BUSINESS: 1000, // its code limit (9 Nov 2026: plan went 2,000 → 1,000 codes)
   AGENCY: 5000,
   ENTERPRISE: 10000,
 }

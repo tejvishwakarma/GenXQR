@@ -20,9 +20,9 @@ const PLANS: Plan[] = [
   { name: "Starter", inr: "299", usd: "4", tagline: "For small businesses", cta: "Choose Starter", href: "/signup",
     features: ["50 dynamic QR codes", "5,000 scans / mo", "Full scan analytics", "1 GB storage"] },
   { name: "Pro", inr: "799", usd: "10", tagline: "For growing teams", cta: "Choose Pro", href: "/signup", featured: true,
-    features: ["250 dynamic QR codes", "50,000 scans / mo", "Bulk + A/B + API", "5 team seats"] },
+    features: ["150 dynamic QR codes", "Unlimited scans", "Bulk + A/B + API", "5 team seats"] },
   { name: "Business", inr: "2,499", usd: "30", tagline: "For scale", cta: "Choose Business", href: "/signup",
-    features: ["2,000 dynamic QR codes", "500,000 scans / mo", "White-label + priority", "20 team seats"] },
+    features: ["1,000 dynamic QR codes", "Unlimited scans", "White-label + priority", "20 team seats"] },
 ]
 
 export function MarketingPricing() {

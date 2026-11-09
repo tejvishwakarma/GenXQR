@@ -938,11 +938,12 @@ export default function BillingPage() {
                     { label: "Dynamic QR Codes", used: usage.qrCodes.used, max: usage.qrCodes.limit },
                     ...(currentPlanName !== "FREE" ? [
                       // Enforced: at the limit, codes stop redirecting until the reset date.
+                      // -1 = unlimited (Pro and above).
                       {
                         label: "Scans this month",
                         used: usage.scans.used,
                         max: usage.scans.limit,
-                        note: usage.scans.resetsAt
+                        note: usage.scans.limit > 0 && usage.scans.resetsAt
                           ? `Resets ${new Date(usage.scans.resetsAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}. At the limit your codes stop redirecting until then.`
                           : undefined,
                       },
@@ -950,14 +951,14 @@ export default function BillingPage() {
                       { label: "API Calls (this month)", used: usage.apiCalls.used, max: usage.apiCalls.limit },
                     ] : []),
                   ].map((item) => {
-                    const unlimited = item.max === 0
+                    const unlimited = item.max <= 0
                     const pct = unlimited ? 0 : (item.used / Math.max(item.max, 1)) * 100
                     return (
                       <div key={item.label}>
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-zinc-700 dark:text-zinc-300 text-sm">{item.label}</span>
                           <span className="text-zinc-500 text-sm">
-                            {item.used.toLocaleString("en-IN")} / {unlimited ? "—" : item.max.toLocaleString("en-IN")}
+                            {item.used.toLocaleString("en-IN")} / {item.max < 0 ? "Unlimited" : unlimited ? "—" : item.max.toLocaleString("en-IN")}
                             {"unit" in item && item.unit ? ` ${item.unit}` : ""}
                           </span>
                         </div>

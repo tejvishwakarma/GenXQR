@@ -10,7 +10,7 @@ export default function TermsPage() {
         description="GenXQR Terms of Service — acceptable use, subscriptions and billing, the referral programme, API usage limits, and liability terms."
         url="/terms"
       />
-      <LegalHero icon={FileText} title={<>Terms of <span className="text-accent">Service</span></>} subtitle="Last updated: October 21, 2026" />
+      <LegalHero icon={FileText} title={<>Terms of <span className="text-accent">Service</span></>} subtitle="Last updated: November 9, 2026" />
       <LegalBody>
         <LegalCard>
           <LegalSection title="1. Agreement to Terms">
@@ -35,6 +35,12 @@ export default function TermsPage() {
           <LegalSection title="3. Subscriptions and Payments">
             <p>
               Some parts of the Service are billed on a subscription basis. You pay in advance for each billing period (monthly or annually). Payments are not taken automatically: your subscription does not auto-renew, and to continue after a period ends you pay again. If you do not, your account moves to the free plan and its dynamic QR codes are paused until you do; scan history is kept for 3 months after that and then deleted. Each paid plan includes a monthly scan allowance: once it is used up, your QR codes stop redirecting until the allowance resets or you upgrade.
+            </p>
+            <p className="mt-2">
+              <strong>Scan allowances and fair use.</strong> The Starter plan includes a monthly scan allowance; once it is used up, its dynamic QR codes stop redirecting until the allowance resets or you upgrade. Pro, Business, Agency and Enterprise plans have unlimited scans. Unlimited means we do not count scans against a limit or charge per scan for genuine use of your QR codes by the people who scan them.
+            </p>
+            <p className="mt-2">
+              It does not cover automated or artificial traffic, such as scripts, bots or load tests aimed at your codes, or using GenXQR's redirects as general-purpose infrastructure for traffic that does not come from people scanning QR codes. If an account's traffic of that kind affects the Service for others, we may rate-limit it or contact you to move to a plan or arrangement that fits, and, if it continues, suspend the codes concerned. We will not do this over ordinary scans, however many there are.
             </p>
           </LegalSection>
 
