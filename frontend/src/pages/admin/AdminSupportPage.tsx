@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Search, ChevronDown } from "lucide-react"
+import { Link } from "react-router-dom"
 import AdminPagination from "@/components/admin/AdminPagination"
 import {
   fetchSupportTickets, fetchSupportTicket, updateSupportTicket, replyToTicketAsAdmin,
@@ -110,7 +111,7 @@ function TicketDrawer({ ticket, onClose }: { ticket: SupportTicketDetail; onClos
         <div className="flex-1 p-5 space-y-5">
           {/* User */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-1">
-            <div className="text-zinc-200 font-medium text-sm">{ticket.user.name}</div>
+            <Link to={`/admin/users/${ticket.user.id}`} className="block text-zinc-200 hover:text-white font-medium text-sm hover:underline underline-offset-2">{ticket.user.name}</Link>
             <div className="text-zinc-500 text-xs">{ticket.user.email}</div>
           </div>
 
@@ -298,7 +299,7 @@ export default function AdminSupportPage() {
                   onClick={() => setSelectedId(t.id)}>
                   <td className="px-5 py-3 text-zinc-200 text-sm max-w-xs truncate">{t.subject}</td>
                   <td className="px-4 py-3">
-                    <div className="text-zinc-300 text-xs">{t.user.name}</div>
+                    <Link to={`/admin/users/${t.user.id}`} onClick={(e) => e.stopPropagation()} className="block text-zinc-300 hover:text-white text-xs hover:underline underline-offset-2">{t.user.name}</Link>
                     <div className="text-zinc-500 text-xs">{t.user.email}</div>
                   </td>
                   <td className="px-4 py-3">

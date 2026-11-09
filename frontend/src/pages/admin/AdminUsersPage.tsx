@@ -350,17 +350,21 @@ export default function AdminUsersPage() {
                       >
                         {/* Avatar + name */}
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
+                          <Link
+                            to={`/admin/users/${u.id}`}
+                            className="flex items-center gap-3 rounded-lg -m-1 p-1 group/name focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
+                            title={`Open ${u.name || u.email}`}
+                          >
                             <div
                               className={`w-8 h-8 rounded-full bg-gradient-to-br ${avatarColor(u.id)} flex items-center justify-center flex-shrink-0 text-white text-xs font-bold select-none`}
                             >
                               {initials(u.name || u.email)}
                             </div>
                             <div className="min-w-0">
-                              <div className="font-medium text-white truncate max-w-[180px]">{u.name}</div>
+                              <div className="font-medium text-white truncate max-w-[180px] group-hover/name:underline underline-offset-2">{u.name}</div>
                               <div className="text-zinc-500 text-xs truncate max-w-[180px]">{u.email}</div>
                             </div>
-                          </div>
+                          </Link>
                         </td>
 
                         {/* Role */}
