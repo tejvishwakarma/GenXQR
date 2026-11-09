@@ -114,7 +114,7 @@ const DYNAMIC_JSON_LD = [
         "name": "How long do dynamic QR codes last?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "GenXQR dynamic QR codes last as long as your active subscription. They never expire on their own unless you set a custom expiry date. If your account uses up its monthly scan allowance, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew your subscription and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code.",
+          "text": "GenXQR dynamic QR codes last as long as your active subscription. They never expire on their own unless you set a custom expiry date. Scans are unlimited from Pro up; on Starter, if your account uses up its 5,000 monthly scans, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew your subscription and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code.",
         },
       },
     ],
@@ -150,7 +150,7 @@ const powerFeatures = [
     color: "text-amber-400",
     bg: "bg-amber-500/10 border-amber-500/20",
     title: "Generate hundreds of QR codes from one CSV",
-    desc: "Upload a CSV of names and URLs and every QR code is created in one go — up to 100 per batch on Pro, 5,000 on Business. Then update any of them through the REST API.",
+    desc: "Upload a CSV of names and URLs and every QR code is created in one go — up to 100 per batch on Pro, 1,000 on Business. Then update any of them through the REST API.",
   },
   {
     icon: <Globe size={22} />,
@@ -263,7 +263,7 @@ const faqs = [
   },
   {
     q: "How long do dynamic QR codes last?",
-    a: "GenXQR dynamic QR codes stay active as long as your subscription is active. They never expire automatically unless you set a custom expiry date. If your account uses up its monthly scan allowance, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code for campaigns that have a natural end date.",
+    a: "GenXQR dynamic QR codes stay active as long as your subscription is active. They never expire automatically unless you set a custom expiry date. Scans are unlimited from Pro up; on Starter, if your account uses up its 5,000 monthly scans, codes stop redirecting until the allowance resets or you upgrade. If your subscription lapses, QR codes are paused — not deleted. Renew and they reactivate instantly. You can also set optional expiry dates and fallback URLs per QR code for campaigns that have a natural end date.",
   },
 ]
 
@@ -764,16 +764,16 @@ export default function DynamicQRPage() {
               {
                 plan: "Pro",
                 price: "₹799",
-                qrs: "250 dynamic QR codes",
-                analytics: "50,000 scans/month + A/B testing",
+                qrs: "150 dynamic QR codes",
+                analytics: "Unlimited scans + A/B testing",
                 highlight: true,
                 badge: null,
               },
               {
                 plan: "Business",
                 price: "₹2,499",
-                qrs: "2,000 dynamic QR codes",
-                analytics: "500,000 scans/month, 20 team seats",
+                qrs: "1,000 dynamic QR codes",
+                analytics: "Unlimited scans, 20 team seats",
                 highlight: false,
                 badge: null,
               },

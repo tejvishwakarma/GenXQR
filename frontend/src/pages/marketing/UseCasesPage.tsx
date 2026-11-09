@@ -54,7 +54,7 @@ const USE_CASES_JSON_LD = [
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "250 QR codes, A/B testing, smart routing, team seats, REST API, webhook events.",
+        "description": "150 QR codes, unlimited scans, A/B testing, smart routing, team seats, REST API, webhook events.",
       },
     ],
     "featureList": [

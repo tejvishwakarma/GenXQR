@@ -9,7 +9,7 @@ import { parseUA } from "../utils/user-agent.util.js"
 import { checkAndNotifyLimit } from "../services/limit-notification.service.js"
 import { getScanQuota, getScanUsage } from "../services/scan-quota.service.js"
 import { maybeSendScanMilestone } from "../services/engagement-email.service.js"
-import { getUserPlanLimits } from "../services/billing.service.js"
+import { getUserPlanLimits, hasScanCap } from "../services/billing.service.js"
 
 // ─── Worker process function ───────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ export async function processScanJob(job: Pick<Job<ScanJobData>, "data">): Promi
     void (async () => {
       try {
         const { limits, planName } = await getUserPlanLimits(updated.userId!)
-        if (limits.scanLimitPerMonth > 0) {
+        if (hasScanCap(limits.scanLimitPerMonth)) {
           // The enforced window and count (scan-quota.service.ts) — the email
           // must report the same number the scans are refused at.
           const quota = await getScanQuota(updated.userId!)

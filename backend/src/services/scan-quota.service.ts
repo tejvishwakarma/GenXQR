@@ -31,7 +31,7 @@
 import { prisma } from "../db/prisma.js"
 import { redis } from "../redis/client.js"
 import { logger } from "../logger/index.js"
-import { getPlanLimitsReadOnly } from "./billing.service.js"
+import { getPlanLimitsReadOnly, hasScanCap } from "./billing.service.js"
 import { getManagedClient } from "./managed-account.service.js"
 import { isLapsed } from "./subscription-expiry.service.js"
 import type { PlanName } from "@prisma/client"
@@ -100,7 +100,9 @@ export async function getScanQuota(userId: string): Promise<ScanQuota> {
   const { start, end } = scanUsageWindow(anchor)
   // Plan limits through getPlanLimitsReadOnly: an agency's own limit is its pool
   // minus what clients were given, and a client's is its cap.
-  const limit = planName === "FREE" ? 0 : (await getPlanLimitsReadOnly(userId)).scanLimitPerMonth
+  // Unlimited plans are stored as 0 here: "not enforced", like FREE.
+  const planLimit = planName === "FREE" ? 0 : (await getPlanLimitsReadOnly(userId)).scanLimitPerMonth
+  const limit = hasScanCap(planLimit) ? planLimit : 0
   const quota: ScanQuota = { limit, windowStart: start, windowEnd: end }
 
   await redis

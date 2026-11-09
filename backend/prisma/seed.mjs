@@ -32,19 +32,19 @@ const PLANS = [
   {
     name: "PRO", displayName: "Pro",
     priceMonthlyINR: 799, priceYearlyINR: 7788, priceMonthlyUSD: 10, priceYearlyUSD: 96,
-    dynamicQRLimit: 250, scanLimit: 50000, fileStorageGB: 5, teamSeatsLimit: 5, apiCallsLimit: 10000,
+    dynamicQRLimit: 150, scanLimit: 999999999, fileStorageGB: 5, teamSeatsLimit: 5, apiCallsLimit: 10000,
     features: { customDomains: true, analytics: "1y", bulkGeneration: true, apiAccess: true, whiteLabel: false, prioritySupport: false },
   },
   {
     name: "BUSINESS", displayName: "Business",
     priceMonthlyINR: 2499, priceYearlyINR: 23988, priceMonthlyUSD: 30, priceYearlyUSD: 288,
-    dynamicQRLimit: 2000, scanLimit: 500000, fileStorageGB: 50, teamSeatsLimit: 20, apiCallsLimit: 100000,
+    dynamicQRLimit: 1000, scanLimit: 999999999, fileStorageGB: 50, teamSeatsLimit: 20, apiCallsLimit: 100000,
     features: { customDomains: true, analytics: "2y", bulkGeneration: true, apiAccess: true, whiteLabel: true, prioritySupport: true },
   },
   {
     name: "AGENCY", displayName: "Agency",
     priceMonthlyINR: 5999, priceYearlyINR: 59988, priceMonthlyUSD: 72, priceYearlyUSD: 720,
-    dynamicQRLimit: 5000, scanLimit: 1000000, fileStorageGB: 100, teamSeatsLimit: 10, apiCallsLimit: 250000,
+    dynamicQRLimit: 5000, scanLimit: 999999999, fileStorageGB: 100, teamSeatsLimit: 10, apiCallsLimit: 250000,
     features: { customDomains: true, analytics: "2y", bulkGeneration: true, apiAccess: true, whiteLabel: true, prioritySupport: true, agencyClients: 15 },
   },
   {

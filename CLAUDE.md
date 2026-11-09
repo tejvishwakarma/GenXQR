@@ -831,6 +831,16 @@ Codes print as `https://qr.brand.com/r/<slug>` instead of genxqr.com.
 - Account deletion releases the hostnames from Cloudflare (`releaseAccountDomains`). Covered by
   `tests/integration/custom-domains.test.ts`; migration `20261031120000_custom_domains`.
 
+**Unlimited scans from Pro up; fewer codes** (decided 9 Nov 2026 from competitors — Hovercode, QR TIGER, QR Code
+Generator PRO's mid tiers don't cap scans). Pro 250 → 150 codes, Business 2,000 → 1,000 (its bulk batch 5,000 → 1,000),
+scans unlimited on Pro/Business/Agency/Enterprise = `UNLIMITED_SCANS` (999,999,999); `hasScanCap(limit)` is the only test
+for "enforced" (0 and UNLIMITED_SCANS are not) — the quota stores 0 for both, `/billing/usage` sends `scans.limit: -1`.
+Starter keeps 5,000/month, enforced as below. Subscriptions on Pro/Business when it shipped keep the old code limit via
+`Subscription.legacyQRLimit` + `legacyQRLimitPlan` (`withLegacyQRLimit`), only while on that plan. Agency clients get
+unlimited scans; their stored `maxScansPerMonth` is ignored and the Clients page no longer asks for it. Fair use: Terms §3
+(automated/artificial traffic). Migration `20261109100000_unlimited_scans` (also updates the `plans` rows the billing
+cards read). Covered by `tests/integration/unlimited-scans.test.ts`.
+
 **Monthly scan quota — ENFORCED** (`services/scan-quota.service.ts`, decided 18 Oct 2026).
 `PLAN_LIMITS.scanLimitPerMonth` is a hard limit: once reached, `resolveQRScan` returns
 `reason: "limit"` (fallbackUrl honoured) until the window resets or the plan is upgraded.

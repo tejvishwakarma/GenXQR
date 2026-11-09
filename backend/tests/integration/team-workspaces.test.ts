@@ -78,9 +78,9 @@ describe("team workspaces", () => {
 
     it("should be held to the OWNER's code limit", async () => {
       const { owner, member } = await teamWith("EDITOR", "PRO")
-      // PRO allows 250; fill the owner to the limit.
+      // PRO allows 150; fill the owner to the limit.
       await prisma.qRCode.createMany({
-        data: Array.from({ length: 249 }, (_, i) => ({
+        data: Array.from({ length: 149 }, (_, i) => ({
           userId: owner.id, name: `Fill ${i}`, slug: `fill${i}${Date.now().toString(36)}`.slice(0, 20), type: "URL", category: "DYNAMIC",
         })),
       })

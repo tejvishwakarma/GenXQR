@@ -51,14 +51,14 @@ const FEATURES_JSON_LD = [
         "name": "Pro",
         "price": "799",
         "priceCurrency": "INR",
-        "description": "250 QR codes, A/B testing, smart routing, team seats, REST API, webhook events.",
+        "description": "150 QR codes, unlimited scans, A/B testing, smart routing, team seats, REST API, webhook events.",
       },
       {
         "@type": "Offer",
         "name": "Business",
         "price": "2499",
         "priceCurrency": "INR",
-        "description": "2,000 QR codes, white-label, priority support, bulk generation.",
+        "description": "1,000 QR codes, unlimited scans, white-label, priority support, bulk generation.",
       },
     ],
     "featureList": [

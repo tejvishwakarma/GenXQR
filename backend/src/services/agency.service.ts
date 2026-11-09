@@ -22,7 +22,7 @@ import { prisma } from "../db/prisma.js"
 import { redis } from "../redis/client.js"
 import { logger } from "../logger/index.js"
 import { AppError } from "../middleware/error.middleware.js"
-import { PLAN_LIMITS, getPlanLimitsReadOnly, getUserPlanLimits } from "./billing.service.js"
+import { PLAN_LIMITS, getPlanLimitsReadOnly, getUserPlanLimits, hasScanCap } from "./billing.service.js"
 import { brandingSchema } from "./branding.service.js"
 import { logAudit } from "./audit.service.js"
 import { getGlobalAnalytics } from "./analytics.service.js"
@@ -110,7 +110,8 @@ async function assertCapsFit(agencyId: string, caps: Caps, excludeClientId?: str
     }
   }
   fits("QR codes", caps.maxCodes, s.maxCodes ?? 0, pool.dynamicQRLimit, ownCodes)
-  fits("monthly scans", caps.maxScansPerMonth, s.maxScansPerMonth ?? 0, pool.scanLimitPerMonth)
+  // Unlimited scans (every agency plan since 9 Nov 2026): nothing to share out.
+  if (hasScanCap(pool.scanLimitPerMonth)) fits("monthly scans", caps.maxScansPerMonth, s.maxScansPerMonth ?? 0, pool.scanLimitPerMonth)
   fits("custom domains", caps.maxDomains, s.maxDomains ?? 0, pool.customDomainsLimit, ownDomains)
   fits("storage", caps.maxStorageGB, s.maxStorageGB ?? 0, pool.fileStorageGB, 0, " GB")
   return pool
