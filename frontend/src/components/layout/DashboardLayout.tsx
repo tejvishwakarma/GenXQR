@@ -579,7 +579,9 @@ export function DashboardLayout() {
   }
 
   return (
-    <div className={cn("min-h-screen flex", theme === "dark" ? "dark bg-zinc-950" : "bg-zinc-50")}>
+    // data-clarity-mask: Clarity never loads on /app, but one started on a public
+    // page keeps running after an in-app navigation; this hides the content (lib/consent.ts).
+    <div data-clarity-mask="true" className={cn("min-h-screen flex", theme === "dark" ? "dark bg-zinc-950" : "bg-zinc-50")}>
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 border-r border-zinc-200 dark:border-zinc-800 flex-col fixed left-0 top-0 bottom-0 z-30 bg-zinc-50 dark:bg-zinc-950">
         <SidebarContent />

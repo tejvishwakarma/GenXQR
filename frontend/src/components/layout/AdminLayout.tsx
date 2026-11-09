@@ -148,7 +148,8 @@ export function AdminLayout() {
   )
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
+    // data-clarity-mask: see DashboardLayout / lib/consent.ts.
+    <div data-clarity-mask="true" className="min-h-screen bg-zinc-950 flex">
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 flex-col bg-zinc-900 border-r border-zinc-800 fixed inset-y-0 left-0 z-30">
         <SidebarContent />
