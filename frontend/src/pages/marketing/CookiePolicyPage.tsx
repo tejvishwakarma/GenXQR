@@ -9,19 +9,19 @@ const sections = [
   },
   {
     title: "2. How GenXQR uses cookies",
-    content: "We use essential cookies for authentication, security, and session continuity. We may also use analytics cookies to understand aggregate platform usage and improve performance.",
+    content: "We use cookies for two things: keeping you signed in securely (essential cookies), and understanding how the site is used so we can improve it (analytics cookies, set by Google Analytics and Microsoft Clarity).",
   },
   {
     title: "3. Types of cookies we use",
-    content: "Essential cookies support login and account security. UI preferences, such as your theme, are kept in your browser's local storage rather than in cookies. Analytics cookies help us measure feature adoption and reliability trends.",
+    content: "Essential: a secure, HttpOnly cookie that keeps you signed in, and short-lived ones used while you sign in with Google or single sign-on. Cloudflare, which protects the site, may also set its own security cookies. Analytics: Google Analytics (cookies named _ga…) counts visits and measures how pages are used; Microsoft Clarity (cookies such as _clck and _clsk, plus Microsoft's own) records clicks, scrolling and the pages viewed. Analytics cookies are set on genxqr.com pages, including the dashboard and the pages people see after scanning a code, but not on customers' custom domains or agencies' shared reports. Preferences such as your theme are kept in your browser's local storage, not in cookies.",
   },
   {
     title: "4. Managing your cookie settings",
-    content: "You can manage or block cookies from your browser settings at any time. Disabling essential cookies may affect sign-in and some platform functionality.",
+    content: "You can block or delete cookies in your browser settings at any time, and browser extensions that block trackers will stop Google Analytics and Clarity. Blocking analytics cookies does not affect how GenXQR works; blocking essential cookies will sign you out.",
   },
   {
     title: "5. Third-party cookies",
-    content: "Some integrated services may set cookies to deliver core functionality. We only work with providers that follow strong security and privacy standards.",
+    content: "The analytics cookies above are set by Google and Microsoft, who handle the data under their own privacy policies. If you pay, Cashfree's payment page may set its own cookies. See our Privacy Policy for what each company receives.",
   },
   {
     title: "6. Updates to this policy",
@@ -37,13 +37,13 @@ export default function CookiePolicyPage() {
         description="Learn how GenXQR uses cookies for security, preferences, and platform performance."
         url="/cookie-policy"
       />
-      <LegalHero icon={Cookie} title={<>Cookie <span className="text-accent">Policy</span></>} subtitle="Last updated: March 16, 2026" />
+      <LegalHero icon={Cookie} title={<>Cookie <span className="text-accent">Policy</span></>} subtitle="Last updated: November 9, 2026" />
       <LegalBody>
         <LegalStats
           items={[
             { icon: ShieldCheck, tint: "violet", label: "Security first", sub: "Essential cookies protect sessions" },
             { icon: Settings2, tint: "blue", label: "User control", sub: "Manage via browser settings" },
-            { icon: Cookie, tint: "emerald", label: "Transparent usage", sub: "Only required categories used" },
+            { icon: Cookie, tint: "emerald", label: "Two kinds", sub: "Essential and analytics" },
           ]}
         />
         <LegalCard>
