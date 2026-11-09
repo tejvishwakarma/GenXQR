@@ -5,6 +5,7 @@ import {
   Activity, CheckCircle2, XCircle, X, ChevronDown,
   Link2,
 } from "lucide-react"
+import { Link } from "react-router-dom"
 import AdminPagination from "@/components/admin/AdminPagination"
 import { fetchAdminQRCodes, deactivateAdminQR, reactivateAdminQR, deleteAdminQR, type AdminQRCode } from "@/lib/api"
 
@@ -344,7 +345,7 @@ export default function AdminQRCodesPage() {
                       <td className="px-4 py-3.5 max-w-[180px]">
                         {qr.user ? (
                           <div>
-                            <div className="text-zinc-300 text-xs font-medium truncate">{qr.user.name}</div>
+                            <Link to={`/admin/users/${qr.user.id}`} className="block text-zinc-300 hover:text-white text-xs font-medium truncate hover:underline underline-offset-2">{qr.user.name}</Link>
                             <div className="text-zinc-500 text-xs truncate">{qr.user.email}</div>
                           </div>
                         ) : (

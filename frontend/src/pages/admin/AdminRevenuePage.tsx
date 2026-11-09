@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
+import { Link } from "react-router-dom"
 import AdminPagination from "@/components/admin/AdminPagination"
 import { fetchAdminRevenue } from "@/lib/api"
 
@@ -76,7 +77,7 @@ export default function AdminRevenuePage() {
                       {new Date(inv.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-zinc-300 text-xs">{inv.user.name}</div>
+                      <Link to={`/admin/users/${inv.user.id}`} className="block text-zinc-300 hover:text-white text-xs hover:underline underline-offset-2">{inv.user.name}</Link>
                       <div className="text-zinc-500 text-xs">{inv.user.email}</div>
                     </td>
                     <td className="px-4 py-3 text-zinc-300 text-xs">{inv.planName}</td>
