@@ -1,6 +1,6 @@
 import * as Switch from "@radix-ui/react-switch"
 import { useMemo, useState, useEffect, useRef, useCallback } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { HardDrive, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,13 +8,18 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { TwoFactorSettings } from "@/components/dashboard/TwoFactorSettings"
 import { BrandingSettings } from "./BrandingSettings"
+import { DriveExportStatus } from "@/components/dashboard/DriveExportStatus"
+import { usePlanFeature } from "@/components/PlanFeatureGate"
+import { useDriveExport } from "@/hooks/useDriveExport"
+import { useWorkspace } from "@/hooks/useWorkspace"
+import { listAllOwnCodes } from "@/lib/driveExport"
+import type { DriveExportFormat } from "@/lib/api"
 import {
   deleteAccount,
   startDeleteReauth,
   getDriveStatus,
   getDriveAuthUrl,
   disconnectDrive,
-  exportQRsToDrive,
   getNotificationPreferences,
   updateNotificationPreferences,
   getCurrentUser,
@@ -145,9 +150,10 @@ export default function SettingsPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["drive-status"] }),
   })
 
-  const exportDriveMut = useMutation({
-    mutationFn: () => exportQRsToDrive(),
-  })
+  const driveExport = useDriveExport()
+  const [driveFormat, setDriveFormat] = useState<DriveExportFormat>("png")
+  const drivePlan = usePlanFeature("driveExport")
+  const { isPersonal } = useWorkspace()
 
   const user = useMemo(() => {
     try {
@@ -577,48 +583,71 @@ export default function SettingsPage() {
               Failed to connect Google Drive. Please try again.
             </div>
           )}
+          <p className="text-zinc-600 dark:text-zinc-400 text-sm mb-4">
+            Save your QR codes to your Google Drive: one image per code (PNG, SVG or PDF, frame and logo included) and a
+            codes.csv with each code&apos;s name, link and scans, in a new dated folder.
+          </p>
           {driveLoading ? (
             <div className="flex items-center gap-2 text-zinc-500 text-sm"><Loader2 size={16} className="animate-spin" /> Checking…</div>
+          ) : !drivePlan.allowed ? (
+            <div className="space-y-3">
+              <p className="text-zinc-500 text-sm">Available on the {drivePlan.requiredPlan} plan and above.</p>
+              <div className="flex flex-wrap gap-3">
+                <Link to="/app/billing"><Button size="sm">Upgrade</Button></Link>
+                {driveConnected && (
+                  <Button variant="outline" size="sm" onClick={() => disconnectDriveMut.mutate()} disabled={disconnectDriveMut.isPending}>
+                    Disconnect Google Drive
+                  </Button>
+                )}
+              </div>
+            </div>
           ) : driveConnected ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-400" />
                 <span className="text-zinc-700 dark:text-zinc-300 text-sm">Connected</span>
               </div>
-              <p className="text-zinc-500 text-xs">QR codes will be exported as JSON files to a "GenXQR Exports" folder in your Drive.</p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => exportDriveMut.mutate()}
-                  disabled={exportDriveMut.isPending}
-                >
-                  {exportDriveMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <HardDrive size={14} />}
-                  Export All QRs to Drive
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => {
-                    if (window.confirm("Disconnect Google Drive?")) disconnectDriveMut.mutate()
-                  }}
-                  disabled={disconnectDriveMut.isPending}
-                >
-                  Disconnect
-                </Button>
-              </div>
-              {exportDriveMut.isSuccess && (
-                <p className="text-emerald-400 text-xs">{(exportDriveMut.data as { data: unknown[] }).data?.length ?? 0} files exported to Drive.</p>
+              {isPersonal ? (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <select
+                    value={driveFormat}
+                    onChange={(e) => setDriveFormat(e.target.value as DriveExportFormat)}
+                    disabled={driveExport.running}
+                    className="input-field h-9 py-0 text-sm sm:w-40"
+                    aria-label="Image format"
+                  >
+                    <option value="png">PNG images</option>
+                    <option value="svg">SVG images</option>
+                    <option value="pdf">PDF files</option>
+                  </select>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void driveExport.run(() => listAllOwnCodes(), driveFormat)}
+                    disabled={driveExport.running}
+                  >
+                    {driveExport.running ? <Loader2 size={14} className="animate-spin" /> : <HardDrive size={14} />}
+                    Export all codes to Drive
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm("Disconnect Google Drive?")) disconnectDriveMut.mutate()
+                    }}
+                    disabled={disconnectDriveMut.isPending || driveExport.running}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-sm">Switch to your own workspace to export your codes.</p>
               )}
-              {exportDriveMut.error && (
-                <p className="text-red-400 text-xs">
-                  {exportDriveMut.error instanceof Error ? exportDriveMut.error.message : "Export failed"}
-                </p>
-              )}
+              <p className="text-zinc-500 text-xs">Up to 1,000 codes per export. To export only some, select them on My QR Codes and choose Save to Drive. Keep this tab open until it finishes.</p>
+              <DriveExportStatus state={driveExport} />
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-zinc-600 dark:text-zinc-400 text-sm">Connect your Google Drive to export QR codes directly to your Drive folder.</p>
               <Button
                 onClick={() => connectDriveMut.mutate()}
                 disabled={connectDriveMut.isPending}
@@ -626,6 +655,7 @@ export default function SettingsPage() {
                 {connectDriveMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <HardDrive size={14} />}
                 Connect Google Drive
               </Button>
+              <p className="text-zinc-500 text-xs">GenXQR can only see the files it creates in your Drive, nothing else.</p>
             </div>
           )}
         </CardContent>

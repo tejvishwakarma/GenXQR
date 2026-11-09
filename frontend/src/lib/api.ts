@@ -2025,6 +2025,8 @@ export interface PlanLimits {
   activityLog: boolean
   /** Single sign-on with Google Workspace / Microsoft Entra ID (Business+). */
   sso: boolean
+  /** Export QR images + codes.csv to Google Drive (Business+). */
+  driveExport: boolean
   /** How many clients the account can manage (Agency 15, Enterprise 50). */
   agencyClientsLimit: number
 }
@@ -2773,12 +2775,45 @@ export function disconnectDrive() {
   })
 }
 
-export function exportQRsToDrive(qrIds?: string[]) {
-  return apiFetch<{ success: boolean; data: Array<{ fileId: string; fileName: string; webViewLink: string }> }>("/api/gdrive/export", {
+export type DriveExportFormat = "png" | "svg" | "pdf"
+export interface DriveExportSession {
+  exportId: string
+  folderUrl: string
+  files: Array<{ qrId: string; fileName: string }>
+}
+
+/** Starts a Drive export of the caller's OWN codes (Business+): folder + codes.csv. Personal, no workspace header. */
+export async function startDriveExport(qrIds: string[], format: DriveExportFormat) {
+  const res = await apiFetch<{ success: boolean; data: DriveExportSession }>("/api/gdrive/export/start", {
     method: "POST",
     headers: authHeader(),
-    body: JSON.stringify({ qrIds }),
+    body: JSON.stringify({ qrIds, format }),
   })
+  return res.data
+}
+
+/** Sends one code's image into its export's folder (lib/driveExport.ts). */
+export async function uploadDriveExportFile(exportId: string, qrId: string, file: Blob): Promise<void> {
+  const send = (token: string) => {
+    const form = new FormData()
+    form.append("file", file, "qr")
+    return fetch(`${BASE_URL}/api/gdrive/export/${encodeURIComponent(exportId)}/files/${encodeURIComponent(qrId)}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
+      body: form,
+    })
+  }
+  let res = await send(localStorage.getItem("access_token") ?? "")
+  if (res.status === 401) {
+    const fresh = await silentRefresh()
+    if (!fresh) throw new ApiError(401, "Session expired. Please log in again.")
+    res = await send(fresh)
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { message?: string; error?: string }
+    throw new ApiError(res.status, body.message ?? body.error ?? "Upload to Drive failed")
+  }
 }
 
 // ─── User Support Tickets ─────────────────────────────────────────────────────

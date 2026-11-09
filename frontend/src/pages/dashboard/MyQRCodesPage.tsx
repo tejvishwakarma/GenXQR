@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { createPortal } from "react-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   QrCode, Plus, Search, X, Edit, BarChart3, Trash2, Loader2,
-  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight, MapPin, FolderOpen,
+  Power, PowerOff, Copy, CheckSquare, Square, ChevronLeft, ChevronRight, MapPin, FolderOpen, HardDrive,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,9 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DownloadMenu } from "@/components/QRDownloadMenu"
 import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
-import { listQRs, deleteQR, toggleQR, duplicateQR, getPlaces, getFolders, moveToFolder, type QRCode } from "@/lib/api"
+import { listQRs, deleteQR, toggleQR, duplicateQR, getPlaces, getFolders, moveToFolder, getDriveStatus, type QRCode } from "@/lib/api"
 import { FolderBar } from "@/components/folders/FolderBar"
 import { useWorkspace } from "@/hooks/useWorkspace"
+import { useDriveExport } from "@/hooks/useDriveExport"
+import { usePlanFeature } from "@/components/PlanFeatureGate"
+import { DriveExportStatus } from "@/components/dashboard/DriveExportStatus"
 
 const TYPE_LABEL: Record<string, string> = {
   URL: "URL", PDF: "PDF", VIDEO: "Video", LINKS: "Multi-Link", SOCIAL_MEDIA: "Social",
@@ -30,7 +33,13 @@ function formatDate(iso: string): string {
 
 export default function MyQRCodesPage() {
   const queryClient = useQueryClient()
-  const { can } = useWorkspace()
+  const { can, isPersonal } = useWorkspace()
+  const navigate = useNavigate()
+  // Save to Drive (Business+): the caller's OWN codes only, so personal workspace only.
+  const driveExport = useDriveExport()
+  const drivePlan = usePlanFeature("driveExport")
+  const driveOffered = isPersonal && drivePlan.allowed
+  const { data: driveStatus } = useQuery({ queryKey: ["drive-status"], queryFn: getDriveStatus, enabled: driveOffered })
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Search is seeded from ?q= (set by the global header search box) and kept in the URL.
@@ -182,6 +191,17 @@ export default function MyQRCodesPage() {
     void queryClient.invalidateQueries({ queryKey: ["folders"] })
   }, [selectedIds, invalidate, queryClient])
 
+  const handleBulkDrive = useCallback(() => {
+    if (!driveStatus?.data.connected) {
+      if (window.confirm("Connect your Google Drive first. Open Settings to connect it?")) navigate("/app/settings")
+      return
+    }
+    const targets = visibleQRs.filter((q) => selectedIds.has(q.id))
+    if (!targets.length) return
+    setSelectedIds(new Set())
+    void driveExport.run(targets, "png")
+  }, [driveStatus, visibleQRs, selectedIds, driveExport, navigate])
+
   const handleBulkDownload = useCallback(async () => {
     const targets = visibleQRs.filter((q) => selectedIds.has(q.id))
     if (!targets.length) return
@@ -237,6 +257,10 @@ export default function MyQRCodesPage() {
         </div>
 
         <FolderBar value={folderFilter} onChange={setFolderFilter} />
+
+        {(driveExport.running || driveExport.result || driveExport.error) && (
+          <Card><CardContent className="p-4"><DriveExportStatus state={driveExport} /></CardContent></Card>
+        )}
 
         {/* Toolbar: search + filters */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -425,6 +449,11 @@ export default function MyQRCodesPage() {
             <button onClick={() => void handleBulkDownload()} disabled={!!bulkOp} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 shrink-0" title="Download selected as PNG">
               {bulkOp === "download" ? <Loader2 size={13} className="animate-spin" /> : <QrCode size={13} />}<span className="hidden sm:inline">Download</span>
             </button>
+            {driveOffered && (
+              <button onClick={handleBulkDrive} disabled={!!bulkOp || driveExport.running} className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 shrink-0" title="Save selected to Google Drive as PNG, with a codes.csv">
+                {driveExport.running ? <Loader2 size={13} className="animate-spin" /> : <HardDrive size={13} />}<span className="hidden sm:inline">Save to Drive</span>
+              </button>
+            )}
             {can("qr:edit") && <>
             <label className="relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:text-violet-500 hover:bg-violet-500/10 transition-colors shrink-0 cursor-pointer" title="Move selected to a folder">
               {bulkOp === "move" ? <Loader2 size={13} className="animate-spin" /> : <FolderOpen size={13} />}<span className="hidden sm:inline">Move to folder</span>

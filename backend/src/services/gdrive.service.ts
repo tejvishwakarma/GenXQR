@@ -4,6 +4,9 @@ import { AppError } from "../middleware/error.middleware.js"
 import { logger } from "../logger/index.js"
 import { scanUrlFor } from "./custom-domain.service.js"
 import { env } from "../config/env.js"
+import { redis } from "../redis/client.js"
+import { csvCell } from "../utils/csv-cell.util.js"
+import { randomBytes } from "node:crypto"
 
 function getOAuth2Client() {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
@@ -146,75 +149,130 @@ async function ensureGenXQRFolder(userId: string, drive: ReturnType<typeof googl
   return folderId
 }
 
+// ─── Export: QR images + codes.csv (Business and above, 9 Nov 2026) ─────────
+//
+// The images are drawn in the BROWSER (lib/qrDownload.ts — frames, logos and
+// fonts only exist there), so an export is a session: start() makes a dated
+// folder with codes.csv and names one file per chosen code; the browser then
+// sends each image, which goes straight into that folder. The server decides
+// every file name and accepts each code once — the browser only picks formats.
+
+export const DRIVE_EXPORT_MAX_CODES = 1000
+export type DriveExportFormat = "png" | "svg" | "pdf"
+const EXPORT_TTL = 2 * 60 * 60 // s
+const metaKey = (id: string) => `gdrive:export:${id}`
+const filesKey = (id: string) => `gdrive:export:${id}:files`
+const MIME: Record<DriveExportFormat, string> = { png: "image/png", svg: "image/svg+xml", pdf: "application/pdf" }
+
+/** Whether the bytes are what the format says: a PNG, a PDF, or SVG markup. */
+export function looksLike(format: DriveExportFormat, buf: Buffer): boolean {
+  if (format === "png") return buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  if (format === "pdf") return buf.subarray(0, 5).toString("latin1") === "%PDF-"
+  const head = buf.subarray(0, 512).toString("utf8").replace(/^\uFEFF/, "").trimStart()
+  return head.startsWith("<svg") || head.startsWith("<?xml")
+}
+
+const safeName = (name: string) => name.replace(/[^\p{L}\p{N} _().-]+/gu, "_").replace(/\s+/g, " ").trim().slice(0, 80) || "QR"
+
+function exportFolderName(now = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(now)
+  const v = (t: string) => parts.find((p) => p.type === t)?.value ?? ""
+  return `GenXQR export ${v("year")}-${v("month")}-${v("day")} ${v("hour")}.${v("minute")}`
+}
+
+/** What a code points at, for the CSV: its link, or the kind of page it opens. */
+function destinationOf(type: string, data: unknown): string {
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>
+  for (const k of ["url", "reviewUrl", "appStoreUrl", "playStoreUrl"]) {
+    if (typeof d[k] === "string" && d[k]) return d[k] as string
+  }
+  return `${type.toLowerCase().replace(/_/g, " ")} page`
+}
+
 /**
- * Export QR code metadata for a specific QR (or all QRs) to Google Drive.
- * Creates a JSON file in the GenXQR Exports folder.
+ * Starts an export of `qrIds` (the caller's own codes) in `format`: creates
+ * "GenXQR Exports/GenXQR export <date>" with codes.csv, and returns the files
+ * the browser should send. Throws 404 if any id is not the caller's.
  */
-export async function exportQRsToDrive(
-  userId: string,
-  qrIds?: string[],
-): Promise<{ fileId: string; fileName: string; webViewLink: string }[]> {
-  const drive = await getDriveClient(userId)
-  const folderId = await ensureGenXQRFolder(userId, drive)
-
-  const where = qrIds?.length
-    ? { id: { in: qrIds }, userId }
-    : { userId }
-
+export async function startDriveExport(userId: string, qrIds: string[], format: DriveExportFormat) {
+  const ids = [...new Set(qrIds)]
   const qrs = await prisma.qRCode.findMany({
-    where,
+    where: { id: { in: ids }, userId },
     select: {
-      id: true,
-      name: true,
-      slug: true,
-      type: true,
-      isActive: true,
-      scanCount: true,
-      createdAt: true,
+      id: true, name: true, slug: true, type: true, isActive: true, scanCount: true, createdAt: true,
       content: { select: { data: true } },
       customDomain: { select: { hostname: true, status: true } },
+      folder: { select: { name: true } },
+      place: { select: { name: true, code: true } },
     },
-    orderBy: { createdAt: "desc" },
-    take: 500,
+    orderBy: { createdAt: "asc" },
   })
+  if (qrs.length !== ids.length) throw new AppError(404, "Some of these QR codes were not found in your account.")
 
-  if (qrs.length === 0) throw new AppError(400, "No QR codes found to export")
+  const drive = await getDriveClient(userId)
+  const parentId = await ensureGenXQRFolder(userId, drive)
+  const folder = await drive.files.create({
+    requestBody: { name: exportFolderName(), mimeType: "application/vnd.google-apps.folder", parents: [parentId] },
+    fields: "id,webViewLink",
+  })
+  const folderId = folder.data.id!
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
-  const fileName = `GenXQR_export_${timestamp}.json`
+  // Name + slug: unique within the export, and still readable.
+  const files = qrs.map((q) => ({ qrId: q.id, fileName: `${safeName(q.name)} - ${q.slug}.${format}` }))
+  const fileOf = new Map(files.map((f) => [f.qrId, f.fileName]))
 
-  const exportData = qrs.map((q) => ({
-    id: q.id,
-    name: q.name,
-    slug: q.slug,
-    type: q.type,
-    isActive: q.isActive,
-    scanCount: q.scanCount,
-    scanUrl: scanUrlFor(q),
-    content: q.content?.data,
-    createdAt: q.createdAt.toISOString(),
-  }))
-
+  const header = ["name", "type", "status", "scan_url", "destination", "scans", "folder", "place", "location_id", "created", "image_file"]
+  const rows = qrs.map((q) => [
+    q.name, q.type, q.isActive ? "active" : "inactive", scanUrlFor(q), destinationOf(q.type, q.content?.data),
+    q.scanCount, q.folder?.name ?? "", q.place?.name ?? "", q.place?.code ?? "", q.createdAt.toISOString().slice(0, 10), fileOf.get(q.id),
+  ])
+  const csv = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n"
   const { Readable } = await import("stream")
-  const stream = Readable.from(JSON.stringify(exportData, null, 2))
-
-  const created = await drive.files.create({
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
-      mimeType: "application/json",
-    },
-    media: { mimeType: "application/json", body: stream },
-    fields: "id,name,webViewLink",
+  await drive.files.create({
+    requestBody: { name: "codes.csv", parents: [folderId], mimeType: "text/csv" },
+    media: { mimeType: "text/csv", body: Readable.from(["\uFEFF" + csv]) }, // BOM: Excel reads it as UTF-8
+    fields: "id",
   })
 
-  logger.info("Exported QRs to Google Drive", { userId, count: qrs.length, fileId: created.data.id })
+  const exportId = randomBytes(16).toString("hex")
+  await redis
+    .multi()
+    .set(metaKey(exportId), JSON.stringify({ userId, folderId, format }), "EX", EXPORT_TTL)
+    .hset(filesKey(exportId), Object.fromEntries(files.map((f) => [f.qrId, f.fileName])))
+    .expire(filesKey(exportId), EXPORT_TTL)
+    .exec()
 
-  return [{
-    fileId: created.data.id!,
-    fileName: created.data.name!,
-    webViewLink: created.data.webViewLink!,
-  }]
+  logger.info("Drive export started", { userId, count: qrs.length, format })
+  return { exportId, folderUrl: folder.data.webViewLink ?? `https://drive.google.com/drive/folders/${folderId}`, files }
+}
+
+/** Puts one code's image into its export folder. Each code once; only the export's owner. */
+export async function uploadDriveExportFile(userId: string, exportId: string, qrId: string, file: Buffer) {
+  const raw = await redis.get(metaKey(exportId))
+  const meta = raw ? (JSON.parse(raw) as { userId: string; folderId: string; format: DriveExportFormat }) : null
+  if (!meta || meta.userId !== userId) throw new AppError(404, "This export has ended. Start it again.")
+  if (!looksLike(meta.format, file)) throw new AppError(422, `That file is not a ${meta.format.toUpperCase()}.`)
+
+  const fileName = await redis.hget(filesKey(exportId), qrId)
+  // HDEL is the claim: of two requests for the same code only one gets 1.
+  if (!fileName || (await redis.hdel(filesKey(exportId), qrId)) !== 1) {
+    throw new AppError(409, "This code is not part of the export, or was already sent.")
+  }
+
+  const drive = await getDriveClient(userId)
+  const { Readable } = await import("stream")
+  try {
+    await drive.files.create({
+      requestBody: { name: fileName, parents: [meta.folderId], mimeType: MIME[meta.format] },
+      media: { mimeType: MIME[meta.format], body: Readable.from([file]) },
+      fields: "id",
+    })
+  } catch (err) {
+    await redis.hset(filesKey(exportId), qrId, fileName).catch(() => undefined) // can be retried
+    throw err
+  }
 }
 
 /** Get current Drive connection status for a user. */

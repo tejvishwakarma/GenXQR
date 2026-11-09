@@ -4,12 +4,20 @@ import type { Request } from "express"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { signOAuthState, verifyOAuthState } from "../utils/jwt.js"
 import { requireAuth } from "../middleware/auth.middleware.js"
+import multer from "multer"
+import { requirePlanFeature } from "../middleware/plan-gate.middleware.js"
+import { forbidWhileImpersonating } from "../middleware/impersonation.middleware.js"
+import { AppError } from "../middleware/error.middleware.js"
+import { MULTIPART_FIELD_LIMITS } from "../utils/multipart-limits.util.js"
+import { logAudit } from "../services/audit.service.js"
 import {
   getDriveAuthUrl,
   connectDrive,
   disconnectDrive,
-  exportQRsToDrive,
   getDriveStatus,
+  startDriveExport,
+  uploadDriveExportFile,
+  DRIVE_EXPORT_MAX_CODES,
 } from "../services/gdrive.service.js"
 import { env } from "../config/env.js"
 
@@ -33,7 +41,7 @@ router.get("/status", requireAuth, async (req, res, next) => {
  * GET /api/gdrive/connect
  * Redirects the user to Google's OAuth2 consent page.
  */
-router.get("/connect", requireAuth, (req, res, next) => {
+router.get("/connect", requireAuth, forbidWhileImpersonating, requirePlanFeature("driveExport"), (req, res, next) => {
   try {
     const url = getDriveAuthUrl()
     const stateParam = signOAuthState(uid(req))
@@ -81,7 +89,7 @@ router.get("/callback", async (req, res, next) => {
  * Returns the Google OAuth URL with state=base64url(userId) for the frontend
  * to open in a popup or redirect.
  */
-router.get("/auth-url", requireAuth, (_req, res, next) => {
+router.get("/auth-url", requireAuth, forbidWhileImpersonating, requirePlanFeature("driveExport"), (_req, res, next) => {
   try {
     const url = getDriveAuthUrl()
     // Bind the flow to the authenticated user with a signed, short-lived state token.
@@ -106,19 +114,39 @@ router.post("/disconnect", requireAuth, async (req, res, next) => {
   }
 })
 
-const exportSchema = z.object({
-  qrIds: z.array(z.string()).optional(),
+/**
+ * Export (Business and above): POST /export/start {qrIds, format} makes a dated
+ * folder with codes.csv and answers which files to send; the browser then draws
+ * each code (frame and logo included) and POSTs it to /export/:id/files/:qrId.
+ * Only the caller's own codes, each once (gdrive.service).
+ */
+const startSchema = z.object({
+  qrIds: z.array(z.string().min(1).max(40)).min(1).max(DRIVE_EXPORT_MAX_CODES),
+  format: z.enum(["png", "svg", "pdf"]),
 })
 
-/**
- * POST /api/gdrive/export
- * Export selected (or all) QR codes to Google Drive.
- */
-router.post("/export", requireAuth, async (req, res, next) => {
+router.post("/export/start", requireAuth, forbidWhileImpersonating, requirePlanFeature("driveExport"), async (req, res, next) => {
   try {
-    const { qrIds } = exportSchema.parse(req.body)
-    const files = await exportQRsToDrive(uid(req), qrIds)
-    res.json({ success: true, data: files })
+    const { qrIds, format } = startSchema.parse(req.body)
+    const result = await startDriveExport(uid(req), qrIds, format)
+    logAudit({ userId: uid(req), action: "qr.export.drive", category: "qr", metadata: { count: result.files.length, format }, ip: req.ip, userAgent: req.headers["user-agent"] })
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+})
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  // A framed code at print size is a few MB as PNG; PDFs are a JPEG inside.
+  limits: { ...MULTIPART_FIELD_LIMITS, fields: 2, files: 1, fileSize: 15 * 1024 * 1024 },
+})
+
+router.post("/export/:exportId/files/:qrId", requireAuth, requirePlanFeature("driveExport"), upload.single("file"), async (req, res, next) => {
+  try {
+    if (!req.file) throw new AppError(422, "No file was sent.")
+    await uploadDriveExportFile(uid(req), String(req.params["exportId"]), String(req.params["qrId"]), req.file.buffer)
+    res.json({ success: true })
   } catch (err) {
     next(err)
   }
