@@ -48,33 +48,47 @@ export default function BlogPostPage() {
         }
       />
 
-      <MktContainer className="max-w-3xl pt-14 md:pt-20 pb-20">
-        {post.draft && (
-          <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Draft for review. This page only exists in local development and is not published.
+      {/* Header band: tinted, full width, so the title block reads as the page's
+          heading and the article starts clearly below it. */}
+      <header className="relative overflow-hidden border-b border-line bg-accent-soft">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-accent/10 blur-3xl"
+        />
+        <MktContainer className="relative max-w-3xl pt-10 md:pt-14 pb-10 md:pb-14">
+          {post.draft && (
+            <div className="mb-8 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Draft for review. This page only exists in local development and is not published.
+            </div>
+          )}
+
+          <Link to="/blog" className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink transition">
+            <ArrowLeft size={14} />
+            All articles
+          </Link>
+
+          <div className="mt-8">
+            <Eyebrow>{post.category}</Eyebrow>
           </div>
-        )}
+          <h1 className="mt-4 text-3xl md:text-[44px] md:leading-[1.1] font-bold font-display tracking-tightest text-ink">
+            {post.title}
+          </h1>
+          <p className="mt-5 text-lg leading-relaxed text-ink-soft">{post.description}</p>
+          <div className="mt-7 flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+            <span className="inline-flex items-center rounded-full border border-line bg-paper-pure px-3 py-1">
+              {post.date ? <time dateTime={post.date}>{formatPostDate(post.date)}</time> : "Unpublished draft"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper-pure px-3 py-1">
+              <Clock3 size={14} />
+              {post.readMinutes} min read
+            </span>
+          </div>
+        </MktContainer>
+      </header>
 
-        <Link to="/blog" className="inline-flex items-center gap-1.5 text-sm text-ink-soft hover:text-ink transition">
-          <ArrowLeft size={14} />
-          All articles
-        </Link>
-
-        <Eyebrow className="mt-8">{post.category}</Eyebrow>
-        <h1 className="mt-4 text-3xl md:text-[44px] md:leading-[1.1] font-bold font-display tracking-tightest text-ink">
-          {post.title}
-        </h1>
-        <p className="mt-5 text-lg leading-relaxed text-ink-soft">{post.description}</p>
-        <div className="mt-6 flex flex-wrap items-center gap-4 text-sm text-ink-faint border-b border-line pb-8">
-          {post.date ? <time dateTime={post.date}>{formatPostDate(post.date)}</time> : <span>Unpublished draft</span>}
-          <span className="inline-flex items-center gap-1">
-            <Clock3 size={14} />
-            {post.readMinutes} min read
-          </span>
-        </div>
-
+      <MktContainer className="max-w-3xl pt-10 md:pt-12 pb-20">
         {/* First-party content from src/content/blog, rendered at build time. */}
-        <div className="blog-prose mt-10" dangerouslySetInnerHTML={{ __html: post.html }} />
+        <div className="blog-prose" dangerouslySetInnerHTML={{ __html: post.html }} />
 
         <div className="mt-16 rounded-[24px] border border-line bg-paper-pure p-8 text-center">
           <h2 className="text-xl md:text-2xl font-bold font-display tracking-tightest text-ink">
