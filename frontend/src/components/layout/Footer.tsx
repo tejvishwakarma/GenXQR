@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { BrandLogo } from "@/components/BrandLogo"
 import { SocialIcon } from "@/components/ui/social-icon"
 import { SOCIAL_PROFILES } from "@/lib/site"
+import { openConsentSettings } from "@/lib/consent"
 
 const footerLinks = {
   Product: [
@@ -82,7 +83,12 @@ export function Footer() {
         </div>
 
         <div className="mt-14 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-line pt-8">
-          <p className="text-sm text-ink-faint">© {new Date().getFullYear()} GenXQR. All rights reserved.</p>
+          <div className="flex flex-col sm:flex-row items-center gap-x-4 gap-y-2">
+            <p className="text-sm text-ink-faint">© {new Date().getFullYear()} GenXQR. All rights reserved.</p>
+            <button type="button" onClick={openConsentSettings} className="text-sm text-ink-faint hover:text-ink underline underline-offset-2 transition-colors">
+              Cookie settings
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-live animate-pulse" />
             <span className="text-ink-faint text-xs">All systems operational</span>

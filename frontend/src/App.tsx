@@ -1,7 +1,9 @@
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { initAnalytics, trackPageView } from "@/lib/analytics"
 import { initClarity } from "@/lib/clarity"
+import { CONSENT_CHANGED, analyticsAllowedOn, clarityAllowedOn, readConsent } from "@/lib/consent"
+import { ConsentBanner } from "@/components/ConsentBanner"
 import { MarketingLayout } from "@/components/layout/MarketingLayout"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
 import { AdminLayout } from "@/components/layout/AdminLayout"
@@ -137,16 +139,33 @@ function ScrollToTop() {
 function AnalyticsTracker() {
   const location = useLocation()
 
+  // Load each tracker only with consent and only where it may run
+  // (lib/consent.ts); re-checked on every route change and consent change.
+  const [consentVersion, setConsentVersion] = useState(0)
+  const lastTracked = useRef<string | null>(null)
   useEffect(() => {
-    initAnalytics()
-    initClarity()
+    const bump = () => setConsentVersion((v) => v + 1)
+    window.addEventListener(CONSENT_CHANGED, bump)
+    return () => window.removeEventListener(CONSENT_CHANGED, bump)
   }, [])
 
   useEffect(() => {
+    const consent = readConsent()
+    if (consent?.analytics && analyticsAllowedOn(location.pathname)) initAnalytics()
+    if (consent?.recordings && clarityAllowedOn(location.pathname)) initClarity()
+
+    // trackPageView is a no-op until GA has loaded; once it has, admin and scan
+    // pages reached in the same tab are still not reported.
+    if (!analyticsAllowedOn(location.pathname)) return
     const path = `${location.pathname}${location.search}`
-    const frame = requestAnimationFrame(() => trackPageView(path))
+    if (path === lastTracked.current) return // a consent change on the same page
+    const frame = requestAnimationFrame(() => {
+      if (!window.gtag) return
+      lastTracked.current = path
+      trackPageView(path)
+    })
     return () => cancelAnimationFrame(frame)
-  }, [location.pathname, location.search])
+  }, [location.pathname, location.search, consentVersion])
 
   return null
 }
@@ -164,6 +183,7 @@ export function AppRoutes() {
     <>
       <ScrollToTop />
       <AnalyticsTracker />
+      <ConsentBanner />
       <Routes>
         {/* Auth Pages (no layout) — redirect to dashboard if already logged in */}
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />

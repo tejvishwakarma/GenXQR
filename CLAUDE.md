@@ -1656,6 +1656,12 @@ pnpm preview               # vite preview (serves dist/)
     `clarity.ts` runs its bootstrap from our origin and loads `https://www.clarity.ms/tag/<id>`. CSP must allow
     `https://*.clarity.ms` in script-src and `https://*.clarity.ms https://c.bing.com` in connect-src (both
     `deploy/*.conf`). The project id (public) goes in the frontend build env (`frontend/.env.local`), not backend.
+    **Both need consent** (built 9 Nov 2026, `lib/consent.ts` + `components/ConsentBanner.tsx`): nothing loads until the
+    visitor accepts, each separately (stats / recordings); Reject is as easy as Accept; choice in localStorage
+    `genxqr_consent`; "Cookie settings" in the footer and on /cookie-policy reopens it; withdrawing clears the cookies and
+    reloads. Where they may run: GA everywhere on genxqr.com EXCEPT scan pages (`/l/`, `/r/`) and `/admin`; Clarity
+    only on PUBLIC pages (not /app, admin, auth screens or scan pages) — the dashboard/admin layouts carry
+    `data-clarity-mask` for a Clarity session started on a public page. Keep the Cookie Policy §3 and Privacy §4 in step.
 
 22. **Cloudflare Turnstile is optional and enabled by two keys together** (added 25 Oct 2026, after the external
     assessment). Backend `TURNSTILE_SECRET_KEY` + frontend `VITE_TURNSTILE_SITE_KEY`. With neither set, register,

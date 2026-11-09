@@ -133,6 +133,8 @@ const REDACTED_QUERY_PARAMS = new Set([
   "email",
   "cf_order_id",    // payment order identifier
   "access",         // proof a QR password was entered (/l/<slug>?access=…)
+  "tfa",            // two-factor sign-in challenge (/login?tfa=…)
+  "request",        // AI-app sign-in request (/app/oauth/authorize?request=…)
 ])
 
 /**
