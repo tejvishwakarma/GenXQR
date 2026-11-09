@@ -6,7 +6,7 @@ export default function TermsPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="Terms of Service"
+        title="Terms of Service — Plans, Billing & Acceptable Use"
         description="GenXQR Terms of Service — acceptable use, subscriptions and billing, the referral programme, API usage limits, and liability terms."
         url="/terms"
       />

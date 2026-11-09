@@ -34,8 +34,8 @@ export default function BlogPage() {
   return (
     <div>
       <SEOMeta
-        title="Blog"
-        description="Guides from GenXQR on dynamic QR codes, scan analytics, smart routing and printing QR codes that scan."
+        title="Blog — QR Code Guides, Tips & Best Practices"
+        description="Practical guides from GenXQR on dynamic QR codes, scan analytics, smart routing and printing QR codes that scan reliably, for businesses of every size."
         url="/blog"
         // noindex until the first article is published (decided 18 Oct 2026).
         // Published posts are files, so this is decided at build time and is in

@@ -89,8 +89,8 @@ export default function ContactPage() {
   return (
     <div className="pb-24 md:pb-32">
       <SEOMeta
-        title="Contact Us"
-        description="Get in touch with the GenXQR team for support, sales, or enterprise questions."
+        title="Contact Us — Support, Sales & Enterprise Plans"
+        description="Questions about QR codes, billing or a custom enterprise plan? Send the GenXQR team a message and we reply by email within one business day, usually sooner."
         url="/contact"
       />
 

@@ -34,8 +34,8 @@ export default function CookiePolicyPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="Cookie Policy"
-        description="Learn how GenXQR uses cookies for security, preferences, and platform performance."
+        title="Cookie Policy — Which Cookies We Use and Why"
+        description="Which cookies GenXQR uses: essential cookies that keep you signed in, and analytics cookies from Google Analytics and Microsoft Clarity. How to manage them."
         url="/cookie-policy"
       />
       <LegalHero icon={Cookie} title={<>Cookie <span className="text-accent">Policy</span></>} subtitle="Last updated: November 9, 2026" />

@@ -85,7 +85,7 @@ export default function RefundPolicyPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="Refund & Cancellation Policy"
+        title="Refund & Cancellation Policy — 7-Day Money Back"
         description="GenXQR offers a 7-day money-back guarantee on new subscriptions. Read our full refund, cancellation, and renewal terms."
         url="/refund-policy"
         jsonLd={JSON_LD}
