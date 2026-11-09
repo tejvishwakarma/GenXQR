@@ -203,7 +203,6 @@ const plans = [
     ],
     missing: [
       "Priority phone & email support",
-      "Google Drive export",
     ],
   },
   {
@@ -227,7 +226,6 @@ const plans = [
       "White-label scan pages — your brand, not ours",
       "Bulk generate up to 1,000 QR codes from CSV",
       "100,000 API calls/month",
-      "Google Drive export",
       "Priority phone & email support",
     ],
     missing: [],
@@ -254,7 +252,6 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
   { feature: "Team seats (incl. owner)",  free: false,    starter: false,        pro: "5 seats",      business: "20 seats" },
   { feature: "White-label scan pages",    free: false,    starter: false,        pro: false,          business: true },
   { feature: "Webhooks",                  free: false,    starter: false,        pro: true,           business: true },
-  { feature: "Google Drive export",       free: false,    starter: false,        pro: false,          business: true },
   { feature: "Password-protected QR",     free: false,    starter: true,         pro: true,           business: true },
   { feature: "Schedule & expiry",         free: false,    starter: true,         pro: true,           business: true },
 ]

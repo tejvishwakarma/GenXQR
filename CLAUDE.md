@@ -407,8 +407,8 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `GET  /download/:jobId` — download the generated ZIP
 
 #### `/api/gdrive` → `gdrive.routes.ts`
-- `POST /backup/:qrFileId` — backs up a QR file to user's Google Drive folder
-- `GET  /status` — returns drive connection status
+- `GET /status` · `GET /auth-url` (+ `/connect`) · `GET /callback` · `POST /disconnect`
+- `POST /export {qrIds?}` — one JSON file of the codes' data to the user's Drive (no images, no plan gate; §9)
 
 #### `/api/team` → `team.routes.ts`
 - `GET  /` — get user's team (one team per user-owner model)
@@ -872,7 +872,9 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
   - All other uploads: `Content-Disposition: attachment` + restrictive CSP
 - `QRFile` model tracks DB reference (fileUrl, mimeType, sizeBytes as BigInt, thumbnailUrl, driveFileId)
 - BigInt serialized to Number via `(BigInt.prototype as any).toJSON = () => Number(this)` in `app.ts`
-- Optional Google Drive backup: `POST /api/gdrive/backup/:qrFileId`
+- Optional Google Drive export (Settings): `POST /api/gdrive/export` writes ONE JSON file of the codes' data (≤ 500) to a
+  "GenXQR Exports" folder — no images, and no plan gate (any account). Removed from the pricing page 9 Nov 2026: it was
+  listed as a Business feature, which it is not. Needs `GOOGLE_DRIVE_REDIRECT_URI` + that URI on the Google OAuth client.
 - **Storage accounting** (`services/uploads.service.ts`, security audit 22 Oct 2026). Every upload
   writes a `PendingUpload` row with the size/MIME the SERVER measured. The quota
   (`storageUsedBytes`) = attached `QRFile` bytes + pending bytes; attaching (`resolveAttachments`)
