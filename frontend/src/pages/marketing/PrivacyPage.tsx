@@ -37,7 +37,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="Privacy Policy"
+        title="Privacy Policy — How We Handle Your Data"
         description="Learn how GenXQR collects, uses, and protects your data — encryption, retention, third-party services, and your GDPR/CCPA rights."
         url="/privacy"
       />

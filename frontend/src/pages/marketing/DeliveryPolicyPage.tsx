@@ -69,8 +69,8 @@ export default function DeliveryPolicyPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="Service Delivery Policy"
-        description="GenXQR is a digital service. Access activates immediately after payment, nothing is shipped, and there are no delivery charges."
+        title="Service Delivery Policy — Instant Online Access"
+        description="GenXQR is an online service: your plan activates as soon as payment is confirmed, nothing is shipped, and there are no delivery charges. Read the full policy."
         url="/delivery-policy"
         jsonLd={JSON_LD}
       />

@@ -87,8 +87,8 @@ export default function ChangelogPage() {
   return (
     <div className="pb-24 md:pb-32">
       <SEOMeta
-        title="Changelog"
-        description="Track recent GenXQR product improvements, fixes, and platform releases."
+        title="Changelog — New Features, Fixes & Releases"
+        description="See what's new in GenXQR: new features, improvements and fixes to our dynamic QR codes, scan analytics, API, integrations and dashboard, release by release."
         url="/changelog"
       />
 

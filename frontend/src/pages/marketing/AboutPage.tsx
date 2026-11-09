@@ -266,7 +266,7 @@ export default function AboutPage() {
         Deliverable 8: JSON-LD — Organization + SoftwareApplication + FAQPage
       */}
       <SEOMeta
-        title="About GenXQR | QR Code Generator for Indian Businesses"
+        title="About Us — QR Code Generator for Indian Businesses"
         description="GenXQR helps Indian businesses create QR codes they can edit after printing and track by city and device. Free plan available, paid plans from ₹299/month."
         url="/about"
         jsonLd={ABOUT_JSON_LD}

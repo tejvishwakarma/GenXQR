@@ -15,8 +15,8 @@ export default function GDPRPage() {
   return (
     <LegalPage>
       <SEOMeta
-        title="GDPR"
-        description="GenXQR GDPR information, data subject rights, and data processing commitments."
+        title="GDPR — Your Personal Data Rights Explained"
+        description="How GenXQR handles personal data under the GDPR: your rights to access, correct, delete and export your data, and how to make a request to us."
         url="/gdpr"
       />
       <LegalHero

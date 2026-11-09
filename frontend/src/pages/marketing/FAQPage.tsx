@@ -315,7 +315,7 @@ export default function FAQPage() {
         Deliverable 8: JSON-LD — FAQPage + SoftwareApplication
       */}
       <SEOMeta
-        title="Frequently Asked Questions | GenXQR QR Code Generator"
+        title="FAQ — Dynamic QR Codes, Scan Analytics & Billing"
         description="Every GenXQR question answered — dynamic vs static QR codes, scan analytics, plans from ₹299/month, data security, and billing. Free plan, no credit card needed."
         url="/faq"
         jsonLd={FAQ_JSON_LD}

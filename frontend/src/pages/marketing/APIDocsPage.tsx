@@ -1738,7 +1738,7 @@ export default function APIDocsPage() {
   return (
     <div className="min-h-screen bg-paper text-ink">
       <SEOMeta
-        title="API Reference — GenXQR"
+        title="API Reference — REST API, Webhooks & MCP Server"
         description="Full REST API reference for GenXQR. Create and manage QR codes, fetch analytics, and receive webhook events programmatically."
         url="/api-docs"
       />

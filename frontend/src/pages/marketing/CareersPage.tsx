@@ -82,8 +82,8 @@ export default function CareersPage() {
   return (
     <div className="animate-fade-in">
       <SEOMeta
-        title="Careers"
-        description="Join GenXQR and help build the next generation of dynamic QR infrastructure."
+        title="Careers — Jobs Building QR Code Software in India"
+        description="Work on GenXQR, the QR code platform made in India for businesses: dynamic QR codes, scan analytics and APIs. See open roles and how to apply."
         url="/careers"
         // An empty careers page is thin content: noindex once the job list has
         // loaded and is empty (decided 18 Oct 2026). The prerendered HTML has no

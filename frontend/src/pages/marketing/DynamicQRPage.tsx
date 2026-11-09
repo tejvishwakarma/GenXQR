@@ -487,7 +487,7 @@ export default function DynamicQRPage() {
 
       {/* ── Deliverables 1, 2, 8: SEO + Schema ── */}
       <SEOMeta
-        title="Dynamic QR Code Generator — Edit After Printing | GenXQR"
+        title="Dynamic QR Code Generator — Edit After Printing"
         description="Create dynamic QR codes you can edit after printing. Track every scan by city, device & time. Change the URL in seconds — no reprint needed. Free trial, INR pricing."
         url="/dynamic-qr"
         jsonLd={DYNAMIC_JSON_LD}

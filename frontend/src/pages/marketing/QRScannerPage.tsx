@@ -509,8 +509,8 @@ export default function QRScannerPage() {
   return (
     <div className="pb-24 md:pb-32">
       <SEOMeta
-        title="Free QR Code Scanner"
-        description="Scan any QR code instantly using your camera or by uploading an image — no app required."
+        title="Free Online QR Code Scanner — Camera or Image"
+        description="Scan any QR code in your browser with your phone or laptop camera, or by choosing an image. Free, no app or sign-up, and the image never leaves your device."
         url="/scanner"
       />
 
