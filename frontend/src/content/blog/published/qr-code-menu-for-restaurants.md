@@ -2,6 +2,7 @@
 title: How to make a QR code menu for your restaurant or cafe
 description: Put one QR code on every table and update prices from your phone, without reprinting. A step-by-step guide to a QR menu that guests can actually read.
 category: Restaurants
+date: 2026-11-10
 ---
 
 Printed menus have one problem: the day you change a price, add a dish or run out of something, every copy is out of date. A QR code menu fixes that, but only if you set it up so that you can change the menu without changing the code.
