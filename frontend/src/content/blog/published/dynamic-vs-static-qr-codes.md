@@ -2,6 +2,7 @@
 title: Dynamic vs static QR codes: which one should you print?
 description: Static QR codes are free and fixed forever. Dynamic ones can be edited after printing and show who scans. Here is how to choose, with a simple rule of thumb.
 category: Guides
+date: 2026-11-10
 featured: true
 ---
 

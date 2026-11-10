@@ -2,6 +2,7 @@
 title: QR codes that scan: a print checklist for size, contrast and colour
 description: Most QR codes that fail are too small, too pale or too crowded. A practical checklist for printing codes that scan first time, with what we learned testing our own designs.
 category: Design
+date: 2026-11-10
 ---
 
 A QR code that doesn't scan is worse than no code at all: the customer tries once, gives up, and remembers the frustration. The good news is that almost every failure comes from a handful of mistakes you can check before printing.

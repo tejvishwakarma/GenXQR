@@ -2,6 +2,7 @@
 title: UPI QR codes for your shop: which kind to print, and where
 description: A UPI QR code at the counter and a UPI QR code on a poster need different things. Here is the difference between a direct UPI code and a payment page, and when to use each.
 category: Payments
+date: 2026-11-10
 ---
 
 Almost every customer in India can pay by UPI, so a UPI QR code is often the first QR code a business prints. But there are two quite different kinds, and choosing the wrong one for the spot can cost you payments.

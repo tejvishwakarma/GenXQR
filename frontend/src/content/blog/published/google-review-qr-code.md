@@ -2,6 +2,7 @@
 title: How to get more Google reviews with a QR code
 description: Happy customers rarely leave reviews because finding the review box takes too many taps. A QR code that opens it directly fixes that. Here is how to set one up, and the rules to follow.
 category: Local business
+date: 2026-11-10
 ---
 
 Most satisfied customers would leave a review if you asked, but very few go looking for the review box on their own. On Google, that means searching for your business, opening the profile, scrolling to reviews and tapping "Write a review". Every one of those steps loses people.
