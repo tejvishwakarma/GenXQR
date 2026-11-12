@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit"
 import { RedisStore } from "rate-limit-redis"
 import { redis } from "../redis/client.js"
+import { ipRateKey } from "../utils/rate-key.util.js"
 
 /** Shared RedisStore factory to avoid repeating the sendCommand boilerplate */
 function makeRedisStore(prefix: string) {
@@ -20,7 +21,7 @@ export const staticQRLimiter = rateLimit({
   max: 10,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => ipRateKey(req.ip),
   store: makeRedisStore("rl:static_qr:"),
   handler: (_req, res) => {
     res.status(429).json({
@@ -41,6 +42,8 @@ export const staticQRLimiter = rateLimit({
  * has its own budget, and /refresh a much larger one.
  *
  * req.ip is the real visitor behind Cloudflare (config/trusted-proxies.ts).
+ * Every per-IP key goes through ipRateKey: IPv6 is counted per /64, or one
+ * IPv6 client rotating addresses would have no limit.
  */
 function makeAuthLimiter(name: string, max: number, message = "Too many attempts. Please try again in 15 minutes.") {
   return rateLimit({
@@ -48,7 +51,7 @@ function makeAuthLimiter(name: string, max: number, message = "Too many attempts
     max,
     standardHeaders: "draft-7",
     legacyHeaders: false,
-    keyGenerator: (req) => req.ip ?? "unknown",
+    keyGenerator: (req) => ipRateKey(req.ip),
     store: makeRedisStore(`rl:auth:${name}:`),
     handler: (_req, res) => {
       res.status(429).json({ success: false, error: message })
@@ -86,7 +89,7 @@ export const accountAttemptLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const email = (req.body as { email?: unknown } | undefined)?.email
-    return typeof email === "string" && email.trim() ? `e:${email.trim().toLowerCase()}` : `ip:${req.ip ?? "unknown"}`
+    return typeof email === "string" && email.trim() ? `e:${email.trim().toLowerCase()}` : `ip:${ipRateKey(req.ip)}`
   },
   store: makeRedisStore("rl:auth:account-email:"),
   handler: (_req, res) => {
@@ -107,7 +110,7 @@ export const v1Limiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = (req as unknown as { user?: { sub?: string } }).user?.sub
-    return userId ? `u:${userId}` : (req.ip ?? "unknown")
+    return userId ? `u:${userId}` : ipRateKey(req.ip)
   },
   store: makeRedisStore("rl:v1:"),
   handler: (_req, res) => {
@@ -126,7 +129,7 @@ export const apiLimiter = rateLimit({
   max: 200,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => ipRateKey(req.ip),
   store: makeRedisStore("rl:api:"),
   handler: (_req, res) => {
     res.status(429).json({
@@ -149,7 +152,7 @@ export const contactLimiter = rateLimit({
   max: 5,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => ipRateKey(req.ip),
   store: makeRedisStore("rl:contact:"),
   handler: (_req, res) => {
     res.status(429).json({
@@ -164,7 +167,7 @@ export const careersApplyLimiter = rateLimit({
   max: 5,
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => ipRateKey(req.ip),
   store: makeRedisStore("rl:careers_apply:"),
   handler: (_req, res) => {
     res.status(429).json({

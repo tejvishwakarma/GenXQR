@@ -549,12 +549,19 @@ export async function getQR(id: string, userId: string) {
 export async function updateQR(id: string, userId: string, input: z.infer<typeof updateQRSchema>, actorId: string = userId) {
   const existing = await prisma.qRCode.findFirst({
     where: { id, userId },
-    select: { id: true, type: true, placeId: true, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
+    select: { id: true, type: true, placeId: true, content: { select: { data: true } }, design: { select: { frameStyle: true, frameColor: true, frameFields: true } } },
   })
   if (!existing) throw new AppError(404, "QR code not found")
 
   const { design, settings, content: rawContent, uploadedFiles: requestedFiles, customDomainId: requestedDomain, placeId: requestedPlace, folderId: requestedFolder, ...qrData } = input
   const content = rawContent && { data: normalizeTypedContent(qrData.type ?? existing.type, rawContent.data) }
+  // A change of type with no new content keeps the stored content — which was
+  // only ever checked against the OLD type. Saving {"type":"FORM"} onto a URL
+  // code made a form whose answers had no rules. The stored content must be
+  // valid for the new type, or the request has to bring content that is.
+  if (!rawContent && qrData.type && qrData.type !== existing.type) {
+    normalizeTypedContent(qrData.type, (existing.content?.data ?? {}) as Record<string, unknown>)
+  }
 
   await assertFrameAllowed(userId, design, existing.design)
   const customDomainId = await assertDomainForCode(userId, requestedDomain)

@@ -18,6 +18,13 @@ import { deliverWebhookEvent } from "./webhook.service.js"
 
 /** Per code — far beyond a real campaign, a bound on what a bot can store. */
 export const MAX_RESPONSES_PER_CODE = 50_000
+/**
+ * Answers one code accepts per hour, from everyone together. The per-IP limit
+ * alone let many addresses fill a form to its 50,000 cap in an afternoon,
+ * after which it turned real visitors away for good. At this rate a flood
+ * takes days, and the owner sees it long before.
+ */
+export const MAX_RESPONSES_PER_CODE_PER_HOUR = 600
 /** Owner emails per code per hour; a burst of answers does not flood the inbox. */
 const NOTIFY_PER_HOUR = 20
 
@@ -36,7 +43,9 @@ export function checkAnswers(fields: FormField[], body: unknown): Answer[] {
       if (f.required) throw new AppError(422, `Please answer "${f.label}".`)
       return { id: f.id, label: f.label, value: "" }
     }
-    if (value.length > MAX_LEN[f.type]) throw new AppError(422, `"${f.label}" is too long.`)
+    // A field of a type this version doesn't know (content saved before a rule
+    // existed) still gets a limit — never "no limit".
+    if (value.length > (MAX_LEN[f.type] ?? 300)) throw new AppError(422, `"${f.label}" is too long.`)
     if (f.type === "email" && !EMAIL.test(value)) throw new AppError(422, `"${f.label}" isn't a valid email address.`)
     if (f.type === "phone" && !/^\+?[\d\s()-]{7,20}$/.test(value)) throw new AppError(422, `"${f.label}" isn't a valid phone number.`)
     if (f.type === "rating" && !/^[1-5]$/.test(value)) throw new AppError(422, `Rate "${f.label}" from 1 to 5.`)
@@ -55,6 +64,11 @@ export async function recordResponse(
   const answers = checkAnswers(fields, body)
   if ((await prisma.formResponse.count({ where: { qrId: qr.id } })) >= MAX_RESPONSES_PER_CODE) {
     throw new AppError(403, "This form isn't taking more responses.")
+  }
+  const hourKey = `form:rate:${qr.id}:${Math.floor(Date.now() / 3_600_000)}`
+  const thisHour = await redis.multi().incr(hourKey).expire(hourKey, 7200).exec().then((r) => Number(r?.[0]?.[1] ?? 0)).catch(() => 0)
+  if (thisHour > MAX_RESPONSES_PER_CODE_PER_HOUR) {
+    throw new AppError(429, "This form is getting a lot of responses right now. Please try again in a little while.")
   }
   const response = await prisma.formResponse.create({
     data: { qrId: qr.id, data: answers as unknown as Prisma.InputJsonValue },

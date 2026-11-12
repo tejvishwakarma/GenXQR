@@ -1,4 +1,5 @@
 import { createHash } from "crypto"
+import { ipRateKey } from "../utils/rate-key.util.js"
 import { Queue } from "bullmq"
 import { redis } from "../redis/client.js"
 import { getCountryCode } from "./geo.service.js"
@@ -657,8 +658,12 @@ export const SCAN_RATE_PER_DAY = 100
 async function withinScanRate(qrId: string, ip: string): Promise<boolean> {
   try {
     const now = Date.now()
-    const minuteKey = `scan:rate:m:${qrId}:${ip}:${Math.floor(now / 60_000)}`
-    const dayKey = `scan:rate:d:${qrId}:${ip}:${Math.floor(now / 86_400_000)}`
+    // Per /64 for IPv6 (ipRateKey): one client rotating through its own
+    // addresses was a new "visitor" each time, and could use up an account's
+    // monthly scans — switching off a customer's codes.
+    const who = ipRateKey(ip)
+    const minuteKey = `scan:rate:m:${qrId}:${who}:${Math.floor(now / 60_000)}`
+    const dayKey = `scan:rate:d:${qrId}:${who}:${Math.floor(now / 86_400_000)}`
     const res = await redis.multi().incr(minuteKey).expire(minuteKey, 120).incr(dayKey).expire(dayKey, 2 * 86_400).exec()
     const perMinute = Number(res?.[0]?.[1] ?? 0)
     const perDay = Number(res?.[2]?.[1] ?? 0)
@@ -692,7 +697,7 @@ async function queueScan(
       .update(userAgent ?? "unknown")
       .digest("hex")
       .slice(0, 12)
-    const dedupKey = `scan:dedup:${qrId}:${ip}:${uaFingerprint}`
+    const dedupKey = `scan:dedup:${qrId}:${ipRateKey(ip)}:${uaFingerprint}`
     // The marker no longer decides whether the scan is recorded — only whether it
     // counts as unique. Repeat scans used to be dropped entirely, which made the
     // dashboard silently under-report: someone testing their own code, or a
