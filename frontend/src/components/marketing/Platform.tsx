@@ -124,7 +124,7 @@ export function MarketingAnalytics() {
   )
 }
 
-// ── Power features (dark band) ────────────────────────────────────────────────
+// ── Power features (follows the theme) ────────────────────────────────────────────────
 const FEATURES = [
   { icon: Split, title: "A/B testing", body: "Split scans between two destinations and compare scans per variant." },
   { icon: Route, title: "Smart routing", body: "Send scanners to different URLs by time, device, or country." },
@@ -136,23 +136,22 @@ const FEATURES = [
 
 export function PowerFeatures() {
   return (
-    <section id="mkt-platform" className="py-20 md:py-28 bg-band text-band-fg">
+    <section id="mkt-platform" className="py-20 md:py-28 bg-paper-pure border-y border-line">
       <MktContainer>
         <SectionHead
           eyebrow="Platform"
           title={<>The depth of an enterprise tool, without the sales call</>}
           intro="Everything the cheap generators skip — self-serve, and included on the plans that need them."
           align="center"
-          onDark
         />
-        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-px rounded-[24px] overflow-hidden border border-line-dark bg-line-dark">
+        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-px rounded-[24px] overflow-hidden border border-line bg-line">
           {FEATURES.map((f) => (
-            <div key={f.title} className="group relative bg-band p-7 transition-all duration-200 hover:z-10 hover:-translate-y-0.5 hover:bg-white/[0.04]">
-              <span className="grid place-items-center w-11 h-11 rounded-xl bg-accent/15 text-accent transition-colors group-hover:bg-accent group-hover:text-white">
+            <div key={f.title} className="group relative bg-paper-pure p-7 transition-all duration-200 hover:z-10 hover:-translate-y-0.5 hover:bg-paper">
+              <span className="grid place-items-center w-11 h-11 rounded-xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-white">
                 <f.icon size={20} />
               </span>
-              <h3 className="mt-5 text-lg font-bold font-display text-band-fg">{f.title}</h3>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-band-fg/60">{f.body}</p>
+              <h3 className="mt-5 text-lg font-bold font-display text-ink">{f.title}</h3>
+              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-soft">{f.body}</p>
             </div>
           ))}
         </div>
