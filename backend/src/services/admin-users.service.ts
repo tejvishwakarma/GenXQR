@@ -461,6 +461,7 @@ export async function forceSetPassword(callerRole: AdminRole, callerId: string, 
   await prisma.$transaction([
     prisma.user.update({ where: { id: targetId }, data: { passwordHash } }),
     prisma.refreshToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    prisma.oAuthToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
   ])
 
   await prisma.auditLog.create({

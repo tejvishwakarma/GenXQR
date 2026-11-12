@@ -443,6 +443,9 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
       where: { userId: record.userId, revokedAt: null },
       data: { revokedAt: new Date() }
     })
+    // AI-app connections end too: whoever knew the old password may have
+    // connected one, and it would otherwise keep refreshing after the reset.
+    await tx.oAuthToken.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } })
   })
   return record.userId
 }
@@ -609,6 +612,7 @@ export async function handleGoogleOAuth(
       if (takeOver) {
         const now = new Date()
         await tx.refreshToken.updateMany({ where: { userId: existingId, revokedAt: null }, data: { revokedAt: now } })
+        await tx.oAuthToken.updateMany({ where: { userId: existingId, revokedAt: null }, data: { revokedAt: now } })
         await tx.emailVerificationToken.deleteMany({ where: { userId: existingId } })
         await tx.passwordResetToken.deleteMany({ where: { userId: existingId } })
       }
@@ -722,6 +726,7 @@ export async function changePassword(
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     })
+    await tx.oAuthToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } })
   })
 
   const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)

@@ -51,6 +51,16 @@ describe("MCP server", () => {
     expect(names.find((t) => t.name === "delete_qr_code")?.annotations?.destructiveHint).toBe(true)
   })
 
+  it("should refuse a batch: one request is one call for the rate limit and quota", async () => {
+    // The transport takes up to 100 messages in an array, and the limiter and
+    // the monthly quota counted that as one call.
+    const { user, key } = await keyFor()
+    const batch = Array.from({ length: 3 }, (_, i) => ({ jsonrpc: "2.0", id: i + 1, method: "tools/call", params: { name: "create_qr_code", arguments: { name: `Batch ${i}`, type: "URL", content: { url: "https://example.com" } } } }))
+    const res = await request(app).post("/v1/mcp").set("Authorization", `Bearer ${key}`).set("Accept", "application/json, text/event-stream").send(batch)
+    expect(res.status, "REAL BUG: a batch of tool calls ran as one metered request").toBe(400)
+    expect(await prisma.qRCode.count({ where: { userId: user.id } })).toBe(0)
+  })
+
   it("should refuse a request without a valid key, or below Pro", async () => {
     expect((await rpc(null, "tools/list")).status).toBe(401)
     expect((await rpc("gxqr_not_a_real_key", "tools/list")).status).toBe(401)

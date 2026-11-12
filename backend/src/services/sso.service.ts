@@ -329,6 +329,7 @@ async function signIn(c: SsoConnection, identity: SsoIdentity, ip: string): Prom
       // keep a password, sessions or pending links on it (auth.service).
       const now = new Date()
       await tx.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } })
+      await tx.oAuthToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } })
       await tx.emailVerificationToken.deleteMany({ where: { userId: user.id } })
       await tx.passwordResetToken.deleteMany({ where: { userId: user.id } })
       user = await tx.user.update({ where: { id: user.id }, data: { passwordHash: null, emailVerified: true } })

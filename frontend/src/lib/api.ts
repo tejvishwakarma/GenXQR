@@ -1754,7 +1754,7 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
 // ─── AI apps (OAuth for the MCP server) ──────────────────────────────────────
 
 export function getOAuthRequest(id: string) {
-  return apiFetch<{ success: boolean; data: { clientName: string; redirectHost: string; planAllows: boolean } }>(`/api/oauth/requests/${id}`, { headers: authHeader() })
+  return apiFetch<{ success: boolean; data: { clientName: string; redirectHost: string; onThisDevice: boolean; impersonates: string | null; planAllows: boolean } }>(`/api/oauth/requests/${id}`, { headers: authHeader() })
 }
 
 /** Approve or decline; returns where to send the browser (back to the app). */

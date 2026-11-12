@@ -173,6 +173,14 @@ function buildServer(caller: ApiCaller): McpServer {
 }
 
 export async function handleMcp(req: Request, res: Response): Promise<void> {
+  // One request, one call. The transport accepts JSON-RPC batches of up to 100
+  // messages, but the rate limit and the monthly API quota count the HTTP
+  // request: a batch was 100 tool calls for the price of one. (MCP dropped
+  // batching from the protocol in its 2025-06-18 revision.)
+  if (Array.isArray(req.body)) {
+    res.status(400).json({ jsonrpc: "2.0", error: { code: -32600, message: "Batch requests are not supported. Send one request per call." }, id: null })
+    return
+  }
   const caller: ApiCaller = {
     userId: (req.user as unknown as AccessTokenPayload).sub,
     apiKeyId: req.apiKeyId ?? null,

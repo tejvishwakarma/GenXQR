@@ -18,8 +18,12 @@ const pkce = () => {
   return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") }
 }
 
+/** Registration is limited per IP (20 an hour); each test registration comes from its own. */
+let ipSeq = 0
+const nextIp = () => `203.0.${113 + Math.floor(++ipSeq / 250)}.${1 + (ipSeq % 250)}`
+
 function register(redirectUris = [REDIRECT]) {
-  return request(app).post("/v1/oauth/register").send({
+  return request(app).post("/v1/oauth/register").set("X-Forwarded-For", nextIp()).send({
     client_name: "Claude", redirect_uris: redirectUris, token_endpoint_auth_method: "none",
     grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
   })
@@ -154,9 +158,75 @@ describe("MCP OAuth", () => {
       response_type: "code", client_id: client.client_id, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: "S256",
       state: "s", resource: "https://evil.example/mcp",
     })
-    expect(res.status).toBe(302)
-    expect(new URL(res.headers["location"]!).searchParams.get("error")).toBe("invalid_target")
+    // Refused on the spot: an error redirect would send the browser to the client's address.
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe("invalid_target")
+    expect(res.headers["location"]).toBeUndefined()
     void v2
+  })
+
+  it("should not redirect a malformed request to the app's address (open redirect)", async () => {
+    // Anyone can register an app, so an error redirect was a genxqr.com link
+    // that landed on any site with no click.
+    const evil = (await register(["https://evil.example/landing"]).expect(201)).body as { client_id: string }
+    const bare = await request(app).get("/v1/oauth/authorize").query({ client_id: evil.client_id })
+    expect(bare.headers["location"], "REAL BUG: genxqr.com redirected to the app's address without consent").toBeUndefined()
+    expect(bare.status).toBe(400)
+    const { challenge } = pkce()
+    const noMethod = await request(app).get("/v1/oauth/authorize").query({ response_type: "code", client_id: evil.client_id, redirect_uri: "https://evil.example/landing", code_challenge: challenge })
+    expect(noMethod.status).toBe(400)
+    const badScope = await request(app).get("/v1/oauth/authorize").query({ response_type: "code", client_id: evil.client_id, redirect_uri: "https://evil.example/landing", code_challenge: challenge, code_challenge_method: "S256", scope: "admin" })
+    expect(badScope.headers["location"]).toBeUndefined()
+    expect(badScope.status).toBe(400)
+    // Schemes the operating system hands to a built-in program are not app callbacks.
+    for (const uri of ["search-ms:query=x", "ms-settings:privacy", "mailto:a@b.co", "tel:+911234567890", "smb://host/share"]) {
+      expect((await register([uri])).status, uri).toBe(400)
+    }
+    await register(["cursor://anysphere.cursor-mcp/oauth/callback"]).expect(201)
+  })
+
+  it("should tell the consent page where access is sent, and when a well-known name is borrowed", async () => {
+    const user = await proUser()
+    const describe = async (name: string, redirect: string) => {
+      const client = (await request(app).post("/v1/oauth/register").set("X-Forwarded-For", nextIp()).send({
+        client_name: name, redirect_uris: [redirect], token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"],
+      }).expect(201)).body as { client_id: string }
+      const { challenge } = pkce()
+      const res = await request(app).get("/v1/oauth/authorize").query({ response_type: "code", client_id: client.client_id, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: "S256" })
+      const id = new URL(res.headers["location"]!).searchParams.get("request")!
+      return (await request(app).get(`/api/oauth/requests/${id}`).set(as(user)).expect(200)).body.data as { clientName: string; redirectHost: string; onThisDevice: boolean; impersonates: string | null }
+    }
+    const real = await describe("Claude", REDIRECT)
+    expect(real).toMatchObject({ redirectHost: "claude.ai", onThisDevice: false, impersonates: null })
+
+    const fake = await describe("Claude", "https://claude.ai.connect-oauth-callback-verify.evil.example/cb")
+    expect(fake.redirectHost).toBe("claude.ai.connect-oauth-callback-verify.evil.example")
+    expect(fake.impersonates, "REAL BUG: an app named Claude returning to another site is not flagged").toBe("Claude")
+    expect((await describe("ChatGPT connector", "https://notopenai.example/cb")).impersonates).toBe("ChatGPT")
+    expect((await describe("GenXQR Official", "https://genxqr.com.evil.example/cb")).impersonates).toBe("GenXQR")
+
+    // An installed app (loopback or its own scheme) only reaches the person's own device.
+    expect(await describe("Claude Code", "http://localhost:53682/callback")).toMatchObject({ onThisDevice: true, impersonates: null })
+    expect(await describe("Acme Reports", "https://reports.acme.example/cb")).toMatchObject({ redirectHost: "reports.acme.example", impersonates: null })
+
+    // Letters that hide or reorder text are dropped from the name.
+    const hidden = await describe("Safe\u202Eevil\u200B App", "https://x.example/cb")
+    expect(hidden.clientName).toBe("Safeevil App")
+  })
+
+  it("should end AI-app connections when the password is reset or changed", async () => {
+    const user = await proUser()
+    const client = (await register().expect(201)).body as { client_id: string }
+    const connect = async () => {
+      const { code, verifier } = await authorize(client.client_id, user)
+      return (await token({ grant_type: "authorization_code", client_id: client.client_id, code: code!, code_verifier: verifier, redirect_uri: REDIRECT }).expect(200)).body as { access_token: string; refresh_token: string }
+    }
+    const first = await connect()
+    await mcp(first.access_token).expect(200)
+    const changed = await request(app).post("/api/auth/change-password").set(as(user)).send({ currentPassword: user.password, newPassword: "N3w-passw0rd-for-test!" })
+    expect(changed.status, JSON.stringify(changed.body)).toBe(200)
+    expect((await mcp(first.access_token)).status, "REAL BUG: an AI app stays connected after the password is changed").toBe(401)
+    await token({ grant_type: "refresh_token", client_id: client.client_id, refresh_token: first.refresh_token }).expect(400)
   })
 
   it("should need API access on the plan, at consent and at every use", async () => {
