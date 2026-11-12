@@ -1,4 +1,6 @@
 import net from "node:net"
+import { createHmac, hkdfSync } from "node:crypto"
+import { resolveTxt as dnsResolveTxt } from "node:dns/promises"
 import { prisma } from "../db/prisma.js"
 import { env } from "../config/env.js"
 import { AppError } from "../middleware/error.middleware.js"
@@ -92,6 +94,44 @@ function statusFrom(cf: CloudflareCustomHostname): { status: string; sslStatus: 
   return { status: "pending", sslStatus: ssl, errors }
 }
 
+// ─── Proof of ownership ────────────────────────────────────────────────────────
+//
+// Cloudflare's own check passes as soon as the hostname's CNAME points at us,
+// which proves nothing about WHO is asking: a former customer's leftover CNAME
+// could be claimed by any account (and that account's pages then served on the
+// brand's domain), and anyone could reserve a brand's hostname before the brand
+// did. So a domain starts "unverified" and reaches Cloudflare only after its
+// owner publishes a TXT record that names this account.
+
+let resolveTxt: (name: string) => Promise<string[][]> = dnsResolveTxt
+export function _setDomainTxtResolverForTests(fn: ((name: string) => Promise<string[][]>) | null): void {
+  resolveTxt = fn ?? dnsResolveTxt
+}
+
+/** An unverified claim nobody proves is dropped after this long. */
+export const UNVERIFIED_DOMAIN_DAYS = 7
+const TXT_PREFIX = "genxqr-domain="
+
+const proofKey = (): Buffer => Buffer.from(hkdfSync("sha256", env.JWT_ACCESS_SECRET, "genxqr", "custom-domain-proof-v1", 32))
+
+/**
+ * The TXT record that proves `ownerId` controls `hostname`. Derived, not
+ * stored: removing and re-adding a domain asks for the same record, so a
+ * record already in DNS keeps working.
+ */
+export function ownershipRecord(ownerId: string, hostname: string): { name: string; value: string } {
+  const token = createHmac("sha256", proofKey()).update(`${ownerId}:${hostname}`).digest("hex").slice(0, 32)
+  return { name: `_genxqr.${hostname}`, value: `${TXT_PREFIX}${token}` }
+}
+
+async function hasOwnershipRecord(ownerId: string, hostname: string): Promise<boolean> {
+  const want = ownershipRecord(ownerId, hostname)
+  const records = await resolveTxt(want.name).catch(() => [] as string[][])
+  return records.some((chunks) => chunks.join("").trim() === want.value)
+}
+
+const NO_TXT_YET = "We couldn't find the TXT record yet. DNS changes can take up to an hour to appear."
+
 // ─── Account API ───────────────────────────────────────────────────────────────
 
 const domainSelect = {
@@ -106,7 +146,7 @@ export async function listDomains(ownerId: string) {
     getUserPlanLimits(ownerId),
   ])
   return {
-    domains: rows.map(({ _count, ...d }) => ({ ...d, codeCount: _count.qrCodes })),
+    domains: rows.map(({ _count, ...d }) => ({ ...d, codeCount: _count.qrCodes, dns: d.status === "unverified" ? ownershipRecord(ownerId, d.hostname) : null })),
     limit: limits.customDomains ? limits.customDomainsLimit : 0,
     target: env.CUSTOM_DOMAIN_TARGET ?? null,
     available: isCloudflareSaasConfigured(),
@@ -131,38 +171,64 @@ export async function addDomain(ownerId: string, input: string) {
   // a failed registration must not leave a row behind.
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`customdomain:${ownerId}`}))`
-    const taken = await tx.customDomain.findUnique({ where: { hostname }, select: { userId: true } })
-    if (taken) {
-      throw new AppError(409, taken.userId === ownerId ? "You have already added this domain." : "This domain is already in use by another GenXQR account.")
-    }
+    const taken = await tx.customDomain.findUnique({ where: { hostname }, select: { id: true, userId: true, status: true } })
+    if (taken?.userId === ownerId) throw new AppError(409, "You have already added this domain.")
+    if (taken && taken.status !== "unverified") throw new AppError(409, "This domain is already in use by another GenXQR account.")
+    // Another account's claim that was never proven holds nothing: whoever
+    // publishes the TXT record gets the domain, so a name cannot be reserved
+    // against its real owner.
+    if (taken) await tx.customDomain.delete({ where: { id: taken.id } })
     const count = await tx.customDomain.count({ where: { userId: ownerId } })
     if (count >= limits.customDomainsLimit) {
       throw new AppError(403, `Your ${planName} plan allows ${limits.customDomainsLimit} custom domain${limits.customDomainsLimit === 1 ? "" : "s"}. Remove one or upgrade to add more.`)
     }
-    const cf = await createCustomHostname(hostname)
-    const s = statusFrom(cf)
     const row = await tx.customDomain.create({
-      data: {
-        userId: ownerId, hostname, cfHostnameId: cf.id, status: s.status, sslStatus: s.sslStatus,
-        verificationErrors: s.errors.length ? s.errors : undefined,
-        isDefault: count === 0,
-        lastCheckedAt: new Date(), activatedAt: s.status === "active" ? new Date() : null,
-      },
+      data: { userId: ownerId, hostname, status: "unverified", isDefault: count === 0 },
       select: domainSelect,
-    }).catch(async (err) => {
-      // Cloudflare has it but we couldn't record it: give it back, or it is
-      // registered to nobody and blocks the customer from adding it again.
-      await deleteCustomHostname(cf.id).catch(() => logger.error("Orphaned Cloudflare custom hostname", { hostname, cfId: cf.id }))
-      throw err
     })
-    logger.info("Custom domain added", { ownerId, hostname, status: s.status })
+    logger.info("Custom domain added, awaiting proof of ownership", { ownerId, hostname })
     const { _count, ...d } = row
-    return { ...d, codeCount: _count.qrCodes }
+    return { ...d, codeCount: _count.qrCodes, dns: ownershipRecord(ownerId, hostname) }
   }, { timeout: 30_000 })
 }
 
+/**
+ * An unverified domain whose TXT record is now in DNS: register it with
+ * Cloudflare (which then issues HTTPS once the CNAME is there). Without the
+ * record it stays unverified and nothing is registered.
+ */
+async function proveAndRegister(row: { id: string; userId: string; hostname: string }): Promise<void> {
+  const now = new Date()
+  if (!(await hasOwnershipRecord(row.userId, row.hostname))) {
+    await prisma.customDomain.update({ where: { id: row.id }, data: { lastCheckedAt: now, verificationErrors: [NO_TXT_YET] } })
+    return
+  }
+  const cf = await createCustomHostname(row.hostname)
+  const s = statusFrom(cf)
+  // Conditional on still being unverified: the dashboard's "Check" and the
+  // worker can both get here, and only one may keep its Cloudflare hostname.
+  const claimed = await prisma.customDomain.updateMany({
+    where: { id: row.id, status: "unverified" },
+    data: {
+      cfHostnameId: cf.id, status: s.status, sslStatus: s.sslStatus, lastCheckedAt: now,
+      verificationErrors: s.errors.length ? s.errors : [],
+      activatedAt: s.status === "active" ? now : null,
+    },
+  }).catch(async (err) => {
+    await deleteCustomHostname(cf.id).catch(() => logger.error("Orphaned Cloudflare custom hostname", { hostname: row.hostname, cfId: cf.id }))
+    throw err
+  })
+  if (claimed.count !== 1) {
+    await deleteCustomHostname(cf.id).catch(() => logger.error("Orphaned Cloudflare custom hostname", { hostname: row.hostname, cfId: cf.id }))
+    return
+  }
+  forgetHost(row.hostname)
+  logger.info("Custom domain ownership proven", { ownerId: row.userId, hostname: row.hostname, status: s.status })
+}
+
 /** Re-reads one domain from Cloudflare and stores what it says. */
-async function refreshRow(row: { id: string; hostname: string; cfHostnameId: string | null; status: string }) {
+async function refreshRow(row: { id: string; userId: string; hostname: string; cfHostnameId: string | null; status: string }) {
+  if (row.status === "unverified") return proveAndRegister(row)
   const now = new Date()
   const cf = row.cfHostnameId ? await getCustomHostname(row.cfHostnameId) : null
   if (!cf) {
@@ -236,8 +302,11 @@ export async function releaseAccountDomains(ownerId: string): Promise<void> {
 /** Expiry worker: re-check domains still waiting on DNS / HTTPS, oldest check first. */
 export async function refreshPendingDomains(batch = 20): Promise<number> {
   if (!isCloudflareSaasConfigured()) return 0
+  // Claims nobody proved: dropped, so the name is free and the list stays honest.
+  const stale = new Date(Date.now() - UNVERIFIED_DOMAIN_DAYS * 86_400_000)
+  await prisma.customDomain.deleteMany({ where: { status: "unverified", createdAt: { lt: stale } } })
   const rows = await prisma.customDomain.findMany({
-    where: { status: "pending" },
+    where: { status: { in: ["pending", "unverified"] } },
     orderBy: { lastCheckedAt: { sort: "asc", nulls: "first" } },
     take: batch,
   })
