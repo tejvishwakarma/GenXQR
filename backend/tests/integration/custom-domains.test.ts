@@ -225,6 +225,26 @@ describe("scanning on a customer's domain", () => {
     expect(res.status).toBe(302)
     expect(res.headers.location).toBe(`${env.FRONTEND_URL.replace(/\/$/, "")}/r/${code.slug}`)
   })
+
+  it("should serve no page content or brand on a lapsed domain, whoever owns the code", async () => {
+    // The domain stays connected after the plan lapses. Treated as canonical, it
+    // served ANY account's landing page (a phishing form, say) on the brand's host.
+    const { owner } = await ownerWithActiveDomain("qr.lapsed-brand.com")
+    const own = await createQRCode(owner.id)
+    await giveSubscription(owner.id, "STARTER")
+    const stranger = await createUser(); await giveSubscription(stranger.id, "BUSINESS")
+    await prisma.user.update({ where: { id: stranger.id }, data: { brandName: "Stranger Co" } })
+    const foreign = await createQRCode(stranger.id)
+    const onHost = (path: string) => request(app).get(path).set("Host", "qr.lapsed-brand.com")
+
+    expect((await request(app).get(`/api/public/qr/${foreign.slug}`)).status, "TEST SETUP: the code must be servable on genxqr.com").toBe(200)
+    expect((await onHost(`/api/public/qr/${foreign.slug}`)).status, "REAL BUG: a stranger's page served on a lapsed customer domain").toBe(404)
+    expect((await onHost(`/api/public/qr/${own.slug}`)).status).toBe(404)
+    const posted = await request(app).post(`/api/public/qr/${foreign.slug}/responses`).set("Host", "qr.lapsed-brand.com").send({ answers: {} })
+    expect(posted.status).toBe(404)
+    const brand = await onHost(`/api/public/branding/${foreign.slug}`)
+    expect(brand.body.data.name, "REAL BUG: a stranger's brand shown on a lapsed customer domain").not.toBe("Stranger Co")
+  })
 })
 
 describe("removing a domain", () => {
