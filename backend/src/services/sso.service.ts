@@ -286,6 +286,10 @@ async function signIn(c: SsoConnection, identity: SsoIdentity, ip: string): Prom
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`team:${c.ownerId}`}))`
 
     let user = await tx.user.findUnique({ where: { email: identity.email } })
+    // GenXQR staff accounts sign in with their password and two-factor only.
+    // A customer's identity provider must never be a way into the admin panel,
+    // whatever address a staff account happens to use.
+    if (user && user.role !== "USER") throw new AppError(403, "sso_staff_account")
     const isMember = user
       ? user.id === c.ownerId || (await tx.teamMember.count({ where: { teamId: team.id, userId: user.id } })) > 0
       : false
@@ -332,7 +336,10 @@ async function signIn(c: SsoConnection, identity: SsoIdentity, ip: string): Prom
       await tx.oAuthToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: now } })
       await tx.emailVerificationToken.deleteMany({ where: { userId: user.id } })
       await tx.passwordResetToken.deleteMany({ where: { userId: user.id } })
-      user = await tx.user.update({ where: { id: user.id }, data: { passwordHash: null, emailVerified: true } })
+      user = await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash: null, emailVerified: true, twoFactorSecret: null, twoFactorEnabledAt: null, twoFactorLastStep: null, twoFactorRecoveryHashes: [] },
+      })
     }
 
     if (joinRole) {

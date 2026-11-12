@@ -196,6 +196,8 @@ describe("agency plan", () => {
       const off = await request(app).put(`/api/agency/clients/${created.id}/report`).set(auth(a.token)).send({ enabled: false })
       expect(off.body.data.reportToken, "switching off must leave no link at all").toBeNull()
       expect((await request(app).get(`/api/public/report/${token}?days=7`)).status).toBe(404)
+      // The period that was just viewed (and so cached) stops too, at once.
+      expect((await request(app).get(`/api/public/report/${token}?days=30`)).status, "REAL BUG: a switched-off report link still served its cached copy").toBe(404)
     })
 
     it("should not let another agency switch on someone else's client's report", async () => {

@@ -264,6 +264,8 @@ export async function setReportLink(agencyId: string, actorId: string, clientId:
   const c = await findClient(agencyId, clientId)
   const reportToken = enabled ? randomBytes(24).toString("base64url") : null
   await prisma.agencyClient.update({ where: { id: c.id }, data: { reportToken } })
+  // The old link must stop now, not when its cached copy runs out.
+  if (c.reportToken) await redis.del(...REPORT_DAYS.map((d) => `agency:report:${c.reportToken}:${d}`)).catch(() => undefined)
   logAudit({ userId: actorId, ownerId: agencyId, action: enabled ? "agency.report.link" : "agency.report.unlink", category: "team", entityType: "AgencyClient", entityId: c.id, metadata: { name: c.name } })
   return reportToken
 }

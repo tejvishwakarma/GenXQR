@@ -132,6 +132,8 @@ function checkResource(resource: URL | string | undefined): string {
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
 
+const MAX_CLIENT_METADATA_BYTES = 8_000
+
 export const clientsStore: OAuthRegisteredClientsStore = {
   async getClient(clientId) {
     const row = await prisma.oAuthClient.findUnique({ where: { id: clientId } })
@@ -149,6 +151,10 @@ export const clientsStore: OAuthRegisteredClientsStore = {
     const redirects = client.redirect_uris ?? []
     if (redirects.length === 0 || redirects.length > 10 || !redirects.every((u) => allowedRedirect(String(u)))) {
       throw new InvalidClientMetadataError("redirect_uris must be https (or loopback http, or an app scheme), at most 10")
+    }
+    // Registration is public and what it sends is stored: keep it small.
+    if (JSON.stringify(client).length > MAX_CLIENT_METADATA_BYTES) {
+      throw new InvalidClientMetadataError("Client metadata is too large")
     }
     const id = `gxqr_client_${randomBytes(16).toString("hex")}`
     const { client_secret, client_secret_expires_at, ...metadata } = client as Record<string, unknown>

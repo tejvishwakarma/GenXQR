@@ -71,6 +71,14 @@ describe("event and form codes", () => {
     await request(app).get(`/api/public/qr/${slug}/calendar.ics`).expect(404)
   })
 
+  it("should not let a bare carriage return start a new line in the calendar file", async () => {
+    const owner = await proUser()
+    const { slug } = (await create(owner, "EVENT", { ...EVENT, description: "Bring ID\rATTENDEE:mailto:evil@example.com" }).expect(201)).body.data as { slug: string }
+    const ics = await request(app).get(`/api/public/qr/${slug}/calendar.ics`).expect(200)
+    expect(ics.text, "REAL BUG: owner text injected a calendar property").not.toMatch(/^ATTENDEE:/m)
+    expect(ics.text.split(/\r\n|\n|\r/).filter((l: string) => l.startsWith("ATTENDEE"))).toHaveLength(0)
+  })
+
   it("should validate a form's questions", async () => {
     const user = await proUser()
     await create(user, "FORM", { title: "x", fields: [] }).expect(422)

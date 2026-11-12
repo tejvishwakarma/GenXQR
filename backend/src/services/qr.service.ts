@@ -718,6 +718,9 @@ function cloneData(qr: CloneSource, userId: string, slug: string): Prisma.QRCode
     scanLimit: qr.scanLimit,
     fallbackUrl: qr.fallbackUrl,
     customDomainId: qr.customDomainId,
+    // A code an admin switched off stays off in its copies: otherwise a copy
+    // was a way to put the same content back in service.
+    disabledByAdminAt: qr.disabledByAdminAt,
     content: qr.content
       ? { create: { data: qr.content.data as Prisma.InputJsonValue } }
       : undefined,
@@ -793,7 +796,7 @@ export async function copyQRToPlaces(id: string, userId: string, placeIds: strin
     try {
       const slug = await uniqueSlug()
       const copy = await createWithinQRLimit(userId, (tx) => tx.qRCode.create({
-        data: { ...cloneData(qr, userId, slug), name: `${base} — ${place.name}`.slice(0, 200), placeId, isActive: true },
+        data: { ...cloneData(qr, userId, slug), name: `${base} — ${place.name}`.slice(0, 200), placeId, isActive: !qr.disabledByAdminAt },
         select: qrSelect,
       }))
       created.push(serializeQR(copy))

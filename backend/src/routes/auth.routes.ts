@@ -873,7 +873,7 @@ router.post("/2fa/recovery-codes", requireAuth, forbidWhileImpersonating, twoFac
 
 /** Error codes the login page knows how to explain; anything else is "sso_failed". */
 const SSO_LOGIN_ERRORS = new Set([
-  "sso_state", "sso_cancelled", "sso_unavailable", "sso_wrong_account", "sso_no_seat",
+  "sso_state", "sso_cancelled", "sso_unavailable", "sso_wrong_account", "sso_no_seat", "sso_staff_account",
   "sso_email_unverified", "sso_no_email", "account_deleted", "account_permanently_banned",
 ])
 const SSO_LINK_ERRORS = new Set(["sso_state", "sso_cancelled", "sso_unavailable", "sso_link_wrong_account"])

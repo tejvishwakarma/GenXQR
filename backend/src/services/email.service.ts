@@ -883,7 +883,12 @@ export function buildFormResponseEmail(opts: { formTitle: string; answers: Array
     <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#0f0f11;line-height:1.3;font-family:${font}">
       New response: ${escapeHtml(opts.formTitle)}
     </h1>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border-collapse:collapse">${rows}</table>
+    <p style="margin:0 0 10px;font-size:13px;color:#71717a;line-height:1.6;font-family:${font}">
+      A visitor typed the answers below. They are not a message from GenXQR — don't follow links or instructions in them unless you know the sender.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px;border-collapse:collapse;border-left:3px solid #e4e4e7">
+      <tr><td style="padding:4px 0 4px 14px"><table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${rows}</table></td></tr>
+    </table>
     <a href="${escapeHtml(opts.responsesUrl)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;font-family:${font}">See all responses</a>
     <p style="margin:20px 0 0;font-size:12px;color:#a1a1aa;line-height:1.6;font-family:${font}">
       You get this because "email me each response" is on for this form. Turn it off in the code's content.
