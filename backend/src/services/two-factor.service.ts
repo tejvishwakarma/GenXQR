@@ -28,6 +28,15 @@ const CHALLENGE_MAX_ATTEMPTS = 5
 const SETUP_TTL_SECONDS = 900
 /** Wrong codes per account per 15 minutes, across settings actions (a stolen session guessing). */
 const USER_FAILS_PER_WINDOW = 10
+/**
+ * Wrong codes per account per hour at SIGN-IN, across every challenge. Each
+ * challenge allows five, but whoever holds the password can start another, so
+ * without this the six digits could be guessed in weeks. At the limit the code
+ * step is paused for the rest of the hour and the owner is emailed.
+ */
+const SIGNIN_FAILS_PER_WINDOW = 10
+const SIGNIN_FAIL_WINDOW_SECONDS = 3600
+const signinFailKey = (userId: string) => `2fa:signin-fail:${userId}`
 
 export const codeSchema = z.object({ code: z.string().trim().min(6).max(20) })
 export const disableSchema = codeSchema.extend({ password: z.string().max(200).optional() })
@@ -95,11 +104,13 @@ async function consumeCode(userId: string, code: string): Promise<boolean> {
 
   const hash = hashRecovery(code)
   if (!user.twoFactorRecoveryHashes.includes(hash)) return false
-  const used = await prisma.user.updateMany({
-    where: { id: userId, twoFactorRecoveryHashes: { has: hash } },
-    data: { twoFactorRecoveryHashes: user.twoFactorRecoveryHashes.filter((h) => h !== hash) },
-  })
-  return used.count === 1
+  // Removed in SQL, not written back from the copy read above: two different
+  // codes used at the same moment each wrote "the list minus mine", and the
+  // later write brought the other used code back.
+  const used = await prisma.$executeRaw`
+    UPDATE "users" SET "twoFactorRecoveryHashes" = array_remove("twoFactorRecoveryHashes", ${hash})
+    WHERE "id" = ${userId} AND ${hash} = ANY("twoFactorRecoveryHashes")`
+  return used === 1
 }
 
 /** consumeCode for settings actions, with a per-account limit on wrong codes. */
@@ -216,7 +227,17 @@ export async function redeemChallenge(challengeId: string, code: string): Promis
   if (!raw) throw new AppError(401, "This sign-in has expired. Sign in again.")
   const challenge = JSON.parse(raw) as Challenge
 
+  const failKey = signinFailKey(challenge.userId)
+  if (Number(await redis.get(failKey)) >= SIGNIN_FAILS_PER_WINDOW) {
+    throw new AppError(429, "Too many wrong codes on this account. Try again in an hour.")
+  }
+
   if (!(await consumeCode(challenge.userId, code))) {
+    const [[, accountFails]] = (await redis.multi().incr(failKey).expire(failKey, SIGNIN_FAIL_WINDOW_SECONDS, "NX").exec()) as [[unknown, number]]
+    if (accountFails === SIGNIN_FAILS_PER_WINDOW) {
+      const { sendSecurityNotice } = await import("./email.service.js")
+      void sendSecurityNotice(challenge.userId, { kind: "2fa_wrong_codes" })
+    }
     // Counted atomically, so parallel guesses cannot exceed the limit.
     const [[, fails]] = (await redis.multi().incr(`${key}:fails`).expire(`${key}:fails`, CHALLENGE_TTL_SECONDS).exec()) as [[unknown, number]]
     if (fails >= CHALLENGE_MAX_ATTEMPTS) {

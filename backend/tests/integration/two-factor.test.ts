@@ -84,6 +84,34 @@ describe("two-factor sign-in", () => {
     await verify(challenge, code(secret)).expect(401)
   })
 
+  it("should pause the code step after ten wrong codes on the account, across sign-ins", async () => {
+    // Five per challenge was the only limit: with the password, a new challenge
+    // is one request away, so the six digits could be guessed in weeks.
+    const user = await createUser()
+    const { secret } = await enable(user)
+    let wrong = 0
+    for (let round = 0; round < 3 && wrong < 10; round++) {
+      const challenge = await challengeFor(user)
+      for (let i = 0; i < 4 && wrong < 10; i++, wrong++) {
+        expect((await verify(challenge, "000000")).status, `wrong code ${wrong + 1}`).toBe(422)
+      }
+    }
+    const fresh = await challengeFor(user)
+    const res = await verify(fresh, code(secret))
+    expect(res.status, "REAL BUG: the right code still works after ten wrong ones — nothing limits guesses per account").toBe(429)
+    expect(res.body.data?.accessToken).toBeUndefined()
+  })
+
+  it("should not bring a used recovery code back when two are used at once", async () => {
+    const user = await createUser()
+    const { recoveryCodes } = await enable(user)
+    const [a, b] = [await challengeFor(user), await challengeFor(user)]
+    const [ra, rb] = await Promise.all([verify(a, recoveryCodes[0]!), verify(b, recoveryCodes[1]!)])
+    expect([ra.status, rb.status]).toEqual([200, 200])
+    const left = await prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { twoFactorRecoveryHashes: true } })
+    expect(left.twoFactorRecoveryHashes.length, "REAL BUG: a used recovery code is back in the list").toBe(8)
+  })
+
   it("should ask Google sign-in for the code too", async () => {
     const user = await createUser()
     await enable(user)

@@ -438,6 +438,7 @@ export type SecurityNotice =
   | { kind: "2fa_off" }
   | { kind: "2fa_reset_by_support" }
   | { kind: "recovery_codes" }
+  | { kind: "2fa_wrong_codes" }
   | { kind: "ai_app_connected"; app: string }
 
 const SECURITY_COPY: Record<SecurityNotice["kind"], { subject: string; title: string; body: string; ifNotYou: string }> = {
@@ -464,6 +465,12 @@ const SECURITY_COPY: Record<SecurityNotice["kind"], { subject: string; title: st
     title: "New recovery codes were made",
     body: "A new set of two-factor recovery codes was made for your GenXQR account. The old codes no longer work.",
     ifNotYou: "your account may be compromised. Reset your password with \"Forgot password\" on the sign-in page and contact us at support@genxqr.com.",
+  },
+  "2fa_wrong_codes": {
+    subject: "Wrong sign-in codes on your GenXQR account",
+    title: "Wrong sign-in codes on your account",
+    body: "Someone got past the first step of signing in to your GenXQR account (your password, or your Google account) and then entered a wrong two-factor code several times. Nobody was signed in. Signing in with a code is paused for an hour.",
+    ifNotYou: "someone else knows your password. Change it now with \"Forgot password\" on the sign-in page, and contact us at support@genxqr.com.",
   },
   ai_app_connected: {
     subject: "An AI app was connected to your GenXQR account",
