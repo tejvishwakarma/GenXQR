@@ -317,6 +317,53 @@ export async function refreshPendingDomains(batch = 20): Promise<number> {
   return rows.length
 }
 
+/** A connected domain is released this long after its owner's plan stops including custom domains. */
+export const LAPSED_DOMAIN_DAYS = 30
+
+/**
+ * Expiry worker: domains whose owner's plan no longer includes custom domains.
+ * For 30 days scans on the host still reach the code (302 to genxqr.com); then
+ * the hostname is removed from Cloudflare and from the account, so a name is
+ * not held for ever by an account that stopped paying. The owner can add it
+ * again later — the TXT record asked for is the same. Codes fall back to
+ * genxqr.com links (SetNull).
+ */
+export async function releaseLapsedDomains(now = new Date()): Promise<{ marked: number; released: number }> {
+  const rows = await prisma.customDomain.findMany({
+    where: { status: { not: "unverified" } },
+    select: { id: true, userId: true, hostname: true, cfHostnameId: true, lapsedSince: true },
+  })
+  const included = new Map<string, boolean>()
+  let marked = 0, released = 0
+  for (const row of rows) {
+    if (!included.has(row.userId)) {
+      const limits = await getPlanLimitsReadOnly(row.userId).catch(() => null)
+      // Unknown (a lookup failed) counts as included: never release on a guess.
+      included.set(row.userId, limits ? !!limits.customDomains : true)
+    }
+    if (included.get(row.userId)) {
+      if (row.lapsedSince) await prisma.customDomain.update({ where: { id: row.id }, data: { lapsedSince: null } })
+      continue
+    }
+    if (!row.lapsedSince) {
+      await prisma.customDomain.update({ where: { id: row.id }, data: { lapsedSince: now } })
+      marked++
+      continue
+    }
+    if (now.getTime() - row.lapsedSince.getTime() < LAPSED_DOMAIN_DAYS * 86_400_000) continue
+    try {
+      if (row.cfHostnameId && isCloudflareSaasConfigured()) await deleteCustomHostname(row.cfHostnameId)
+      await prisma.customDomain.delete({ where: { id: row.id } })
+      forgetHost(row.hostname)
+      released++
+      logger.info("Lapsed custom domain released", { ownerId: row.userId, hostname: row.hostname })
+    } catch (err) {
+      logger.warn("Releasing a lapsed custom domain failed", { hostname: row.hostname, error: err instanceof Error ? err.message : String(err) })
+    }
+  }
+  return { marked, released }
+}
+
 /** The domain a code may print with: the owner's, and verified. Null clears it. */
 export async function assertDomainForCode(ownerId: string, customDomainId: string | null | undefined): Promise<string | null | undefined> {
   if (customDomainId === undefined || customDomainId === null) return customDomainId

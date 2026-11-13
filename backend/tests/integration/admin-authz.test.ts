@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it } from "vitest"
 import request from "supertest"
 import app from "../../src/app.js"
 import { prisma } from "../../src/db/prisma.js"
-import { createAdmin, createSuperAdmin, createUser, seedPlans } from "../helpers/factories.js"
+import { createApiKey } from "../../src/services/apikeys.service.js"
+import { createAdmin, createSuperAdmin, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
 
 /**
  * Authorization boundaries on /admin-api/*.
@@ -87,6 +88,21 @@ describe("admin-api authorization", () => {
       expect(res.status).toBe(403)
       const after = await prisma.user.findUniqueOrThrow({ where: { id: target.id } })
       expect(after.passwordHash).toBe(before.passwordHash)
+    })
+
+    it("should switch off the account's API keys when a SUPER_ADMIN sets its password", async () => {
+      // Setting the password is how a compromised account is locked down, and a
+      // key whoever had the account made would otherwise keep working for ever.
+      const root = await createSuperAdmin()
+      const target = await createUser()
+      await giveSubscription(target.id, "PRO")
+      const { rawKey } = await createApiKey(target.id, "made by the intruder")
+      await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`).expect(200)
+
+      await request(app).post(`/admin-api/users/${target.id}/password`).set("Authorization", `Bearer ${root.token}`)
+        .send({ password: "Fresh-Passw0rd-2026!" }).expect(200)
+      const after = await request(app).get("/v1/qr").set("Authorization", `Bearer ${rawKey}`)
+      expect(after.status, "REAL BUG: an API key outlived the admin lockdown").toBe(401)
     })
 
     it("should not let an ADMIN delete another admin", async () => {

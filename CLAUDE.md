@@ -1751,7 +1751,19 @@ pnpm preview               # vite preview (serves dist/)
       without new content re-validates the STORED content for the new type (`updateQR`).
     - **SSO never signs in a non-USER role** (`sso_staff_account`). Copies/duplicates keep `disabledByAdminAt`.
       Switching a share-report link off deletes its cached copies.
-    - Decided not to do (ask before changing): release a lapsed account's custom domain (printed codes on it would
-      die for a customer who only downgraded); revoke other sessions when two-factor is turned on; hash OAuth client
-      secrets; Zod 4 (its advisory is bounded by the 1 MB body limit). Still open on the server side, not in code:
+    - **Lapsed custom domains are released after 30 days** (decided with the user 13 Nov 2026 — nobody used custom
+      domains yet): `releaseLapsedDomains` (expiry worker) stamps `CustomDomain.lapsedSince` when the owner's plan
+      stops including them, clears it if the plan returns, and after `LAPSED_DOMAIN_DAYS` removes the hostname from
+      Cloudflare and the row (codes fall back to genxqr.com links; prints on that host stop working). Migration
+      `20261113100000_custom_domain_lapse`.
+    - **API keys and passwords** (decided 13 Nov 2026): a password change or reset keeps API keys (integrations
+      would stop) and the "password was changed" email — now also sent after a reset link is used — says so and
+      where to delete a key. Only the SUPER_ADMIN set-password (the lockdown for a compromised account) switches
+      the account's keys off.
+    - **Zod is v4** (13 Nov 2026). Two differences that bite: `optional()` now APPLIES an inner `.default()`, so an
+      update schema must strip defaults (`withoutDefaults` in qr.service — else a partial design update resets the
+      omitted fields); an object's own default must be `.prefault({})` for nested defaults to apply. `z.record` needs
+      a key schema, and an enum-keyed record that may be incomplete is `z.partialRecord`.
+    - Decided not to do (ask before changing): revoke other sessions when two-factor is turned on; hash OAuth client
+      secrets. Still open on the server side, not in code:
       `/uploads/` on the custom-domains vhost serves every account's files on every customer host.

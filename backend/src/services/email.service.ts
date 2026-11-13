@@ -391,7 +391,7 @@ export function buildPasswordResetEmail(name: string, resetUrl: string): string 
  * click, since a "was this you?" link in an email about credentials is the exact
  * shape of a phishing message.
  */
-export function buildPasswordChangedEmail(name: string): string {
+export function buildPasswordChangedEmail(name: string, via: "settings" | "reset" = "settings"): string {
   const inner = `
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;letter-spacing:-0.4px;line-height:1.35;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       Your password was changed
@@ -400,7 +400,10 @@ export function buildPasswordChangedEmail(name: string): string {
       Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      The password on your GenXQR account was just changed from the account settings page. You have also been signed out everywhere else, so any other browser or device will need the new password.
+      The password on your GenXQR account was just changed ${via === "reset" ? "using a password reset link sent to this email address" : "from the account settings page"}. You have been signed out everywhere else, and any AI apps connected to your account were disconnected.
+    </p>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Your API keys still work, so your integrations keep running. If you don't recognise a key, delete it in the dashboard under API Keys.
     </p>
     <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin-bottom:24px">
       <tr>
@@ -419,11 +422,11 @@ export function buildPasswordChangedEmail(name: string): string {
 }
 
 /** Sends the password-changed security notification. */
-export async function sendPasswordChangedEmail(to: string, name: string): Promise<void> {
+export async function sendPasswordChangedEmail(to: string, name: string, via: "settings" | "reset" = "settings"): Promise<void> {
   await sendEmail({
     to,
     subject: "Your GenXQR password was changed",
-    html: buildPasswordChangedEmail(name),
+    html: buildPasswordChangedEmail(name, via),
   })
 }
 

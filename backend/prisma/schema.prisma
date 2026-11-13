@@ -1278,6 +1278,8 @@ model CustomDomain {
   createdAt          DateTime  @default(now())
   activatedAt        DateTime?
   lastCheckedAt      DateTime?
+  /// When the owner's plan stopped including custom domains; released 30 days later.
+  lapsedSince        DateTime?
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   qrCodes QRCode[]

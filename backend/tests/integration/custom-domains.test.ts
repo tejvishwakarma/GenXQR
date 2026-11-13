@@ -3,7 +3,7 @@ import request from "supertest"
 import app from "../../src/app.js"
 import { env } from "../../src/config/env.js"
 import { prisma } from "../../src/db/prisma.js"
-import { _clearHostCache, _setDomainTxtResolverForTests, normalizeHostname, refreshPendingDomains, scanUrlFor, UNVERIFIED_DOMAIN_DAYS } from "../../src/services/custom-domain.service.js"
+import { _clearHostCache, _setDomainTxtResolverForTests, LAPSED_DOMAIN_DAYS, normalizeHostname, refreshPendingDomains, releaseLapsedDomains, scanUrlFor, UNVERIFIED_DOMAIN_DAYS } from "../../src/services/custom-domain.service.js"
 import { createQRCode, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
 
 /**
@@ -317,6 +317,37 @@ describe("scanning on a customer's domain", () => {
     expect(posted.status).toBe(404)
     const brand = await onHost(`/api/public/branding/${foreign.slug}`)
     expect(brand.body.data.name, "REAL BUG: a stranger's brand shown on a lapsed customer domain").not.toBe("Stranger Co")
+  })
+})
+
+describe("a domain whose owner's plan lapsed", () => {
+  it("should be released 30 days later, and kept if the plan comes back first", async () => {
+    const { owner, domainId } = await ownerWithActiveDomain("qr.stopped-paying.com")
+    const { owner: back, domainId: backId } = await ownerWithActiveDomain("qr.came-back.com")
+    const code = await createQRCode(owner.id)
+    await prisma.qRCode.update({ where: { id: code.id }, data: { customDomainId: domainId } })
+    await giveSubscription(owner.id, "STARTER")
+    await giveSubscription(back.id, "STARTER")
+
+    const day = 86_400_000
+    const t0 = new Date()
+    expect(await releaseLapsedDomains(t0)).toEqual({ marked: 2, released: 0 })
+    // Still there, and scans still reach the code, during the 30 days.
+    expect(await releaseLapsedDomains(new Date(t0.getTime() + (LAPSED_DOMAIN_DAYS - 1) * day))).toEqual({ marked: 0, released: 0 })
+    expect(await prisma.customDomain.count({ where: { id: { in: [domainId, backId] } } })).toBe(2)
+
+    await giveSubscription(back.id, "PRO")
+    cfCalls = []
+    expect(await releaseLapsedDomains(new Date(t0.getTime() + (LAPSED_DOMAIN_DAYS + 1) * day))).toEqual({ marked: 0, released: 1 })
+    expect(await prisma.customDomain.findUnique({ where: { id: domainId } }), "REAL BUG: a lapsed account keeps its domain for ever").toBeNull()
+    expect(cfCalls.some((c) => c.method === "DELETE")).toBe(true)
+    const kept = await prisma.customDomain.findUniqueOrThrow({ where: { id: backId } })
+    expect(kept.lapsedSince, "REAL BUG: a domain was released although the plan came back").toBeNull()
+    // The code is not lost: it prints with genxqr.com again.
+    expect((await prisma.qRCode.findUniqueOrThrow({ where: { id: code.id } })).customDomainId).toBeNull()
+    // And the name is free for whoever proves it next.
+    const next = await createUser(); await giveSubscription(next.id, "PRO")
+    expect((await addDomain(next.token, "qr.stopped-paying.com")).status).toBe(201)
   })
 })
 

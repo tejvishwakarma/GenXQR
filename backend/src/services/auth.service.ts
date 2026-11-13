@@ -425,7 +425,7 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
     throw new AppError(400, "Invalid or expired password reset link")
   }
   // A link sent before the organisation turned on "require SSO" must not work after.
-  const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true } })
+  const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true, name: true } })
   if (owner && (await requiredSsoFor(owner.email, record.userId))) throw new AppError(403, "sso_required")
 
   const passwordHash = await hashPassword(input.password)
@@ -447,6 +447,13 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
     // connected one, and it would otherwise keep refreshing after the reset.
     await tx.oAuthToken.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } })
   })
+  // Tell the owner, as a change from Settings does: a reset they did not make
+  // means someone can read their inbox, and the email says what to check.
+  if (owner) {
+    void sendPasswordChangedEmail(owner.email, owner.name, "reset").catch((err: unknown) => {
+      logger.warn("Password-reset notice failed", { userId: record.userId, error: err instanceof Error ? err.message : String(err) })
+    })
+  }
   return record.userId
 }
 
