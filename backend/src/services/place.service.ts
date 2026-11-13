@@ -20,7 +20,7 @@ export const MAX_PLACES = 10_000
 const optionalText = (max: number) =>
   z.string().trim().max(max).nullish().transform((v) => (v ? v : null))
 
-export const placeInputSchema = z
+const placeFields = z
   .object({
     name: z.string().trim().min(1, "Name is required").max(120),
     code: optionalText(40),
@@ -29,9 +29,11 @@ export const placeInputSchema = z
     lat: z.coerce.number().min(-90).max(90).nullish(),
     lng: z.coerce.number().min(-180).max(180).nullish(),
   })
+
+export const placeInputSchema = placeFields
   .refine((p) => (p.lat == null) === (p.lng == null), { message: "Give both latitude and longitude, or neither", path: ["lat"] })
 
-export const placeUpdateSchema = placeInputSchema.innerType().partial()
+export const placeUpdateSchema = placeFields.partial()
   .refine((p) => p.lat === undefined || p.lng === undefined || (p.lat == null) === (p.lng == null), {
     message: "Give both latitude and longitude, or neither", path: ["lat"],
   })

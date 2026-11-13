@@ -75,10 +75,10 @@ export const createQRSchema = z.object({
         .refine((v) => !LIBRARY_FRAME_PREFIX.test(v) || LIBRARY_FRAME_ID.test(v), "Unknown frame")
         .nullish(),
       frameText: z.string().max(100).nullish(),
-      frameFields: z.record(z.enum(FRAME_FIELD_IDS), z.string().max(60)).nullish(),
+      frameFields: z.partialRecord(z.enum(FRAME_FIELD_IDS), z.string().max(60)).nullish(),
       frameColor: z.string().regex(/^#[0-9A-Fa-f]{3,8}$|^rgba?\(/).max(30).nullish(),
     })
-    .default({}),
+    .prefault({}),
   settings: z
     .object({
       // "" is the documented sentinel for "remove the password" (see updateQR
@@ -98,7 +98,7 @@ export const createQRSchema = z.object({
       linkedinPartnerId: z.string().regex(/^\d{1,12}$/, "LinkedIn Partner ID must be numeric (up to 12 digits)").nullish(),
       tiktokPixelId: z.string().regex(/^[A-Z0-9]{10,30}$/i, "TikTok Pixel ID must be 10–30 letters and digits").nullish(),
     })
-    .default({}),
+    .prefault({}),
   uploadedFiles: z
     .array(
       z.object({
@@ -113,6 +113,15 @@ export const createQRSchema = z.object({
     .default([]),
 })
 
+/** The same object with each field's `.default()` taken off (the field's other rules stay). */
+export function withoutDefaults<S extends z.ZodRawShape>(obj: z.ZodObject<S>) {
+  return z.object(
+    Object.fromEntries(Object.entries(obj.shape).map(([k, f]) => [k, f instanceof z.ZodDefault ? f.unwrap() : f])) as {
+      [K in keyof S]: S[K] extends z.ZodDefault<infer Inner> ? Inner : S[K]
+    },
+  )
+}
+
 export const updateQRSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
   type: z.nativeEnum(QRType).optional(),
@@ -125,9 +134,10 @@ export const updateQRSchema = z.object({
   // fields it names. Reusing the create schema filled every omitted field with
   // its default, so PATCH {design:{frameStyle}} reset the colours, dot and
   // corner styles of the code (found 20 Oct 2026; the dashboard always sends
-  // the whole design, so only /v1 callers hit it). ZodOptional short-circuits
-  // on undefined, so the inner .default()s never run.
-  design: createQRSchema.shape.design.removeDefault().partial().optional(),
+  // the whole design, so only /v1 callers hit it). The defaults are REMOVED
+  // from the fields, not relied on to be skipped: Zod 3's optional() skipped an
+  // inner default on undefined, Zod 4's applies it (the same bug again).
+  design: withoutDefaults(createQRSchema.shape.design.unwrap()).partial().optional(),
   settings: createQRSchema.shape.settings.optional(),
   uploadedFiles: createQRSchema.shape.uploadedFiles.optional(),
 })

@@ -92,7 +92,7 @@ function buildServer(caller: ApiCaller): McpServer {
     inputSchema: {
       name: z.string().min(1).max(200),
       type: z.nativeEnum(QRType),
-      content: z.record(z.unknown()).describe("The type's content object (see the description)"),
+      content: z.record(z.string(), z.unknown()).describe("The type's content object (see the description)"),
       tags: z.array(z.string().max(50)).max(10).optional(),
       folderId: z.string().max(40).optional(),
       placeId: z.string().max(40).optional(),
@@ -108,7 +108,7 @@ function buildServer(caller: ApiCaller): McpServer {
     inputSchema: {
       id: z.string().min(1).max(40),
       name: z.string().min(1).max(200).optional(),
-      content: z.record(z.unknown()).optional(),
+      content: z.record(z.string(), z.unknown()).optional(),
       tags: z.array(z.string().max(50)).max(10).optional(),
       folderId: z.string().max(40).nullable().optional().describe("null takes it out of its folder"),
       placeId: z.string().max(40).nullable().optional().describe("null takes it off its place"),
