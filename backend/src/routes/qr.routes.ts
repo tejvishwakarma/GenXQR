@@ -225,7 +225,7 @@ const SmartRouteConditionSchema = z.discriminatedUnion("type", [
 
 const SmartRouteBodySchema = z.object({
   conditionType:  z.enum(["device", "time", "geo", "language"]),
-  conditionValue: z.record(z.unknown()),
+  conditionValue: z.record(z.string(), z.unknown()),
   targetUrl:      safeHttpUrlSchema,
   priority:       z.number().int().min(1).max(100),
   isActive:       z.boolean().optional().default(true),

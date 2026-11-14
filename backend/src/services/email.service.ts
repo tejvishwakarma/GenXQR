@@ -391,7 +391,7 @@ export function buildPasswordResetEmail(name: string, resetUrl: string): string 
  * click, since a "was this you?" link in an email about credentials is the exact
  * shape of a phishing message.
  */
-export function buildPasswordChangedEmail(name: string): string {
+export function buildPasswordChangedEmail(name: string, via: "settings" | "reset" = "settings"): string {
   const inner = `
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;letter-spacing:-0.4px;line-height:1.35;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       Your password was changed
@@ -400,7 +400,10 @@ export function buildPasswordChangedEmail(name: string): string {
       Hi ${escapeHtml(name)},
     </p>
     <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      The password on your GenXQR account was just changed from the account settings page. You have also been signed out everywhere else, so any other browser or device will need the new password.
+      The password on your GenXQR account was just changed ${via === "reset" ? "using a password reset link sent to this email address" : "from the account settings page"}. You have been signed out everywhere else, and any AI apps connected to your account were disconnected.
+    </p>
+    <p style="margin:0 0 20px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+      Your API keys still work, so your integrations keep running. If you don't recognise a key, delete it in the dashboard under API Keys.
     </p>
     <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin-bottom:24px">
       <tr>
@@ -419,11 +422,11 @@ export function buildPasswordChangedEmail(name: string): string {
 }
 
 /** Sends the password-changed security notification. */
-export async function sendPasswordChangedEmail(to: string, name: string): Promise<void> {
+export async function sendPasswordChangedEmail(to: string, name: string, via: "settings" | "reset" = "settings"): Promise<void> {
   await sendEmail({
     to,
     subject: "Your GenXQR password was changed",
-    html: buildPasswordChangedEmail(name),
+    html: buildPasswordChangedEmail(name, via),
   })
 }
 
@@ -438,6 +441,7 @@ export type SecurityNotice =
   | { kind: "2fa_off" }
   | { kind: "2fa_reset_by_support" }
   | { kind: "recovery_codes" }
+  | { kind: "2fa_wrong_codes" }
   | { kind: "ai_app_connected"; app: string }
 
 const SECURITY_COPY: Record<SecurityNotice["kind"], { subject: string; title: string; body: string; ifNotYou: string }> = {
@@ -464,6 +468,12 @@ const SECURITY_COPY: Record<SecurityNotice["kind"], { subject: string; title: st
     title: "New recovery codes were made",
     body: "A new set of two-factor recovery codes was made for your GenXQR account. The old codes no longer work.",
     ifNotYou: "your account may be compromised. Reset your password with \"Forgot password\" on the sign-in page and contact us at support@genxqr.com.",
+  },
+  "2fa_wrong_codes": {
+    subject: "Wrong sign-in codes on your GenXQR account",
+    title: "Wrong sign-in codes on your account",
+    body: "Someone got past the first step of signing in to your GenXQR account (your password, or your Google account) and then entered a wrong two-factor code several times. Nobody was signed in. Signing in with a code is paused for an hour.",
+    ifNotYou: "someone else knows your password. Change it now with \"Forgot password\" on the sign-in page, and contact us at support@genxqr.com.",
   },
   ai_app_connected: {
     subject: "An AI app was connected to your GenXQR account",
@@ -876,7 +886,12 @@ export function buildFormResponseEmail(opts: { formTitle: string; answers: Array
     <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;color:#0f0f11;line-height:1.3;font-family:${font}">
       New response: ${escapeHtml(opts.formTitle)}
     </h1>
-    <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;border-collapse:collapse">${rows}</table>
+    <p style="margin:0 0 10px;font-size:13px;color:#71717a;line-height:1.6;font-family:${font}">
+      A visitor typed the answers below. They are not a message from GenXQR — don't follow links or instructions in them unless you know the sender.
+    </p>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 24px;border-collapse:collapse;border-left:3px solid #e4e4e7">
+      <tr><td style="padding:4px 0 4px 14px"><table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse">${rows}</table></td></tr>
+    </table>
     <a href="${escapeHtml(opts.responsesUrl)}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;font-family:${font}">See all responses</a>
     <p style="margin:20px 0 0;font-size:12px;color:#a1a1aa;line-height:1.6;font-family:${font}">
       You get this because "email me each response" is on for this form. Turn it off in the code's content.

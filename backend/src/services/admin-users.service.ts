@@ -457,10 +457,15 @@ export async function forceSetPassword(callerRole: AdminRole, callerId: string, 
 
   const passwordHash = await hashPassword(password)
   // Revoke every session too — this is how a compromised account is locked
-  // down, and the attacker's 30-day refresh cookie must not outlive it.
+  // down, and the attacker's 30-day refresh cookie must not outlive it. API
+  // keys are switched off here as well (and only here: an ordinary password
+  // change keeps them, or every customer's integrations would stop). Whoever
+  // had the account could have made a key, and a key never expires.
   await prisma.$transaction([
     prisma.user.update({ where: { id: targetId }, data: { passwordHash } }),
     prisma.refreshToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    prisma.oAuthToken.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    prisma.apiKey.updateMany({ where: { userId: targetId, isActive: true }, data: { isActive: false } }),
   ])
 
   await prisma.auditLog.create({

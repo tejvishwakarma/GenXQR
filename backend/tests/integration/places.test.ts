@@ -175,6 +175,26 @@ describe("places", () => {
     expect((await prisma.place.findUniqueOrThrow({ where: { id: existing.id } })).name).toBe("MCC Metro")
   })
 
+  it("should keep copies of a code an admin switched off, off", async () => {
+    // Otherwise a copy was a way to put the same content back in service.
+    const user = await createUser()
+    await giveSubscription(user.id, "STARTER")
+    const [p1, p2] = await Promise.all(["A1", "A2"].map((name) => addPlace(user, { name })))
+    const original = await request(app).post("/api/qr").set(as(user))
+      .send({ name: "Flagged", type: "URL", placeId: p1!.id, content: { data: { url: "https://example.com/x" } } }).expect(201)
+    await prisma.qRCode.update({ where: { id: original.body.data.id }, data: { isActive: false, disabledByAdminAt: new Date() } })
+
+    const res = await request(app).post(`/api/qr/${original.body.data.id}/copy-to-places`).set(as(user)).send({ placeIds: [p2!.id] }).expect(201)
+    const copy = await prisma.qRCode.findUniqueOrThrow({ where: { id: res.body.data.created[0].id } })
+    expect(copy.isActive, "REAL BUG: a copy of an admin-disabled code is live").toBe(false)
+    expect(copy.disabledByAdminAt).not.toBeNull()
+
+    const dup = await request(app).post(`/api/qr/${original.body.data.id}/duplicate`).set(as(user)).expect(201)
+    const toggled = await request(app).patch(`/api/qr/${dup.body.data.id}/toggle`).set(as(user))
+    expect(toggled.status, "REAL BUG: a duplicate of an admin-disabled code could be switched on").toBe(403)
+    expect((await request(app).get(`/r/${dup.body.data.slug}`)).headers["location"] ?? "").not.toBe("https://example.com/x")
+  })
+
   it("should copy a code to other places, one active copy each, within the plan limit", async () => {
     const user = await createUser()
     await giveSubscription(user.id, "STARTER")

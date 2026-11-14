@@ -487,7 +487,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 | `admin.middleware.ts` | Requires `req.user.role === ADMIN or SUPER_ADMIN` |
 | `apikey.middleware.ts` | Verifies API key hash from `Authorization: Bearer gxqr_...`; attaches `req.user` |
 | `plan-gate.middleware.ts` | Checks user's active plan against a feature flag list before route handlers |
-| `rateLimit.middleware.ts` | `apiLimiter` (general /api). Auth limiters are ONE COUNTER PER ACTION per IP (login, register, recovery, qr-password, account, refresh=300) plus `accountAttemptLimiter` per EMAIL on login/forgot — they used to share one 10/15-min counter incl. /refresh, which logged out shared-IP offices (23 Oct 2026). |
+| `rateLimit.middleware.ts` | `apiLimiter` (general /api). Auth limiters are ONE COUNTER PER ACTION per IP (login, register, recovery, qr-password, account, refresh=300) plus `accountAttemptLimiter` per EMAIL on login/forgot — they used to share one 10/15-min counter incl. /refresh, which logged out shared-IP offices (23 Oct 2026). Every per-IP key goes through `ipRateKey` (utils/rate-key.util.ts): IPv6 is counted per /64, or one client rotating its own addresses has no limit — also used by the counted-scan rate and scan dedupe. |
 | `workspace.middleware.ts` | `withWorkspace` resolves `X-Workspace-Id` → `req.workspace = { ownerId, actorId, role }`; `requireWorkspacePermission(action)`; scope data with `wsOwner(req)`. See §13. |
 | `error.middleware.ts` | Global error handler: Zod → **422**, `AppError` → its status, MulterError → 413/400, any other error carrying a 4xx `status` (body-parser: bad JSON 400, too large 413) → that status; everything else 500. It does NOT map JWT or Prisma errors — throw `AppError` (a plain Error with `.status` used to 500). Hand-thrown validation failures should use 422. |
 
@@ -811,7 +811,12 @@ GenXQR by default, so before this every revenue figure counted refunded money as
 
 **Custom domains** (`services/custom-domain.service.ts` + `cloudflare.service.ts`, built 31 Oct 2026).
 Codes print as `https://qr.brand.com/r/<slug>` instead of genxqr.com.
-- Cloudflare for SaaS: the customer adds ONE CNAME to `CUSTOM_DOMAIN_TARGET` (the zone's fallback origin);
+- **Proof of ownership first** (11 Nov 2026): a new domain is `unverified` and NOT registered with Cloudflare until
+  TXT `_genxqr.<hostname>` = `genxqr-domain=<token>` is in DNS (`ownershipRecord`: an HMAC of owner + hostname, so
+  re-adding asks for the same record). Cloudflare's own check passes whenever the CNAME points at us, which let any
+  account claim a former customer's leftover CNAME or reserve a brand's hostname. An unverified claim never blocks
+  another account (the newer claim replaces it) and is dropped after 7 days. Domains active before this were not re-checked.
+- Cloudflare for SaaS: the customer then adds ONE CNAME to `CUSTOM_DOMAIN_TARGET` (the zone's fallback origin);
   Cloudflare issues HTTPS (HTTP validation) and proxies to us, so the origin stays hidden. First 100 hostnames are
   free on any Cloudflare plan, then $0.10/month each. The 10-minute expiry worker re-checks `pending` domains.
 - Caps: `PLAN_LIMITS.customDomainsLimit` — Pro 1, Business 5, Enterprise 25. Added under a per-owner advisory lock.
@@ -822,7 +827,10 @@ Codes print as `https://qr.brand.com/r/<slug>` instead of genxqr.com.
 - **The host is read from the raw `Host` header (`requestHost` in scan.routes), never `req.hostname`**: with trust
   proxy on, `req.hostname` honours `X-Forwarded-Host`, which passes through Cloudflare and nginx — a forged one
   would make a customer host look canonical and serve anyone's code under their brand. Tested.
-- Plan no longer includes custom domains → scans on that host 302 to the same code on genxqr.com (`lapsed`).
+- Plan no longer includes custom domains → scans on that host 302 to the same code on genxqr.com (`lapsed`), and
+  `/api/public/*` serves NOTHING there (`servableQR` treats lapsed as foreign; branding = GenXQR's). Every place that
+  switches on `resolveScanHost(...).kind` must handle `lapsed` — treating it as canonical served any account's page
+  on that brand's domain.
 - Every scan URL comes from `scanUrlFor` (backend; also `scanUrl` on every QR response) / `scanUrlOf` (frontend) —
   downloads, detail page, bulk ZIP, Drive export, widget. Never build `/r/<slug>` by hand.
 - nginx: `deploy/custom-domains-vhost.conf` is a SEPARATE CloudPanel site (customers.genxqr.com) with a catch-all
@@ -1721,3 +1729,41 @@ pnpm preview               # vite preview (serves dist/)
       `MULTIPART_FIELD_LIMITS` (utils/multipart-limits.util.ts): its nesting/array-index limits
       are opt-in, and `a[4294967294]` + `a[b]` blocked the event loop > 30 s on the public CV
       upload. Both proven in `tests/integration/request-crash.test.ts`.
+
+24. **Security review (11 Nov 2026) — rules to keep.** Each has a test that fails without it.
+    - **The pixel page is sandboxed.** `pixelPageCsp` starts with `sandbox allow-scripts` (no `allow-same-origin`):
+      the trackers run code the CODE OWNER controls — a Tag Manager container is arbitrary script — on genxqr.com,
+      whose localStorage holds the dashboard and admin token. `SANDBOX_STANDINS` (first script on the page) gives
+      the trackers in-memory cookies/storage and a non-"null" `window.origin`; without them GA, LinkedIn and TikTok
+      send nothing (checked in Chrome: all five send their hit with it). Never add `allow-same-origin`, and a new
+      tracker must be tested under the sandbox. Each scan is a new visitor to the tracker (no cookie survives).
+    - **Two-factor at sign-in is limited per ACCOUNT** (`2fa:signin-fail:<userId>`, 10 wrong codes an hour, then the
+      code step is paused and the owner emailed — `2fa_wrong_codes`), not only per challenge. Recovery codes are
+      removed with `array_remove` in SQL.
+    - **`/v1/mcp` refuses JSON-RPC batches** (an array body): the limiter and the monthly quota count HTTP requests.
+    - **OAuth for AI apps:** nothing redirects to a client's address without a signed-in person's answer —
+      `refuseMalformedAuthorize` and `authorize()` answer 400 instead (registration is public, so an error redirect
+      was an open redirect). The consent page shows the full address access is sent to and `impersonates` when a
+      well-known name (`KNOWN_APPS`) does not return to that company's domain. Password reset/change, the takeover
+      paths and admin set-password revoke `oAuthToken` rows as well as sessions. API keys are NOT revoked by a
+      password change (integrations would break) — say so if asked.
+    - **Forms:** at most `MAX_RESPONSES_PER_CODE_PER_HOUR` (600) answers per code per hour. A change of `type`
+      without new content re-validates the STORED content for the new type (`updateQR`).
+    - **SSO never signs in a non-USER role** (`sso_staff_account`). Copies/duplicates keep `disabledByAdminAt`.
+      Switching a share-report link off deletes its cached copies.
+    - **Lapsed custom domains are released after 30 days** (decided with the user 13 Nov 2026 — nobody used custom
+      domains yet): `releaseLapsedDomains` (expiry worker) stamps `CustomDomain.lapsedSince` when the owner's plan
+      stops including them, clears it if the plan returns, and after `LAPSED_DOMAIN_DAYS` removes the hostname from
+      Cloudflare and the row (codes fall back to genxqr.com links; prints on that host stop working). Migration
+      `20261113100000_custom_domain_lapse`.
+    - **API keys and passwords** (decided 13 Nov 2026): a password change or reset keeps API keys (integrations
+      would stop) and the "password was changed" email — now also sent after a reset link is used — says so and
+      where to delete a key. Only the SUPER_ADMIN set-password (the lockdown for a compromised account) switches
+      the account's keys off.
+    - **Zod is v4** (13 Nov 2026). Two differences that bite: `optional()` now APPLIES an inner `.default()`, so an
+      update schema must strip defaults (`withoutDefaults` in qr.service — else a partial design update resets the
+      omitted fields); an object's own default must be `.prefault({})` for nested defaults to apply. `z.record` needs
+      a key schema, and an enum-keyed record that may be incomplete is `z.partialRecord`.
+    - Decided not to do (ask before changing): revoke other sessions when two-factor is turned on; hash OAuth client
+      secrets. Still open on the server side, not in code:
+      `/uploads/` on the custom-domains vhost serves every account's files on every customer host.

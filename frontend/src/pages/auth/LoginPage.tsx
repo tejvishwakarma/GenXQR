@@ -18,6 +18,7 @@ const SSO_ERRORS: Record<string, string> = {
   sso_cancelled: "Sign-in was cancelled. Please try again.",
   sso_state: "That sign-in link expired or was opened in another browser. Please start again.",
   sso_unavailable: "Single sign-on isn't available for your organisation right now. Ask your GenXQR admin.",
+  sso_staff_account: "This account can't use single sign-on. Sign in with your password.",
   sso_wrong_account: "That account isn't part of the organisation set up for this email domain. Choose your work account and try again.",
   sso_no_seat: "Your organisation's GenXQR team has no free seats. Ask your admin to free one or upgrade.",
   sso_email_unverified: "Your provider hasn't verified that email address.",

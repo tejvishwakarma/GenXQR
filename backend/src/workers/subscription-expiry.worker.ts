@@ -9,7 +9,7 @@ import { fillMissingUserLocations } from "../services/user-location.service.js"
 import { purgeExpiredAuditLogs } from "../services/audit.service.js"
 import { sweepOAuth } from "../services/oauth.service.js"
 import { reconcileRefunds } from "../services/refund.service.js"
-import { refreshPendingDomains } from "../services/custom-domain.service.js"
+import { refreshPendingDomains, releaseLapsedDomains } from "../services/custom-domain.service.js"
 import { syncAgencyClients } from "../services/agency.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
@@ -69,6 +69,9 @@ async function processExpiryJob(_job: Job): Promise<void> {
   // Custom domains waiting on the customer's DNS / Cloudflare's certificate.
   await refreshPendingDomains().catch((err) =>
     logger.error("Checking pending custom domains failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  await releaseLapsedDomains().catch((err) =>
+    logger.error("Releasing lapsed custom domains failed", { error: err instanceof Error ? err.message : String(err) }),
   )
   // Uploads never attached within a day are deleted, so they cannot pile up.
   await sweepOAuth().catch((err) =>

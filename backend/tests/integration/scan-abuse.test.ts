@@ -71,6 +71,21 @@ describe("scan quota abuse", () => {
     expect(await settledCount(await quotaKey(user.id))).toBe(SCAN_RATE_PER_MINUTE)
   })
 
+  it("should count one IPv6 client rotating its own addresses as one address", async () => {
+    // A phone or server holds a whole /64 and can use a new address for every
+    // request. Each used to be a new visitor, so one client could use up an
+    // account's monthly scans and switch its codes off.
+    const { user, qr } = await starterCode()
+    for (let i = 0; i < SCAN_RATE_PER_MINUTE + 15; i++) {
+      const res = await scan(qr.slug, `2001:db8:abcd:12:${(i + 1).toString(16)}::${(i * 7 + 1).toString(16)}`, `v6-${i}`)
+      expect(res.status).toBe(302)
+    }
+    expect(await settledCount(await quotaKey(user.id)), "REAL BUG: every IPv6 address in one /64 was counted as a new visitor").toBe(SCAN_RATE_PER_MINUTE)
+    // Another network is still its own visitor.
+    await scan(qr.slug, "2001:db8:abcd:13::1", "other-network").expect(302)
+    expect(await settledCount(await quotaKey(user.id))).toBe(SCAN_RATE_PER_MINUTE + 1)
+  })
+
   it("should not let one address's excess count against other visitors", async () => {
     const { user, qr } = await starterCode()
     for (let i = 0; i < SCAN_RATE_PER_MINUTE + 5; i++) await scan(qr.slug, "203.0.113.13", `x${i}`)

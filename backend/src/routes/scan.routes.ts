@@ -26,9 +26,36 @@ function escapeForHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))
 }
 
-/** CSP for the pixel trampoline: its own nonced scripts and the tracker hosts, nothing else. */
+/**
+ * CSP for the pixel trampoline: its own nonced scripts and the tracker hosts, nothing else.
+ *
+ * `sandbox` (without allow-same-origin) gives the page an opaque origin. The
+ * trackers run code the CODE OWNER controls — a Tag Manager container is
+ * arbitrary script — on genxqr.com, the origin whose localStorage holds the
+ * dashboard and admin sign-in tokens. Sandboxed, that script cannot read
+ * genxqr.com's storage or cookies; the redirect itself still works.
+ */
+export const PIXEL_PAGE_SANDBOX = "sandbox allow-scripts"
+
+/**
+ * First script on the sandboxed pixel page. With an opaque origin, reading
+ * document.cookie or localStorage throws and window.origin is "null", and the
+ * trackers then send nothing (checked in Chrome, Nov 2026: Google Analytics,
+ * LinkedIn and TikTok went silent). These stand-ins live in memory for the life
+ * of the page, so the trackers run but still cannot touch genxqr.com's storage.
+ */
+const SANDBOX_STANDINS = `(function(){
+function mem(){var m={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(m,k)?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}}}
+try{window.localStorage}catch(e){try{Object.defineProperty(window,'localStorage',{value:mem(),configurable:true})}catch(_){}}
+try{window.sessionStorage}catch(e){try{Object.defineProperty(window,'sessionStorage',{value:mem(),configurable:true})}catch(_){}}
+try{document.cookie}catch(e){try{var jar='';Object.defineProperty(document,'cookie',{get:function(){return jar},set:function(v){var p=String(v).split(';')[0];var k=p.split('=')[0];jar=jar.split('; ').filter(function(c){return c&&c.split('=')[0]!==k}).concat(p).join('; ')},configurable:true})}catch(_){}}
+try{if(String(window.origin)==='null')Object.defineProperty(window,'origin',{value:location.origin,configurable:true})}catch(_){}
+try{if(!navigator.cookieEnabled)Object.defineProperty(navigator,'cookieEnabled',{get:function(){return true},configurable:true})}catch(_){}
+})();`
+
 export function pixelPageCsp(nonce: string): string {
   return [
+    PIXEL_PAGE_SANDBOX,
     "default-src 'none'",
     `script-src 'nonce-${nonce}' https://www.googletagmanager.com https://connect.facebook.net https://snap.licdn.com https://analytics.tiktok.com`,
     "connect-src https://www.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://connect.facebook.net https://px.ads.linkedin.com https://analytics.tiktok.com",
@@ -177,6 +204,7 @@ router.get(
           res.send(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="robots" content="noindex">
 <meta http-equiv="refresh" content="2;url=${htmlUrl}">
+<script ${n}>${SANDBOX_STANDINS}</script>
 ${gaSnippet}${gtmSnippet}${fbSnippet}${liSnippet}${ttSnippet}
 <script ${n}>setTimeout(function(){window.location.replace('${escapedUrl}');},150);</script>
 </head><body><noscript><a href="${htmlUrl}">Continue</a></noscript></body></html>`)

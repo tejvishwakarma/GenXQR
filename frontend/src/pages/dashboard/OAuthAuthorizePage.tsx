@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { useMutation, useQuery } from "@tanstack/react-query"
-import { Bot, CheckCircle2, Loader2, ShieldCheck, XCircle } from "lucide-react"
+import { AlertTriangle, Bot, CheckCircle2, Loader2, ShieldCheck, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ApiError, answerOAuthRequest, getOAuthRequest } from "@/lib/api"
@@ -56,9 +56,24 @@ export default function OAuthAuthorizePage() {
                 <div className="w-11 h-11 rounded-xl bg-violet-500/15 flex items-center justify-center"><Bot size={22} className="text-violet-500" /></div>
                 <div className="min-w-0">
                   <h1 className="text-lg font-semibold text-zinc-900 dark:text-white">Connect {req.clientName}?</h1>
-                  <p className="text-xs text-zinc-500 truncate">Returns to {req.redirectHost}</p>
+                  <p className="text-xs text-zinc-500">An app outside GenXQR. We haven't checked who runs it.</p>
                 </div>
               </div>
+              {/* The address is shown in full, never cut short: a name can be
+                  anything, so where the approval is SENT is what tells apps apart. */}
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 p-3 text-sm">
+                <p className="text-xs text-zinc-500">{req.onThisDevice ? "Access is sent to an app on this device" : "Access is sent to this website"}</p>
+                <p className="mt-0.5 font-mono font-medium text-zinc-900 dark:text-white break-all">{req.redirectHost}</p>
+              </div>
+              {req.impersonates && (
+                <div className="rounded-xl border border-red-300 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <p>
+                    This app calls itself <strong>{req.clientName}</strong>, but <span className="font-mono break-all">{req.redirectHost}</span> is
+                    not {req.impersonates}'s address. It may be someone pretending. Choose Deny unless you are sure.
+                  </p>
+                </div>
+              )}
               <div className="rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 text-sm text-zinc-700 dark:text-zinc-300 space-y-2">
                 <p className="font-medium text-zinc-900 dark:text-white">It will be able to, on your own account:</p>
                 <ul className="list-disc pl-5 space-y-1">
@@ -80,10 +95,10 @@ export default function OAuthAuthorizePage() {
                 </div>
               ) : (
                 <div className="flex gap-2">
-                  <Button className="flex-1 gap-1.5" onClick={() => answer.mutate(true)} disabled={answer.isPending}>
-                    {answer.isPending && <Loader2 size={14} className="animate-spin" />} Allow
+                  <Button variant={req.impersonates ? "outline" : "default"} className="flex-1 gap-1.5" onClick={() => answer.mutate(true)} disabled={answer.isPending}>
+                    {answer.isPending && <Loader2 size={14} className="animate-spin" />} {req.impersonates ? "Allow anyway" : "Allow"}
                   </Button>
-                  <Button variant="outline" onClick={() => answer.mutate(false)} disabled={answer.isPending}>Deny</Button>
+                  <Button variant={req.impersonates ? "default" : "outline"} className={req.impersonates ? "flex-1" : undefined} onClick={() => answer.mutate(false)} disabled={answer.isPending}>Deny</Button>
                 </div>
               )}
               {answer.error && <p className="text-sm text-red-500">{answer.error instanceof ApiError ? answer.error.message : "Something went wrong."}</p>}

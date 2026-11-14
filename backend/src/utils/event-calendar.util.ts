@@ -26,8 +26,8 @@ export function zonedToUtc(local: string, timeZone: string): Date {
 }
 
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
-/** RFC 5545 TEXT: backslash, semicolon, comma and newlines escaped. */
-const text = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n")
+/** RFC 5545 TEXT: backslash, semicolon, comma and every kind of line break escaped (a bare CR starts a new property too). */
+const text = (s: string) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r\n|\r|\n/g, "\\n")
 /** Lines longer than 75 octets continue on the next line after a space (RFC 5545 3.1). */
 function fold(line: string): string {
   const out: string[] = []

@@ -84,7 +84,10 @@ async function servableQR(req: Request, slug: string) {
   // password (POST /r/:slug/password → /l/<slug>?access=…).
   // On a customer's own domain only their codes exist (custom-domain.service).
   const host = await resolveScanHost(requestHost(req))
-  const foreign = host.kind === "unknown" || (host.kind === "custom" && qr?.userId !== host.ownerId)
+  // A lapsed domain (its owner's plan no longer includes custom domains) serves
+  // nothing: scans there are sent to genxqr.com, and treating it as canonical
+  // let any account's page — a form, say — be opened under that brand's name.
+  const foreign = host.kind === "unknown" || host.kind === "lapsed" || (host.kind === "custom" && qr?.userId !== host.ownerId)
 
   const access = typeof req.query["access"] === "string" ? req.query["access"] : ""
   const unlocked = qr?.isPasswordProtected === true && access !== "" && verifyQRUnlock(access, slug)
@@ -228,7 +231,7 @@ router.get(
         res.json({ success: true, data: await resolveBrandingForUser(host.ownerId) })
         return
       }
-      if (host.kind === "unknown") {
+      if (host.kind === "unknown" || host.kind === "lapsed") {
         res.json({ success: true, data: GENXQR_BRANDING })
         return
       }

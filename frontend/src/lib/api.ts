@@ -1754,7 +1754,7 @@ export function setPlaceCodes(id: string, body: { add?: string[]; remove?: strin
 // ─── AI apps (OAuth for the MCP server) ──────────────────────────────────────
 
 export function getOAuthRequest(id: string) {
-  return apiFetch<{ success: boolean; data: { clientName: string; redirectHost: string; planAllows: boolean } }>(`/api/oauth/requests/${id}`, { headers: authHeader() })
+  return apiFetch<{ success: boolean; data: { clientName: string; redirectHost: string; onThisDevice: boolean; impersonates: string | null; planAllows: boolean } }>(`/api/oauth/requests/${id}`, { headers: authHeader() })
 }
 
 /** Approve or decline; returns where to send the browser (back to the app). */
@@ -2914,8 +2914,10 @@ export function listMyTickets(page = 1, limit = 10) {
 export interface CustomDomain {
   id: string
   hostname: string
-  /** pending (waiting for DNS / HTTPS) · active · failed */
-  status: "pending" | "active" | "failed"
+  /** unverified (the TXT record proving ownership isn't in DNS yet) · pending (waiting for DNS / HTTPS) · active · failed */
+  status: "unverified" | "pending" | "active" | "failed"
+  /** The TXT record that proves ownership, while the domain is unverified. */
+  dns?: { name: string; value: string } | null
   sslStatus: string | null
   verificationErrors: string[] | null
   isDefault: boolean

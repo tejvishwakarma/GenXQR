@@ -272,6 +272,17 @@ describe("single sign-on", () => {
       expect(dan.passwordHash).toBeNull()
       expect(dan.emailVerified).toBe(true)
     })
+
+    it("should never sign in a GenXQR staff account", async () => {
+      // A customer's identity provider vouching for an address must not be a
+      // way into the admin panel, past the staff account's password and two-factor.
+      const { domain } = await ownerWithConnection("google")
+      const staff = await createUser({ email: `ops@${domain}` })
+      await prisma.user.update({ where: { id: staff.id }, data: { role: "ADMIN" } })
+      const r = await ssoLogin(`ops@${domain}`, "google", { email: `ops@${domain}`, email_verified: true, hd: domain })
+      expect(r.location, "REAL BUG: an admin account got a session through a customer's SSO").not.toContain("oauth_code=")
+      expectLoginError(r.location, "sso_staff_account")
+    })
   })
 
   describe("require SSO", () => {

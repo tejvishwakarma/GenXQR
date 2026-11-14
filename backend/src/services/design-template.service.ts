@@ -2,7 +2,7 @@ import { z } from "zod"
 import { Prisma } from "@prisma/client"
 import { prisma } from "../db/prisma.js"
 import { AppError } from "../middleware/error.middleware.js"
-import { createQRSchema } from "./qr.service.js"
+import { createQRSchema, withoutDefaults } from "./qr.service.js"
 import { removeUnreferencedFiles } from "./uploads.service.js"
 
 /**
@@ -16,7 +16,7 @@ import { removeUnreferencedFiles } from "./uploads.service.js"
 export const MAX_TEMPLATES = 100
 
 /** The design fields a template keeps — the QR design schema's own rules, none required. */
-const designSchema = createQRSchema.shape.design.removeDefault()
+const designSchema = withoutDefaults(createQRSchema.shape.design.unwrap())
   .pick({
     primaryColor: true, secondaryColor: true, backgroundColor: true, foregroundColor: true,
     dotStyle: true, cornerSquareStyle: true, cornerDotStyle: true,

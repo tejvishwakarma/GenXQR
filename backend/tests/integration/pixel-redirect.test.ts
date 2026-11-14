@@ -55,6 +55,20 @@ describe("pixel redirect page", () => {
     for (const tag of scripts) expect(tag).toContain(`nonce="${nonce}"`)
   })
 
+  it("should sandbox the page so a tracker cannot read genxqr.com's storage", async () => {
+    // A Tag Manager container is script its owner writes. Unsandboxed it ran on
+    // the dashboard's origin and could read the sign-in token from localStorage.
+    const slug = await makePixelCode({ gtmId: "GTM-ABC1234" })
+    const res = await request(app).get(`/r/${slug}`).expect(200)
+    const csp = res.headers["content-security-policy"] as string
+    const sandbox = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("sandbox"))
+    expect(sandbox, csp).toBe("sandbox allow-scripts")
+    expect(csp).not.toContain("allow-same-origin")
+    // The in-memory stand-ins come before any tracker, or the trackers stay silent.
+    expect(res.text.indexOf("defineProperty(document,'cookie'")).toBeGreaterThan(0)
+    expect(res.text.indexOf("defineProperty(document,'cookie'")).toBeLessThan(res.text.indexOf("googletagmanager.com/gtm.js"))
+  })
+
   it("should fire LinkedIn and TikTok pixels under the same nonce CSP", async () => {
     const slug = await makePixelCode({ linkedinPartnerId: "1234567", tiktokPixelId: "CABCDEFGHIJ1234567890" })
     const res = await request(app).get(`/r/${slug}`).expect(200)

@@ -74,7 +74,51 @@ function allowedRedirect(uri: string): boolean {
   if (u.hash) return false
   if (u.protocol === "https:") return true
   if (u.protocol === "http:") return ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)
-  return /^[a-z][a-z0-9+.-]*:$/.test(u.protocol) && !["javascript:", "data:", "file:", "vbscript:", "blob:", "about:"].includes(u.protocol)
+  return /^[a-z][a-z0-9+.-]*:$/.test(u.protocol) && !REFUSED_SCHEMES.test(u.protocol)
+}
+
+/**
+ * Schemes that are never an app's own callback: ones a browser runs or reads
+ * locally, and ones the operating system hands to a built-in program (mail,
+ * phone, file shares, Windows search and settings…). A redirect to those from
+ * genxqr.com would open that program with attacker-chosen input.
+ */
+const REFUSED_SCHEMES = /^(javascript|data|file|vbscript|blob|about|view-source|chrome|chrome-extension|edge|resource|jar|ftp|ftps|sftp|ws|wss|mailto|tel|sms|facetime|callto|smb|nfs|ssh|telnet|ldap|ldaps|intent|market|itms|itms-apps|itms-services|search-ms|shell|ms-[a-z0-9+.-]*):$/
+
+/**
+ * Names anyone might borrow to look trustworthy, and the only web addresses
+ * that really belong to them. Registration is public, so an app CAN call
+ * itself "Claude"; the consent page says so when it does not return there.
+ */
+const KNOWN_APPS: { name: string; pattern: RegExp; domains: string[] }[] = [
+  { name: "Claude", pattern: /claude|anthropic/i, domains: ["claude.ai", "claude.com", "anthropic.com"] },
+  { name: "ChatGPT", pattern: /chat\s*gpt|open\s*ai/i, domains: ["chatgpt.com", "openai.com"] },
+  { name: "Google", pattern: /gemini|google/i, domains: ["google.com"] },
+  { name: "Microsoft", pattern: /copilot|microsoft/i, domains: ["microsoft.com", "github.com"] },
+  { name: "Cursor", pattern: /cursor/i, domains: ["cursor.com", "cursor.sh"] },
+  { name: "GenXQR", pattern: /gen\s*x\s*qr/i, domains: [] },
+]
+
+const onDomain = (host: string, domain: string) => host === domain || host.endsWith(`.${domain}`)
+
+/** Letters that hide or reorder text (bidi overrides, zero-width, control) never belong in a name. */
+const cleanName = (name: string) => name.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, "").replace(/\s+/g, " ").trim().slice(0, 100)
+
+/**
+ * Where an approval is sent, for the consent page. A web address is shown in
+ * full; "this device" is a loopback address or an installed app's own scheme,
+ * which only reaches a program on the person's own machine.
+ */
+export function describeRedirect(clientName: string, redirectUri: string): { returnsTo: string; onThisDevice: boolean; impersonates: string | null } {
+  let u: URL
+  try { u = new URL(redirectUri) } catch { return { returnsTo: redirectUri, onThisDevice: false, impersonates: null } }
+  if (u.protocol !== "https:") {
+    return { returnsTo: u.protocol === "http:" ? u.host : `${u.protocol}//`, onThisDevice: true, impersonates: null }
+  }
+  const host = u.hostname.toLowerCase()
+  const ours = issuerUrl().hostname.toLowerCase()
+  const borrowed = KNOWN_APPS.find((app) => app.pattern.test(clientName) && !(app.name === "GenXQR" ? onDomain(host, ours) : app.domains.some((d) => onDomain(host, d))))
+  return { returnsTo: u.host, onThisDevice: false, impersonates: borrowed?.name ?? null }
 }
 
 /** The resource a request names must be ours; with none, it is ours by default. */
@@ -87,6 +131,8 @@ function checkResource(resource: URL | string | undefined): string {
 }
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
+
+const MAX_CLIENT_METADATA_BYTES = 8_000
 
 export const clientsStore: OAuthRegisteredClientsStore = {
   async getClient(clientId) {
@@ -106,9 +152,14 @@ export const clientsStore: OAuthRegisteredClientsStore = {
     if (redirects.length === 0 || redirects.length > 10 || !redirects.every((u) => allowedRedirect(String(u)))) {
       throw new InvalidClientMetadataError("redirect_uris must be https (or loopback http, or an app scheme), at most 10")
     }
+    // Registration is public and what it sends is stored: keep it small.
+    if (JSON.stringify(client).length > MAX_CLIENT_METADATA_BYTES) {
+      throw new InvalidClientMetadataError("Client metadata is too large")
+    }
     const id = `gxqr_client_${randomBytes(16).toString("hex")}`
     const { client_secret, client_secret_expires_at, ...metadata } = client as Record<string, unknown>
-    const name = typeof metadata.client_name === "string" ? metadata.client_name.slice(0, 100) : undefined
+    const name = typeof metadata.client_name === "string" ? cleanName(metadata.client_name) || undefined : undefined
+    delete metadata.client_name
     const row = await prisma.oAuthClient.create({
       data: {
         id,
@@ -123,7 +174,7 @@ export const clientsStore: OAuthRegisteredClientsStore = {
 
 const clientName = (c: { metadata: Prisma.JsonValue } | OAuthClientInformationFull) => {
   const m = ("metadata" in c ? c.metadata : c) as Record<string, unknown>
-  return typeof m?.client_name === "string" && m.client_name ? m.client_name : "An AI app"
+  return typeof m?.client_name === "string" && cleanName(m.client_name) ? cleanName(m.client_name) : "An AI app"
 }
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -158,9 +209,20 @@ export const oauthProvider: OAuthServerProvider = {
 
   /** Holds the request and sends the person to GenXQR's consent page. */
   async authorize(client: OAuthClientInformationFull, params: AuthorizationParams, res: Response) {
-    const resource = checkResource(params.resource)
+    // Answered here, not thrown: the SDK turns a thrown error into a redirect to
+    // the client's address, and with public registration that is a ready-made
+    // "genxqr.com link that lands on any site". Nothing leaves for a client's
+    // address until a signed-in person has answered the consent page.
+    let resource: string
+    try { resource = checkResource(params.resource) } catch {
+      res.status(400).json({ error: "invalid_target", error_description: `This server issues tokens only for ${mcpResourceUrl().href}` })
+      return
+    }
     const scopes = params.scopes?.length ? params.scopes : [SCOPE]
-    if (scopes.some((s) => s !== SCOPE)) throw new InvalidRequestError(`Unknown scope; this server has one: ${SCOPE}`)
+    if (scopes.some((s) => s !== SCOPE)) {
+      res.status(400).json({ error: "invalid_scope", error_description: `Unknown scope; this server has one: ${SCOPE}` })
+      return
+    }
     const id = randomBytes(24).toString("base64url")
     const pending: PendingRequest = { clientId: client.client_id, redirectUri: params.redirectUri, codeChallenge: params.codeChallenge, state: params.state, scopes, resource }
     await redis.setex(`oauth:req:${id}`, REQUEST_TTL_S, JSON.stringify(pending))
@@ -241,9 +303,14 @@ const redirectWith = (base: string, params: Record<string, string | undefined>) 
 export async function describeRequest(userId: string, requestId: string) {
   const { req, client } = await pending(requestId)
   const limits = await getPlanLimitsReadOnly(userId)
+  const name = clientName(client)
+  const to = describeRedirect(name, req.redirectUri)
   return {
-    clientName: clientName(client),
-    redirectHost: (() => { try { return new URL(req.redirectUri).host || req.redirectUri } catch { return req.redirectUri } })(),
+    clientName: name,
+    redirectHost: to.returnsTo,
+    onThisDevice: to.onThisDevice,
+    /** A well-known app's name, when this app uses it but does not return to that app's address. */
+    impersonates: to.impersonates,
     planAllows: !!limits.apiAccess,
   }
 }

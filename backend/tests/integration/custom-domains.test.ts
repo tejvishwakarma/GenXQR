@@ -3,7 +3,7 @@ import request from "supertest"
 import app from "../../src/app.js"
 import { env } from "../../src/config/env.js"
 import { prisma } from "../../src/db/prisma.js"
-import { _clearHostCache, normalizeHostname, scanUrlFor } from "../../src/services/custom-domain.service.js"
+import { _clearHostCache, _setDomainTxtResolverForTests, LAPSED_DOMAIN_DAYS, normalizeHostname, refreshPendingDomains, releaseLapsedDomains, scanUrlFor, UNVERIFIED_DOMAIN_DAYS } from "../../src/services/custom-domain.service.js"
 import { createQRCode, createUser, giveSubscription, seedPlans } from "../helpers/factories.js"
 
 /**
@@ -45,8 +45,23 @@ function setCloudflareEnv(on: boolean) {
   e.CUSTOM_DOMAIN_TARGET = on ? "customers.genxqr.com" : undefined
 }
 
-async function addDomain(token: string, hostname: string) {
+/** What DNS answers for TXT lookups in these tests: name → record values. */
+let txt: Record<string, string[]> = {}
+
+/** Adds the domain only: it stays "unverified" until its TXT record is in DNS. */
+async function claimDomain(token: string, hostname: string) {
   return request(app).post("/api/domains").set("Authorization", `Bearer ${token}`).send({ hostname })
+}
+
+/** Adds the domain, publishes the TXT record it asks for, and checks it: now registered with Cloudflare ("pending"). */
+async function addDomain(token: string, hostname: string) {
+  const claimed = await claimDomain(token, hostname)
+  if (claimed.status !== 201) return claimed
+  const dns = claimed.body.data.dns as { name: string; value: string }
+  txt[dns.name] = [dns.value]
+  const checked = await request(app).post(`/api/domains/${claimed.body.data.id}/check`).set("Authorization", `Bearer ${token}`)
+  expect(checked.status, JSON.stringify(checked.body)).toBe(200)
+  return { status: 201, body: checked.body } as typeof claimed
 }
 
 /** A Pro user with one VERIFIED domain. */
@@ -62,8 +77,14 @@ async function ownerWithActiveDomain(hostname: string) {
 }
 
 beforeAll(async () => { await seedPlans() })
-beforeEach(() => { cfCalls = []; cfNextStatus = "pending"; setCloudflareEnv(true); stubCloudflare(); _clearHostCache() })
-afterEach(() => { vi.unstubAllGlobals(); setCloudflareEnv(false); _clearHostCache() })
+beforeEach(() => {
+  cfCalls = []; cfNextStatus = "pending"; txt = {}; setCloudflareEnv(true); stubCloudflare(); _clearHostCache()
+  _setDomainTxtResolverForTests(async (name) => {
+    if (!txt[name]) throw Object.assign(new Error("queryTxt ENOTFOUND"), { code: "ENOTFOUND" })
+    return txt[name]!.map((v) => [v])
+  })
+})
+afterEach(() => { vi.unstubAllGlobals(); setCloudflareEnv(false); _clearHostCache(); _setDomainTxtResolverForTests(null) })
 
 describe("hostname rules", () => {
   it("should accept a subdomain and reject apex domains, URLs with ports, IPs and junk", () => {
@@ -101,6 +122,58 @@ describe("adding domains", () => {
     expect((await addDomain(a.token, "qr.genxqr.com")).status).toBe(422)
     expect((await addDomain(a.token, "qr.shared-brand.com")).status).toBe(201)
     expect((await addDomain(b.token, "qr.shared-brand.com")).status).toBe(409)
+  })
+
+  it("should connect a domain only after its TXT record proves who owns it", async () => {
+    // Cloudflare's check passes whenever the CNAME points at us. A former
+    // customer's leftover CNAME could be claimed by any account, whose pages
+    // were then served on that brand's domain.
+    const attacker = await createUser(); await giveSubscription(attacker.id, "PRO")
+    const claimed = await claimDomain(attacker.token, "qr.left-behind.com")
+    expect(claimed.status).toBe(201)
+    expect(claimed.body.data.status, "REAL BUG: a domain was connected with no proof of ownership").toBe("unverified")
+    expect(claimed.body.data.dns.name).toBe("_genxqr.qr.left-behind.com")
+    expect(cfCalls, "REAL BUG: registered with Cloudflare before ownership was proven").toHaveLength(0)
+
+    const check = () => request(app).post(`/api/domains/${claimed.body.data.id}/check`).set("Authorization", `Bearer ${attacker.token}`)
+    cfNextStatus = "active"
+    expect((await check()).body.data.status).toBe("unverified")
+    // Someone else's record (another account's token) is not proof either.
+    const other = await createUser(); await giveSubscription(other.id, "BUSINESS")
+    const others = await claimDomain(other.token, "qr.someone-else.com")
+    txt["_genxqr.qr.left-behind.com"] = [others.body.data.dns.value]
+    expect((await check()).body.data.status).toBe("unverified")
+    expect(cfCalls).toHaveLength(0)
+    // Not connected, so nothing is served on it and no code can print with it.
+    const code = await createQRCode(attacker.id)
+    expect((await request(app).get(`/r/${code.slug}`).set("Host", "qr.left-behind.com")).status).toBe(404)
+    const use = await request(app).put(`/api/qr/${code.id}`).set("Authorization", `Bearer ${attacker.token}`).send({ customDomainId: claimed.body.data.id })
+    expect(use.status).toBe(422)
+
+    txt["_genxqr.qr.left-behind.com"] = ["v=spf1 -all", claimed.body.data.dns.value]
+    expect((await check()).body.data.status).toBe("pending")
+    expect(cfCalls.filter((c) => c.method === "POST")).toHaveLength(1)
+  })
+
+  it("should not let an unproven claim keep the domain from its owner", async () => {
+    const squatter = await createUser(); await giveSubscription(squatter.id, "PRO")
+    const brand = await createUser(); await giveSubscription(brand.id, "PRO")
+    expect((await claimDomain(squatter.token, "qr.big-brand.com")).status).toBe(201)
+    const real = await addDomain(brand.token, "qr.big-brand.com")
+    expect(real.status, "REAL BUG: an unproven claim blocks the domain's real owner").toBe(201)
+    expect(await prisma.customDomain.count({ where: { userId: squatter.id } })).toBe(0)
+    // Once proven it is taken.
+    expect((await claimDomain(squatter.token, "qr.big-brand.com")).status).toBe(409)
+  })
+
+  it("should drop claims nobody proved after a week", async () => {
+    const u = await createUser(); await giveSubscription(u.id, "BUSINESS")
+    const old = await claimDomain(u.token, "qr.forgotten.com")
+    const fresh = await claimDomain(u.token, "qr.recent.com")
+    await prisma.customDomain.update({ where: { id: old.body.data.id }, data: { createdAt: new Date(Date.now() - (UNVERIFIED_DOMAIN_DAYS + 1) * 86_400_000) } })
+    await refreshPendingDomains()
+    const left = await prisma.customDomain.findMany({ where: { userId: u.id }, select: { id: true } })
+    expect(left.map((d) => d.id)).toEqual([fresh.body.data.id])
   })
 
   it("should answer 503, and register nothing, when Cloudflare is not configured", async () => {
@@ -224,6 +297,57 @@ describe("scanning on a customer's domain", () => {
     const res = await request(app).get(`/r/${code.slug}`).set("Host", "qr.downgraded.com")
     expect(res.status).toBe(302)
     expect(res.headers.location).toBe(`${env.FRONTEND_URL.replace(/\/$/, "")}/r/${code.slug}`)
+  })
+
+  it("should serve no page content or brand on a lapsed domain, whoever owns the code", async () => {
+    // The domain stays connected after the plan lapses. Treated as canonical, it
+    // served ANY account's landing page (a phishing form, say) on the brand's host.
+    const { owner } = await ownerWithActiveDomain("qr.lapsed-brand.com")
+    const own = await createQRCode(owner.id)
+    await giveSubscription(owner.id, "STARTER")
+    const stranger = await createUser(); await giveSubscription(stranger.id, "BUSINESS")
+    await prisma.user.update({ where: { id: stranger.id }, data: { brandName: "Stranger Co" } })
+    const foreign = await createQRCode(stranger.id)
+    const onHost = (path: string) => request(app).get(path).set("Host", "qr.lapsed-brand.com")
+
+    expect((await request(app).get(`/api/public/qr/${foreign.slug}`)).status, "TEST SETUP: the code must be servable on genxqr.com").toBe(200)
+    expect((await onHost(`/api/public/qr/${foreign.slug}`)).status, "REAL BUG: a stranger's page served on a lapsed customer domain").toBe(404)
+    expect((await onHost(`/api/public/qr/${own.slug}`)).status).toBe(404)
+    const posted = await request(app).post(`/api/public/qr/${foreign.slug}/responses`).set("Host", "qr.lapsed-brand.com").send({ answers: {} })
+    expect(posted.status).toBe(404)
+    const brand = await onHost(`/api/public/branding/${foreign.slug}`)
+    expect(brand.body.data.name, "REAL BUG: a stranger's brand shown on a lapsed customer domain").not.toBe("Stranger Co")
+  })
+})
+
+describe("a domain whose owner's plan lapsed", () => {
+  it("should be released 30 days later, and kept if the plan comes back first", async () => {
+    const { owner, domainId } = await ownerWithActiveDomain("qr.stopped-paying.com")
+    const { owner: back, domainId: backId } = await ownerWithActiveDomain("qr.came-back.com")
+    const code = await createQRCode(owner.id)
+    await prisma.qRCode.update({ where: { id: code.id }, data: { customDomainId: domainId } })
+    await giveSubscription(owner.id, "STARTER")
+    await giveSubscription(back.id, "STARTER")
+
+    const day = 86_400_000
+    const t0 = new Date()
+    expect(await releaseLapsedDomains(t0)).toEqual({ marked: 2, released: 0 })
+    // Still there, and scans still reach the code, during the 30 days.
+    expect(await releaseLapsedDomains(new Date(t0.getTime() + (LAPSED_DOMAIN_DAYS - 1) * day))).toEqual({ marked: 0, released: 0 })
+    expect(await prisma.customDomain.count({ where: { id: { in: [domainId, backId] } } })).toBe(2)
+
+    await giveSubscription(back.id, "PRO")
+    cfCalls = []
+    expect(await releaseLapsedDomains(new Date(t0.getTime() + (LAPSED_DOMAIN_DAYS + 1) * day))).toEqual({ marked: 0, released: 1 })
+    expect(await prisma.customDomain.findUnique({ where: { id: domainId } }), "REAL BUG: a lapsed account keeps its domain for ever").toBeNull()
+    expect(cfCalls.some((c) => c.method === "DELETE")).toBe(true)
+    const kept = await prisma.customDomain.findUniqueOrThrow({ where: { id: backId } })
+    expect(kept.lapsedSince, "REAL BUG: a domain was released although the plan came back").toBeNull()
+    // The code is not lost: it prints with genxqr.com again.
+    expect((await prisma.qRCode.findUniqueOrThrow({ where: { id: code.id } })).customDomainId).toBeNull()
+    // And the name is free for whoever proves it next.
+    const next = await createUser(); await giveSubscription(next.id, "PRO")
+    expect((await addDomain(next.token, "qr.stopped-paying.com")).status).toBe(201)
   })
 })
 

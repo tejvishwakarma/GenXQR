@@ -17,8 +17,9 @@ import {
 
 /**
  * Custom domains (backend custom-domain.service.ts): print codes as
- * https://qr.yourbrand.com/r/<code> instead of genxqr.com. The customer adds one
- * CNAME record; Cloudflare issues HTTPS. Personal to the account, like billing.
+ * https://qr.yourbrand.com/r/<code> instead of genxqr.com. The customer adds a
+ * TXT record (proof the domain is theirs) and a CNAME; Cloudflare then issues
+ * HTTPS. Personal to the account, like billing.
  */
 
 function CopyText({ value }: { value: string }) {
@@ -41,6 +42,7 @@ function CopyText({ value }: { value: string }) {
 function StatusBadge({ status }: { status: CustomDomain["status"] }) {
   if (status === "active") return <Badge variant="success">Verified</Badge>
   if (status === "failed") return <Badge variant="destructive">Needs attention</Badge>
+  if (status === "unverified") return <Badge variant="warning">Prove ownership</Badge>
   return <Badge variant="warning">Waiting for DNS</Badge>
 }
 
@@ -95,11 +97,22 @@ function DomainRow({ d, target, onError }: { d: CustomDomain; target: string | n
 
       {d.status !== "active" && target && (
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 text-xs space-y-2">
-          <p className="text-zinc-700 dark:text-zinc-300">Add this record where you manage DNS for your domain:</p>
+          <p className="text-zinc-700 dark:text-zinc-300">
+            {d.dns
+              ? "Add these two records where you manage DNS for your domain. The TXT record proves the domain is yours; the CNAME points it at GenXQR."
+              : "Add this record where you manage DNS for your domain:"}
+          </p>
           <div className="overflow-x-auto">
             <table className="text-left">
               <thead><tr className="text-zinc-500"><th className="pr-6 font-medium">Type</th><th className="pr-6 font-medium">Name</th><th className="font-medium">Target / value</th></tr></thead>
               <tbody>
+                {d.dns && (
+                  <tr className="font-mono text-zinc-900 dark:text-white">
+                    <td className="pr-6 py-1">TXT</td>
+                    <td className="pr-6 py-1">{recordName(d.dns.name)} <CopyText value={recordName(d.dns.name)} /></td>
+                    <td className="py-1 break-all">{d.dns.value} <CopyText value={d.dns.value} /></td>
+                  </tr>
+                )}
                 <tr className="font-mono text-zinc-900 dark:text-white">
                   <td className="pr-6 py-1">CNAME</td>
                   <td className="pr-6 py-1">{recordName(d.hostname)} <CopyText value={recordName(d.hostname)} /></td>

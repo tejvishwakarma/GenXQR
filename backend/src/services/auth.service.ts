@@ -425,7 +425,7 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
     throw new AppError(400, "Invalid or expired password reset link")
   }
   // A link sent before the organisation turned on "require SSO" must not work after.
-  const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true } })
+  const owner = await prisma.user.findUnique({ where: { id: record.userId }, select: { email: true, name: true } })
   if (owner && (await requiredSsoFor(owner.email, record.userId))) throw new AppError(403, "sso_required")
 
   const passwordHash = await hashPassword(input.password)
@@ -443,7 +443,17 @@ export async function resetPassword(input: z.infer<typeof resetPasswordSchema>):
       where: { userId: record.userId, revokedAt: null },
       data: { revokedAt: new Date() }
     })
+    // AI-app connections end too: whoever knew the old password may have
+    // connected one, and it would otherwise keep refreshing after the reset.
+    await tx.oAuthToken.updateMany({ where: { userId: record.userId, revokedAt: null }, data: { revokedAt: new Date() } })
   })
+  // Tell the owner, as a change from Settings does: a reset they did not make
+  // means someone can read their inbox, and the email says what to check.
+  if (owner) {
+    void sendPasswordChangedEmail(owner.email, owner.name, "reset").catch((err: unknown) => {
+      logger.warn("Password-reset notice failed", { userId: record.userId, error: err instanceof Error ? err.message : String(err) })
+    })
+  }
   return record.userId
 }
 
@@ -609,6 +619,7 @@ export async function handleGoogleOAuth(
       if (takeOver) {
         const now = new Date()
         await tx.refreshToken.updateMany({ where: { userId: existingId, revokedAt: null }, data: { revokedAt: now } })
+        await tx.oAuthToken.updateMany({ where: { userId: existingId, revokedAt: null }, data: { revokedAt: now } })
         await tx.emailVerificationToken.deleteMany({ where: { userId: existingId } })
         await tx.passwordResetToken.deleteMany({ where: { userId: existingId } })
       }
@@ -722,6 +733,7 @@ export async function changePassword(
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     })
+    await tx.oAuthToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } })
   })
 
   const { accessToken, jti, refreshExpiresAt } = buildTokenPair(user.id, user.email, user.role)
