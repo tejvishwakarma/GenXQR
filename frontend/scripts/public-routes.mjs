@@ -50,6 +50,16 @@ const QR_TYPE_ROUTES = fs.existsSync(QR_TYPE_FILE)
     }))
   : []
 
+/** Same for the /use-cases/<slug> industry pages (src/content/industry-pages.ts). */
+const INDUSTRY_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/industry-pages.ts")
+const INDUSTRY_ROUTES = fs.existsSync(INDUSTRY_FILE)
+  ? [...fs.readFileSync(INDUSTRY_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/use-cases/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.7",
+    }))
+  : []
+
 export const PUBLIC_ROUTES = [
   // Core
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -57,6 +67,7 @@ export const PUBLIC_ROUTES = [
   { path: "/pricing", changefreq: "monthly", priority: "0.9" },
   { path: "/dynamic-qr", changefreq: "monthly", priority: "0.9" },
   { path: "/use-cases", changefreq: "monthly", priority: "0.8" },
+  ...INDUSTRY_ROUTES,
 
   // Free tools — high intent, worth crawling often
   { path: "/generate", changefreq: "monthly", priority: "0.9" },

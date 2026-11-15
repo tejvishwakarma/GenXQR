@@ -38,6 +38,7 @@ import BlogPage from "@/pages/marketing/BlogPage"
 import BlogPostPage from "@/pages/marketing/BlogPostPage"
 import NotFoundPage from "@/pages/marketing/NotFoundPage"
 import QRTypePage, { QRTypesHubPage } from "@/pages/marketing/QRTypePage"
+import IndustryPage from "@/pages/marketing/IndustryPage"
 import ContactPage from "@/pages/marketing/ContactPage"
 import PrivacyPage from "@/pages/marketing/PrivacyPage"
 import TermsPage from "@/pages/marketing/TermsPage"
@@ -202,6 +203,7 @@ export function AppRoutes() {
           <Route path="/dynamic-qr" element={<DynamicQRPage />} />
           <Route path="/faq" element={<FAQPage />} />
           <Route path="/use-cases" element={<UseCasesPage />} />
+          <Route path="/use-cases/:slug" element={<IndustryPage />} />
           <Route path="/api-docs" element={<APIDocsPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/blog" element={<BlogPage />} />

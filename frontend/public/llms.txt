@@ -37,6 +37,17 @@ Key facts:
 - [Facebook QR code](https://genxqr.com/qr-codes/facebook)
 - [Business page QR code](https://genxqr.com/qr-codes/business): opening hours and contact details
 
+## QR codes by industry (India)
+
+- [Restaurants and cafes](https://genxqr.com/use-cases/restaurants)
+- [Retail and kirana shops](https://genxqr.com/use-cases/retail)
+- [Real estate](https://genxqr.com/use-cases/real-estate)
+- [Events and weddings](https://genxqr.com/use-cases/events)
+- [Clinics and healthcare](https://genxqr.com/use-cases/healthcare)
+- [Schools and coaching institutes](https://genxqr.com/use-cases/education)
+- [Hotels and homestays](https://genxqr.com/use-cases/hotels)
+- [Product packaging](https://genxqr.com/use-cases/packaging)
+
 ## Free tools
 
 - [Free QR code generator](https://genxqr.com/generate)
