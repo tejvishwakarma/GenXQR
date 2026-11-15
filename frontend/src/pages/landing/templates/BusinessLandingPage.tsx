@@ -1,4 +1,6 @@
 import type { PublicQRFile } from "@/lib/api"
+import { safeHttpUrl, socialLinksOf } from "@/lib/socialNetworks"
+import SocialRow from "./SocialRow"
 
 interface Props {
   name: string
@@ -13,7 +15,8 @@ export default function BusinessLandingPage({ name, content, files }: Props) {
   const description = content.description as string | undefined
   const phone = content.phone as string | undefined
   const email = content.email as string | undefined
-  const website = content.website as string | undefined
+  const website = safeHttpUrl(content.website) ?? undefined
+  const socials = socialLinksOf(content.socialLinks)
   const address = content.address as string | undefined
   const hours = content.hours as Record<string, string> | undefined
   const logoFile = files.find((f) => f.fileType === "IMAGE")
@@ -42,6 +45,7 @@ export default function BusinessLandingPage({ name, content, files }: Props) {
             <h1 className="text-xl font-bold text-gray-900">{businessName}</h1>
             {category && <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-full">{category}</span>}
             {description && <p className="text-gray-500 text-sm mt-3 leading-relaxed">{description}</p>}
+            <SocialRow links={socials} className="mt-4" />
           </div>
         </div>
 
