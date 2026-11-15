@@ -60,6 +60,16 @@ const INDUSTRY_ROUTES = fs.existsSync(INDUSTRY_FILE)
     }))
   : []
 
+/** Same for the /compare/<slug> pages (src/content/compare-pages.ts). */
+const COMPARE_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/compare-pages.ts")
+const COMPARE_ROUTES = fs.existsSync(COMPARE_FILE)
+  ? [...fs.readFileSync(COMPARE_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/compare/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.6",
+    }))
+  : []
+
 export const PUBLIC_ROUTES = [
   // Core
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -83,6 +93,8 @@ export const PUBLIC_ROUTES = [
   // Dynamic QR types
   { path: "/qr-codes", changefreq: "monthly", priority: "0.9" },
   ...QR_TYPE_ROUTES,
+  { path: "/compare", changefreq: "monthly", priority: "0.6" },
+  ...COMPARE_ROUTES,
 
   // Content
   // Prerendered always (nginx 404s anything without a file), but left out of

@@ -8,6 +8,7 @@ const footerLinks = {
   Product: [
     { label: "Features", href: "/features" },
     { label: "QR Code Types", href: "/qr-codes" },
+    { label: "Compare", href: "/compare" },
     { label: "Pricing", href: "/pricing" },
     { label: "Use Cases", href: "/use-cases" },
     { label: "API Docs", href: "/api-docs" },

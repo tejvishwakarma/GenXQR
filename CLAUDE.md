@@ -1669,6 +1669,10 @@ pnpm preview               # vite preview (serves dist/)
     **`/use-cases/<slug>`** (15 Nov 2026): eight India-first industry pages (`src/content/industry-pages.ts`,
     `pages/marketing/IndustryPage.tsx`), read into the sitemap the same way; the `/use-cases` cards link to
     them via `href`. Don't sell time-of-day routing there: its rules are in UTC hours.
+    **`/compare/<slug>`** (15 Nov 2026, user OK'd naming competitors): GenXQR vs QR TIGER, Uniqode, Hovercode
+    (`src/content/compare-pages.ts`). Competitor facts ONLY from their own sites, dated `COMPARED_ON`, sources
+    linked on the page; each page says where the competitor is the better choice. Re-verify every competitor
+    fact before changing `COMPARED_ON`. QR Code Generator PRO was left out: its prices couldn't be read.
 
 20. **IndexNow runs at the end of `deploy.sh`** (`frontend/scripts/indexnow.mjs --submit`).
     It submits only public pages whose prerendered HTML changed (state in the gitignored
