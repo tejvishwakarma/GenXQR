@@ -281,11 +281,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
  */
 const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string; h1: string; accent: string; intro: string }>> = {
   url: {
-    title: "Free URL QR Code Generator — Link to Any Website",
+    title: "Free URL to QR Code Generator — Any Website Link",
     description: "Make a free QR code for any website link. Custom colours and dot styles, instant 600px PNG download. No account or credit card needed.",
     h1: "Free URL QR code generator —",
     accent: "link to any website",
-    intro: "Paste any web address and get a QR code that opens it when scanned. The link is stored in the code itself, so it works without an account and never expires.",
+    intro: "Paste any URL or website address and get a QR code that opens it when scanned. The link is stored in the code itself, so it works without an account and never expires.",
   },
   wifi: {
     title: "Free WiFi QR Code Generator — Share Your Network",

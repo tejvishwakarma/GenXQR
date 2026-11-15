@@ -63,6 +63,14 @@ const PRICING_JSON_LD = [
     "mainEntity": [
       {
         "@type": "Question",
+        "name": "How much does a QR code cost?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A static QR code is free: GenXQR's free generator makes URL, WiFi, WhatsApp, Instagram, UPI, SMS and phone codes with no account, and they never expire. A dynamic QR code, which you can edit after printing and which tracks scans, needs a plan: Starter ₹299 a month (50 codes, 5,000 scans a month), Pro ₹799 (150 codes, unlimited scans) or Business ₹2,499 (1,000 codes). Yearly billing costs less, and new accounts get the Pro plan free for 14 days with no card.",
+        },
+      },
+      {
+        "@type": "Question",
         "name": "Can I switch QR code plans any time?",
         "acceptedAnswer": {
           "@type": "Answer",
@@ -263,6 +271,10 @@ const comparisonRows: { feature: string; free: CellValue; starter: CellValue; pr
 // Deliverable 7: 5 featured-snippet-targeting questions
 
 const faqItems = [
+  {
+    q: "How much does a QR code cost?",
+    a: "A static QR code is free: GenXQR's free generator makes URL, WiFi, WhatsApp, Instagram, UPI, SMS and phone codes with no account, and they never expire. A dynamic QR code, which you can edit after printing and which tracks scans, needs a plan: Starter ₹299 a month (50 codes, 5,000 scans a month), Pro ₹799 (150 codes, unlimited scans) or Business ₹2,499 (1,000 codes). Yearly billing costs less, and new accounts get the Pro plan free for 14 days with no card.",
+  },
   {
     q: "Do you have a plan for agencies?",
     a: "Yes — the Agency plan (₹5,999/month, or ₹4,999/month billed yearly). Manage up to 15 clients from one login: each client gets its own workspace, QR codes, brand on its scan pages and custom domain, and you decide how much of your plan each one gets (QR codes, domains, storage and features). Share an analytics report per client under your agency's brand. Your plan's pool is 5,000 dynamic QR codes, 15 custom domains, 100 GB of storage and 10 team seats for your own staff, and scans are unlimited for you and every client.",

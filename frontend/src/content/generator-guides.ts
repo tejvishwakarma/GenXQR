@@ -79,6 +79,10 @@ export const GENERATOR_GUIDES: Record<GuideType, GeneratorGuide> = {
     ],
     faqs: [
       {
+        q: "How do I turn a URL into a QR code?",
+        a: "Copy the web address (URL) from your browser, paste it into the URL field on this page and download the PNG. Scanning the code opens that website. It's free, needs no account and works with any link: a website, a Google Maps pin, a YouTube video or a form.",
+      },
+      {
         q: "Does a URL QR code expire?",
         a: "No. The QR code made on this page holds the link itself, so the code never expires and has no scan limit. It stops being useful only if the web page it points to is taken down or moved.",
       },
@@ -291,7 +295,7 @@ export const GENERATOR_GUIDES: Record<GuideType, GeneratorGuide> = {
     ],
     faqs: [
       {
-        q: "How do I make a QR code for my Instagram profile?",
+        q: "How do I create a QR code for my Instagram page or profile?",
         a: "Choose Instagram above, enter your username without the @, and download the PNG. Scanning it opens your profile, in the Instagram app if it's installed.",
       },
       {
