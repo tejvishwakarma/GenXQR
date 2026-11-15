@@ -3,6 +3,9 @@ import React, { useRef, useState, useEffect, useCallback } from "react"
 import { SEOMeta } from "@/components/SEOMeta"
 import { MktContainer, MktCard } from "@/components/marketing/ui"
 import { PageHero } from "@/components/marketing/PageHero"
+import { FaqAccordion } from "@/components/marketing/FaqAccordion"
+import { GuideSections, faqJsonLd } from "@/components/marketing/GuideContent"
+import { SCANNER_FAQS, SCANNER_SECTIONS } from "@/content/scanner-guide"
 import {
   decodeImageData, parseQRData,
   type ParsedQR, type ParsedVCard, type ParsedWiFi, type ParsedURL,
@@ -12,6 +15,20 @@ import {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type ScanMode = "idle" | "camera" | "upload"
+
+const SCANNER_JSON_LD = [
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "GenXQR free online QR code scanner",
+    "url": "https://genxqr.com/scanner",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Web",
+    "browserRequirements": "Requires a browser with camera access for live scanning; image upload works in any modern browser.",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+  },
+  faqJsonLd(SCANNER_FAQS),
+]
 
 interface ScanResult {
   text: string
@@ -512,6 +529,7 @@ export default function QRScannerPage() {
         title="Free Online QR Code Scanner — Camera or Image"
         description="Scan any QR code in your browser with your phone or laptop camera, or by choosing an image. Free, no app or sign-up, and the image never leaves your device."
         url="/scanner"
+        jsonLd={SCANNER_JSON_LD}
       />
 
       <PageHero
@@ -656,6 +674,14 @@ export default function QRScannerPage() {
             )}
           </div>
         </div>
+      </MktContainer>
+
+      <MktContainer>
+        <GuideSections sections={SCANNER_SECTIONS} className="mt-20" />
+        <section className="mt-16 max-w-3xl mx-auto">
+          <h2 className="text-2xl font-bold text-ink mb-6">QR code scanner questions</h2>
+          <FaqAccordion items={SCANNER_FAQS} />
+        </section>
       </MktContainer>
 
       {/* Result modal — opens automatically on scan, dismissible without clearing */}

@@ -9,6 +9,7 @@
  * Adding a public page? Add it to PUBLIC_ROUTES. Anything not listed here
  * simply won't be submitted to search engines.
  */
+import crypto from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -29,8 +30,9 @@ import { PUBLIC_ROUTES, SITE_URL } from "./public-routes.mjs"
  *
  * so the public/ copy was only ever an indirection Vite then copied to dist.
  *
- * Consequence: this must run AFTER `vite build`, which empties dist. See the
- * build script in package.json.
+ * Consequence: this must run AFTER `vite build`, which empties dist, and after
+ * prerender.mjs, whose pages it fingerprints for lastmod. See the build script
+ * in package.json.
  */
 const OUT_PATH = path.resolve(__dirname, "../dist/sitemap.xml")
 
@@ -40,10 +42,42 @@ const OUT_PATH = path.resolve(__dirname, "../dist/sitemap.xml")
 // to Google — with nothing to make the mismatch visible.
 const today = new Date().toISOString().slice(0, 10)
 
+/**
+ * lastmod is the day a page's CONTENT last changed, not the build date. Every
+ * URL used to carry the day of the build, so the date changed on every deploy
+ * for every page and told search engines nothing (Google ignores a lastmod it
+ * finds unreliable). Each prerendered page is fingerprinted — with the build's
+ * /assets/<hash> references stripped, as indexnow.mjs does, so a code-only
+ * deploy doesn't count — and compared with the last build's fingerprint in
+ * .sitemap-state.json (gitignored, kept on the server between deploys).
+ */
+const DIST = path.resolve(__dirname, "../dist")
+const STATE_FILE = path.resolve(__dirname, "../.sitemap-state.json")
+let state = {}
+try {
+  state = JSON.parse(fs.readFileSync(STATE_FILE, "utf8"))
+} catch {
+  // First build here: every page counts as changed today.
+}
+const nextState = {}
+function lastmodFor(routePath) {
+  const file = routePath === "/" ? path.join(DIST, "index.html") : path.join(DIST, routePath, "index.html")
+  if (!fs.existsSync(file)) {
+    console.error(`generate-sitemap: ${file} is missing. This script must run AFTER prerender.mjs.`)
+    process.exit(1)
+  }
+  const html = fs.readFileSync(file, "utf8").replace(/\/assets\/[^"')\s]+/g, "")
+  const hash = crypto.createHash("sha256").update(html).digest("hex")
+  const prev = state[routePath]
+  const lastmod = prev && prev.hash === hash ? prev.lastmod : today
+  nextState[routePath] = { hash, lastmod }
+  return lastmod
+}
+
 const body = PUBLIC_ROUTES.filter((r) => r.sitemap !== false).map(
   (route) => `  <url>
     <loc>${SITE_URL}${route.path}</loc>
-    <lastmod>${today}</lastmod>
+    <lastmod>${lastmodFor(route.path)}</lastmod>
     <changefreq>${route.changefreq}</changefreq>
     <priority>${route.priority}</priority>
   </url>`,
@@ -64,4 +98,5 @@ if (!fs.existsSync(path.dirname(OUT_PATH))) {
 }
 
 fs.writeFileSync(OUT_PATH, xml, "utf8")
+fs.writeFileSync(STATE_FILE, JSON.stringify(nextState, null, 2))
 console.log(`sitemap.xml — ${PUBLIC_ROUTES.length} URLs written for ${SITE_URL}`)

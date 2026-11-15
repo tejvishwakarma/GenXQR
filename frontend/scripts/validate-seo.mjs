@@ -135,6 +135,18 @@ try {
     .filter((p) => !(p >= 0 && p <= 1))
   if (badPriority.length) fail(`priority out of range: ${badPriority.join(", ")}`)
 
+  // A route listed by public-routes.mjs but unknown to the app (a mistyped
+  // /qr-codes slug, say) prerenders the 404 page and would be submitted.
+  const notFoundHtml = fs.readFileSync(path.join(root, "dist/404.html"), "utf8")
+  const notFoundH1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(notFoundHtml)?.[1]
+  const rendered404 = locs.filter((u) => {
+    const p = new URL(u).pathname
+    const file = path.join(root, "dist", p === "/" ? "index.html" : `${p}/index.html`)
+    if (!fs.existsSync(file)) return true
+    return notFoundH1 && /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(fs.readFileSync(file, "utf8"))?.[1] === notFoundH1
+  })
+  if (rendered404.length) fail(`sitemap URLs with no page (missing or the 404 page): ${rendered404.slice(0, 5).join(", ")}`)
+
   console.log(`  ok  ${locs.length} URLs, no duplicates, all on ${EXPECTED_ORIGIN}`)
 
   // ── payment-gateway compliance ───────────────────────────────────────────

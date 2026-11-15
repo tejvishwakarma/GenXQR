@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select"
 import { SEOMeta } from "@/components/SEOMeta"
 import { Eyebrow } from "@/components/marketing/ui"
+import { GENERATOR_GUIDES, type GeneratorGuide } from "@/content/generator-guides"
+import { GuideSections, faqJsonLd } from "@/components/marketing/GuideContent"
 import { cn } from "@/lib/utils"
 
 // ─── JSON-LD schema ───────────────────────────────────────────────────────────
@@ -35,13 +37,14 @@ const GENERATE_JSON_LD = [
       "@type": "Offer",
       "price": "0",
       "priceCurrency": "INR",
-      "description": "Free QR code generator for URL, WiFi, WhatsApp, Instagram, SMS, and phone. Custom colours, dot shapes, instant PNG download. No account required.",
+      "description": "Free QR code generator for URL, WiFi, WhatsApp, Instagram, UPI, SMS, and phone. Custom colours, dot shapes, instant PNG download. No account required.",
     },
     "featureList": [
       "URL QR code generator",
       "WiFi QR code generator",
       "WhatsApp QR code generator",
       "Instagram QR code generator",
+      "UPI payment QR code generator",
       "SMS QR code generator",
       "Phone number QR code",
       "Custom colour and dot shape",
@@ -96,6 +99,37 @@ const GENERATE_JSON_LD = [
     ],
   },
 ]
+
+/**
+ * A type page's own structured data: the tool at THIS address, its FAQs (the
+ * same ones shown on the page) and where it sits in the site. Every type page
+ * used to carry the hub's FAQ schema, so all five had the same five questions.
+ */
+function typeJsonLd(path: string, guide: GeneratorGuide, description: string) {
+  const url = `https://genxqr.com${path}`
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": `GenXQR free ${guide.name}`,
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "url": url,
+      "description": description,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+    },
+    faqJsonLd(guide.faqs),
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://genxqr.com" },
+        { "@type": "ListItem", "position": 2, "name": "Free QR code generator", "item": "https://genxqr.com/generate" },
+        { "@type": "ListItem", "position": 3, "name": guide.name.replace(/^./, (c) => c.toUpperCase()), "item": url },
+      ],
+    },
+  ]
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,6 +242,11 @@ const faqs = [
   },
 ]
 
+/** The written guide for one QR type (content/generator-guides.ts). */
+function TypeGuide({ guide }: { guide: GeneratorGuide }) {
+  return <GuideSections sections={guide.sections} className="mt-20" />
+}
+
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false)
   return (
@@ -242,11 +281,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
  */
 const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string; h1: string; accent: string; intro: string }>> = {
   url: {
-    title: "Free URL QR Code Generator — Link to Any Website",
+    title: "Free URL to QR Code Generator — Any Website Link",
     description: "Make a free QR code for any website link. Custom colours and dot styles, instant 600px PNG download. No account or credit card needed.",
     h1: "Free URL QR code generator —",
     accent: "link to any website",
-    intro: "Paste any web address and get a QR code that opens it when scanned. The link is stored in the code itself, so it works without an account and never expires.",
+    intro: "Paste any URL or website address and get a QR code that opens it when scanned. The link is stored in the code itself, so it works without an account and never expires.",
   },
   wifi: {
     title: "Free WiFi QR Code Generator — Share Your Network",
@@ -276,6 +315,20 @@ const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string;
     accent: "get paid by any UPI app",
     intro: "Enter your UPI ID and the name payments go to, and optionally a fixed amount and a note. The code holds a standard UPI payment link, so customers scan it in Google Pay, PhonePe, Paytm, BHIM or their bank's app and the details are filled in for them. Check a small test payment before you print.",
   },
+  sms: {
+    title: "Free SMS QR Code Generator — Pre-Filled Text Message",
+    description: "Make a free SMS QR code that opens the messaging app with your number and a message already typed. Works on any phone. PNG download, no account needed.",
+    h1: "Free SMS QR code generator —",
+    accent: "a text message, ready to send",
+    intro: "Enter a phone number and, optionally, a message. Scanning the code opens the phone's messaging app with both filled in, so the person only has to tap Send.",
+  },
+  phone: {
+    title: "Free Phone Number QR Code Generator — Tap to Call",
+    description: "Make a free QR code that opens the dialler with your phone number filled in. Ideal for signboards, vehicles and stickers. PNG download, no account needed.",
+    h1: "Free phone number QR code generator —",
+    accent: "one tap to call",
+    intro: "Enter your phone number with its country code. Scanning the code opens the dialler with the number already entered, so nobody misdials.",
+  },
 }
 
 const TYPE_FROM_PATH: Record<string, QRTypeId> = {
@@ -284,12 +337,16 @@ const TYPE_FROM_PATH: Record<string, QRTypeId> = {
   "/generate/whatsapp": "whatsapp",
   "/generate/instagram": "instagram",
   "/generate/upi": "upi",
+  "/generate/sms": "sms",
+  "/generate/phone": "phone",
 }
 
 export default function StaticGeneratePage() {
   const { pathname } = useLocation()
   const routeType = TYPE_FROM_PATH[pathname]
   const typePage = routeType ? TYPE_PAGES[routeType] : undefined
+  const guide = routeType ? GENERATOR_GUIDES[routeType] : undefined
+  const pageFaqs = guide ? guide.faqs : faqs
   const [activeType, setActiveType] = useState<QRTypeId>(routeType ?? "url")
   const [fields, setFields] = useState<Record<string, string>>({})
   const [fgColor, setFgColor] = useState("#7c3aed")
@@ -369,7 +426,7 @@ export default function StaticGeneratePage() {
         title={typePage?.title ?? "Free QR Code Generator — No Account Needed"}
         description={typePage?.description ?? "Free QR code generator for URL, WiFi, WhatsApp, Instagram, SMS and phone. Custom colours, dot shapes, instant PNG download. No account or credit card needed."}
         url={routeType ? `/generate/${routeType}` : "/generate"}
-        jsonLd={GENERATE_JSON_LD}
+        jsonLd={guide && typePage ? typeJsonLd(`/generate/${routeType}`, guide, typePage.description) : GENERATE_JSON_LD}
       />
 
       <div className="max-w-7xl mx-auto">
@@ -798,6 +855,8 @@ export default function StaticGeneratePage() {
           </div>
         </div>
 
+        {guide && <TypeGuide guide={guide} />}
+
         {/* ── Why upgrade section ──────────────────────────────────────────── */}
         {/* Deliverable 4: New below-the-fold section for SEO + conversion */}
         {/* Deliverable 9: Internal links — /features, /pricing, /dynamic-qr */}
@@ -871,14 +930,14 @@ export default function StaticGeneratePage() {
           <div className="text-center mb-10">
             <h2 className="text-2xl md:text-3xl font-bold text-ink mb-3">
               Questions about{" "}
-              <span className="text-accent">QR code generators</span>
+              <span className="text-accent">{guide ? `${guide.name.replace(/ generator$/, "")}s` : "QR code generators"}</span>
             </h2>
             <p className="text-ink-soft text-sm">
               Everything you need to know before you generate and print.
             </p>
           </div>
           <div className="flex flex-col gap-3">
-            {faqs.map((faq) => (
+            {pageFaqs.map((faq) => (
               <FaqItem key={faq.q} q={faq.q} a={faq.a} />
             ))}
           </div>

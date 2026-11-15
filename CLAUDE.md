@@ -1649,7 +1649,30 @@ pnpm preview               # vite preview (serves dist/)
 
 19. **`/generate/<type>` pages are distinct pages**, each with its own title, H1, intro and
     self-canonical (`TYPE_PAGES` in `StaticGeneratePage.tsx`). They used to share
-    `/generate`'s canonical and content, which tells Google they are duplicates.
+    `/generate`'s canonical and content, which tells Google they are duplicates. Since 15 Nov 2026 each
+    also has its own written guide and FAQs (`src/content/generator-guides.ts`, rendered by
+    `components/marketing/GuideContent.tsx`); the FAQs are also the page's FAQPage schema, so they can't
+    disagree. Before that the pages shared 93% of their text and the same five FAQ questions. A new
+    type page needs: `TYPE_PAGES` + `TYPE_FROM_PATH` + a guide entry + App.tsx route +
+    `public-routes.mjs` + a Footer link + `public/llms.txt`. Guide copy must only claim what
+    `buildQRData` encodes. `/scanner` has the same treatment (`content/scanner-guide.ts`).
+    **Sitemap `lastmod` is the day a page's prerendered HTML last changed** (`generate-sitemap.mjs`
+    fingerprints dist pages like indexnow.mjs; state in gitignored `.sitemap-state.json` on the
+    server), so it now runs AFTER prerender in the build script.
+    **`/qr-codes` and `/qr-codes/<slug>`** (15 Nov 2026): one page per dynamic QR type, content in
+    `src/content/qr-type-pages.ts`, layout `pages/marketing/QRTypePage.tsx`. public-routes.mjs reads the
+    `slug: "…"` lines from that file (keep them one per line, four-space indent), and validate-seo fails if
+    a sitemap URL prerenders the 404 page. "Create" links go through sign-up to `/app/create?type=<key>`,
+    which opens the editor on that type. The file's header lists what the product does NOT do (no PDF
+    viewer, no YouTube embeds, no store detection, no map on business pages, no vCard bio on the page…) —
+    keep page copy inside what the templates actually render.
+    **`/use-cases/<slug>`** (15 Nov 2026): eight India-first industry pages (`src/content/industry-pages.ts`,
+    `pages/marketing/IndustryPage.tsx`), read into the sitemap the same way; the `/use-cases` cards link to
+    them via `href`. Don't sell time-of-day routing there: its rules are in UTC hours.
+    **`/compare/<slug>`** (15 Nov 2026, user OK'd naming competitors): GenXQR vs QR TIGER, Uniqode, Hovercode
+    (`src/content/compare-pages.ts`). Competitor facts ONLY from their own sites, dated `COMPARED_ON`, sources
+    linked on the page; each page says where the competitor is the better choice. Re-verify every competitor
+    fact before changing `COMPARED_ON`. QR Code Generator PRO was left out: its prices couldn't be read.
 
 20. **IndexNow runs at the end of `deploy.sh`** (`frontend/scripts/indexnow.mjs --submit`).
     It submits only public pages whose prerendered HTML changed (state in the gitignored

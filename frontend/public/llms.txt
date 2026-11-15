@@ -1,0 +1,86 @@
+# GenXQR
+
+> GenXQR (genxqr.com) is a QR code generator and management platform built in India. It makes free static QR codes with no account, and dynamic QR codes that can be edited after printing and track every scan by time, city, device and browser. Prices are in Indian rupees, and it supports UPI payment QR codes.
+
+Key facts:
+
+- Free generator, no account needed: URL, WiFi, WhatsApp, Instagram, UPI payment, SMS and phone QR codes, downloaded as 600 px PNG images. These codes hold their content directly, so they never expire and have no scan limit.
+- Dynamic QR codes (paid plans, 14-day free trial, no card needed): 20 QR types including URL, PDF, vCard, menu, link-in-bio, image gallery, video, MP3, app download, coupon, Google review, UPI payment page, event and lead/feedback form. The destination can be changed at any time without reprinting.
+- Scan analytics, A/B tests, smart routing by device, time, country and language, password protection, scan limits, expiry dates, folders, places (where each code is printed), bulk creation from CSV, team workspaces with roles, a REST API, webhooks, Zapier and Make apps, and an MCP server for AI assistants.
+- Plans (monthly, in INR): Starter ₹299 (50 dynamic codes, 5,000 scans a month), Pro ₹799 (150 codes, unlimited scans, API, 1 custom domain), Business ₹2,499 (1,000 codes, white label, SSO, 5 custom domains), Agency ₹5,999 (shared pool for client accounts). Yearly billing costs less. Enterprise is by arrangement.
+- Payments are handled by Cashfree. For UPI QR codes, money goes directly to the merchant's UPI ID; GenXQR never handles it.
+
+## Product
+
+- [Features](https://genxqr.com/features): everything GenXQR does
+- [Dynamic QR codes](https://genxqr.com/dynamic-qr): edit after printing, scan tracking
+- [Pricing](https://genxqr.com/pricing): plans and limits
+- [Use cases](https://genxqr.com/use-cases): restaurants, retail, events, real estate and more
+- [FAQ](https://genxqr.com/faq): answers about QR codes and GenXQR
+
+## Dynamic QR code types
+
+- [All QR code types](https://genxqr.com/qr-codes)
+- [vCard QR code](https://genxqr.com/qr-codes/vcard): digital business card that saves to contacts
+- [PDF QR code](https://genxqr.com/qr-codes/pdf)
+- [Restaurant menu QR code](https://genxqr.com/qr-codes/menu): itemised menu with prices, veg/non-veg and allergens
+- [Google review QR code](https://genxqr.com/qr-codes/google-review)
+- [Event QR code](https://genxqr.com/qr-codes/event): details, map link, add to calendar
+- [Feedback and lead form QR code](https://genxqr.com/qr-codes/form)
+- [Link-in-bio QR code](https://genxqr.com/qr-codes/link-in-bio)
+- [Social media QR code](https://genxqr.com/qr-codes/social-media)
+- [Image gallery QR code](https://genxqr.com/qr-codes/image-gallery)
+- [Video QR code](https://genxqr.com/qr-codes/video)
+- [Audio / MP3 QR code](https://genxqr.com/qr-codes/mp3)
+- [App download QR code](https://genxqr.com/qr-codes/app)
+- [Coupon QR code](https://genxqr.com/qr-codes/coupon)
+- [Facebook QR code](https://genxqr.com/qr-codes/facebook)
+- [Business page QR code](https://genxqr.com/qr-codes/business): opening hours and contact details
+
+## QR codes by industry (India)
+
+- [Restaurants and cafes](https://genxqr.com/use-cases/restaurants)
+- [Retail and kirana shops](https://genxqr.com/use-cases/retail)
+- [Real estate](https://genxqr.com/use-cases/real-estate)
+- [Events and weddings](https://genxqr.com/use-cases/events)
+- [Clinics and healthcare](https://genxqr.com/use-cases/healthcare)
+- [Schools and coaching institutes](https://genxqr.com/use-cases/education)
+- [Hotels and homestays](https://genxqr.com/use-cases/hotels)
+- [Product packaging](https://genxqr.com/use-cases/packaging)
+
+## Comparisons (competitor facts from their own sites, dated)
+
+- [GenXQR vs QR TIGER](https://genxqr.com/compare/qr-tiger)
+- [GenXQR vs Uniqode](https://genxqr.com/compare/uniqode)
+- [GenXQR vs Hovercode](https://genxqr.com/compare/hovercode)
+
+## Free tools
+
+- [Free QR code generator](https://genxqr.com/generate)
+- [URL QR code generator](https://genxqr.com/generate/url)
+- [WiFi QR code generator](https://genxqr.com/generate/wifi)
+- [WhatsApp QR code generator](https://genxqr.com/generate/whatsapp)
+- [Instagram QR code generator](https://genxqr.com/generate/instagram)
+- [UPI QR code generator](https://genxqr.com/generate/upi)
+- [SMS QR code generator](https://genxqr.com/generate/sms)
+- [Phone number QR code generator](https://genxqr.com/generate/phone)
+- [Online QR code scanner](https://genxqr.com/scanner): scan with a camera or from an image, decoded in the browser
+
+## Guides
+
+- [Dynamic vs static QR codes](https://genxqr.com/blog/dynamic-vs-static-qr-codes)
+- [QR code menu for restaurants](https://genxqr.com/blog/qr-code-menu-for-restaurants)
+- [UPI QR codes for your shop](https://genxqr.com/blog/upi-qr-code-for-your-shop)
+- [Print checklist: size, contrast and colour](https://genxqr.com/blog/qr-codes-that-scan-print-checklist)
+- [Google review QR codes](https://genxqr.com/blog/google-review-qr-code)
+
+## Developers
+
+- [API reference](https://genxqr.com/api-docs): REST API, webhooks, Zapier, Make, n8n and the MCP server
+
+## Company
+
+- [About](https://genxqr.com/about)
+- [Contact](https://genxqr.com/contact)
+- [Privacy policy](https://genxqr.com/privacy)
+- [Terms of service](https://genxqr.com/terms)

@@ -35,6 +35,41 @@ const BLOG_ROUTES = fs.existsSync(BLOG_PUBLISHED_DIR)
       .map((f) => ({ path: `/blog/${f.replace(/\.md$/, "")}`, changefreq: "monthly", priority: "0.6" }))
   : []
 
+/**
+ * One route per page in src/content/qr-type-pages.ts (the /qr-codes/<slug>
+ * pages). Read from that file's `slug: "…"` lines, so adding a type there is
+ * the only step; a slug the page component doesn't know would prerender the
+ * 404 page, which validate-seo.mjs refuses.
+ */
+const QR_TYPE_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/qr-type-pages.ts")
+const QR_TYPE_ROUTES = fs.existsSync(QR_TYPE_FILE)
+  ? [...fs.readFileSync(QR_TYPE_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/qr-codes/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.8",
+    }))
+  : []
+
+/** Same for the /use-cases/<slug> industry pages (src/content/industry-pages.ts). */
+const INDUSTRY_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/industry-pages.ts")
+const INDUSTRY_ROUTES = fs.existsSync(INDUSTRY_FILE)
+  ? [...fs.readFileSync(INDUSTRY_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/use-cases/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.7",
+    }))
+  : []
+
+/** Same for the /compare/<slug> pages (src/content/compare-pages.ts). */
+const COMPARE_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/compare-pages.ts")
+const COMPARE_ROUTES = fs.existsSync(COMPARE_FILE)
+  ? [...fs.readFileSync(COMPARE_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/compare/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.6",
+    }))
+  : []
+
 export const PUBLIC_ROUTES = [
   // Core
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -42,6 +77,7 @@ export const PUBLIC_ROUTES = [
   { path: "/pricing", changefreq: "monthly", priority: "0.9" },
   { path: "/dynamic-qr", changefreq: "monthly", priority: "0.9" },
   { path: "/use-cases", changefreq: "monthly", priority: "0.8" },
+  ...INDUSTRY_ROUTES,
 
   // Free tools — high intent, worth crawling often
   { path: "/generate", changefreq: "monthly", priority: "0.9" },
@@ -50,7 +86,15 @@ export const PUBLIC_ROUTES = [
   { path: "/generate/whatsapp", changefreq: "monthly", priority: "0.8" },
   { path: "/generate/instagram", changefreq: "monthly", priority: "0.8" },
   { path: "/generate/upi", changefreq: "monthly", priority: "0.8" },
+  { path: "/generate/sms", changefreq: "monthly", priority: "0.7" },
+  { path: "/generate/phone", changefreq: "monthly", priority: "0.7" },
   { path: "/scanner", changefreq: "monthly", priority: "0.8" },
+
+  // Dynamic QR types
+  { path: "/qr-codes", changefreq: "monthly", priority: "0.9" },
+  ...QR_TYPE_ROUTES,
+  { path: "/compare", changefreq: "monthly", priority: "0.6" },
+  ...COMPARE_ROUTES,
 
   // Content
   // Prerendered always (nginx 404s anything without a file), but left out of

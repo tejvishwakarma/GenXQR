@@ -7,6 +7,8 @@ import { openConsentSettings } from "@/lib/consent"
 const footerLinks = {
   Product: [
     { label: "Features", href: "/features" },
+    { label: "QR Code Types", href: "/qr-codes" },
+    { label: "Compare", href: "/compare" },
     { label: "Pricing", href: "/pricing" },
     { label: "Use Cases", href: "/use-cases" },
     { label: "API Docs", href: "/api-docs" },
@@ -36,6 +38,8 @@ const footerLinks = {
     { label: "WhatsApp QR Code", href: "/generate/whatsapp" },
     { label: "Instagram QR Code", href: "/generate/instagram" },
     { label: "UPI QR Code", href: "/generate/upi" },
+    { label: "SMS QR Code", href: "/generate/sms" },
+    { label: "Phone QR Code", href: "/generate/phone" },
   ],
 }
 

@@ -133,12 +133,15 @@ type UseCase = {
   desc: string
   features: string[]
   outcome: string
+  /** Its own page (content/industry-pages.ts), when there is one. */
+  href?: string
 }
 
 const useCases: UseCase[] = [
   {
     icon: Utensils,
     title: "Restaurants & Cafes",
+    href: "/use-cases/restaurants",
     tint: "amber",
     desc: "Update your menu the moment something changes — new prices, out-of-stock items, or today's specials — without reprinting a single page. One QR code on every table, always showing the right menu.",
     features: [
@@ -152,6 +155,7 @@ const useCases: UseCase[] = [
   {
     icon: ShoppingBag,
     title: "Retail & E-Commerce",
+    href: "/use-cases/retail",
     tint: "blue",
     desc: "Turn packaging, store signage, and window displays into conversion points. Route customers from the shelf to your best offer — and swap the destination when the campaign ends, without new labels.",
     features: [
@@ -165,6 +169,7 @@ const useCases: UseCase[] = [
   {
     icon: CalendarDays,
     title: "Events & Conferences",
+    href: "/use-cases/events",
     tint: "violet",
     desc: "Print badges and banners weeks in advance without fear. If the schedule changes — speakers, venues, session times — update every printed QR in one dashboard click, not a reprint run.",
     features: [
@@ -178,6 +183,7 @@ const useCases: UseCase[] = [
   {
     icon: Stethoscope,
     title: "Healthcare & Clinics",
+    href: "/use-cases/healthcare",
     tint: "emerald",
     desc: "Share appointment links, patient education PDFs, and post-visit resources securely. Password-protect sensitive documents and set automatic expiry on time-sensitive access links.",
     features: [
@@ -191,6 +197,7 @@ const useCases: UseCase[] = [
   {
     icon: GraduationCap,
     title: "Education & Training",
+    href: "/use-cases/education",
     tint: "cyan",
     desc: "Print QR codes on worksheets, textbooks, and notice boards that link to lecture videos, reading materials, and assignment portals. Update the destination each semester without reprinting anything.",
     features: [
@@ -204,6 +211,7 @@ const useCases: UseCase[] = [
   {
     icon: Home,
     title: "Real Estate",
+    href: "/use-cases/real-estate",
     tint: "pink",
     desc: "Attach virtual tours, property details, and agent contact cards to every signboard and brochure. When a property sells or the listing changes, update the destination — the sign stays, the link changes.",
     features: [
@@ -217,6 +225,7 @@ const useCases: UseCase[] = [
   {
     icon: BedDouble,
     title: "Hotels & Hospitality",
+    href: "/use-cases/hotels",
     tint: "indigo",
     desc: "Replace printed room service menus, amenity cards, and Wi-Fi instruction sheets with a single QR code per room. Update room service offerings, spa bookings, or checkout links from one dashboard.",
     features: [
@@ -404,8 +413,13 @@ export default function UseCasesPage() {
                     ))}
                   </ul>
                   {/* Outcome strip — what the use case achieves, as the closer */}
-                  <div className="mt-5 pt-4 border-t border-line">
+                  <div className="mt-5 pt-4 border-t border-line flex items-center justify-between gap-3">
                     <div className="text-xs font-semibold text-accent">{useCase.outcome}</div>
+                    {useCase.href && (
+                      <Link to={useCase.href} className="text-xs font-semibold text-ink hover:text-accent whitespace-nowrap">
+                        Read the guide →
+                      </Link>
+                    )}
                   </div>
                 </MktCard>
               </Reveal>
