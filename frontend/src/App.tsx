@@ -221,6 +221,8 @@ export function AppRoutes() {
           <Route path="/generate/whatsapp" element={<StaticGeneratePage />} />
           <Route path="/generate/instagram" element={<StaticGeneratePage />} />
           <Route path="/generate/upi" element={<StaticGeneratePage />} />
+          <Route path="/generate/sms" element={<StaticGeneratePage />} />
+          <Route path="/generate/phone" element={<StaticGeneratePage />} />
         </Route>
 
         {/* Dashboard Layout */}

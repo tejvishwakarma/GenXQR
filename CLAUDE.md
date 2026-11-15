@@ -1649,7 +1649,16 @@ pnpm preview               # vite preview (serves dist/)
 
 19. **`/generate/<type>` pages are distinct pages**, each with its own title, H1, intro and
     self-canonical (`TYPE_PAGES` in `StaticGeneratePage.tsx`). They used to share
-    `/generate`'s canonical and content, which tells Google they are duplicates.
+    `/generate`'s canonical and content, which tells Google they are duplicates. Since 15 Nov 2026 each
+    also has its own written guide and FAQs (`src/content/generator-guides.ts`, rendered by
+    `components/marketing/GuideContent.tsx`); the FAQs are also the page's FAQPage schema, so they can't
+    disagree. Before that the pages shared 93% of their text and the same five FAQ questions. A new
+    type page needs: `TYPE_PAGES` + `TYPE_FROM_PATH` + a guide entry + App.tsx route +
+    `public-routes.mjs` + a Footer link + `public/llms.txt`. Guide copy must only claim what
+    `buildQRData` encodes. `/scanner` has the same treatment (`content/scanner-guide.ts`).
+    **Sitemap `lastmod` is the day a page's prerendered HTML last changed** (`generate-sitemap.mjs`
+    fingerprints dist pages like indexnow.mjs; state in gitignored `.sitemap-state.json` on the
+    server), so it now runs AFTER prerender in the build script.
 
 20. **IndexNow runs at the end of `deploy.sh`** (`frontend/scripts/indexnow.mjs --submit`).
     It submits only public pages whose prerendered HTML changed (state in the gitignored

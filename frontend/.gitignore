@@ -33,3 +33,5 @@ public/sitemap.xml
 # What scripts/indexnow.mjs last submitted. Lives on the server between deploys
 # so only pages whose content changed are resubmitted.
 .indexnow-state.json
+# Per-page content fingerprints for the sitemap lastmod (generate-sitemap.mjs).
+.sitemap-state.json
