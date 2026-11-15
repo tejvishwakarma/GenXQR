@@ -381,7 +381,9 @@ function populateFormFromQR(
       v.coupon_title = String(d.title ?? "")
       v.coupon_discount = String(d.discount ?? "")
       v.coupon_code = String(d.code ?? "")
-      v.coupon_valid_until = String(d.validUntil ?? "")
+      // Saved as expiresAt (older codes: validUntil). Reading only validUntil
+      // emptied the field when editing, so saving dropped the expiry date.
+      v.coupon_valid_until = String(d.expiresAt ?? d.validUntil ?? "").slice(0, 10)
       v.coupon_terms = String(d.terms ?? "")
       break
     case "links": {
@@ -640,8 +642,12 @@ export default function CreateQRPage() {
   const isEdit = !!id
   const { can } = useWorkspace()
 
-  const [step, setStep] = useState(0)
-  const [selectedType, setSelectedType] = useState("url")
+  // ?type=<key> (from a QR type page such as /qr-codes/vcard) opens a NEW code
+  // on that type's content step. Ignored when editing, or for an unknown key.
+  const [searchParams] = useSearchParams()
+  const presetType = !isEdit && searchParams.get("type") && TYPE_MAP[searchParams.get("type")!] ? searchParams.get("type")! : null
+  const [step, setStep] = useState(presetType ? 1 : 0)
+  const [selectedType, setSelectedType] = useState(presetType ?? "url")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [primaryColor, setPrimaryColor] = useState("#7c3aed")
   // Dark dots on a light background: light-on-dark ("inverted") codes are outside
@@ -820,7 +826,7 @@ export default function CreateQRPage() {
   const shownPlace = placeChoice ?? existingQR?.data?.placeId ?? ""
   // Its folder. null = untouched; a new code starts in the folder it was created from (?folder=).
   const [folderChoice, setFolderChoice] = useState<string | null>(null)
-  const startFolder = useSearchParams()[0].get("folder")
+  const startFolder = searchParams.get("folder")
   const shownFolder = folderChoice ?? (isEdit ? existingQR?.data?.folderId ?? "" : startFolder ?? "")
   const existingDomainUnverified = isEdit && !!existingQR?.data?.customDomainId
     && !activeDomains.some((d) => d.id === existingQR.data.customDomainId)

@@ -18,6 +18,25 @@ Key facts:
 - [Use cases](https://genxqr.com/use-cases): restaurants, retail, events, real estate and more
 - [FAQ](https://genxqr.com/faq): answers about QR codes and GenXQR
 
+## Dynamic QR code types
+
+- [All QR code types](https://genxqr.com/qr-codes)
+- [vCard QR code](https://genxqr.com/qr-codes/vcard): digital business card that saves to contacts
+- [PDF QR code](https://genxqr.com/qr-codes/pdf)
+- [Restaurant menu QR code](https://genxqr.com/qr-codes/menu): itemised menu with prices, veg/non-veg and allergens
+- [Google review QR code](https://genxqr.com/qr-codes/google-review)
+- [Event QR code](https://genxqr.com/qr-codes/event): details, map link, add to calendar
+- [Feedback and lead form QR code](https://genxqr.com/qr-codes/form)
+- [Link-in-bio QR code](https://genxqr.com/qr-codes/link-in-bio)
+- [Social media QR code](https://genxqr.com/qr-codes/social-media)
+- [Image gallery QR code](https://genxqr.com/qr-codes/image-gallery)
+- [Video QR code](https://genxqr.com/qr-codes/video)
+- [Audio / MP3 QR code](https://genxqr.com/qr-codes/mp3)
+- [App download QR code](https://genxqr.com/qr-codes/app)
+- [Coupon QR code](https://genxqr.com/qr-codes/coupon)
+- [Facebook QR code](https://genxqr.com/qr-codes/facebook)
+- [Business page QR code](https://genxqr.com/qr-codes/business): opening hours and contact details
+
 ## Free tools
 
 - [Free QR code generator](https://genxqr.com/generate)

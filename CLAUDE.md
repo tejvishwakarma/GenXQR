@@ -1659,6 +1659,13 @@ pnpm preview               # vite preview (serves dist/)
     **Sitemap `lastmod` is the day a page's prerendered HTML last changed** (`generate-sitemap.mjs`
     fingerprints dist pages like indexnow.mjs; state in gitignored `.sitemap-state.json` on the
     server), so it now runs AFTER prerender in the build script.
+    **`/qr-codes` and `/qr-codes/<slug>`** (15 Nov 2026): one page per dynamic QR type, content in
+    `src/content/qr-type-pages.ts`, layout `pages/marketing/QRTypePage.tsx`. public-routes.mjs reads the
+    `slug: "…"` lines from that file (keep them one per line, four-space indent), and validate-seo fails if
+    a sitemap URL prerenders the 404 page. "Create" links go through sign-up to `/app/create?type=<key>`,
+    which opens the editor on that type. The file's header lists what the product does NOT do (no PDF
+    viewer, no YouTube embeds, no store detection, no map on business pages, no vCard bio on the page…) —
+    keep page copy inside what the templates actually render.
 
 20. **IndexNow runs at the end of `deploy.sh`** (`frontend/scripts/indexnow.mjs --submit`).
     It submits only public pages whose prerendered HTML changed (state in the gitignored

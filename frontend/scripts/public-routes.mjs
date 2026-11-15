@@ -35,6 +35,21 @@ const BLOG_ROUTES = fs.existsSync(BLOG_PUBLISHED_DIR)
       .map((f) => ({ path: `/blog/${f.replace(/\.md$/, "")}`, changefreq: "monthly", priority: "0.6" }))
   : []
 
+/**
+ * One route per page in src/content/qr-type-pages.ts (the /qr-codes/<slug>
+ * pages). Read from that file's `slug: "…"` lines, so adding a type there is
+ * the only step; a slug the page component doesn't know would prerender the
+ * 404 page, which validate-seo.mjs refuses.
+ */
+const QR_TYPE_FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/content/qr-type-pages.ts")
+const QR_TYPE_ROUTES = fs.existsSync(QR_TYPE_FILE)
+  ? [...fs.readFileSync(QR_TYPE_FILE, "utf8").matchAll(/^ {4}slug: "([a-z0-9-]+)",$/gm)].map((m) => ({
+      path: `/qr-codes/${m[1]}`,
+      changefreq: "monthly",
+      priority: "0.8",
+    }))
+  : []
+
 export const PUBLIC_ROUTES = [
   // Core
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -53,6 +68,10 @@ export const PUBLIC_ROUTES = [
   { path: "/generate/sms", changefreq: "monthly", priority: "0.7" },
   { path: "/generate/phone", changefreq: "monthly", priority: "0.7" },
   { path: "/scanner", changefreq: "monthly", priority: "0.8" },
+
+  // Dynamic QR types
+  { path: "/qr-codes", changefreq: "monthly", priority: "0.9" },
+  ...QR_TYPE_ROUTES,
 
   // Content
   // Prerendered always (nginx 404s anything without a file), but left out of

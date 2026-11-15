@@ -7,6 +7,7 @@ import { openConsentSettings } from "@/lib/consent"
 const footerLinks = {
   Product: [
     { label: "Features", href: "/features" },
+    { label: "QR Code Types", href: "/qr-codes" },
     { label: "Pricing", href: "/pricing" },
     { label: "Use Cases", href: "/use-cases" },
     { label: "API Docs", href: "/api-docs" },

@@ -37,6 +37,7 @@ import AboutPage from "@/pages/marketing/AboutPage"
 import BlogPage from "@/pages/marketing/BlogPage"
 import BlogPostPage from "@/pages/marketing/BlogPostPage"
 import NotFoundPage from "@/pages/marketing/NotFoundPage"
+import QRTypePage, { QRTypesHubPage } from "@/pages/marketing/QRTypePage"
 import ContactPage from "@/pages/marketing/ContactPage"
 import PrivacyPage from "@/pages/marketing/PrivacyPage"
 import TermsPage from "@/pages/marketing/TermsPage"
@@ -223,6 +224,8 @@ export function AppRoutes() {
           <Route path="/generate/upi" element={<StaticGeneratePage />} />
           <Route path="/generate/sms" element={<StaticGeneratePage />} />
           <Route path="/generate/phone" element={<StaticGeneratePage />} />
+          <Route path="/qr-codes" element={<QRTypesHubPage />} />
+          <Route path="/qr-codes/:slug" element={<QRTypePage />} />
         </Route>
 
         {/* Dashboard Layout */}
