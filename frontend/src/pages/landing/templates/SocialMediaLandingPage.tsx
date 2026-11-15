@@ -1,9 +1,6 @@
 import type { PublicQRFile } from "@/lib/api"
-
-interface SocialLink {
-  platform: string
-  url: string
-}
+import { SocialIcon } from "@/components/ui/social-icon"
+import { socialLabel, socialLinksOf } from "@/lib/socialNetworks"
 
 interface Props {
   name: string
@@ -12,23 +9,11 @@ interface Props {
   files: PublicQRFile[]
 }
 
-const PLATFORM_CONFIG: Record<string, { color: string; label: string; icon: string }> = {
-  instagram: { color: "#E1306C", label: "Instagram", icon: "📸" },
-  twitter:   { color: "#1DA1F2", label: "Twitter / X", icon: "𝕏" },
-  facebook:  { color: "#1877F2", label: "Facebook", icon: "📘" },
-  linkedin:  { color: "#0A66C2", label: "LinkedIn", icon: "💼" },
-  youtube:   { color: "#FF0000", label: "YouTube", icon: "▶️" },
-  tiktok:    { color: "#000000", label: "TikTok", icon: "🎵" },
-  snapchat:  { color: "#FFFC00", label: "Snapchat", icon: "👻" },
-  pinterest: { color: "#E60023", label: "Pinterest", icon: "📌" },
-  website:   { color: "#4f46e5", label: "Website", icon: "🌐" },
-}
-
 export default function SocialMediaLandingPage({ name, content }: Props) {
   const title = (content.name as string) || name
   const bio = content.bio as string | undefined
   const avatarUrl = content.avatarUrl as string | undefined
-  const links = (content.links as SocialLink[]) ?? []
+  const links = socialLinksOf(content.links)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 flex flex-col items-center py-12 px-4">
@@ -49,31 +34,21 @@ export default function SocialMediaLandingPage({ name, content }: Props) {
 
         {/* Social links */}
         <div className="space-y-3">
-          {links.map((link, i) => {
-            const cfg = PLATFORM_CONFIG[link.platform.toLowerCase()] ?? {
-              color: "#4f46e5",
-              label: link.platform,
-              icon: "🔗",
-            }
-            return (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 w-full py-4 px-5 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
-              >
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-                  style={{ background: cfg.color }}>
-                  {cfg.icon}
-                </div>
-                <span className="font-semibold text-gray-800">{cfg.label}</span>
-                <svg className="w-4 h-4 text-gray-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </a>
-            )
-          })}
+          {links.map((link, i) => (
+            <a
+              key={i}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-4 w-full py-4 px-5 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5"
+            >
+              <span className="flex-shrink-0"><SocialIcon platform={link.platform} size={40} /></span>
+              <span className="font-semibold text-gray-800">{socialLabel(link.platform)}</span>
+              <svg className="w-4 h-4 text-gray-300 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          ))}
           {links.length === 0 && (
             <p className="text-center text-gray-400 py-8">No social links added</p>
           )}

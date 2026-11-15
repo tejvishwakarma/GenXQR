@@ -1,4 +1,6 @@
 import type { PublicQRFile } from "@/lib/api"
+import { safeHttpUrl, socialLabel, socialLinksOf } from "@/lib/socialNetworks"
+import SocialRow from "./SocialRow"
 
 interface Props {
   name: string
@@ -28,17 +30,6 @@ function entries(list: unknown, single: unknown): string[] {
   return fromList.length ? fromList : [str(single)].filter(Boolean)
 }
 
-/** Customer-supplied links render on a public page: http(s) only. */
-function safeHttpUrl(raw: string): string | null {
-  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`
-  try {
-    const u = new URL(withScheme)
-    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null
-  } catch {
-    return null
-  }
-}
-
 function normalize(c: Record<string, unknown>, fallbackName: string) {
   const joinedName = [str(c.firstName), str(c.lastName)].filter(Boolean).join(" ")
   return {
@@ -52,6 +43,9 @@ function normalize(c: Record<string, unknown>, fallbackName: string) {
       .filter((u): u is string => u !== null),
     address: [str(c.address), str(c.city), str(c.state), str(c.zip), str(c.country)].filter(Boolean).join(", "),
     avatarUrl: str(c.avatarUrl) || str(c.profileImage),
+    /** The editor's "Summary / Bio" (the /v1 shape calls it note). */
+    summary: str(c.summary) || str(c.note),
+    socials: socialLinksOf(c.socials),
   }
 }
 
@@ -72,7 +66,11 @@ function buildVCard(v: VCardFields): string {
     ...v.emails.map((e) => `EMAIL:${esc(e)}`),
     ...v.phones.map((p) => `TEL:${esc(p)}`),
     ...v.websites.map((w) => `URL:${esc(w)}`),
+    // Social profiles as labelled URLs: every address book shows these, while
+    // the X-SOCIALPROFILE extension is read by some apps and ignored by others.
+    ...v.socials.map((l) => `URL;TYPE=${esc(socialLabel(l.platform)).replace(/[^\w ()]/g, "")}:${esc(l.url)}`),
     v.address ? `ADR:;;${esc(v.address)};;;;` : null,
+    v.summary ? `NOTE:${esc(v.summary)}` : null,
     "END:VCARD",
   ]
   return lines.filter(Boolean).join("\r\n")
@@ -80,7 +78,7 @@ function buildVCard(v: VCardFields): string {
 
 export default function VCardLandingPage({ name, content }: Props) {
   const v = normalize(content, name)
-  const { fullName, organization, title, phones, emails, websites, address, avatarUrl } = v
+  const { fullName, organization, title, phones, emails, websites, address, avatarUrl, summary, socials } = v
   const primaryColor = "#1a1a2e"
   const accent = "#e94560"
 
@@ -120,6 +118,9 @@ export default function VCardLandingPage({ name, content }: Props) {
               {organization && <p className="text-sm font-medium" style={{ color: accent }}>{organization}</p>}
             </div>
           </div>
+
+          {summary && <p className="mb-4 text-sm leading-relaxed text-gray-600 whitespace-pre-line">{summary}</p>}
+          <SocialRow links={socials} className="mb-4" />
 
           {/* Contact fields */}
           <div className="space-y-3">

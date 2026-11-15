@@ -45,24 +45,18 @@ export default function PDFLandingPage({ name, content, files }: Props) {
                 </div>
               </div>
 
-              <a
-                href={pdfFile.fileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center py-3 px-6 rounded-xl font-semibold text-white transition-opacity hover:opacity-90"
-                style={{ background: accent }}
-              >
-                View PDF
-              </a>
-
+              {/* One button: uploads are served as downloads (Content-Disposition:
+                  attachment, a security rule), so a separate "View PDF" did the
+                  same thing. The phone opens the downloaded file in its viewer. */}
               <a
                 href={pdfFile.fileUrl}
                 download={pdfFile.fileName}
-                className="block w-full text-center py-3 px-6 rounded-xl font-semibold border-2 transition-colors hover:bg-gray-50"
-                style={{ borderColor: accent, color: accent }}
+                className="block w-full text-center py-3 px-6 rounded-xl font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: accent }}
               >
-                Download PDF
+                Open PDF
               </a>
+              <p className="text-center text-xs text-gray-500">The PDF downloads to your phone and opens in its viewer.</p>
             </>
           ) : (
             <p className="text-center text-gray-500 py-8">Document not available</p>

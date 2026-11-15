@@ -1,4 +1,5 @@
 import type { PublicQRFile } from "@/lib/api"
+import { safeHttpUrl } from "@/lib/socialNetworks"
 
 interface Props {
   name: string
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export default function FacebookLandingPage({ name, content }: Props) {
-  const pageUrl = (content.url as string) || "#"
+  const pageUrl = safeHttpUrl(content.url) ?? "#"
   const pageName = (content.pageName as string) || name
   const description = content.description as string | undefined
   const category = content.category as string | undefined
@@ -52,22 +53,11 @@ export default function FacebookLandingPage({ name, content }: Props) {
                 <p className="text-gray-600 text-sm mt-2 leading-relaxed">{description}</p>
               )}
 
-              <div className="flex justify-center gap-6 mt-3 mb-4">
-                <div className="text-center">
-                  <p className="text-sm font-bold text-gray-800">—</p>
-                  <p className="text-[10px] text-gray-400">Followers</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-gray-800">—</p>
-                  <p className="text-[10px] text-gray-400">Likes</p>
-                </div>
-              </div>
-
               <a
                 href={pageUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white font-semibold text-sm transition-opacity hover:opacity-90"
+                className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white font-semibold text-sm transition-opacity hover:opacity-90"
                 style={{ background: "#1877F2" }}
               >
                 <span>📘</span> Visit Page on Facebook

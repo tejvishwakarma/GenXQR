@@ -1,9 +1,10 @@
 import type { PublicQRFile } from "@/lib/api"
+import { safeHttpUrl } from "@/lib/socialNetworks"
 
 interface LinkItem {
   label: string
   url: string
-  icon?: string
+  description?: string
 }
 
 interface Props {
@@ -17,7 +18,10 @@ export default function LinksLandingPage({ name, content }: Props) {
   const title = (content.title as string) || name
   const bio = content.bio as string | undefined
   const avatarUrl = content.avatarUrl as string | undefined
-  const links = (content.links as LinkItem[]) ?? []
+  const links = ((content.links as LinkItem[]) ?? []).flatMap((l) => {
+    const url = safeHttpUrl(l.url)
+    return url ? [{ ...l, url }] : []
+  })
   const primaryColor = (content.primaryColor as string) || "#4f46e5"
 
   return (
@@ -52,10 +56,13 @@ export default function LinksLandingPage({ name, content }: Props) {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between w-full py-4 px-5 bg-white rounded-2xl shadow-sm font-semibold text-gray-800 hover:shadow-md transition-shadow"
+                className="flex items-center justify-between gap-3 w-full py-4 px-5 bg-white rounded-2xl shadow-sm font-semibold text-gray-800 hover:shadow-md transition-shadow"
                 style={{ borderLeft: `4px solid ${primaryColor}` }}
               >
-                <span>{link.label}</span>
+                <span className="min-w-0">
+                  <span className="block">{link.label}</span>
+                  {link.description && <span className="block mt-0.5 text-xs font-normal text-gray-500">{link.description}</span>}
+                </span>
                 <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
