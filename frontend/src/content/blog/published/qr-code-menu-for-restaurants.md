@@ -22,7 +22,7 @@ GenXQR's [menu page](/qr-codes/menu) has:
 - **Your restaurant's name and a short description** at the top
 - **Tabs for each section**, so guests jump straight to Drinks or Desserts
 - **Each item's name, description and price**, in rupees by default (you can set another currency symbol)
-- **A veg or non-veg mark** on each item, a green or red dot in a square
+- **A veg or non-veg mark** on each item, a green circle in a green square for veg, a brown triangle in a brown square for non-veg
 - **Allergens** listed under the item, such as nuts, gluten or dairy
 
 ## Step by step
@@ -48,7 +48,7 @@ A phone screen shows four or five dishes at a time, so the way you write the men
 
 Since 1 January 2022, FSSAI's display rules require food businesses with a Central Licence, or with outlets at ten or more locations, to show **calorie values, allergen information and veg or non-veg logos** on their menu cards and boards. Online food delivery has to show the same information as the outlet. Smaller restaurants are not covered by this, though many show allergens anyway.
 
-If the rules apply to you, the GenXQR menu page has fields for allergens and a veg or non-veg mark; there is no separate calorie field, so add the calorie value to each item's description (for example "420 kcal per serving"). The page's green and red dots are a quick guide for guests, not FSSAI's official logos, so check with your FSSAI adviser what your printed menu and boards must carry. FSSAI's [FAQ on display of information](https://fssai.gov.in/upload/uploadfiles/files/FAQ-%20Display%20of%20Information.pdf) is the place to start.
+If the rules apply to you, the GenXQR menu page has fields for allergens and a veg or non-veg mark; there is no separate calorie field, so add the calorie value to each item's description (for example "420 kcal per serving"). The page draws the marks in FSSAI's shapes and colours, but they are a guide for guests on your phone menu; check with your FSSAI adviser what your printed menu and boards must carry. FSSAI's [FAQ on display of information](https://fssai.gov.in/upload/uploadfiles/files/FAQ-%20Display%20of%20Information.pdf) is the place to start.
 
 ## Use the scan data
 

@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { Helmet } from "react-helmet-async"
 import { useSeoCollector } from "@/lib/seo-collector"
 import {
@@ -93,6 +94,28 @@ export function SEOMeta({
     ? [{ rel: "canonical", href: canonicalUrl }]
     : []
 
+  /**
+   * JSON-LD goes into <head> from an effect, never through the render tree.
+   *
+   * React 19 hoists <title>/<meta>/<link> out of the tree, but NOT a plain
+   * <script>: rendered through Helmet it stayed where SEOMeta sits, at the top
+   * of every page. The prerender renders nothing here (below), so the browser's
+   * first render had an element the prerendered HTML did not — React error
+   * #418 on every page — and React threw the whole page's server HTML away and
+   * rebuilt it. An effect runs after hydration, so the tree matches.
+   * main.tsx removes the prerendered copy (data-seo-static) before this adds
+   * the live one; on navigation the cleanup removes the previous page's.
+   */
+  const jsonLdText = jsonLd ? JSON.stringify(jsonLd) : null
+  useEffect(() => {
+    if (!jsonLdText) return
+    const el = document.createElement("script")
+    el.type = "application/ld+json"
+    el.text = jsonLdText
+    document.head.appendChild(el)
+    return () => el.remove()
+  }, [jsonLdText])
+
   // Null in the browser; non-null only inside the prerender entry. Called during
   // render rather than in an effect because effects do not run under
   // renderToString — which is the whole point. Safe here: the prerender is a
@@ -123,11 +146,6 @@ export function SEOMeta({
       {link.map((tag, i) => (
         <link key={`l${i}`} {...tag} />
       ))}
-      {jsonLd && (
-        <script type="application/ld+json">
-          {JSON.stringify(jsonLd)}
-        </script>
-      )}
     </Helmet>
   )
 }
