@@ -927,7 +927,7 @@ worker purges scans, daily rollups and per-code counters (codes stay, paused).
   1. Password check → redirect to `/r/:slug/password` if locked
   2. Expiry check → redirect to `/r/:slug/expired` or `fallbackUrl`
   3. Scan limit check → same as expiry
-  4. Smart routing evaluation (priority-ordered rules: `device`, `time` (UTC hours), `geo` (country), `language`
+  4. Smart routing evaluation (priority-ordered rules: `device`, `time` (whole hours in the rule's `timeZone`, `to` exclusive; no zone = UTC, which every rule saved before 16 Nov 2026 has — `hourInZone`), `geo` (country), `language`
      — the FIRST Accept-Language entry's base code, `primaryLanguage`; added 7 Nov 2026)
   5. A/B test split (random weighted split between variants)
   6. Log scan via BullMQ queue (async — does not delay redirect)
@@ -1680,7 +1680,7 @@ pnpm preview               # vite preview (serves dist/)
     keep page copy inside what the templates actually render.
     **`/use-cases/<slug>`** (15 Nov 2026): eight India-first industry pages (`src/content/industry-pages.ts`,
     `pages/marketing/IndustryPage.tsx`), read into the sitemap the same way; the `/use-cases` cards link to
-    them via `href`. Don't sell time-of-day routing there: its rules are in UTC hours.
+    them via `href`. Time-of-day routing is in the rule's own time zone since 16 Nov 2026 (whole hours, no days of the week).
     **`/compare/<slug>`** (15 Nov 2026, user OK'd naming competitors): GenXQR vs QR TIGER, Uniqode, Hovercode
     (`src/content/compare-pages.ts`). Competitor facts ONLY from their own sites, dated `COMPARED_ON`, sources
     linked on the page; each page says where the competitor is the better choice. Re-verify every competitor

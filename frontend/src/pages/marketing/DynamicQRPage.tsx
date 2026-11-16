@@ -188,7 +188,7 @@ const smartRoutingFeatures = [
     color: "text-emerald-400",
     bg: "bg-emerald-500/10 border-emerald-500/20",
     title: "Route by time of day",
-    desc: "Lunch menu in the afternoon, dinner menu in the evening. Hour-of-day windows (set in UTC) switch automatically — no manual changes needed.",
+    desc: "Lunch menu in the afternoon, dinner menu in the evening. Hour-of-day windows in your own time zone switch automatically — no manual changes needed.",
   },
   {
     icon: <Shield size={20} />,

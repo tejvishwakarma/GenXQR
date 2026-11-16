@@ -216,12 +216,39 @@ router.post(
 const smartRoutingGuard = requirePlanFeature("smartRouting")
 const abTestingGuard    = requirePlanFeature("abTesting")
 
+/**
+ * An IANA zone name ("Asia/Kolkata", "UTC") that this server's Intl accepts.
+ * Offsets like "+05:30" are refused: they ignore daylight saving where it applies.
+ */
+export function isValidTimeZone(tz: string): boolean {
+  if (!/^(UTC|[A-Za-z]+(?:\/[A-Za-z0-9_+-]+){1,2})$/.test(tz)) return false
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}
+
 const SmartRouteConditionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("device"), device: z.enum(["mobile", "tablet", "desktop"]) }),
-  z.object({ type: z.literal("time"),   from: z.number().int().min(0).max(23), to: z.number().int().min(0).max(23) }),
+  // `to` is exclusive (12 → 15 = 12:00–14:59) and may be below `from` to cross
+  // midnight. No timeZone = UTC, which is what every rule before 16 Nov 2026 meant.
+  z.object({
+    type: z.literal("time"),
+    from: z.number().int().min(0).max(23),
+    to: z.number().int().min(0).max(23),
+    timeZone: z.string().max(64).refine(isValidTimeZone, "Unknown time zone").optional(),
+  }),
   z.object({ type: z.literal("geo"),    countries: z.array(z.string().length(2)).min(1).max(50) }),
   z.object({ type: z.literal("language"), languages: z.array(z.string().regex(/^[a-z]{2,3}$/i)).min(1).max(30) }),
 ])
+
+/** The validated condition, without `type` and without any keys the schema doesn't know. */
+function parseCondition(conditionType: string, conditionValue: Record<string, unknown>): Record<string, unknown> {
+  const { type: _type, ...value } = SmartRouteConditionSchema.parse({ ...conditionValue, type: conditionType })
+  return value
+}
 
 const SmartRouteBodySchema = z.object({
   conditionType:  z.enum(["device", "time", "geo", "language"]),
@@ -271,13 +298,12 @@ router.post(
       const qrId = req.params["id"] as string
       const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = SmartRouteBodySchema.parse(req.body)
-      // Validate conditionValue shape matches conditionType
-      SmartRouteConditionSchema.parse({ type: body.conditionType, ...body.conditionValue })
+      const conditionValue = parseCondition(body.conditionType, body.conditionValue)
       const rule = await prisma.smartRoutingRule.create({
         data: {
           qrId,
           conditionType:  body.conditionType,
-          conditionValue: body.conditionValue as Prisma.InputJsonValue,
+          conditionValue: conditionValue as Prisma.InputJsonValue,
           targetUrl:      body.targetUrl,
           priority:       body.priority,
           isActive:       body.isActive,
@@ -303,7 +329,7 @@ router.put(
       const ruleId = req.params["ruleId"] as string
       const slug = await requireQROwnerId(qrId, wsOwner(req))
       const body = SmartRouteBodySchema.parse(req.body)
-      SmartRouteConditionSchema.parse({ type: body.conditionType, ...body.conditionValue })
+      const conditionValue = parseCondition(body.conditionType, body.conditionValue)
       // Verify rule belongs to this QR
       const existing = await prisma.smartRoutingRule.findFirst({ where: { id: ruleId, qrId } })
       if (!existing) {
@@ -314,7 +340,7 @@ router.put(
         where: { id: ruleId },
         data: {
           conditionType:  body.conditionType,
-          conditionValue: body.conditionValue as Prisma.InputJsonValue,
+          conditionValue: conditionValue as Prisma.InputJsonValue,
           targetUrl:      body.targetUrl,
           priority:       body.priority,
           isActive:       body.isActive,

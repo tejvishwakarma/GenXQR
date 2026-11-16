@@ -292,9 +292,35 @@ export function parseDeviceType(userAgent: string): "mobile" | "tablet" | "deskt
   return "desktop"
 }
 
-function evaluateSmartRoutes(
+const hourFormatters = new Map<string, Intl.DateTimeFormat>()
+
+/**
+ * The hour (0–23) at `now` in `timeZone`, or in UTC when the rule has none.
+ *
+ * Time rules were UTC-only until 16 Nov 2026, so a restaurant in India setting
+ * 12 → 15 for lunch got 17:30–20:30 IST. Rules now carry the zone they were
+ * written in; rules saved before have none and keep meaning UTC, so nothing
+ * that already routes changes behaviour. Zones are validated when a rule is
+ * saved (qr.routes isValidTimeZone), so the cache stays small.
+ */
+export function hourInZone(now: Date, timeZone: unknown): number {
+  if (typeof timeZone !== "string" || !timeZone) return now.getUTCHours()
+  let fmt = hourFormatters.get(timeZone)
+  if (!fmt) {
+    try {
+      fmt = new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone })
+    } catch {
+      return now.getUTCHours()
+    }
+    hourFormatters.set(timeZone, fmt)
+  }
+  const hour = Number(fmt.formatToParts(now).find((p) => p.type === "hour")?.value)
+  return Number.isInteger(hour) ? hour % 24 : now.getUTCHours()
+}
+
+export function evaluateSmartRoutes(
   rules: CachedQR["smartRoutes"],
-  context: { deviceType: string; hour: number; countryCode: string | null; language: string | null },
+  context: { deviceType: string; now: Date; countryCode: string | null; language: string | null },
 ): string | null {
   for (const rule of rules) {
     const cv = rule.conditionValue
@@ -308,10 +334,11 @@ function evaluateSmartRoutes(
         const from = typeof cv.from === "number" ? cv.from : null
         const to = typeof cv.to === "number" ? cv.to : null
         if (from !== null && to !== null) {
+          const hour = hourInZone(context.now, cv.timeZone)
           const inRange =
             from <= to
-              ? context.hour >= from && context.hour < to
-              : context.hour >= from || context.hour < to // crosses midnight
+              ? hour >= from && hour < to
+              : hour >= from || hour < to // crosses midnight
           if (inRange) return rule.targetUrl
         }
         break
@@ -580,9 +607,8 @@ export async function resolveQRScan(
 
   // 6. Smart routing evaluation
   const deviceType = ua ? parseDeviceType(ua) : "desktop"
-  const hour = now.getUTCHours()
   const countryCode = await getCountryCode(ip)
-  const smartUrl = features?.smartRouting ? evaluateSmartRoutes(qr.smartRoutes, { deviceType, hour, countryCode, language: primaryLanguage(opts?.acceptLanguage) }) : null
+  const smartUrl = features?.smartRouting ? evaluateSmartRoutes(qr.smartRoutes, { deviceType, now, countryCode, language: primaryLanguage(opts?.acceptLanguage) }) : null
   if (smartUrl) {
     logScan()
     return await wrapRedirect(smartUrl, qr)
