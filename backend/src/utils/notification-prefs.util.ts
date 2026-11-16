@@ -14,6 +14,8 @@ export const NotificationPrefsSchema = z.object({
   weeklyAnalyticsDigest: z.boolean(),
   billingReminders: z.boolean(),
   productUpdates: z.boolean(),
+  /** The trial onboarding emails (onboarding-email.service.ts). Added 16 Nov 2026. */
+  gettingStartedTips: z.boolean(),
 })
 
 export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>
@@ -23,6 +25,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   weeklyAnalyticsDigest: true,
   billingReminders: true,
   productUpdates: true,
+  gettingStartedTips: true,
 }
 
 /** The stored preferences, or the defaults if none (or unreadable) are stored. */

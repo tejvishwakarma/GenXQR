@@ -20,7 +20,7 @@ import { createQRCode, createUser, giveSubscription, seedPlans } from "../helper
  */
 
 const DAY = 86_400_000
-const OFF = { scanMilestoneAlerts: false, weeklyAnalyticsDigest: false, billingReminders: false, productUpdates: false }
+const OFF = { scanMilestoneAlerts: false, weeklyAnalyticsDigest: false, billingReminders: false, productUpdates: false, gettingStartedTips: false }
 
 describe("monthly scan quota", () => {
   beforeAll(async () => {

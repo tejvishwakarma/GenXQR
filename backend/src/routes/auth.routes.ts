@@ -439,7 +439,12 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = (req.user as unknown as AccessTokenPayload).sub
-      const { notifications } = z.object({ notifications: NotificationPrefsSchema }).parse(req.body)
+      // Partial, merged over what is stored: a dashboard tab loaded before a new
+      // preference existed sends only the keys it knows, and must neither fail
+      // validation nor reset the new one.
+      const { notifications: patch } = z.object({ notifications: NotificationPrefsSchema.partial() }).parse(req.body)
+      const current = await AuthService.findUserById(userId)
+      const notifications = { ...readPrefs(current?.notificationPrefs), ...patch }
 
       await AuthService.updateNotificationPrefs(userId, notifications)
 

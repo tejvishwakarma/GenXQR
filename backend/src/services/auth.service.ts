@@ -85,6 +85,7 @@ export interface NotificationPrefs {
   weeklyAnalyticsDigest: boolean
   billingReminders: boolean
   productUpdates: boolean
+  gettingStartedTips: boolean
 }
 
 /** A finished sign-in, or — for an account with two-factor on — who still has to give a code. */

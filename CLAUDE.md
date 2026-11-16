@@ -524,9 +524,21 @@ All business logic lives in `src/services/`. Services return raw data; routes ha
 |---|---|---|---|
 | `scan.worker.ts` | `scan-processing` | Every QR scan | Records `QRScan`, upserts `QRScanDaily`, increments `QRCode.scanCount`, fires webhooks, checks scan limits, fires limit notifications |
 | `renewal-reminder.worker.ts` | Cron-based | Daily at midnight | Queries subscriptions expiring in 7/3/1 days → sends reminder emails; deduped by `RenewalReminder` table |
-| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses stored codes; sends notice/expired emails; resumes codes for accounts entitled again (§8 "Expiry"). Also settles stale checkout holds (§8), deletes uploads unattached for 24 h (§9), refreshes GeoLite weekly and fills missing user locations (§12). |
+| `subscription-expiry.worker.ts` | `subscription-expiry` | Every 10 min (BullMQ scheduler) | Expires lapsed paid plans/trials → FREE + pauses stored codes; sends notice/expired emails; resumes codes for accounts entitled again (§8 "Expiry"). Also settles stale checkout holds (§8), deletes uploads unattached for 24 h (§9), refreshes GeoLite weekly and fills missing user locations (§12), and sends the trial onboarding emails (below). |
 | `weekly-digest.worker.ts` | `weekly-digest` | Mondays 09:00 IST (BullMQ scheduler, tz Asia/Kolkata) | Sends last week's analytics digest to opted-in owners with scans (`engagement-email.service.ts`) |
 | `webhook-retry.worker.ts` | `setInterval` (60s) | Failed deliveries | Scans `WebhookDelivery` rows where `success=false` and `nextRetryAt <= now`; retries with exponential backoff (30s → 2m → 8m → 32m), max 5 attempts |
+
+**Trial onboarding emails** (built 16 Nov 2026, `services/onboarding-email.service.ts`). Before this a new trial heard
+nothing between the verification email and the "7 days left" reminder. Three emails by trial age, each only inside its
+window: `welcome` days 0–3, `first_code` days 2–5 (no code → where to start with `/app/create?type=…` links; codes but
+no scans → test-and-print tips; already scanned → not sent), `explore` days 5–7 (their counts + plans). Verified USER
+accounts only, not blocked, not members of someone else's team, ≥ 20 h apart, pref `gettingStartedTips`; dedupe =
+LimitAlert `onboarding`/step (a failed send deletes its row to retry). The 7/3/1-day reminders for a TRIALING
+subscription now use `buildTrialEndingEmail` (no card on file, what pauses, and Starter vs Pro from `trialUsage` —
+codes, scan pace, Pro-only features in use), not the paid "renew" wording. Plan figures come from PLAN_LIMITS /
+PLAN_PRICES_INR, never typed into copy. Covered by `tests/integration/onboarding-emails.test.ts` (gap, team and
+preference-merge guards break-tested). `PATCH /api/auth/preferences` is partial and merged over the stored prefs,
+so an old dashboard tab can't fail or reset a newer key.
 
 ### 5.7 Redis Client
 
@@ -1614,7 +1626,7 @@ pnpm preview               # vite preview (serves dist/)
     Until 18 Oct 2026 they were saved as `JSON.stringify(prefs)` — a string inside the Json
     column — so every read returned the defaults and no toggle was ever honoured. Writes
     now store the object; `readPrefs` accepts both shapes. Honoured by: milestone alerts and
-    the weekly digest (`engagement-email.service.ts`), the 7/3/1-day renewal reminders (pause
+    the weekly digest (`engagement-email.service.ts`), the trial onboarding emails (`gettingStartedTips`), the 7/3/1-day renewal reminders (pause
     and expiry notices are always sent), and admin broadcasts (product updates).
 
 16. **Three HTML entry files, not one** (SEO audit, 18 Oct 2026). `pnpm build` writes

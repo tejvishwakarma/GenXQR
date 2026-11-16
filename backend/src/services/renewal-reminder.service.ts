@@ -2,7 +2,9 @@ import { prisma } from "../db/prisma.js"
 import { logger } from "../logger/index.js"
 import { env } from "../config/env.js"
 import { readPrefs } from "../utils/notification-prefs.util.js"
-import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail } from "./email.service.js"
+import { sendEmail, buildRenewalReminderEmail, buildExpiredNoticeEmail, buildTrialEndingEmail } from "./email.service.js"
+import { istDate, planFacts, trialUsage } from "./onboarding-email.service.js"
+import { SCAN_HISTORY_MONTHS_AFTER_LAPSE } from "./subscription-expiry.service.js"
 
 type ReminderType = "7_days" | "3_days" | "1_day" | "expired" | "manual"
 
@@ -34,6 +36,8 @@ async function attemptSend(opts: {
   periodKey: string
   expiryDate: string
   daysLeft: number | null  // null = already expired
+  /** A ready-made email (the trial version) instead of the renewal wording. */
+  email?: { subject: string; html: string }
 }): Promise<{ sent: boolean; skipped: boolean; error?: string }> {
   const paymentUrl = `${env.FRONTEND_URL}/app/billing`
 
@@ -56,15 +60,15 @@ async function attemptSend(opts: {
   }
 
   try {
-    const html =
+    const html = opts.email?.html ?? (
       opts.daysLeft === null
         ? buildExpiredNoticeEmail(opts.userName, opts.planDisplayName, paymentUrl)
-        : buildRenewalReminderEmail(opts.userName, opts.daysLeft, opts.planDisplayName, opts.expiryDate, paymentUrl)
+        : buildRenewalReminderEmail(opts.userName, opts.daysLeft, opts.planDisplayName, opts.expiryDate, paymentUrl))
 
-    const subject =
+    const subject = opts.email?.subject ?? (
       opts.daysLeft === null
         ? `Your ${opts.planDisplayName} plan has expired — GenXQR`
-        : `Your ${opts.planDisplayName} plan expires ${opts.daysLeft === 1 ? "today" : `in ${opts.daysLeft} days`} — GenXQR`
+        : `Your ${opts.planDisplayName} plan expires ${opts.daysLeft === 1 ? "today" : `in ${opts.daysLeft} days`} — GenXQR`)
 
     await sendEmail({ to: opts.userEmail, subject, html })
 
@@ -74,7 +78,7 @@ async function attemptSend(opts: {
         userId: opts.userId,
         to: opts.userEmail,
         subject,
-        template: `renewal-${opts.reminderType}`,
+        template: `${opts.email ? "trial" : "renewal"}-${opts.reminderType}`,
         status: "sent",
         provider: env.RESEND_API_KEY ? "resend" : env.SMTP_HOST ? "smtp" : "console",
       },
@@ -108,6 +112,28 @@ async function attemptSend(opts: {
   }
 }
 
+/** The trial version of the 7 / 3 / 1-day reminder: what happens, and which plan fits. */
+async function trialEndingEmail(
+  sub: { currentPeriodStart: Date; currentPeriodEnd: Date; user: { id: string; name: string } },
+  daysLeft: number,
+): Promise<{ subject: string; html: string }> {
+  const usage = await trialUsage(sub.user.id, sub.currentPeriodStart)
+  return buildTrialEndingEmail({
+    name: sub.user.name,
+    trialEndsOn: istDate(sub.currentPeriodEnd),
+    daysLeft,
+    codes: usage.codes,
+    uniqueScans: usage.uniqueScans,
+    starterLacks: usage.starterLacks,
+    suggested: usage.suggested,
+    plans: planFacts(),
+    historyMonths: SCAN_HISTORY_MONTHS_AFTER_LAPSE,
+    billingUrl: `${env.FRONTEND_URL}/app/billing`,
+    createUrl: `${env.FRONTEND_URL}/app/create`,
+    settingsUrl: `${env.FRONTEND_URL}/app/settings`,
+  })
+}
+
 /**
  * Runs daily: finds subscriptions expiring in 1/3/7 days and sends reminder
  * emails with deduplication. (Expiry itself: subscription-expiry.service.ts.)
@@ -135,6 +161,8 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
       },
       select: {
         id: true,
+        status: true,
+        currentPeriodStart: true,
         currentPeriodEnd: true,
         plan: { select: { name: true, displayName: true } },
         user: { select: { id: true, name: true, email: true, notificationPrefs: true } },
@@ -160,6 +188,9 @@ export async function checkAndSendRenewalReminders(): Promise<void> {
         periodKey: toDateKey(sub.currentPeriodEnd),
         expiryDate: sub.currentPeriodEnd.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }),
         daysLeft: days,
+        // Falls back to the generic wording if the usage lookup fails, rather
+        // than stopping every reminder after it.
+        email: sub.status === "TRIALING" ? await trialEndingEmail(sub, days).catch(() => undefined) : undefined,
       })
 
       if (result.sent)    totalSent++
