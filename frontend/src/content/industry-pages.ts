@@ -4,11 +4,11 @@ import type { GuideSection } from "./generator-guides"
  * One page per industry, at /use-cases/<slug> (pages/marketing/IndustryPage.tsx),
  * written for Indian businesses. Same rule as qr-type-pages.ts: only features
  * the product has, on the plans that have them (billing.service PLAN_LIMITS):
- * smart routing (device, country, language) and A/B tests are Pro and above;
- * team seats start on Pro; places, password protection and scan limits are on
- * every plan; expiry dates from Starter. Do NOT promise time-of-day routing —
- * its rules are entered in UTC hours, which is not something to sell to an
- * Indian shop owner yet. No statistics we can't source.
+ * smart routing (device, time of day, country, language) and A/B tests are Pro
+ * and above; time rules are in the rule's own time zone (since 16 Nov 2026 —
+ * before that UTC only), in whole hours, every day of the week. Team seats
+ * start on Pro; places, password protection and scan limits are on every plan;
+ * expiry dates from Starter. No statistics we can't source.
  *
  * `slug: "…"` lines are read by scripts/public-routes.mjs (one per line,
  * indented four spaces).

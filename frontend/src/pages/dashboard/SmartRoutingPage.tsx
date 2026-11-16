@@ -49,6 +49,30 @@ const LANGUAGES = [
 ]
 const languageName = (code: string) => LANGUAGES.find((l) => l.code === code)?.name ?? code
 
+/** Zones offered for time rules; the browser's own zone is added if it isn't here. */
+const TIME_ZONES = [
+  { id: "Asia/Kolkata", name: "India (IST)" },
+  { id: "UTC", name: "UTC" },
+  { id: "Asia/Dubai", name: "Dubai" },
+  { id: "Asia/Singapore", name: "Singapore" },
+  { id: "Europe/London", name: "London" },
+  { id: "America/New_York", name: "New York" },
+  { id: "America/Los_Angeles", name: "Los Angeles" },
+  { id: "Australia/Sydney", name: "Sydney" },
+]
+/** Older names some browsers still report for the same zone. */
+const ZONE_ALIASES: Record<string, string> = { "Asia/Calcutta": "Asia/Kolkata" }
+function browserTimeZone(): string {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return zone ? ZONE_ALIASES[zone] ?? zone : "Asia/Kolkata"
+  } catch {
+    return "Asia/Kolkata"
+  }
+}
+const zoneName = (id: string) => TIME_ZONES.find((z) => z.id === id)?.name ?? id.replace(/_/g, " ")
+const hh = (n: unknown) => String(n ?? "").padStart(2, "0")
+
 type ConditionType = "device" | "time" | "geo" | "language"
 
 interface RuleForm {
@@ -56,6 +80,8 @@ interface RuleForm {
   device: string
   timeFrom: string
   timeTo: string
+  /** Rules saved before time zones existed have none and mean UTC. */
+  timeZone: string
   countries: string[]
   languages: string[]
   targetUrl: string
@@ -69,6 +95,7 @@ function emptyForm(): RuleForm {
     device: "mobile",
     timeFrom: "9",
     timeTo: "18",
+    timeZone: browserTimeZone(),
     countries: [],
     languages: [],
     targetUrl: "",
@@ -80,7 +107,7 @@ function emptyForm(): RuleForm {
 function buildPayload(form: RuleForm): SmartRoutePayload {
   let conditionValue: Record<string, unknown> = {}
   if (form.conditionType === "device") conditionValue = { device: form.device }
-  if (form.conditionType === "time") conditionValue = { from: Number(form.timeFrom), to: Number(form.timeTo) }
+  if (form.conditionType === "time") conditionValue = { from: Number(form.timeFrom), to: Number(form.timeTo), timeZone: form.timeZone }
   if (form.conditionType === "geo") conditionValue = { countries: form.countries }
   if (form.conditionType === "language") conditionValue = { languages: form.languages }
   return {
@@ -99,6 +126,7 @@ function formFromRule(rule: SmartRoutingRule): RuleForm {
     device: (cv.device as string) ?? "mobile",
     timeFrom: String((cv.from as number) ?? 9),
     timeTo: String((cv.to as number) ?? 18),
+    timeZone: typeof cv.timeZone === "string" ? cv.timeZone : "UTC",
     countries: (cv.countries as string[]) ?? [],
     languages: (cv.languages as string[]) ?? [],
     targetUrl: rule.targetUrl,
@@ -111,7 +139,7 @@ function conditionLabel(rule: SmartRoutingRule) {
   const cv = rule.conditionValue
   switch (rule.conditionType) {
     case "device": return `Device = ${String(cv.device ?? "")}`
-    case "time":   return `Time ${String(cv.from ?? "")}:00 → ${String(cv.to ?? "")}:00 UTC`
+    case "time":   return `Time ${hh(cv.from)}:00 → ${hh(cv.to)}:00 · ${zoneName(typeof cv.timeZone === "string" ? cv.timeZone : "UTC")}`
     case "geo":    return `Countries: ${(cv.countries as string[] | undefined)?.join(", ") ?? ""}`
     case "language": return `Phone language: ${(cv.languages as string[] | undefined)?.map(languageName).join(", ") ?? ""}`
     default: return rule.conditionType
@@ -290,7 +318,7 @@ export default function SmartRoutingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="device">Device type</SelectItem>
-                      <SelectItem value="time">Time of day (UTC)</SelectItem>
+                      <SelectItem value="time">Time of day</SelectItem>
                       <SelectItem value="geo">Country</SelectItem>
                       <SelectItem value="language">Phone language</SelectItem>
                     </SelectContent>
@@ -323,15 +351,31 @@ export default function SmartRoutingPage() {
               )}
 
               {form.conditionType === "time" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-zinc-500 mb-1 block">From (UTC hour 0–23)</label>
-                    <Input type="number" min={0} max={23} value={form.timeFrom} onChange={e => setForm(f => ({ ...f, timeFrom: e.target.value }))} className="h-9 text-sm" />
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-zinc-500 mb-1 block">From hour (0–23)</label>
+                      <Input type="number" min={0} max={23} value={form.timeFrom} onChange={e => setForm(f => ({ ...f, timeFrom: e.target.value }))} className="h-9 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-500 mb-1 block">Until hour (0–23)</label>
+                      <Input type="number" min={0} max={23} value={form.timeTo} onChange={e => setForm(f => ({ ...f, timeTo: e.target.value }))} className="h-9 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-zinc-500 mb-1 block">Time zone</label>
+                      <Select value={form.timeZone} onValueChange={(v) => setForm(f => ({ ...f, timeZone: v }))}>
+                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[...new Set([...TIME_ZONES.map((z) => z.id), browserTimeZone(), form.timeZone])].map((id) => (
+                            <SelectItem key={id} value={id}>{zoneName(id)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs text-zinc-500 mb-1 block">To (UTC hour 0–23)</label>
-                    <Input type="number" min={0} max={23} value={form.timeTo} onChange={e => setForm(f => ({ ...f, timeTo: e.target.value }))} className="h-9 text-sm" />
-                  </div>
+                  <p className="text-xs text-zinc-500">
+                    The until hour is not included: 12 → 15 means 12:00 to 2:59 pm. To cross midnight, put the later hour first (22 → 6).
+                  </p>
                 </div>
               )}
 
