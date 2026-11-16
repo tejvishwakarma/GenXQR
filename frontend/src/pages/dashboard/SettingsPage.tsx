@@ -36,6 +36,7 @@ const NOTIFICATION_ITEMS: Array<{ key: keyof NotificationPreferences; label: str
   { key: "weeklyAnalyticsDigest", label: "Weekly analytics digest", desc: "Mondays at 9:00 am IST, covering the previous Monday–Sunday. Skipped for weeks with no scans" },
   { key: "billingReminders", label: "Billing reminders", desc: "Reminders 7, 3 and 1 day before your plan ends. Pause and expiry notices are always sent" },
   { key: "productUpdates", label: "Product updates", desc: "Announcement emails about new features and changes to GenXQR" },
+  { key: "gettingStartedTips", label: "Getting-started tips", desc: "Three short emails in the first week of your free trial: how to start, testing before you print, and what to try" },
 ]
 
 export default function SettingsPage() {

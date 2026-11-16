@@ -11,6 +11,7 @@ import { sweepOAuth } from "../services/oauth.service.js"
 import { reconcileRefunds } from "../services/refund.service.js"
 import { refreshPendingDomains, releaseLapsedDomains } from "../services/custom-domain.service.js"
 import { syncAgencyClients } from "../services/agency.service.js"
+import { sendOnboardingEmails } from "../services/onboarding-email.service.js"
 
 const QUEUE_NAME = "subscription-expiry"
 
@@ -79,6 +80,10 @@ async function processExpiryJob(_job: Job): Promise<void> {
   )
   await sweepPendingUploads().catch((err) =>
     logger.error("Sweeping unattached uploads failed", { error: err instanceof Error ? err.message : String(err) }),
+  )
+  // Trial onboarding emails: welcome, first code, what to try (each in its window).
+  await sendOnboardingEmails().catch((err) =>
+    logger.error("Onboarding emails failed", { error: err instanceof Error ? err.message : String(err) }),
   )
 }
 

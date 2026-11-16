@@ -446,6 +446,7 @@ export interface NotificationPreferences {
   weeklyAnalyticsDigest: boolean
   billingReminders: boolean
   productUpdates: boolean
+  gettingStartedTips: boolean
 }
 
 export interface NotificationPreferencesResponse {

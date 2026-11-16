@@ -1114,3 +1114,172 @@ export function buildWeeklyDigestEmail(d: WeeklyDigestData): { subject: string; 
     <p style="${SMALL}">Sent every Monday at 9:00 am IST for weeks with scans. Turn it off under <a href="${d.settingsUrl}" style="color:#6366f1">Settings → Notifications</a>.</p>`
   return { subject, html: buildEmailShell(subject, inner) }
 }
+
+// ─── Trial onboarding (onboarding-email.service.ts) ───────────────────────────
+
+const LI = `margin:0 0 10px;font-size:15px;color:#3f3f46;line-height:1.65;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const EYEBROW = `margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif`
+const LINK = `color:#6366f1;font-weight:600;text-decoration:none`
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`
+/** "Priya" from "Priya Sharma": these emails greet people, they don't address forms. */
+const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
+
+function tipsFooter(settingsUrl: string): string {
+  return `<p style="${SMALL}">You're getting a few tips during your free trial. Turn them off under <a href="${settingsUrl}" style="color:#6366f1">Settings → Notifications</a> (Getting-started tips).</p>`
+}
+
+/** Plan facts passed in by the caller (PLAN_LIMITS / PLAN_PRICES_INR), never typed here. */
+export interface OnboardingPlanFacts {
+  starter: { monthly: number; yearly: number; codes: number; scans: number }
+  pro: { monthly: number; yearly: number; codes: number; unlimitedScans: boolean; teamSeats: number }
+}
+
+function planLines(p: OnboardingPlanFacts): string {
+  return `
+    <p style="${LI}"><strong style="color:#18181b">Starter</strong>, ${inr(p.starter.monthly)} a month or ${inr(p.starter.yearly)} a year: ${p.starter.codes} dynamic QR codes and ${p.starter.scans.toLocaleString("en-IN")} scans a month.</p>
+    <p style="${LI}"><strong style="color:#18181b">Pro</strong>, ${inr(p.pro.monthly)} a month or ${inr(p.pro.yearly)} a year: ${p.pro.codes} codes, ${p.pro.unlimitedScans ? "unlimited scans" : "more scans"}, smart routing, A/B tests, bulk generation, the API and ${p.pro.teamSeats} team seats.</p>`
+}
+
+/** Day 0: what the trial includes and how to start. */
+export function buildOnboardingWelcomeEmail(o: {
+  name: string
+  trialEndsOn: string
+  proCodes: number
+  createUrl: string
+  settingsUrl: string
+}): { subject: string; html: string } {
+  const subject = "Welcome to GenXQR: your Pro trial has started"
+  const inner = `
+    <p style="${EYEBROW}">Free trial · until ${escHtml(o.trialEndsOn)}</p>
+    <h1 style="${H1}">Welcome to GenXQR, ${escHtml(firstName(o.name))}</h1>
+    <p style="${P}">Your 14-day Pro trial runs until <strong style="color:#18181b">${escHtml(o.trialEndsOn)}</strong>. Everything in Pro is open: up to ${o.proCodes} dynamic QR codes you can change after printing, unlimited scans with analytics, smart routing, A/B tests, bulk generation and the API.</p>
+    <p style="${P}">Your first code takes three steps:</p>
+    <p style="${LI}"><strong style="color:#18181b">1. Choose what it opens:</strong> a website link, a restaurant menu, your Google review box, a UPI payment page, a business card and more.</p>
+    <p style="${LI}"><strong style="color:#18181b">2. Design it:</strong> your colours, your logo in the middle, and a frame that says what to do, such as "Scan for menu".</p>
+    <p style="${LI}"><strong style="color:#18181b">3. Download and test it:</strong> PNG, SVG or PDF. Scan it with your own phone before you print.</p>
+    ${ctaButton(o.createUrl, "Create your first QR code →")}
+    <p style="${P}">Nothing is charged when the trial ends: there is no card on file. If you don't choose a plan by then, your codes pause until you do.</p>
+    ${tipsFooter(o.settingsUrl)}`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+/** Day 2: no code yet → where to start; codes but no scans → test and print. */
+export function buildOnboardingFirstCodeEmail(o: {
+  name: string
+  variant: "no_codes" | "no_scans"
+  createUrl: (type: string) => string
+  codesUrl: string
+  printGuideUrl: string
+  settingsUrl: string
+}): { subject: string; html: string } {
+  if (o.variant === "no_codes") {
+    const subject = "Where to start with your first QR code"
+    const pick = (type: string, label: string, why: string) =>
+      `<p style="${LI}"><a href="${o.createUrl(type)}" style="${LINK}">${label} →</a><br>${why}</p>`
+    const inner = `
+      <h1 style="${H1}">Where to start with your first QR code</h1>
+      <p style="${P}">Hi ${escHtml(firstName(o.name))}, you haven't made a QR code yet. Most businesses start with one of these:</p>
+      ${pick("menu", "Restaurant or cafe: a menu", "Sections, prices, veg and non-veg marks. Change a price from your phone and every table card is up to date.")}
+      ${pick("review", "Shop, clinic or salon: Google reviews", "Opens your business's review box directly, so happy customers don't have to search for it.")}
+      ${pick("upi", "Posters and invoices: a UPI payment page", "A Pay button that opens the customer's UPI app with your details filled in.")}
+      ${pick("vcard", "Visiting cards: your contact card", "A page with your name, number and email, and a Save contact button.")}
+      ${pick("url", "Anything else: a link", "Your website, a form, a video: change where it goes any time after printing.")}
+      <p style="${P}">Every one of these is dynamic: you can change it after printing and see every scan.</p>
+      ${tipsFooter(o.settingsUrl)}`
+    return { subject, html: buildEmailShell(subject, inner) }
+  }
+  const subject = "Test your QR code before you print it"
+  const inner = `
+    <h1 style="${H1}">Test your QR code before you print it</h1>
+    <p style="${P}">Hi ${escHtml(firstName(o.name))}, your QR code hasn't been scanned yet. Before it goes on paper, a few checks save a reprint:</p>
+    <p style="${LI}"><strong style="color:#18181b">Scan it yourself</strong> with your phone camera, from the distance people will stand at. The scan shows up in your analytics.</p>
+    <p style="${LI}"><strong style="color:#18181b">Print it big enough:</strong> about a tenth of the scanning distance, and never under 2 cm. A table card read from 30 cm needs about 3 cm.</p>
+    <p style="${LI}"><strong style="color:#18181b">Keep it dark on a light background,</strong> with a clear margin around it and a short line that says what scanning gives.</p>
+    <p style="${LI}"><strong style="color:#18181b">Print one first</strong> on the real paper and scan it with an iPhone and an Android phone.</p>
+    ${ctaButton(o.codesUrl, "Open your QR codes →")}
+    <p style="${P}">More detail in our <a href="${o.printGuideUrl}" style="color:#6366f1">print checklist</a>. And if the destination changes later, edit the code: the printed copies keep working.</p>
+    ${tipsFooter(o.settingsUrl)}`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+/** Day 5: their numbers so far, what to try, and the plans after the trial. */
+export function buildOnboardingExploreEmail(o: {
+  name: string
+  trialEndsOn: string
+  codes: number
+  uniqueScans: number
+  plans: OnboardingPlanFacts
+  urls: { create: string; codes: string; analytics: string; places: string; pricing: string; billing: string }
+  settingsUrl: string
+}): { subject: string; html: string } {
+  const fmt = (v: number) => v.toLocaleString("en-IN")
+  const subject = `What to try before your trial ends on ${o.trialEndsOn}`
+  const sofar =
+    o.codes === 0
+      ? `you haven't made a QR code yet. There's still time: <a href="${o.urls.create}" style="color:#6366f1">create one now</a>.`
+      : `so far you have <strong style="color:#18181b">${fmt(o.codes)} QR code${o.codes === 1 ? "" : "s"}</strong> and <strong style="color:#18181b">${fmt(o.uniqueScans)} unique scan${o.uniqueScans === 1 ? "" : "s"}</strong>.`
+  const item = (url: string, label: string, text: string) =>
+    `<p style="${LI}"><a href="${url}" style="${LINK}">${label}</a>: ${text}</p>`
+  const inner = `
+    <p style="${EYEBROW}">Free trial · until ${escHtml(o.trialEndsOn)}</p>
+    <h1 style="${H1}">What to try while everything in Pro is open</h1>
+    <p style="${P}">Hi ${escHtml(firstName(o.name))}, ${sofar}</p>
+    ${item(o.urls.codes, "Change a code after printing", "open any code and edit where it goes. The printed image stays the same.")}
+    ${item(o.urls.analytics, "See who scans", "cities, devices, and the exact time of every scan in the scan log.")}
+    ${item(o.urls.codes, "Schedule a code", "set a start and end date for an offer, and a fallback address for after it ends.")}
+    ${item(o.urls.codes, "Smart routing", "send phones, tablets and computers to different pages, or people to different pages by country or by their phone's language.")}
+    ${item(o.urls.places, "Places", "more than one shop or branch? Give each its own code and compare their scans.")}
+    <p style="${P}">After the trial, you can choose (Business and Agency are there for bigger teams):</p>
+    ${planLines(o.plans)}
+    ${ctaButton(o.urls.billing, "Choose a plan →")}
+    <p style="${P}">Nothing is charged automatically. <a href="${o.urls.pricing}" style="color:#6366f1">Compare every plan</a>.</p>
+    ${tipsFooter(o.settingsUrl)}`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+/**
+ * The 7 / 3 / 1-day reminders for a TRIAL (renewal-reminder.service). The paid
+ * renewal wording ("Renew my subscription") made no sense to someone who has
+ * never paid; this says what happens at the end and which plan fits their use.
+ */
+export function buildTrialEndingEmail(o: {
+  name: string
+  trialEndsOn: string
+  daysLeft: number
+  codes: number
+  uniqueScans: number
+  starterLacks: string[]
+  suggested: "STARTER" | "PRO"
+  plans: OnboardingPlanFacts
+  historyMonths: number
+  billingUrl: string
+  createUrl: string
+  settingsUrl: string
+}): { subject: string; html: string } {
+  const fmt = (v: number) => v.toLocaleString("en-IN")
+  const subject = `Your GenXQR trial ends on ${o.trialEndsOn}`
+  const accent = o.daysLeft <= 1 ? "#ef4444" : o.daysLeft <= 3 ? "#f59e0b" : "#6366f1"
+  const usage =
+    o.codes === 0
+      ? `You haven't made a QR code yet. <a href="${o.createUrl}" style="color:#6366f1">Try one before the trial ends</a>.`
+      : `During your trial: <strong style="color:#18181b">${fmt(o.codes)} QR code${o.codes === 1 ? "" : "s"}</strong>, <strong style="color:#18181b">${fmt(o.uniqueScans)} unique scan${o.uniqueScans === 1 ? "" : "s"}</strong>.`
+  const fit =
+    o.codes === 0
+      ? ""
+      : o.suggested === "STARTER"
+        ? `<p style="${P}"><strong style="color:#18181b">Starter fits how you use GenXQR today</strong> (${inr(o.plans.starter.monthly)} a month): your codes and scans are within its limits, and you aren't using anything only Pro includes.</p>`
+        : `<p style="${P}"><strong style="color:#18181b">Pro keeps everything you use</strong> (${inr(o.plans.pro.monthly)} a month). Starter doesn't include ${o.starterLacks.map(escHtml).join(", ")}.</p>`
+  const inner = `
+    <p style="${EYEBROW}">Free trial</p>
+    <h1 style="${H1}">Your trial ends on ${escHtml(o.trialEndsOn)}</h1>
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 20px"><tr>
+      <td style="background:#fafafa;border:1px solid ${accent}33;border-left:4px solid ${accent};border-radius:10px;padding:14px 18px;font-size:14px;color:#3f3f46;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${usage}</td>
+    </tr></table>
+    <p style="${P}">Hi ${escHtml(firstName(o.name))}, nothing is charged when your trial ends: there is no card on file. To keep your QR codes working, choose a plan before ${escHtml(o.trialEndsOn)}.</p>
+    ${fit}
+    ${ctaButton(o.billingUrl, "Choose a plan →")}
+    <p style="${P}"><strong style="color:#18181b">If you don't choose one,</strong> your account moves to the Free plan and your QR codes pause: anyone who scans them sees a "deactivated" page, or your fallback address if you set one. Choose a plan later and the same codes start working again, unchanged. Your scan history is kept for ${o.historyMonths} months.</p>
+    ${planLines(o.plans)}
+    <p style="${SMALL}">You get this 7, 3 and 1 day before your trial ends. Turn these reminders off under <a href="${o.settingsUrl}" style="color:#6366f1">Settings → Notifications</a> (Billing reminders).</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
