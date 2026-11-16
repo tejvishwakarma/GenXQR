@@ -18,6 +18,18 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUSES = ["", "sent", "failed", "bounced"]
 
+/** "16 Nov 2026, 09:00" — short enough to stay on one line in the table. */
+function formatSentAt(value: string): string {
+  return new Date(value).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+}
+
 export default function AdminEmailPage() {
   const [page, setPage]     = useState(1)
   const [status, setStatus] = useState("")
@@ -39,7 +51,7 @@ export default function AdminEmailPage() {
   }, [search])
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold text-white mb-1">Email Logs</h1>
         {meta && <p className="text-zinc-500 text-sm">{meta.total.toLocaleString()} emails logged</p>}
@@ -75,7 +87,18 @@ export default function AdminEmailPage() {
       ) : (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* Fixed layout: column widths come from the colgroup, so long subjects and
+                addresses are cut with "…" (full text on hover), subjects wrap to two lines, instead of pushing the
+                Sent column off screen. Below 960px the card scrolls sideways. */}
+            <table className="w-full min-w-[960px] table-fixed text-sm">
+              <colgroup>
+                <col className="w-[20%]" />
+                <col />
+                <col className="w-[17%]" />
+                <col className="w-[7%]" />
+                <col className="w-[10%]" />
+                <col className="w-[15%]" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-zinc-800">
                   <th className="text-left text-zinc-500 font-medium px-5 py-3">To</th>
@@ -89,22 +112,29 @@ export default function AdminEmailPage() {
               <tbody>
                 {logs.map((log) => (
                   <tr key={log.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
-                    <td className="px-5 py-3 text-zinc-300 text-sm">{log.to}</td>
-                    <td className="px-4 py-3 text-zinc-400 text-sm max-w-xs truncate" title={log.subject}>{log.subject}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 font-mono">{log.template}</span>
+                    <td className="px-5 py-3 text-zinc-300 text-sm">
+                      <div className="line-clamp-2 [overflow-wrap:anywhere]" title={log.to}>
+                        {/* Break before the @ when the address needs two lines. */}
+                        {log.to.includes("@") ? <>{log.to.slice(0, log.to.lastIndexOf("@"))}<wbr />{log.to.slice(log.to.lastIndexOf("@"))}</> : log.to}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-zinc-500 text-xs">{log.provider}</td>
+                                        <td className="px-4 py-3 text-zinc-400 text-sm">
+                      <div className="line-clamp-2" title={log.subject}>{log.subject}</div>
+                    </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md ${STATUS_COLORS[log.status] ?? "bg-zinc-700 text-zinc-400"}`}>
+                      <span className="inline-block max-w-full truncate align-middle text-xs px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 font-mono" title={log.template}>{log.template}</span>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">{log.provider}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md whitespace-nowrap ${STATUS_COLORS[log.status] ?? "bg-zinc-700 text-zinc-400"}`}>
                         {STATUS_ICONS[log.status]} {log.status}
                       </span>
                       {log.error && (
-                        <div className="text-red-400 text-xs mt-0.5 max-w-xs truncate" title={log.error}>{log.error}</div>
+                        <div className="text-red-400 text-xs mt-0.5 truncate" title={log.error}>{log.error}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
-                      {new Date(log.sentAt).toLocaleString()}
+                      {formatSentAt(log.sentAt)}
                     </td>
                   </tr>
                 ))}

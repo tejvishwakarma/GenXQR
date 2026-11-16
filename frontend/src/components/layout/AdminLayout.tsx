@@ -166,7 +166,10 @@ export function AdminLayout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-56 flex flex-col min-h-screen">
+      {/* min-w-0: a flex item is otherwise at least as wide as its content, so one
+          wide table pushed the whole page past the screen edge (the Email Logs
+          "Sent" column was cut off) instead of scrolling inside its own card. */}
+      <div className="flex-1 min-w-0 lg:ml-56 flex flex-col min-h-screen">
         {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 p-4 bg-zinc-900 border-b border-zinc-800 sticky top-0 z-20">
           <button
@@ -181,7 +184,7 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 min-w-0 p-6">
           <Outlet />
         </main>
       </div>
