@@ -203,7 +203,7 @@ export const QR_TYPE_PAGES: QRTypePageContent[] = [
         heading: "What is a QR code menu?",
         blocks: [
           "A QR code menu is a digital menu guests open by scanning a code on the table, the counter or a takeaway bag. GenXQR builds the menu as a proper mobile page, not a photo of your printed menu: guests see your restaurant name, tabs for each section (Starters, Mains, Drinks…), and a card for each dish with its price.",
-          "Each dish can show a short description, allergens and a veg or non-veg mark, the green and red dots Indian diners look for.",
+          "Each dish can show a short description, allergens and a veg or non-veg mark: a green circle or a brown triangle in a square, the marks Indian diners look for.",
         ],
       },
       {
@@ -248,7 +248,7 @@ export const QR_TYPE_PAGES: QRTypePageContent[] = [
       },
       {
         q: "Can I show veg and non-veg dishes?",
-        a: "Yes. Each dish can be marked veg or non-veg, shown as a green or red dot, and can list allergens.",
+        a: "Yes. Each dish can be marked veg or non-veg, shown as a green circle or a brown triangle in a square, and can list allergens.",
       },
       {
         q: "Can I upload my existing PDF menu instead?",

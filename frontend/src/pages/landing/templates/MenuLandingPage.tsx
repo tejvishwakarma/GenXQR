@@ -22,6 +22,28 @@ interface Props {
   files: PublicQRFile[]
 }
 
+const VEG_GREEN = "#15803d"
+const NON_VEG_BROWN = "#7a3e14"
+
+/**
+ * The marks Indian diners look for, drawn the FSSAI way: a green circle in a
+ * green square for veg, a brown triangle in a brown square for non-veg. The
+ * shapes differ, not just the colours, so the marks also work for colour-blind
+ * guests. (This page used a red dot for non-veg, which is not FSSAI's mark.)
+ */
+function FoodMark({ veg }: { veg: boolean }) {
+  const color = veg ? VEG_GREEN : NON_VEG_BROWN
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4 flex-shrink-0" role="img" aria-label={veg ? "Vegetarian" : "Non-vegetarian"}>
+      <title>{veg ? "Vegetarian" : "Non-vegetarian"}</title>
+      <rect x="1" y="1" width="14" height="14" rx="1.5" fill="white" stroke={color} strokeWidth="2" />
+      {veg
+        ? <circle cx="8" cy="8" r="3.5" fill={color} />
+        : <polygon points="8,4.2 12,11.4 4,11.4" fill={color} />}
+    </svg>
+  )
+}
+
 export default function MenuLandingPage({ name, content }: Props) {
   const restaurantName = (content.restaurantName as string) || name
   const description = content.description as string | undefined
@@ -74,14 +96,7 @@ export default function MenuLandingPage({ name, content }: Props) {
           <div key={i} className="bg-white rounded-2xl p-4 shadow-sm flex gap-3">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                {item.isVeg !== undefined && (
-                  <span
-                    className="w-4 h-4 flex-shrink-0 rounded-sm border-2 flex items-center justify-center text-[8px]"
-                    style={{ borderColor: item.isVeg ? "#16a34a" : "#dc2626" }}
-                  >
-                    <span style={{ color: item.isVeg ? "#16a34a" : "#dc2626" }}>●</span>
-                  </span>
-                )}
+                {item.isVeg !== undefined && <FoodMark veg={item.isVeg} />}
                 <span className="font-semibold text-gray-900 text-sm">{item.name}</span>
               </div>
               {item.description && (

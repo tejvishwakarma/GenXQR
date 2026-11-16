@@ -35,8 +35,8 @@ const tree = (
  * rather than adopting what is already in <head> — so leaving the static ones
  * produced two titles, two descriptions and two canonicals on every page (seen
  * in Search Console's rendered HTML). Removing them first leaves one set.
- * JSON-LD is marked too: Helmet re-renders it on the client as well (measured:
- * two ld+json blocks per page before this).
+ * JSON-LD is marked too: SEOMeta adds it again from an effect (measured: two
+ * ld+json blocks per page before this).
  */
 document.head.querySelectorAll('[data-seo-static]').forEach((el) => el.remove())
 
