@@ -6,7 +6,7 @@ import {
 import { useEffect, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
-import { apiFetch, clearClientSession, fetchUnresolvedAbuseCount, fetchOpenSupportTicketCount, fetchNewApplicationCount } from "@/lib/api"
+import { apiFetch, clearClientSession, fetchUnresolvedAbuseCount, fetchOpenSupportTicketCount, fetchNewApplicationCount, fetchNewContactMessageCount } from "@/lib/api"
 
 const navItems = [
   { label: "Dashboard",     href: "/admin",               icon: <LayoutDashboard size={18} /> },
@@ -60,6 +60,15 @@ export function AdminLayout() {
     staleTime: 30_000,
     refetchInterval: 60_000,
   })
+
+  // New contact-form messages share the Support badge: both are waiting on an answer.
+  const { data: newContactCount = 0 } = useQuery({
+    queryKey: ["admin", "contact-message-count"],
+    queryFn: fetchNewContactMessageCount,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  })
+  const supportBadge = openTicketCount + newContactCount
 
   const { data: newApplicationCount = 0 } = useQuery({
     queryKey: ["admin", "careers-application-count"],
@@ -120,9 +129,9 @@ export function AdminLayout() {
                 {abuseCount > 99 ? "99+" : abuseCount}
               </span>
             )}
-            {item.href === "/admin/support" && openTicketCount > 0 && (
+            {item.href === "/admin/support" && supportBadge > 0 && (
               <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-violet-500 text-white text-[11px] font-bold flex items-center justify-center">
-                {openTicketCount > 99 ? "99+" : openTicketCount}
+                {supportBadge > 99 ? "99+" : supportBadge}
               </span>
             )}
             {item.href === "/admin/careers" && newApplicationCount > 0 && (

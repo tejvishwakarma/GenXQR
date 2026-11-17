@@ -476,6 +476,7 @@ Plans live at `GET /api/billing/plans` (in `billing.routes.ts`, unauthenticated 
 - `/admin-api/email/broadcast` — send email to a user segment
 - `/admin-api/settings` — get/update `PlatformSetting` key-value store
 - `/admin-api/support/tickets` — list/get/update support tickets
+- `/admin-api/support/contact` — contact-form messages (`ContactMessage`, no account needed; stored since 17 Nov 2026): list, `/count` (NEW, added to the Support badge), get (+ any account with that address), `POST /:id/replies` (emails the sender, Reply-To support; not recorded if the email fails), PATCH status NEW/REPLIED/CLOSED + notes, DELETE (SUPER_ADMIN). Admin → Support has Tickets | Contact messages tabs; the support email links `?contact=<id>`. Privacy §1 and §7 mention it.
 - `/admin-api/coupons` — list / get / create / update (PUT) / delete coupons
 - `/admin-api/referrals` — list (`?status=signed_up|pending|credited|cancelled`); `POST /:id/cancel {reason}` voids both rewards
 

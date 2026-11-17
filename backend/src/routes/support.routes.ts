@@ -113,11 +113,22 @@ router.post(
       }
 
       const name = `${input.firstName} ${input.lastName}`.trim()
-      // Not a ticket id — there is no ticket. A short reference so a reply can be
-      // tied back to this submission in the email log.
-      const reference = randomUUID()
       const label = CONTACT_CATEGORY_LABEL[input.category] ?? input.category
       const subject = `${label} — ${name}`
+
+      // Saved for Admin → Support → Contact messages (17 Nov 2026; before, these
+      // existed only as an email). Not a ticket: a ticket belongs to an account.
+      // If the save fails the email still goes, and says to reply from the inbox.
+      const saved = await prisma.contactMessage
+        .create({
+          data: { name, email: input.email, category: input.category, subject, message: input.message },
+          select: { id: true },
+        })
+        .catch((err: unknown) => {
+          logger.error("Contact message could not be saved", { error: String(err) })
+          return null
+        })
+      const reference = saved?.id ?? randomUUID()
 
       // Awaited deliberately: if support never receives this, the visitor must be
       // told rather than thanked. The alternative — answering 200 and logging —
@@ -133,7 +144,9 @@ router.post(
           subject,
           category:  label,
           message:   input.message,
-          adminUrl:  `${env.FRONTEND_URL}/admin/support`,
+          adminUrl:  `${env.FRONTEND_URL}/admin/support?contact=${reference}`,
+          kind:      "contact",
+          stored:    saved !== null,
         }),
         // Lets support hit reply and reach the sender, rather than replying to us.
         replyTo: input.email,

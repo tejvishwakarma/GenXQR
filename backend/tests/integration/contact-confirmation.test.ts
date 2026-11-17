@@ -8,6 +8,7 @@ vi.mock("../../src/services/email.service.js", async (importOriginal) => {
 
 const { default: app } = await import("../../src/app.js")
 const { default: request } = await import("supertest")
+const { prisma } = await import("../../src/db/prisma.js")
 
 /**
  * The public contact form is anonymous, so whoever fills it in picks the
@@ -31,5 +32,28 @@ describe("contact form confirmation", () => {
     expect(confirmation!.html).not.toContain("account is locked")
     expect(confirmation!.html).not.toContain("evil.example")
     expect(confirmation!.html).not.toContain("+91")
+  })
+
+  it("should tell support it is a contact message to reply to, not a ticket in the admin panel", async () => {
+    const res = await request(app).post("/api/support/contact").send({
+      firstName: "Sunil",
+      lastName: "Hegde \"&<b>",
+      email: "sunil@example.com",
+      subject: "Is Pro ad-free?",
+      category: "sales",
+      message: "I want to understand if the PRO plan is ads free.",
+    })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    const toSupport = sent.find((m) => m.subject.startsWith("[Contact]") && m.subject.includes("Sunil"))
+    expect(toSupport).toBeTruthy()
+    // Not a ticket (no "ticket" wording); saved as a contact message, which the
+    // button opens in Admin → Support → Contact messages.
+    expect(toSupport!.html).toContain("Contact form message")
+    expect(toSupport!.html).not.toContain("View Ticket in Admin")
+    const saved = await prisma.contactMessage.findFirstOrThrow({ where: { email: "sunil@example.com" } })
+    expect(toSupport!.html).toContain(`/admin/support?contact=${saved.id}`)
+    expect(toSupport!.html).toContain("Open in Admin")
+    // The sender's name is escaped wherever it appears.
+    expect(toSupport!.html).not.toContain("<b>")
   })
 })
