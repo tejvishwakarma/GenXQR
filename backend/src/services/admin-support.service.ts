@@ -135,6 +135,102 @@ export async function updateTicket(ticketId: string, data: TicketUpdateInput) {
   })
 }
 
+// ─── Contact-form messages ─────────────────────────────────────────────────────
+//
+// Messages from the public contact form (no account). Stored since 17 Nov 2026;
+// before that they only reached the support inbox by email. Replies are sent by
+// email from here (Reply-To: support), and recorded on the message.
+
+export const CONTACT_STATUSES = ["NEW", "REPLIED", "CLOSED"] as const
+export type ContactStatus = (typeof CONTACT_STATUSES)[number]
+
+export async function countNewContactMessages(): Promise<number> {
+  return prisma.contactMessage.count({ where: { status: "NEW" } })
+}
+
+export async function listContactMessages({ page, limit, q }: PaginationParams, status?: string) {
+  const where: Record<string, unknown> = {}
+  if (status && (CONTACT_STATUSES as readonly string[]).includes(status)) where["status"] = status
+  if (q) {
+    where["OR"] = [
+      { name: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
+      { subject: { contains: q, mode: "insensitive" } },
+      { message: { contains: q, mode: "insensitive" } },
+    ]
+  }
+  const [total, messages] = await prisma.$transaction([
+    prisma.contactMessage.count({ where }),
+    prisma.contactMessage.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true, name: true, email: true, category: true, subject: true,
+        // The whole message (≤ 5,000 chars): the list shows its first line.
+        message: true,
+        status: true, repliedAt: true, createdAt: true,
+        _count: { select: { replies: true } },
+      },
+    }),
+  ])
+  return { messages, meta: pageMeta(total, page, limit) }
+}
+
+export async function getContactMessage(id: string) {
+  const message = await prisma.contactMessage.findUnique({
+    where: { id },
+    include: {
+      replies: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
+      },
+    },
+  })
+  if (!message) throw new AppError(404, "Message not found")
+  // The sender may also have an account (or open one later): show it, so an
+  // admin can see their plan and codes. Matched on the address they typed.
+  const account = await prisma.user.findUnique({
+    where: { email: message.email.toLowerCase() },
+    select: { id: true, name: true },
+  })
+  return { ...message, account }
+}
+
+/** Records a reply that has been emailed, and marks the message REPLIED. */
+export async function recordContactReply(id: string, adminId: string, body: string) {
+  const [reply] = await prisma.$transaction([
+    prisma.contactReply.create({
+      data: { contactMessageId: id, authorId: adminId, body },
+      select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
+    }),
+    prisma.contactMessage.update({
+      where: { id },
+      data: { status: "REPLIED", repliedAt: new Date() },
+    }),
+  ])
+  return reply
+}
+
+export async function updateContactMessage(id: string, data: { status?: ContactStatus | undefined; adminNotes?: string | undefined }) {
+  const existing = await prisma.contactMessage.findUnique({ where: { id }, select: { repliedAt: true } })
+  if (!existing) throw new AppError(404, "Message not found")
+  return prisma.contactMessage.update({
+    where: { id },
+    data: {
+      ...data,
+      // "Mark as replied" after answering from the inbox stamps the time too.
+      ...(data.status === "REPLIED" && !existing.repliedAt && { repliedAt: new Date() }),
+    },
+  })
+}
+
+export async function deleteContactMessage(id: string): Promise<void> {
+  const deleted = await prisma.contactMessage.deleteMany({ where: { id } })
+  if (deleted.count === 0) throw new AppError(404, "Message not found")
+}
+
 // ─── Job postings ──────────────────────────────────────────────────────────────
 
 type JobStatus = "OPEN" | "PAUSED" | "FILLED" | "CLOSED"

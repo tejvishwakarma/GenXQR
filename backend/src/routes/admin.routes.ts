@@ -29,7 +29,7 @@ import { Router, type IRouter, type Request, type Response, type NextFunction } 
 import { z } from "zod"
 import { env } from "../config/env.js"
 import { logger } from "../logger/index.js"
-import { sendEmail, buildTicketReplyEmail } from "../services/email.service.js"
+import { sendEmail, buildTicketReplyEmail, buildContactReplyEmail } from "../services/email.service.js"
 import { requireAdmin } from "../middleware/admin.middleware.js"
 import type { AccessTokenPayload } from "../utils/jwt.js"
 import { broadcastNotification } from "../services/notification.service.js"
@@ -1003,6 +1003,129 @@ router.patch(
       const data = TicketUpdateSchema.parse(req.body)
       const updated = await AdminSupportService.updateTicket(req.params["id"] as string, data)
       res.json({ success: true, data: updated })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+// ─── Contact-form messages ────────────────────────────────────────────────────
+// The public contact form (no account) — stored since 17 Nov 2026. Shown in
+// Admin → Support → Contact messages; replies go out by email.
+
+/** GET /admin-api/support/contact/count — NEW messages, for the sidebar badge. */
+router.get(
+  "/support/contact/count",
+  async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json({ success: true, data: { count: await AdminSupportService.countNewContactMessages() } })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/** GET /admin-api/support/contact?page&limit&status&q */
+router.get(
+  "/support/contact",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { page, limit, q } = PaginationSchema.parse(req.query)
+      const { messages, meta } = await AdminSupportService.listContactMessages(
+        { page, limit, q },
+        req.query["status"] as string | undefined,
+      )
+      res.json({ success: true, data: messages, meta })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/** GET /admin-api/support/contact/:id — the message, replies, and any account with that address. */
+router.get(
+  "/support/contact/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      res.json({ success: true, data: await AdminSupportService.getContactMessage(req.params["id"] as string) })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/**
+ * POST /admin-api/support/contact/:id/replies
+ * Emails the reply to the sender (Reply-To: support, so their answer reaches the
+ * inbox) and records it. Awaited: the sender has no dashboard, so a reply that
+ * was not delivered must not be shown as sent.
+ */
+router.post(
+  "/support/contact/:id/replies",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = req.params["id"] as string
+      const input = TicketReplySchema.parse(req.body)
+      const message = await AdminSupportService.getContactMessage(id)
+      const email = buildContactReplyEmail({
+        name: message.name,
+        reply: input.body,
+        reference: message.id,
+        originalMessage: message.message,
+        sentAt: message.createdAt,
+      })
+      try {
+        await sendEmail({ to: message.email, subject: email.subject, html: email.html, replyTo: "support@genxqr.com" })
+      } catch (err) {
+        logger.error("Contact reply email failed", { error: String(err), contactMessageId: id })
+        throw new AppError(502, "The email could not be sent, so the reply was not saved. Try again, or reply from the support inbox.")
+      }
+      const reply = await AdminSupportService.recordContactReply(id, uid(req), input.body)
+      logAudit({
+        userId: uid(req), action: "admin.contact.reply", category: "admin",
+        entityId: id, entityType: "ContactMessage", ip: req.ip, userAgent: req.headers["user-agent"],
+      })
+      res.status(201).json({ success: true, data: reply })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+const ContactUpdateSchema = z.object({
+  status: z.enum(AdminSupportService.CONTACT_STATUSES).optional(),
+  adminNotes: z.string().max(5000).optional(),
+})
+
+/** PATCH /admin-api/support/contact/:id — status (e.g. "replied" after answering from the inbox) and notes. */
+router.patch(
+  "/support/contact/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const data = ContactUpdateSchema.parse(req.body)
+      const updated = await AdminSupportService.updateContactMessage(req.params["id"] as string, data)
+      res.json({ success: true, data: updated })
+    } catch (err) {
+      next(err)
+    }
+  },
+)
+
+/** DELETE /admin-api/support/contact/:id — SUPER_ADMIN only (e.g. a deletion request). */
+router.delete(
+  "/support/contact/:id",
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if ((req.user as unknown as AccessTokenPayload).role !== "SUPER_ADMIN") {
+        throw new AppError(403, "Only a super admin can delete contact messages.")
+      }
+      const id = req.params["id"] as string
+      await AdminSupportService.deleteContactMessage(id)
+      logAudit({
+        userId: uid(req), action: "admin.contact.delete", category: "admin",
+        entityId: id, entityType: "ContactMessage", ip: req.ip, userAgent: req.headers["user-agent"],
+      })
+      res.json({ success: true })
     } catch (err) {
       next(err)
     }

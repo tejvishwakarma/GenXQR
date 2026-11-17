@@ -1046,6 +1046,44 @@ export const fetchOpenSupportTicketCount = (): Promise<number> =>
   adminFetch<{ success: boolean; data: { count: number } }>("/admin-api/support/tickets/count")
     .then((res) => res.data.count)
 
+// ─── Contact-form messages (admin) ────────────────────────────────────────────
+// Messages from the public contact form (no account needed), stored since 17 Nov 2026.
+
+export type ContactMessageStatus = "NEW" | "REPLIED" | "CLOSED"
+export interface ContactMessageSummary {
+  id: string; name: string; email: string
+  /** general | sales | technical | billing */
+  category: string
+  subject: string; message: string; status: ContactMessageStatus
+  repliedAt: string | null; createdAt: string
+  _count: { replies: number }
+}
+export interface ContactReplyEntry { id: string; body: string; createdAt: string; author: { name: string } | null }
+export interface ContactMessageDetail extends Omit<ContactMessageSummary, "_count"> {
+  adminNotes: string | null; updatedAt: string
+  replies: ContactReplyEntry[]
+  /** A GenXQR account with the same address, if there is one. */
+  account: { id: string; name: string } | null
+}
+export const fetchContactMessages = (page = 1, limit = 20, status = "", q = "") =>
+  adminFetch<{ success: boolean; data: ContactMessageSummary[]; meta: AdminMeta }>(
+    `/admin-api/support/contact?page=${page}&limit=${limit}${status ? `&status=${status}` : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+  )
+export const fetchContactMessage = (id: string) =>
+  adminFetch<{ success: boolean; data: ContactMessageDetail }>(`/admin-api/support/contact/${id}`)
+export const replyToContactMessage = (id: string, body: string) =>
+  adminFetch<{ success: boolean; data: ContactReplyEntry }>(`/admin-api/support/contact/${id}/replies`, {
+    method: "POST", body: JSON.stringify({ body }),
+  })
+export const updateContactMessage = (id: string, data: Partial<{ status: ContactMessageStatus; adminNotes: string }>) =>
+  adminFetch<{ success: boolean }>(`/admin-api/support/contact/${id}`, { method: "PATCH", body: JSON.stringify(data) })
+export const deleteContactMessage = (id: string) =>
+  adminFetch<{ success: boolean }>(`/admin-api/support/contact/${id}`, { method: "DELETE" })
+/** NEW contact messages, added to the Support badge in the admin sidebar. */
+export const fetchNewContactMessageCount = (): Promise<number> =>
+  adminFetch<{ success: boolean; data: { count: number } }>("/admin-api/support/contact/count")
+    .then((res) => res.data.count)
+
 // ─── Job Postings ─────────────────────────────────────────────────────────────
 
 export type JobStatus = "OPEN" | "PAUSED" | "FILLED" | "CLOSED"

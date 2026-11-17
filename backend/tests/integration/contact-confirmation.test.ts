@@ -8,6 +8,7 @@ vi.mock("../../src/services/email.service.js", async (importOriginal) => {
 
 const { default: app } = await import("../../src/app.js")
 const { default: request } = await import("supertest")
+const { prisma } = await import("../../src/db/prisma.js")
 
 /**
  * The public contact form is anonymous, so whoever fills it in picks the
@@ -45,11 +46,13 @@ describe("contact form confirmation", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(200)
     const toSupport = sent.find((m) => m.subject.startsWith("[Contact]") && m.subject.includes("Sunil"))
     expect(toSupport).toBeTruthy()
-    // The contact form creates no ticket: no "ticket" wording, no admin link.
+    // Not a ticket (no "ticket" wording); saved as a contact message, which the
+    // button opens in Admin → Support → Contact messages.
     expect(toSupport!.html).toContain("Contact form message")
     expect(toSupport!.html).not.toContain("View Ticket in Admin")
-    expect(toSupport!.html).not.toContain("/admin/support")
-    expect(toSupport!.html).toContain('href="mailto:sunil%40example.com?subject=Re%3A%20')
+    const saved = await prisma.contactMessage.findFirstOrThrow({ where: { email: "sunil@example.com" } })
+    expect(toSupport!.html).toContain(`/admin/support?contact=${saved.id}`)
+    expect(toSupport!.html).toContain("Open in Admin")
     // The sender's name is escaped wherever it appears.
     expect(toSupport!.html).not.toContain("<b>")
   })

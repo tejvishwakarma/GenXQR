@@ -103,6 +103,7 @@ model User {
   subscription            Subscription?
   supportTickets          SupportTicket[]
   ticketMessages          TicketMessage[]
+  contactReplies          ContactReply[]
   teamInvitesSent         TeamInvite[]             @relation("UserTeamInvitesSent")
   teamMemberships         TeamMember[]
   couponRedemptions       CouponRedemption[]
@@ -814,6 +815,45 @@ model SupportTicket {
 /// agent may later be demoted, or their account deleted, and a reply must not
 /// silently become a customer message years after it was written. authorId is
 /// nullable for the same reason — the thread outlives the account.
+/// A message from the public contact form (/contact). No account is needed to
+/// send one, so it is not a SupportTicket (which belongs to a user). Until 17 Nov
+/// 2026 these only reached support@genxqr.com by email; now they are kept so
+/// they can be answered and tracked in Admin → Support → Contact messages.
+model ContactMessage {
+  id         String         @id @default(cuid())
+  name       String
+  email      String
+  /// general | sales | technical | billing — the visitor's choice on the form.
+  category   String
+  subject    String
+  message    String
+  /// NEW → REPLIED (a reply was sent from admin, or marked) → CLOSED.
+  status     String         @default("NEW")
+  adminNotes String?
+  repliedAt  DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  replies    ContactReply[]
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@map("contact_messages")
+}
+
+/// A reply sent from the admin panel to a contact-form message, by email.
+model ContactReply {
+  id               String         @id @default(cuid())
+  contactMessageId String
+  authorId         String?
+  body             String
+  createdAt        DateTime       @default(now())
+  contactMessage   ContactMessage @relation(fields: [contactMessageId], references: [id], onDelete: Cascade)
+  author           User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([contactMessageId, createdAt])
+  @@map("contact_replies")
+}
+
 model TicketMessage {
   id        String        @id @default(cuid())
   ticketId  String

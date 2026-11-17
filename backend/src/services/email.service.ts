@@ -733,8 +733,15 @@ export function buildSupportTicketAdminEmail(opts: {
    * so the button is a reply. (Until 17 Nov 2026 it said "View Ticket in Admin".)
    */
   kind?: "ticket" | "contact"
+  /**
+   * Contact messages only: saved in Admin → Support → Contact messages, so the
+   * button opens it there (adminUrl is the message's own link). False when the
+   * save failed: the button is then a reply to the sender.
+   */
+  stored?: boolean
 }): string {
   const contact = opts.kind === "contact"
+  const inAdmin = !contact || opts.stored === true
   // Generated ids and our own URLs are not user input; everything else is.
   const safe = {
     userName: escapeHtml(opts.userName),
@@ -798,18 +805,20 @@ export function buildSupportTicketAdminEmail(opts: {
     <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
         <td style="border-radius:10px;background:#6366f1">
-          <a href="${contact ? escapeHtml(`mailto:${encodeURIComponent(opts.userEmail)}?subject=${encodeURIComponent(`Re: ${opts.subject} [${safe.ticketId.slice(0, 8).toUpperCase()}]`)}`) : safe.adminUrl}" target="_blank"
+          <a href="${inAdmin ? safe.adminUrl : escapeHtml(`mailto:${encodeURIComponent(opts.userEmail)}?subject=${encodeURIComponent(`Re: ${opts.subject} [${safe.ticketId.slice(0, 8).toUpperCase()}]`)}`)}" target="_blank"
             style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
-            ${contact ? `Reply to ${safe.userName} →` : "View Ticket in Admin →"}
+            ${!contact ? "View Ticket in Admin →" : inAdmin ? "Open in Admin →" : `Reply to ${safe.userName} →`}
           </a>
         </td>
       </tr>
     </table>
 
     <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      ${contact
-        ? "Sent from the contact form on genxqr.com. Contact messages are not support tickets and don't appear in Admin → Support: reply to this email and your answer goes to the sender."
-        : "This notification was sent because a user submitted a support ticket on GenXQR."}
+      ${!contact
+        ? "This notification was sent because a user submitted a support ticket on GenXQR."
+        : inAdmin
+          ? `Sent from the contact form on genxqr.com. Reply from Admin → Support → Contact messages, or reply to this email (it goes to ${safe.userName}) and then mark the message as replied in Admin.`
+          : "Sent from the contact form on genxqr.com. This message could not be saved in Admin, so reply to this email: your answer goes to the sender."}
     </p>`
 
   return buildEmailShell(`${contact ? "[Contact]" : "[Support]"} ${opts.subject} — GenXQR`, inner)
@@ -1291,5 +1300,29 @@ export function buildTrialEndingEmail(o: {
     <p style="${P}"><strong style="color:#18181b">If you don't choose one,</strong> your account moves to the Free plan and your QR codes pause: anyone who scans them sees a "deactivated" page, or your fallback address if you set one. Choose a plan later and the same codes start working again, unchanged. Your scan history is kept for ${o.historyMonths} months.</p>
     ${planLines(o.plans)}
     <p style="${SMALL}">You get this 7, 3 and 1 day before your trial ends. Turn these reminders off under <a href="${o.settingsUrl}" style="color:#6366f1">Settings → Notifications</a> (Billing reminders).</p>`
+  return { subject, html: buildEmailShell(subject, inner) }
+}
+
+/**
+ * A reply from Admin → Support → Contact messages to someone who used the public
+ * contact form. Sent with Reply-To: support, so their answer reaches the inbox.
+ */
+export function buildContactReplyEmail(o: {
+  name: string
+  reply: string
+  reference: string
+  originalMessage: string
+  sentAt: Date
+}): { subject: string; html: string } {
+  const ref = o.reference.slice(0, 8).toUpperCase()
+  const subject = `Re: your message to GenXQR [${ref}]`
+  const first = o.name.trim().split(/\s+/)[0] || o.name
+  const when = o.sentAt.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })
+  const inner = `
+    <p style="${P}">Hi ${escHtml(first)},</p>
+    <div style="margin:0 0 24px;font-size:15px;color:#3f3f46;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${escHtml(o.reply)}</div>
+    <p style="margin:0 0 8px;font-size:12px;color:#71717a;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">Your message · ${escHtml(when)}</p>
+    <div style="margin:0 0 24px;border-left:3px solid #e4e4e7;padding:4px 0 4px 14px;font-size:14px;color:#71717a;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;white-space:pre-wrap">${escHtml(o.originalMessage)}</div>
+    <p style="${SMALL}">Reply to this email to continue the conversation. Reference ${ref}.</p>`
   return { subject, html: buildEmailShell(subject, inner) }
 }

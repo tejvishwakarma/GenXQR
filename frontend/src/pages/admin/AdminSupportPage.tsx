@@ -1,10 +1,12 @@
 import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Search, ChevronDown } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
+import ContactMessagesPanel from "@/components/admin/ContactMessagesPanel"
 import AdminPagination from "@/components/admin/AdminPagination"
 import {
   fetchSupportTickets, fetchSupportTicket, updateSupportTicket, replyToTicketAsAdmin,
+  fetchOpenSupportTicketCount, fetchNewContactMessageCount,
   type SupportTicket, type SupportTicketDetail,
 } from "@/lib/api"
 
@@ -225,7 +227,7 @@ function TicketDrawer({ ticket, onClose }: { ticket: SupportTicketDetail; onClos
   )
 }
 
-export default function AdminSupportPage() {
+function TicketsPanel() {
   const [page, setPage]         = useState(1)
   const [status, setStatus]     = useState("")
   const [search, setSearch]     = useState("")
@@ -253,12 +255,11 @@ export default function AdminSupportPage() {
   }, [search])
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-1">Support Tickets</h1>
-          {meta && <p className="text-zinc-500 text-sm">{meta.total.toLocaleString()} total</p>}
-        </div>
+        <p className="text-zinc-500 text-sm">
+          {meta ? `${meta.total.toLocaleString()} tickets` : "Tickets"} · from signed-in customers
+        </p>
         <div className="flex gap-3 flex-wrap">
           <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}
             className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500/40">
@@ -345,6 +346,57 @@ export default function AdminSupportPage() {
       {selectedId && ticketDetail?.data && (
         <TicketDrawer ticket={ticketDetail.data} onClose={() => setSelectedId(null)} />
       )}
+    </div>
+  )
+}
+
+/**
+ * Two inboxes. Tickets come from signed-in customers (Help & Support in the
+ * dashboard); contact messages from the public contact form, which needs no
+ * account (stored since 17 Nov 2026). ?tab=contact, or ?contact=<id> from the
+ * support email, opens the second.
+ */
+export default function AdminSupportPage() {
+  const [params, setParams] = useSearchParams()
+  const tab = params.get("tab") === "contact" || params.has("contact") ? "contact" : "tickets"
+  const { data: openTickets = 0 } = useQuery({
+    queryKey: ["admin", "support-ticket-count"],
+    queryFn: fetchOpenSupportTicketCount,
+  })
+  const { data: newContact = 0 } = useQuery({
+    queryKey: ["admin", "contact-message-count"],
+    queryFn: fetchNewContactMessageCount,
+  })
+
+  const tabButton = (key: "tickets" | "contact", label: string, count: number) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={tab === key}
+      onClick={() => setParams(key === "contact" ? { tab: "contact" } : {}, { replace: true })}
+      className={`inline-flex items-center gap-2 px-4 py-2 text-sm rounded-xl transition-colors ${
+        tab === key ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+      }`}
+    >
+      {label}
+      {count > 0 && (
+        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-violet-500 text-white text-[11px] font-bold flex items-center justify-center">
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
+    </button>
+  )
+
+  return (
+    <div className="space-y-5 max-w-5xl">
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-3">Support</h1>
+        <div role="tablist" className="inline-flex gap-1 p-1 rounded-2xl bg-zinc-900 border border-zinc-800">
+          {tabButton("tickets", "Tickets", openTickets)}
+          {tabButton("contact", "Contact messages", newContact)}
+        </div>
+      </div>
+      {tab === "contact" ? <ContactMessagesPanel /> : <TicketsPanel />}
     </div>
   )
 }
