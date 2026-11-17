@@ -32,4 +32,25 @@ describe("contact form confirmation", () => {
     expect(confirmation!.html).not.toContain("evil.example")
     expect(confirmation!.html).not.toContain("+91")
   })
+
+  it("should tell support it is a contact message to reply to, not a ticket in the admin panel", async () => {
+    const res = await request(app).post("/api/support/contact").send({
+      firstName: "Sunil",
+      lastName: "Hegde \"&<b>",
+      email: "sunil@example.com",
+      subject: "Is Pro ad-free?",
+      category: "sales",
+      message: "I want to understand if the PRO plan is ads free.",
+    })
+    expect(res.status, JSON.stringify(res.body)).toBe(200)
+    const toSupport = sent.find((m) => m.subject.startsWith("[Contact]") && m.subject.includes("Sunil"))
+    expect(toSupport).toBeTruthy()
+    // The contact form creates no ticket: no "ticket" wording, no admin link.
+    expect(toSupport!.html).toContain("Contact form message")
+    expect(toSupport!.html).not.toContain("View Ticket in Admin")
+    expect(toSupport!.html).not.toContain("/admin/support")
+    expect(toSupport!.html).toContain('href="mailto:sunil%40example.com?subject=Re%3A%20')
+    // The sender's name is escaped wherever it appears.
+    expect(toSupport!.html).not.toContain("<b>")
+  })
 })

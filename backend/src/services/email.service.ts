@@ -726,7 +726,15 @@ export function buildSupportTicketAdminEmail(opts: {
   category: string
   message: string
   adminUrl: string
+  /**
+   * "contact": the public contact form. It creates no ticket (a ticket needs an
+   * account), so the email must not call itself one or send support to the
+   * admin panel, where the message will never appear. Reply-To is the visitor,
+   * so the button is a reply. (Until 17 Nov 2026 it said "View Ticket in Admin".)
+   */
+  kind?: "ticket" | "contact"
 }): string {
+  const contact = opts.kind === "contact"
   // Generated ids and our own URLs are not user input; everything else is.
   const safe = {
     userName: escapeHtml(opts.userName),
@@ -739,7 +747,7 @@ export function buildSupportTicketAdminEmail(opts: {
   }
 
   const inner = `
-    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">New Support Ticket</p>
+    <p style="margin:0 0 4px;font-size:13px;color:#71717a;letter-spacing:0.5px;text-transform:uppercase;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">${contact ? "Contact form message" : "New Support Ticket"}</p>
     <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;color:#0f0f11;line-height:1.3;letter-spacing:-0.4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
       ${safe.subject}
     </h1>
@@ -770,7 +778,7 @@ export function buildSupportTicketAdminEmail(opts: {
         <td style="padding:14px 20px;background:#f9f9fb">
           <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
             <tr>
-              <td style="font-size:12px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">Ticket ID</td>
+              <td style="font-size:12px;color:#71717a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:0.4px">${contact ? "Reference" : "Ticket ID"}</td>
               <td align="right" style="font-size:14px;color:#6366f1;font-family:'SF Mono',Menlo,Monaco,'Courier New',monospace;font-weight:500">${safe.ticketId.slice(0, 8).toUpperCase()}</td>
             </tr>
           </table>
@@ -790,19 +798,21 @@ export function buildSupportTicketAdminEmail(opts: {
     <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px">
       <tr>
         <td style="border-radius:10px;background:#6366f1">
-          <a href="${safe.adminUrl}" target="_blank"
+          <a href="${contact ? escapeHtml(`mailto:${encodeURIComponent(opts.userEmail)}?subject=${encodeURIComponent(`Re: ${opts.subject} [${safe.ticketId.slice(0, 8).toUpperCase()}]`)}`) : safe.adminUrl}" target="_blank"
             style="display:inline-block;padding:13px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:0.2px">
-            View Ticket in Admin →
+            ${contact ? `Reply to ${safe.userName} →` : "View Ticket in Admin →"}
           </a>
         </td>
       </tr>
     </table>
 
     <p style="margin:0;font-size:13px;color:#a1a1aa;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-      This notification was sent because a user submitted a support ticket on GenXQR.
+      ${contact
+        ? "Sent from the contact form on genxqr.com. Contact messages are not support tickets and don't appear in Admin → Support: reply to this email and your answer goes to the sender."
+        : "This notification was sent because a user submitted a support ticket on GenXQR."}
     </p>`
 
-  return buildEmailShell(`[Support] ${opts.subject} — GenXQR`, inner)
+  return buildEmailShell(`${contact ? "[Contact]" : "[Support]"} ${opts.subject} — GenXQR`, inner)
 }
 
 /**

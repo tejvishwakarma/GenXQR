@@ -134,6 +134,7 @@ router.post(
           category:  label,
           message:   input.message,
           adminUrl:  `${env.FRONTEND_URL}/admin/support`,
+          kind:      "contact",
         }),
         // Lets support hit reply and reach the sender, rather than replying to us.
         replyTo: input.email,
