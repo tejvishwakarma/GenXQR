@@ -98,15 +98,21 @@ export function ScanBrandFooter({
     <div
       className={`w-full border-t border-black/5 bg-white/60 py-4 text-center backdrop-blur-sm dark:border-white/10 dark:bg-black/30 ${className}`}
     >
+      {/* Goes to the free generator, not the homepage: whoever scanned this
+          just used a QR code, so "make your own" is one tap from done. */}
       <a
-        href="https://genxqr.com/?utm_source=landing&utm_medium=badge&utm_campaign=powered_by"
+        href="https://genxqr.com/generate?utm_source=landing&utm_medium=badge&utm_campaign=powered_by"
         target="_blank"
         rel="noopener"
-        className="inline-flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 px-4 text-xs text-zinc-500 transition-colors hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
       >
         <QrCode size={13} aria-hidden="true" />
         <span>
           Powered by <span className="font-semibold">GenXQR</span>
+        </span>
+        <span aria-hidden="true" className="hidden sm:inline">·</span>
+        <span className="basis-full underline decoration-zinc-300 underline-offset-2 sm:basis-auto dark:decoration-zinc-600">
+          Make your own free QR code
         </span>
       </a>
     </div>

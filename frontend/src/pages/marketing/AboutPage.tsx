@@ -93,7 +93,7 @@ const ABOUT_JSON_LD = [
         "name": "Does GenXQR work in India?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes — GenXQR is built for India. Pricing is in Indian Rupees (INR) starting at ₹299/month. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics track Indian cities across all states. The platform is used by restaurants, retailers, event organisers, clinics, schools, and real estate agents across India. Customer support is available in English.",
+          "text": "Yes — GenXQR is built for India. Pricing is in Indian Rupees (INR) starting at ₹299/month. Payments accept UPI, debit cards, and credit cards via Cashfree. Scan analytics track Indian cities across all states. It is built around how Indian businesses use QR codes: restaurant menus, UPI payments at the counter, Google review cards, property signboards and event passes. Customer support is available in English.",
         },
       },
     ],
@@ -230,7 +230,7 @@ const faqs = [
   },
   {
     q: "Does GenXQR work in India?",
-    a: "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards. Scan analytics cover Indian cities across all states. The platform is used by restaurants, retailers, event organisers, clinics, schools, and real estate agents across India.",
+    a: "Yes — GenXQR is built for India. Pricing starts at ₹299/month in INR. Payments accept UPI, debit cards, and credit cards. Scan analytics cover Indian cities across all states. It is built around how Indian businesses use QR codes: restaurant menus, UPI payments at the counter, Google review cards, property signboards and event passes.",
   },
 ]
 

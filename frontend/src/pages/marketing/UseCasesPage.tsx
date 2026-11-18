@@ -344,7 +344,7 @@ export default function UseCasesPage() {
       */}
       <SEOMeta
         title="QR Code Generator: Use Cases Across Every Industry"
-        description="Restaurants, retailers, events, clinics, and schools across India use GenXQR to create, track, and update QR codes. Free to start, plans from ₹299/month."
+        description="QR codes for restaurants, retailers, events, clinics and schools in India: create, track and update them in one place. Free to start, plans from ₹299/month."
         url="/use-cases"
         jsonLd={USE_CASES_JSON_LD}
       />
