@@ -7,8 +7,10 @@
  * Rules for this file:
  * - Facts only. Every claim must hold for what the generator actually encodes
  *   (buildQRData in StaticGeneratePage.tsx): a WIFI: string, a wa.me link, an
- *   instagram.com link, a upi://pay link, an sms: or tel: link, or the URL as
- *   typed. Downloads are 600 px PNGs at error-correction level M.
+ *   instagram.com link, a upi://pay link, an sms:, tel: or mailto: link, a
+ *   vCard 3.0, a Google Maps search link, a YouTube link, plain text, or the
+ *   URL as typed. Text is stored as UTF-8. Downloads are 600 px PNGs at
+ *   error-correction level M.
  * - Links are written [text](/path) and rendered as internal links.
  * - The FAQs here are ALSO the page's FAQPage schema, so the visible answer and
  *   the structured data never disagree.
@@ -28,7 +30,9 @@ export interface GeneratorGuide {
   faqs: { q: string; a: string }[]
 }
 
-export type GuideType = "url" | "wifi" | "whatsapp" | "instagram" | "upi" | "sms" | "phone"
+export type GuideType =
+  | "url" | "wifi" | "whatsapp" | "instagram" | "upi" | "sms" | "phone"
+  | "vcard" | "email" | "location" | "youtube" | "text"
 
 export const GENERATOR_GUIDES: Record<GuideType, GeneratorGuide> = {
   // ─── URL ────────────────────────────────────────────────────────────────────
@@ -459,7 +463,7 @@ export const GENERATOR_GUIDES: Record<GuideType, GeneratorGuide> = {
       {
         heading: "Calls, chats and contact cards",
         blocks: [
-          "If you also want people to save your details, a vCard (contact card) code adds your name, number, email and address to their contacts in one tap; you can make one in the GenXQR dashboard. If most customers message rather than call, use a [WhatsApp QR code](/generate/whatsapp).",
+          "If you also want people to save your details, a [vCard (contact card) QR code](/generate/vcard) adds your name, number, email and address to their contacts in one tap. If most customers message rather than call, use a [WhatsApp QR code](/generate/whatsapp).",
         ],
       },
     ],
@@ -475,6 +479,295 @@ export const GENERATOR_GUIDES: Record<GuideType, GeneratorGuide> = {
       {
         q: "What if I change my number later?",
         a: "The number is stored in the code, so a new number needs a new code. If the code goes on signage or vehicles, a dynamic QR code can be updated without reprinting.",
+      },
+    ],
+  },
+
+  // ─── vCard ──────────────────────────────────────────────────────────────────
+  vcard: {
+    name: "vCard QR code generator",
+    sections: [
+      {
+        heading: "What is a vCard QR code?",
+        blocks: [
+          "A vCard QR code is a contact card inside a QR code. When someone scans it with their phone camera, the phone offers to add a new contact with your name, number, email, company and the other details you entered already filled in. Nobody has to type your number from a business card or spell your email back to you.",
+          "The code made on this page holds the vCard itself (the standard vCard 3.0 format that phones' contact apps read), so it works without an account and without the internet, and it never expires.",
+        ],
+      },
+      {
+        heading: "How to make a contact QR code",
+        blocks: [
+          {
+            steps: [
+              "Enter your first and last name, and your mobile number with the country code (for example +91 98765 43210).",
+              "Add your email, and your company, job title, website and address if they help people reach you.",
+              "Download the PNG, then scan it with an iPhone and an Android phone and check every detail comes through correctly.",
+            ],
+          },
+          "Names and addresses in Hindi or other Indian scripts work too: the text is stored as UTF-8, which phone scanners read.",
+        ],
+      },
+      {
+        heading: "Where to use it",
+        blocks: [
+          {
+            list: [
+              "On the back of a business card, so the card and the contact can't get separated",
+              "On a name badge or lanyard at a conference or trade show",
+              "On a shop counter, a delivery van or a property board, for people who want to save you for later",
+              "In an email signature or a PDF brochure, as an image people can scan from a screen",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Keep it short, or make it editable",
+        blocks: [
+          "Every detail is stored in the pattern, so a card with a long address, two phone numbers and a long website makes a dense code that is harder to scan when printed small. Include what people actually need, and print the code at least 2.5 cm wide.",
+          "A static contact card can't be changed: a new number or job means a new code and new cards. A [dynamic vCard code](/qr-codes/vcard) shows a contact page you can edit at any time, with a photo and links, and counts every scan.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "What happens when someone scans a vCard QR code?",
+        a: "Their phone shows your contact details and offers to add you as a new contact. On iPhone, the camera shows a contact banner; on Android, the camera or Google Lens offers to add the contact. They tap once and every field is saved.",
+      },
+      {
+        q: "Does a vCard QR code need the internet?",
+        a: "No. The contact details are stored in the code itself, so scanning and saving the contact works offline. Only links in the card, such as your website, need the internet when someone opens them.",
+      },
+      {
+        q: "Can I update my details after printing?",
+        a: "Not with a static code: the details are part of the pattern. If your number or job may change, use a dynamic vCard code, which points to a contact page you can edit without reprinting.",
+      },
+      {
+        q: "Can I add a photo to the contact card?",
+        a: "Not in this free code. A photo would make the code far too dense to scan. The dynamic vCard page in the GenXQR dashboard can show a photo, because the code only holds a short link.",
+      },
+      {
+        q: "Why won't my contact QR code scan?",
+        a: "Usually because it holds too many details for its printed size. Remove fields people don't need, shorten the address, print it larger, and keep the dots much darker than the background.",
+      },
+    ],
+  },
+
+  // ─── Email ──────────────────────────────────────────────────────────────────
+  email: {
+    name: "email QR code generator",
+    sections: [
+      {
+        heading: "What is an email QR code?",
+        blocks: [
+          "An email QR code opens a new email in the phone's mail app, addressed to you, with a subject and message already written if you add them. The person scanning reads it over, adds anything they want and taps Send.",
+          "It suits enquiry posters, product registration, feedback cards, job notices (\"email your CV\") and support labels, where you want the message to reach the right inbox with a subject you can filter on.",
+        ],
+      },
+      {
+        heading: "How to make an email QR code",
+        blocks: [
+          {
+            steps: [
+              "Enter the email address messages should go to.",
+              "Add a subject such as \"Enquiry: Diwali hampers\" so you can tell where the email came from.",
+              "Optionally write the start of the message, then download the PNG and test it on a phone with a mail app set up.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Things to know",
+        blocks: [
+          {
+            list: [
+              "Scanning never sends the email by itself: the person always taps Send.",
+              "It needs a mail app on the phone with an account signed in. Most phones have one, but if your audience mostly uses WhatsApp, a [WhatsApp QR code](/generate/whatsapp) may get more replies.",
+              "Keep the message short. Every character is stored in the code, and a long message makes it dense.",
+            ],
+          },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Does an email QR code send the email automatically?",
+        a: "No. It opens the email app with your address, subject and message filled in, and the person taps Send. Phones never send an email from a QR code without the user confirming.",
+      },
+      {
+        q: "Which email app opens when someone scans it?",
+        a: "Whichever mail app the phone uses by default, such as Gmail or Apple Mail. The code holds a standard mailto: link, which every phone understands.",
+      },
+      {
+        q: "Can I tell which emails came from the QR code?",
+        a: "Yes, if you use a subject only the QR code uses, such as \"Enquiry from shop poster\". Filter or search your inbox for it.",
+      },
+      {
+        q: "Can I change the email address after printing?",
+        a: "No. The address is stored in the code, so a new address needs a new code. If the code goes on something expensive to reprint, use a dynamic QR code that you can point somewhere else later.",
+      },
+    ],
+  },
+
+  // ─── Location ───────────────────────────────────────────────────────────────
+  location: {
+    name: "location QR code generator",
+    sections: [
+      {
+        heading: "What is a location QR code?",
+        blocks: [
+          "A location QR code opens a place in Google Maps. People scan it on a flyer, invitation or signboard and get the map and directions straight away, instead of typing an address into their phone and hoping they spelled it right.",
+          "The code made on this page holds a Google Maps link. It opens the Google Maps app if the phone has it, or Google Maps in the browser if not, on iPhone and Android.",
+        ],
+      },
+      {
+        heading: "How to make a QR code for a location",
+        blocks: [
+          {
+            steps: [
+              "Enter the place the way you'd search for it in Google Maps: a business name with its area (\"Café Kesar, Hauz Khas Village\"), or a full address.",
+              "For an exact spot, such as a gate, a stall or a farmhouse with no address, use coordinates instead (for example 28.6129, 77.2295) or paste the link from Google Maps → Share.",
+              "Download the PNG, scan it and check the map lands on the right place before you print.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Address, coordinates or a Maps link?",
+        blocks: [
+          {
+            list: [
+              "A name or address is searched in Google Maps when scanned. It is best for businesses Google already knows, because people also see your reviews, photos and opening hours.",
+              "Coordinates drop a pin at that exact point. Use them for venues, gates, parking and places without a clear address.",
+              "A link copied from Google Maps → Share opens exactly what you shared, and is the simplest choice if you already have it.",
+            ],
+          },
+          "Want people to leave a review once they've visited? Use a [Google review QR code](/qr-codes/google-review) for that.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How do I make a QR code for my Google Maps location?",
+        a: "Open your place in Google Maps, tap Share and copy the link, then paste it into the field on this page. You can also type the place name and area, an address, or coordinates. Download the PNG and test it before printing.",
+      },
+      {
+        q: "Does it work on iPhone?",
+        a: "Yes. The code holds a Google Maps web link, which opens the Google Maps app if it's installed and Google Maps in Safari if not. People can get directions from either.",
+      },
+      {
+        q: "Why does my QR code open the wrong place?",
+        a: "A name or address is searched when scanned, and a vague one can match somewhere else. Add the area and city, or use coordinates or a link from Google Maps → Share for an exact pin.",
+      },
+      {
+        q: "Can I use this on wedding cards and event invitations?",
+        a: "Yes. Use the venue's Google Maps link or its coordinates so guests land at the right gate, and print the code at least 2 cm wide.",
+      },
+    ],
+  },
+
+  // ─── YouTube ────────────────────────────────────────────────────────────────
+  youtube: {
+    name: "YouTube QR code generator",
+    sections: [
+      {
+        heading: "What is a YouTube QR code?",
+        blocks: [
+          "A YouTube QR code opens a video, Short, playlist or channel when scanned. On most phones it opens in the YouTube app if it's installed, or on youtube.com in the browser if not.",
+          "Use it to turn print into views: a product demo on the box, a recipe video on a menu card, a channel link on a shop poster, or a wedding film on the invitation's thank-you card.",
+        ],
+      },
+      {
+        heading: "How to make a QR code for a YouTube video",
+        blocks: [
+          {
+            steps: [
+              "On YouTube, tap Share under the video (or on the channel page) and copy the link.",
+              "Paste it into the field on this page. You can also type a channel's @handle, or an 11-character video ID.",
+              "Download the PNG and scan it to check the right video opens.",
+            ],
+          },
+          "Want the video to start at a certain moment? On a computer, YouTube's Share box has a \"Start at\" option; copy that link and the start time stays in it.",
+        ],
+      },
+      {
+        heading: "Video or channel?",
+        blocks: [
+          "Link a single video when the print is about one thing, like a product or an event. Link your channel when you want subscribers, so the code stays useful as you post new videos. A static code can't be switched from one video to another later; if you'll want to change it, use a [dynamic QR code](/dynamic-qr).",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "How do I make a QR code for a YouTube video?",
+        a: "Copy the video's link from YouTube's Share button, paste it into this page and download the PNG. Scanning the code opens the video on YouTube.",
+      },
+      {
+        q: "Will it open in the YouTube app?",
+        a: "Usually, yes. YouTube links open in the YouTube app when it's installed on iPhone and Android; otherwise they open on youtube.com in the browser.",
+      },
+      {
+        q: "Can I link to my channel instead of a video?",
+        a: "Yes. Paste your channel's link or just type its @handle, and the code opens your channel page.",
+      },
+      {
+        q: "Can I see how many people scanned it?",
+        a: "Not with a static code, because it goes straight to YouTube. YouTube Studio shows views but can't tell which came from your QR code. A dynamic QR code counts every scan, with the city and device.",
+      },
+    ],
+  },
+
+  // ─── Text ───────────────────────────────────────────────────────────────────
+  text: {
+    name: "text QR code generator",
+    sections: [
+      {
+        heading: "What is a text QR code?",
+        blocks: [
+          "A text QR code holds a short message. When scanned, the phone shows the text itself: no website opens and no internet connection is needed, because the message is stored in the code.",
+          "It suits instructions on equipment, a gate or Wi-Fi note for guests, a code for a treasure hunt, serial numbers and asset labels, or a short message on a gift.",
+        ],
+      },
+      {
+        heading: "How to make one",
+        blocks: [
+          {
+            steps: [
+              "Type or paste your message. Hindi and other Indian scripts work: the text is stored as UTF-8, which phone scanners read.",
+              "Keep it short. The page warns you when the text is long enough to make a dense code.",
+              "Download the PNG and scan it with two phones to check the text shows up in full.",
+            ],
+          },
+        ],
+      },
+      {
+        heading: "Good to know",
+        blocks: [
+          {
+            list: [
+              "How the text appears depends on the scanner: most show it with a copy button, and some offer to search the web for it.",
+              "Anything you put in the code can be read by anyone who scans it. Don't store passwords or private details you wouldn't print in plain sight.",
+              "To share a link, a Wi-Fi network or a contact, use the matching type instead ([URL](/generate/url), [WiFi](/generate/wifi), [contact card](/generate/vcard)): phones act on those with one tap, while plain text only shows.",
+            ],
+          },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Does a text QR code need the internet?",
+        a: "No. The text is stored in the code, so the phone shows it without connecting to anything.",
+      },
+      {
+        q: "How much text can a QR code hold?",
+        a: "In theory a few thousand characters, but long text makes a dense code that is hard to scan when printed. Keep it to a few sentences, and print it larger if it's long.",
+      },
+      {
+        q: "Can I write in Hindi or other languages?",
+        a: "Yes. The text is stored as UTF-8, so Hindi, Tamil, Bengali and other scripts, accented letters and symbols like ₹ show correctly on modern phones.",
+      },
+      {
+        q: "What does someone see when they scan it?",
+        a: "The text itself. How it is shown depends on the scanner: most show it with an option to copy it, and some offer to search the web for it.",
       },
     ],
   },

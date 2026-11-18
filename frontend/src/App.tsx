@@ -227,6 +227,11 @@ export function AppRoutes() {
           <Route path="/generate/upi" element={<StaticGeneratePage />} />
           <Route path="/generate/sms" element={<StaticGeneratePage />} />
           <Route path="/generate/phone" element={<StaticGeneratePage />} />
+          <Route path="/generate/vcard" element={<StaticGeneratePage />} />
+          <Route path="/generate/email" element={<StaticGeneratePage />} />
+          <Route path="/generate/location" element={<StaticGeneratePage />} />
+          <Route path="/generate/youtube" element={<StaticGeneratePage />} />
+          <Route path="/generate/text" element={<StaticGeneratePage />} />
           <Route path="/qr-codes" element={<QRTypesHubPage />} />
           <Route path="/qr-codes/:slug" element={<QRTypePage />} />
           <Route path="/compare" element={<CompareHubPage />} />

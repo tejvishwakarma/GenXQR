@@ -88,6 +88,11 @@ export const PUBLIC_ROUTES = [
   { path: "/generate/upi", changefreq: "monthly", priority: "0.8" },
   { path: "/generate/sms", changefreq: "monthly", priority: "0.7" },
   { path: "/generate/phone", changefreq: "monthly", priority: "0.7" },
+  { path: "/generate/vcard", changefreq: "monthly", priority: "0.8" },
+  { path: "/generate/email", changefreq: "monthly", priority: "0.7" },
+  { path: "/generate/location", changefreq: "monthly", priority: "0.7" },
+  { path: "/generate/youtube", changefreq: "monthly", priority: "0.7" },
+  { path: "/generate/text", changefreq: "monthly", priority: "0.6" },
   { path: "/scanner", changefreq: "monthly", priority: "0.8" },
 
   // Dynamic QR types

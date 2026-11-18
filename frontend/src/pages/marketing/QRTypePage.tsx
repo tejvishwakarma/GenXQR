@@ -157,6 +157,11 @@ export function QRTypesHubPage() {
     { href: "/generate/upi", label: "UPI payment", summary: "Get paid by any UPI app" },
     { href: "/generate/sms", label: "SMS", summary: "A text message, ready to send" },
     { href: "/generate/phone", label: "Phone call", summary: "One tap to call" },
+    { href: "/generate/vcard", label: "Contact card", summary: "Save your details in one tap" },
+    { href: "/generate/email", label: "Email", summary: "An email, ready to send" },
+    { href: "/generate/location", label: "Location", summary: "Open a place in Google Maps" },
+    { href: "/generate/youtube", label: "YouTube", summary: "Open a video or channel" },
+    { href: "/generate/text", label: "Plain text", summary: "Show a short message" },
   ]
   return (
     <div className="pb-8">

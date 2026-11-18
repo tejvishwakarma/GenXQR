@@ -40,6 +40,11 @@ const footerLinks = {
     { label: "UPI QR Code", href: "/generate/upi" },
     { label: "SMS QR Code", href: "/generate/sms" },
     { label: "Phone QR Code", href: "/generate/phone" },
+    { label: "vCard QR Code", href: "/generate/vcard" },
+    { label: "Email QR Code", href: "/generate/email" },
+    { label: "Location QR Code", href: "/generate/location" },
+    { label: "YouTube QR Code", href: "/generate/youtube" },
+    { label: "Text QR Code", href: "/generate/text" },
   ],
 }
 

@@ -3,6 +3,7 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, ArrowRight,
   Download, Palette, Phone, MessageSquare, ChevronDown,
   BarChart3, RefreshCw, Shield, Zap, IndianRupee,
+  Contact, Mail, MapPin, Type, Youtube,
 } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import QRCodeStyling, {
@@ -37,7 +38,7 @@ const GENERATE_JSON_LD = [
       "@type": "Offer",
       "price": "0",
       "priceCurrency": "INR",
-      "description": "Free QR code generator for URL, WiFi, WhatsApp, Instagram, UPI, SMS, and phone. Custom colours, dot shapes, instant PNG download. No account required.",
+      "description": "Free QR code generator for URL, WiFi, WhatsApp, Instagram, UPI, SMS, phone, vCard contact cards, email, Google Maps locations, YouTube and plain text. Custom colours, dot shapes, instant PNG download. No account required.",
     },
     "featureList": [
       "URL QR code generator",
@@ -47,6 +48,11 @@ const GENERATE_JSON_LD = [
       "UPI payment QR code generator",
       "SMS QR code generator",
       "Phone number QR code",
+      "vCard contact QR code",
+      "Email QR code",
+      "Google Maps location QR code",
+      "YouTube QR code",
+      "Plain text QR code",
       "Custom colour and dot shape",
       "600px PNG download",
       "No account required",
@@ -61,7 +67,7 @@ const GENERATE_JSON_LD = [
         "name": "How do I create a QR code for free?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, start a 14-day free trial (no credit card) and use the dynamic QR creator.",
+          "text": "Use GenXQR's free generator at genxqr.com/generate. Pick a QR type (URL, WiFi, WhatsApp, Instagram, UPI, SMS, phone, contact card, email, location, YouTube or plain text), enter your content, customise the colour and dot style, and click Download PNG. No account, no credit card, and no expiry — the QR code is yours to use forever. For QR codes you can edit after printing and track every scan, start a 14-day free trial (no credit card) and use the dynamic QR creator.",
         },
       },
       {
@@ -133,7 +139,9 @@ function typeJsonLd(path: string, guide: GeneratorGuide, description: string) {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type QRTypeId = "url" | "wifi" | "whatsapp" | "instagram" | "upi" | "sms" | "phone"
+type QRTypeId =
+  | "url" | "wifi" | "whatsapp" | "instagram" | "upi" | "sms" | "phone"
+  | "vcard" | "email" | "location" | "text" | "youtube"
 
 const qrTypes: { id: QRTypeId; label: string; icon: React.ReactNode; desc: string }[] = [
   { id: "url",       label: "URL / Website", icon: <QrCode size={20} />,       desc: "Link to any page or offer" },
@@ -143,6 +151,11 @@ const qrTypes: { id: QRTypeId; label: string; icon: React.ReactNode; desc: strin
   { id: "upi",       label: "UPI Payment",   icon: <IndianRupee size={20} />,   desc: "Get paid by any UPI app" },
   { id: "sms",       label: "SMS",           icon: <MessageSquare size={20} />, desc: "Pre-filled text message" },
   { id: "phone",     label: "Phone",         icon: <Phone size={20} />,         desc: "One tap to call" },
+  { id: "vcard",     label: "Contact card",  icon: <Contact size={20} />,       desc: "Save to contacts" },
+  { id: "email",     label: "Email",         icon: <Mail size={20} />,          desc: "A ready-to-send email" },
+  { id: "location",  label: "Location",      icon: <MapPin size={20} />,        desc: "Open a place in Google Maps" },
+  { id: "youtube",   label: "YouTube",       icon: <Youtube size={20} />,       desc: "Open a video or channel" },
+  { id: "text",      label: "Plain text",    icon: <Type size={20} />,          desc: "Show a short message" },
 ]
 
 // ─── Shape options ────────────────────────────────────────────────────────────
@@ -168,6 +181,35 @@ const EYE_DOT_SHAPES: { type: CornerDotType; label: string }[] = [
 ]
 
 // ─── QR data builders ─────────────────────────────────────────────────────────
+
+/**
+ * The QR library stores each character as ONE byte (its char code & 0xff), so
+ * anything outside Latin-1 — ₹, Hindi, emoji, even curly quotes — came out as
+ * garbage. Handing it the UTF-8 bytes as a byte string fixes that, and every
+ * phone scanner reads UTF-8. Plain ASCII is unchanged byte for byte, so codes
+ * people made before this scan exactly as they did.
+ */
+function toQRBytes(text: string): string {
+  let out = ""
+  for (const b of new TextEncoder().encode(text)) out += String.fromCharCode(b)
+  return out
+}
+
+/** vCard 3.0 text value: backslash, comma, semicolon and newlines escaped (RFC 2426). */
+function vcardText(v: string | undefined): string {
+  return (v ?? "").trim().replace(/\\/g, "\\\\").replace(/\r?\n/g, "\\n").replace(/[,;]/g, (ch) => `\\${ch}`)
+}
+
+/** A YouTube link from a pasted link, a video ID or an @handle. */
+function youtubeLink(input: string | undefined): string {
+  const v = (input ?? "").trim()
+  if (!v) return "https://www.youtube.com"
+  if (/^https?:\/\//i.test(v)) return v
+  if (/^(www\.|m\.)?(youtube\.com|youtu\.be)\//i.test(v)) return `https://${v}`
+  if (/^@[\w.-]{3,30}$/.test(v)) return `https://www.youtube.com/${v}`
+  if (/^[\w-]{11}$/.test(v)) return `https://youtu.be/${v}`
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(v)}`
+}
 
 function buildQRData(
   type: QRTypeId,
@@ -211,10 +253,59 @@ function buildQRData(
       const num = (fields.phoneNumber || "").replace(/[^+\d]/g, "")
       return `tel:${num}`
     }
+    case "vcard": {
+      // vCard 3.0 is what the iPhone and Android cameras recognise as "add
+      // contact". Empty fields are left out rather than sent blank.
+      const first = vcardText(fields.vcFirst)
+      const last = vcardText(fields.vcLast)
+      const org = vcardText(fields.vcOrg)
+      const full = [first, last].filter(Boolean).join(" ") || org || "Contact"
+      const lines = ["BEGIN:VCARD", "VERSION:3.0", `N:${last};${first};;;`, `FN:${full}`]
+      if (org) lines.push(`ORG:${org}`)
+      if (fields.vcTitle?.trim()) lines.push(`TITLE:${vcardText(fields.vcTitle)}`)
+      const tel = (fields.vcPhone || "").replace(/[^+\d]/g, "")
+      if (tel) lines.push(`TEL;TYPE=CELL:${tel}`)
+      if (fields.vcEmail?.trim()) lines.push(`EMAIL:${fields.vcEmail.trim()}`)
+      if (fields.vcWebsite?.trim()) lines.push(`URL:${fields.vcWebsite.trim()}`)
+      if (fields.vcAddress?.trim()) lines.push(`ADR;TYPE=WORK:;;${vcardText(fields.vcAddress)};;;;`)
+      lines.push("END:VCARD")
+      return lines.join("\r\n")
+    }
+    case "email": {
+      const to = (fields.emailTo || "").replace(/\s/g, "")
+      const params = [
+        fields.emailSubject?.trim() && `subject=${encodeURIComponent(fields.emailSubject.trim())}`,
+        fields.emailBody?.trim() && `body=${encodeURIComponent(fields.emailBody.trim())}`,
+      ].filter(Boolean)
+      return `mailto:${to}${params.length ? `?${params.join("&")}` : ""}`
+    }
+    case "location": {
+      // A Google Maps link (their documented "search" URL) rather than a geo:
+      // URI, which scanner apps handle unevenly: an https link opens the Maps
+      // app or the browser on any phone. A pasted Maps link is used as it is.
+      const place = (fields.place || "").trim()
+      if (/^https?:\/\//i.test(place)) return place
+      const coords = place.match(/^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/)
+      const query = coords ? `${coords[1]},${coords[2]}` : place
+      return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    }
+    case "youtube":
+      return youtubeLink(fields.youtube)
+    case "text":
+      return fields.text?.trim() ? fields.text : "Your text here"
     default:
       return "https://genxqr.com"
   }
 }
+
+/** Same look as <Input>, for the two multi-line fields. */
+const TEXTAREA_CLASS =
+  "flex min-h-[96px] w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 " +
+  "placeholder:text-zinc-400 focus-visible:outline-none focus-visible:border-violet-500 focus-visible:ring-1 " +
+  "focus-visible:ring-violet-500/50 transition-colors dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:placeholder:text-zinc-500"
+
+/** Plain text above this many bytes makes a dense code that small prints struggle with. */
+const TEXT_SOFT_LIMIT = 300
 
 // ─── FAQ accordion ────────────────────────────────────────────────────────────
 // Deliverable 7: 5 questions targeting Cluster D featured snippets
@@ -222,7 +313,7 @@ function buildQRData(
 const faqs = [
   {
     q: "How do I create a QR code for free?",
-    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, SMS, or phone), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, start a 14-day GenXQR free trial (no credit card) and use the dynamic QR creator.",
+    a: "Use the generator on this page. Pick a QR type (URL, WiFi, WhatsApp, Instagram, UPI, SMS, phone, contact card, email, location, YouTube or plain text), enter your content, customise the colour and dot style, then click Download PNG. No account, no credit card, and no expiry — the QR code is yours forever. For QR codes you can edit after printing and track every scan, start a 14-day GenXQR free trial (no credit card) and use the dynamic QR creator.",
   },
   {
     q: "What is the difference between a static and dynamic QR code?",
@@ -329,6 +420,41 @@ const TYPE_PAGES: Partial<Record<QRTypeId, { title: string; description: string;
     accent: "one tap to call",
     intro: "Enter your phone number with its country code. Scanning the code opens the dialler with the number already entered, so nobody misdials.",
   },
+  vcard: {
+    title: "Free vCard QR Code Generator — Digital Business Card",
+    description: "Make a free vCard QR code: scan it and your name, number, email and company are saved to contacts in one tap. Works on iPhone and Android. PNG download, no account.",
+    h1: "Free vCard QR code generator —",
+    accent: "save your contact in one scan",
+    intro: "Enter your name, mobile number, email and, if you like, your company, title, website and address. The code holds a standard vCard, so a phone camera offers to add you to contacts with every detail filled in.",
+  },
+  email: {
+    title: "Free Email QR Code Generator — Pre-Filled Email",
+    description: "Make a free email QR code that opens a new email to your address, with an optional subject and message already written. PNG download, no account needed.",
+    h1: "Free email QR code generator —",
+    accent: "an email, ready to send",
+    intro: "Enter the address emails should go to and, optionally, a subject and message. Scanning the code opens the phone's email app with everything filled in, so the person only has to tap Send.",
+  },
+  location: {
+    title: "Free Location QR Code Generator — Open Google Maps",
+    description: "Make a free QR code that opens a place in Google Maps: enter an address, place name or coordinates, or paste a Maps link. PNG download, no account needed.",
+    h1: "Free location QR code generator —",
+    accent: "open your place in Google Maps",
+    intro: "Enter an address, a place name or coordinates, or paste a link from Google Maps. Scanning the code opens Google Maps at that place, so visitors can get directions without typing anything.",
+  },
+  youtube: {
+    title: "Free YouTube QR Code Generator — Video or Channel",
+    description: "Make a free YouTube QR code that opens your video, Short, playlist or channel. Paste the link or type your @handle. Custom colours, PNG download, no account.",
+    h1: "Free YouTube QR code generator —",
+    accent: "open your video or channel",
+    intro: "Paste a YouTube video, Short, playlist or channel link, or type your channel's @handle. Scanning the code opens it on YouTube, usually in the YouTube app if the phone has it.",
+  },
+  text: {
+    title: "Free Text QR Code Generator — Show a Message",
+    description: "Make a free QR code that shows a short text message when scanned: instructions, a code, a note. Works offline, no link needed. PNG download, no account.",
+    h1: "Free text QR code generator —",
+    accent: "show a message when scanned",
+    intro: "Type a short message. The text is stored in the code itself, so scanning shows it on the phone without opening a website, even without an internet connection.",
+  },
 }
 
 const TYPE_FROM_PATH: Record<string, QRTypeId> = {
@@ -339,6 +465,11 @@ const TYPE_FROM_PATH: Record<string, QRTypeId> = {
   "/generate/upi": "upi",
   "/generate/sms": "sms",
   "/generate/phone": "phone",
+  "/generate/vcard": "vcard",
+  "/generate/email": "email",
+  "/generate/location": "location",
+  "/generate/youtube": "youtube",
+  "/generate/text": "text",
 }
 
 export default function StaticGeneratePage() {
@@ -386,7 +517,7 @@ export default function StaticGeneratePage() {
   // Auto-update QR on any option change
   const updateQR = useCallback(() => {
     qrInstance.current?.update({
-      data: buildQRData(activeType, fields),
+      data: toQRBytes(buildQRData(activeType, fields)),
       dotsOptions: { color: fgColor, type: dotShape },
       cornersSquareOptions: { color: fgColor, type: eyeShape },
       cornersDotOptions: { color: fgColor, type: eyeDotShape },
@@ -403,7 +534,7 @@ export default function StaticGeneratePage() {
       width: 600,
       height: 600,
       type: "canvas",
-      data: buildQRData(activeType, fields),
+      data: toQRBytes(buildQRData(activeType, fields)),
       dotsOptions: { color: fgColor, type: dotShape },
       cornersSquareOptions: { color: fgColor, type: eyeShape },
       cornersDotOptions: { color: fgColor, type: eyeDotShape },
@@ -424,7 +555,7 @@ export default function StaticGeneratePage() {
       */}
       <SEOMeta
         title={typePage?.title ?? "Free QR Code Generator — No Account Needed"}
-        description={typePage?.description ?? "Free QR code generator for URL, WiFi, WhatsApp, Instagram, SMS and phone. Custom colours, dot shapes, instant PNG download. No account or credit card needed."}
+        description={typePage?.description ?? "Free QR code generator for links, WiFi, WhatsApp, UPI, contact cards, email, maps, YouTube and more. Custom colours and dot shapes, PNG download. No account needed."}
         url={routeType ? `/generate/${routeType}` : "/generate"}
         jsonLd={guide && typePage ? typeJsonLd(`/generate/${routeType}`, guide, typePage.description) : GENERATE_JSON_LD}
       />
@@ -688,6 +819,120 @@ export default function StaticGeneratePage() {
                     value={fields.phoneNumber ?? ""}
                     onChange={(e) => setField("phoneNumber", e.target.value)}
                   />
+                </div>
+              )}
+
+              {activeType === "vcard" && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label-text">First name</label>
+                      <Input placeholder="Priya" autoComplete="off" value={fields.vcFirst ?? ""} onChange={(e) => setField("vcFirst", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label-text">Last name</label>
+                      <Input placeholder="Sharma" autoComplete="off" value={fields.vcLast ?? ""} onChange={(e) => setField("vcLast", e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label-text">Mobile number (with country code)</label>
+                    <Input placeholder="+91 98765 43210" autoComplete="off" value={fields.vcPhone ?? ""} onChange={(e) => setField("vcPhone", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-text">Email</label>
+                    <Input type="email" placeholder="priya@example.com" autoComplete="off" value={fields.vcEmail ?? ""} onChange={(e) => setField("vcEmail", e.target.value)} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label-text">Company (optional)</label>
+                      <Input placeholder="Sharma Interiors" autoComplete="off" value={fields.vcOrg ?? ""} onChange={(e) => setField("vcOrg", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label-text">Job title (optional)</label>
+                      <Input placeholder="Founder" autoComplete="off" value={fields.vcTitle ?? ""} onChange={(e) => setField("vcTitle", e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label-text">Website (optional)</label>
+                    <Input placeholder="https://example.com" autoComplete="off" value={fields.vcWebsite ?? ""} onChange={(e) => setField("vcWebsite", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-text">Address (optional)</label>
+                    <Input placeholder="12 MG Road, Bengaluru 560001" autoComplete="off" value={fields.vcAddress ?? ""} onChange={(e) => setField("vcAddress", e.target.value)} />
+                  </div>
+                  <p className="text-xs text-ink-soft leading-relaxed">
+                    Every detail is stored in the code itself, so more details make a denser code. Leave out what people don't need.
+                  </p>
+                </div>
+              )}
+
+              {activeType === "email" && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="label-text">Send to (email address)</label>
+                    <Input type="email" placeholder="hello@example.com" autoComplete="off" value={fields.emailTo ?? ""} onChange={(e) => setField("emailTo", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-text">Subject (optional)</label>
+                    <Input placeholder="Enquiry from your poster" value={fields.emailSubject ?? ""} onChange={(e) => setField("emailSubject", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="label-text">Message (optional)</label>
+                    <textarea
+                      className={TEXTAREA_CLASS}
+                      placeholder="Hi, I'd like to know more about…"
+                      value={fields.emailBody ?? ""}
+                      onChange={(e) => setField("emailBody", e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {activeType === "location" && (
+                <div>
+                  <label className="label-text">Place name, address, coordinates or a Google Maps link</label>
+                  <Input
+                    placeholder="India Gate, New Delhi  ·  or  28.6129, 77.2295"
+                    value={fields.place ?? ""}
+                    onChange={(e) => setField("place", e.target.value)}
+                  />
+                  <p className="text-xs text-ink-soft leading-relaxed mt-2">
+                    Scanning opens Google Maps searching for what you enter. For an exact pin, use coordinates or paste the link from Google Maps → Share.
+                  </p>
+                </div>
+              )}
+
+              {activeType === "youtube" && (
+                <div>
+                  <label className="label-text">YouTube video or channel link</label>
+                  <Input
+                    placeholder="https://youtu.be/…  or  @yourchannel"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    value={fields.youtube ?? ""}
+                    onChange={(e) => setField("youtube", e.target.value)}
+                  />
+                  <p className="text-xs text-ink-soft leading-relaxed mt-2">
+                    Paste a video, Short, playlist or channel link from the Share button, or type a channel @handle.
+                  </p>
+                </div>
+              )}
+
+              {activeType === "text" && (
+                <div>
+                  <label className="label-text">Your text</label>
+                  <textarea
+                    className={TEXTAREA_CLASS}
+                    maxLength={1000}
+                    placeholder="Gate code 4471. Parcels to the side door, please."
+                    value={fields.text ?? ""}
+                    onChange={(e) => setField("text", e.target.value)}
+                  />
+                  <p className={cn("text-xs leading-relaxed mt-2", new TextEncoder().encode(fields.text ?? "").length > TEXT_SOFT_LIMIT ? "text-amber-700 dark:text-amber-400" : "text-ink-soft")}>
+                    {new TextEncoder().encode(fields.text ?? "").length > TEXT_SOFT_LIMIT
+                      ? "This is a lot of text for one code. It will be dense: print it large, or shorten it."
+                      : "The text is stored in the code and shown on the phone when scanned. Keep it short."}
+                  </p>
                 </div>
               )}
             </div>
