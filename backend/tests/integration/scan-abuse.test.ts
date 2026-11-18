@@ -35,11 +35,24 @@ async function settledCount(key: string): Promise<number> {
   return Number(last)
 }
 
+/**
+ * The per-minute scan limit counts per calendar minute (withinScanRate keys on
+ * the minute number). A burst that straddles a minute boundary gets a fresh
+ * allowance halfway through, so a test expecting exactly SCAN_RATE_PER_MINUTE
+ * failed now and then (CI, 18 Nov 2026: 12 instead of 10). Start bursts clear
+ * of the boundary instead.
+ */
+async function awayFromMinuteEdge(marginMs = 10_000) {
+  const left = 60_000 - (Date.now() % 60_000)
+  if (left < marginMs) await new Promise((r) => setTimeout(r, left + 250))
+}
+
 async function starterCode() {
   const user = await createUser()
   await giveSubscription(user.id, "STARTER")
   const qr = await createQRCode(user.id)
   await getScanUsage(user.id) // seed the counter at 0
+  await awayFromMinuteEdge()
   return { user, qr }
 }
 

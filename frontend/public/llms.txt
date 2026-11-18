@@ -64,6 +64,11 @@ Key facts:
 - [UPI QR code generator](https://genxqr.com/generate/upi)
 - [SMS QR code generator](https://genxqr.com/generate/sms)
 - [Phone number QR code generator](https://genxqr.com/generate/phone)
+- [vCard (contact card) QR code generator](https://genxqr.com/generate/vcard)
+- [Email QR code generator](https://genxqr.com/generate/email)
+- [Location (Google Maps) QR code generator](https://genxqr.com/generate/location)
+- [YouTube QR code generator](https://genxqr.com/generate/youtube)
+- [Text QR code generator](https://genxqr.com/generate/text)
 - [Online QR code scanner](https://genxqr.com/scanner): scan with a camera or from an image, decoded in the browser
 
 ## Guides

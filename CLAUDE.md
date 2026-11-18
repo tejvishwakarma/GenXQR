@@ -1100,7 +1100,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 #### Static QR Generator (`/src/pages/static-qr/`)
 | File | Routes |
 |---|---|
-| `StaticGeneratePage.tsx` | `/generate`, `/generate/url`, `/generate/wifi`, `/generate/whatsapp`, `/generate/instagram`, `/generate/upi` |
+| `StaticGeneratePage.tsx` | `/generate` and `/generate/<type>`: url, wifi, whatsapp, instagram, upi, sms, phone, vcard, email, location, youtube, text. Everything it encodes goes through `toQRBytes` (UTF-8): the QR library otherwise keeps only the low byte of each character, so ₹ and Hindi came out garbled |
 
 #### Dashboard Pages (`/src/pages/dashboard/`)
 | File | Route | Notes |

@@ -55,6 +55,7 @@ export const QR_TYPE_PAGES: QRTypePageContent[] = [
         blocks: [
           "vCard is the standard file format for contact details that every phone's address book understands. A vCard QR code opens a page with your photo, name, job title, company, phone numbers, email addresses, websites and address. A Save to Contacts button adds all of it to the phone in one step, so nobody has to type your number from a card.",
           "Phone numbers, email addresses and websites on the page are tappable, so people can call, email or visit you straight from the scan.",
+          "Only need the basics and never expect them to change? A [free static vCard QR code](/generate/vcard) holds your details in the code itself, with no photo, no page and no scan counts.",
         ],
       },
       {
@@ -682,7 +683,7 @@ export const QR_TYPE_PAGES: QRTypePageContent[] = [
         blocks: [
           "It opens a page that plays your video in the phone's own player, with a download button too. The file is stored by GenXQR, so you don't need to upload it to YouTube or anywhere else first.",
           "Upload MP4, WEBM, MOV, OGG or AVI files up to 250 MB. MP4 works on every phone, so it's the safest choice. Videos count towards your plan's storage.",
-          "Already have the video on YouTube? Make a [free URL QR code](/generate/url) for the YouTube link instead.",
+          "Already have the video on YouTube? Make a [free YouTube QR code](/generate/youtube) for it instead.",
         ],
       },
       {
