@@ -372,8 +372,8 @@ export default function PricingPage() {
         eyebrow="INR pricing · UPI accepted · 14-day free trial"
         title={
           <>
-            Honest pricing.{" "}
-            <span className="text-accent">Pay only for what you use.</span>
+            QR code generator pricing.{" "}
+            <span className="text-accent">Honest, in rupees.</span>
           </>
         }
         intro={
