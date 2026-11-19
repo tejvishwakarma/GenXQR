@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useMemo, useState, useCallback, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -17,6 +17,7 @@ import { DownloadMenu } from "@/components/QRDownloadMenu"
 import { renderQRDownload } from "@/lib/qrDownload"
 import { QRTypeIcon } from "@/lib/qrTypeIcon"
 import { useWorkspace } from "@/hooks/useWorkspace"
+import { hasGeneratorDraft } from "@/lib/generatorDraft"
 
 // â”€â”€â”€ Label / icon maps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -41,6 +42,16 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const { can, isPersonal } = useWorkspace()
   const [typeFilter, setTypeFilter] = useState("all")
+
+  // Someone who clicked "Make it dynamic" on the free generator and signed up
+  // by email arrives here after verifying, not in the editor (the sign-up's
+  // ?next is lost on that path). Take them to the editor while the code they
+  // made is still waiting (lib/generatorDraft keeps it a few hours).
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (isPersonal && hasGeneratorDraft()) navigate("/app/create?from=generator", { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["qr-codes"],

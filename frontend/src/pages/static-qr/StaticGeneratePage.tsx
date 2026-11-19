@@ -3,7 +3,7 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, ArrowRight,
   Download, Palette, Phone, MessageSquare, ChevronDown,
   BarChart3, RefreshCw, Shield, Zap, IndianRupee,
-  Contact, Mail, MapPin, Type, Youtube,
+  Contact, Mail, MapPin, Type, Youtube, CheckCircle2,
 } from "lucide-react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import QRCodeStyling, {
@@ -22,6 +22,8 @@ import { Eyebrow } from "@/components/marketing/ui"
 import { GENERATOR_GUIDES, type GeneratorGuide } from "@/content/generator-guides"
 import { GuideSections, faqJsonLd } from "@/components/marketing/GuideContent"
 import { cn } from "@/lib/utils"
+import { saveGeneratorDraft } from "@/lib/generatorDraft"
+import { trackEvent } from "@/lib/analytics"
 
 // ─── JSON-LD schema ───────────────────────────────────────────────────────────
 // Deliverable 8: SoftwareApplication + FAQPage
@@ -307,6 +309,69 @@ const TEXTAREA_CLASS =
 /** Plain text above this many bytes makes a dense code that small prints struggle with. */
 const TEXT_SOFT_LIMIT = 300
 
+// ─── After download: the trial offer ──────────────────────────────────────────
+
+/**
+ * What a dynamic code would add to the code just downloaded. The types listed
+ * carry over: the editor's import parser (lib/qrDecode) reads the free code's
+ * text back into a new dynamic code. Email, SMS, phone and plain text have no
+ * dynamic type, so they get the general offer without carrying anything over.
+ */
+const TRIAL_OFFER: Partial<Record<QRTypeId, { title: string; body: string }>> = {
+  url: { title: "Make this link trackable", body: "As a dynamic code it counts every scan, with the city and device, and you can change the link after printing without a new code." },
+  youtube: { title: "Make this video link trackable", body: "As a dynamic code it counts every scan, and you can switch it to a different video later without reprinting." },
+  location: { title: "Make this map link trackable", body: "As a dynamic code it counts every scan, and you can point it to a new address later without reprinting." },
+  instagram: { title: "Make this profile link trackable", body: "As a dynamic code it counts every scan, and you can change the link later without reprinting." },
+  whatsapp: { title: "Change the number later without reprinting", body: "As a dynamic code you can update the number or message any time, and see every scan with the city and device." },
+  wifi: { title: "Change the Wi-Fi password without reprinting", body: "As a dynamic code, guests see a Wi-Fi page you can update when the password changes, and you can see how many people scanned it." },
+  vcard: { title: "Add your photo and keep your card up to date", body: "A dynamic contact card opens a page with your photo and tappable links, you can edit it any time, and it counts every scan." },
+  upi: { title: "Get a payment page you can edit", body: "A dynamic UPI code opens a payment page you can update any time, and counts every scan. It is read by the phone's camera; UPI apps' own scanners only read the free kind." },
+}
+
+function isSignedIn(): boolean {
+  try {
+    return !!localStorage.getItem("access_token")
+  } catch {
+    return false
+  }
+}
+
+function TrialOffer({ type, data }: { type: QRTypeId; data: string }) {
+  const offer = TRIAL_OFFER[type]
+  const signedIn = isSignedIn()
+  const editor = offer ? "/app/create?from=generator" : "/app/create"
+  const to = signedIn ? editor : `/signup?next=${encodeURIComponent(editor)}`
+  return (
+    <div className="rounded-xl border border-accent/30 bg-accent-soft p-4 text-left" role="status">
+      <p className="flex items-center gap-1.5 text-ink text-xs font-semibold mb-3">
+        <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+        Downloaded. Your free code works as it is, for good.
+      </p>
+      <p className="text-accent text-sm font-semibold mb-1">
+        {offer ? offer.title : "Need to change a code after printing, or count scans?"}
+      </p>
+      <p className="text-ink-soft text-xs leading-relaxed mb-3">
+        {offer ? offer.body : "Dynamic QR codes do both, for links, menus, contact cards, PDFs and more."}
+      </p>
+      <Link
+        to={to}
+        onClick={() => {
+          if (offer) saveGeneratorDraft(data)
+          trackEvent("generator_trial_click", { qr_type: type, carried_over: !!offer })
+        }}
+      >
+        <Button className="w-full" size="sm">
+          {offer ? "Make it dynamic, free for 14 days" : "Try dynamic codes free for 14 days"}
+          <ArrowRight size={14} />
+        </Button>
+      </Link>
+      <p className="text-ink-faint text-[11px] mt-2 text-center">
+        No card needed.{offer ? " We'll fill in what you just made." : ""}
+      </p>
+    </div>
+  )
+}
+
 // ─── FAQ accordion ────────────────────────────────────────────────────────────
 // Deliverable 7: 5 questions targeting Cluster D featured snippets
 
@@ -485,6 +550,8 @@ export default function StaticGeneratePage() {
   const [dotShape, setDotShape] = useState<DotType>("square")
   const [eyeShape, setEyeShape] = useState<CornerSquareType>("square")
   const [eyeDotShape, setEyeDotShape] = useState<CornerDotType>("square")
+  /** The type of the code last downloaded; shows the trial offer under the button. */
+  const [downloadedType, setDownloadedType] = useState<QRTypeId | null>(null)
 
   const qrRef = useRef<HTMLDivElement>(null)
   const qrInstance = useRef<QRCodeStyling | null>(null)
@@ -543,6 +610,8 @@ export default function StaticGeneratePage() {
       margin: 40,
     })
     downloadQR.download({ name: "GenXQR", extension: "png" })
+    setDownloadedType(activeType)
+    trackEvent("generator_download", { qr_type: activeType })
   }
 
   return (
@@ -1080,22 +1149,27 @@ export default function StaticGeneratePage() {
                 Download PNG (600×600px)
               </Button>
 
-              {/* Upgrade nudge — no "sign up" verb */}
-              <div className="rounded-xl border border-accent/20 bg-accent-soft p-4 text-left">
-                <p className="text-accent text-xs font-semibold mb-1">
-                  Want to edit this QR code after printing?
-                </p>
-                <p className="text-ink-faint text-xs mb-3">
-                  Dynamic QR codes let you change the destination any time — and track
-                  every scan by city, device, and time. 14-day free trial, no card needed.
-                </p>
-                <Link to="/dynamic-qr">
-                  <Button variant="ghost" size="sm" className="text-accent hover:text-accent-ink w-full justify-start px-0">
-                    See how dynamic QR works
-                    <ArrowRight size={14} />
-                  </Button>
-                </Link>
-              </div>
+              {/* After a download: the trial offer for THAT code (carries it over).
+                  Before: the quiet nudge — no "sign up" verb. */}
+              {downloadedType === activeType ? (
+                <TrialOffer type={activeType} data={buildQRData(activeType, fields)} />
+              ) : (
+                <div className="rounded-xl border border-accent/20 bg-accent-soft p-4 text-left">
+                  <p className="text-accent text-xs font-semibold mb-1">
+                    Want to edit this QR code after printing?
+                  </p>
+                  <p className="text-ink-faint text-xs mb-3">
+                    Dynamic QR codes let you change the destination any time — and track
+                    every scan by city, device, and time. 14-day free trial, no card needed.
+                  </p>
+                  <Link to="/dynamic-qr">
+                    <Button variant="ghost" size="sm" className="text-accent hover:text-accent-ink w-full justify-start px-0">
+                      See how dynamic QR works
+                      <ArrowRight size={14} />
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>

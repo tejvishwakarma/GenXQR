@@ -102,8 +102,18 @@ export interface ParsedText  { type: "text";     text: string }
 export interface ParsedUPI   { type: "upi";      upiId: string; name?: string; amount?: string; note?: string; url: string }
 export type ParsedQR = ParsedVCard | ParsedWiFi | ParsedURL | ParsedSMS | ParsedTel | ParsedEmail | ParsedWhatsApp | ParsedUPI | ParsedText
 
+/** vCard text values escape backslash, comma, semicolon and newlines with a backslash (RFC 2426 / 6350). */
+function vcardUnescape(v: string): string {
+  return v.replace(/\\([\\,;nN])/g, (_, c: string) => (c === "n" || c === "N" ? "\n" : c))
+}
+
+/** Splits a structured vCard value (like ADR) on its UNescaped semicolons. */
+function vcardParts(v: string): string[] {
+  return v.split(/(?<!\\);/).map((p) => vcardUnescape(p).trim())
+}
+
 function parseVCard(raw: string): ParsedVCard {
-  const field = (re: RegExp) => { const m = re.exec(raw); return m ? m[1].trim() : undefined }
+  const field = (re: RegExp) => { const m = re.exec(raw); return m ? vcardUnescape(m[1].trim()) : undefined }
   const phones: string[] = []
   const emails: string[] = []
   let m: RegExpExecArray | null
@@ -112,7 +122,7 @@ function parseVCard(raw: string): ParsedVCard {
   const emlRe = /^EMAIL[^:\r\n]*:(.+)$/gm
   while ((m = emlRe.exec(raw)) !== null) emails.push(m[1].trim())
   const addrM = /^ADR[^:\r\n]*:(.+)$/m.exec(raw)
-  const address = addrM ? addrM[1].split(";").map(p => p.trim()).filter(Boolean).join(", ") : undefined
+  const address = addrM ? vcardParts(addrM[1]).filter(Boolean).join(", ") : undefined
   return {
     type: "vcard",
     fullName: field(/^FN:(.+)$/m),
@@ -127,9 +137,11 @@ function parseVCard(raw: string): ParsedVCard {
 }
 
 function parseWiFi(raw: string): ParsedWiFi {
+  // Values escape backslash, ; , : and " with a backslash (the ZXing WIFI:
+  // format), so P:pa\;ss is the password "pa;ss", not "pa" plus a new field.
   const get = (key: string) => {
-    const m = new RegExp(`[;:]${key}:([^;]*)`, "i").exec(raw)
-    return m ? m[1].trim() : undefined
+    const m = new RegExp(`[;:]${key}:((?:\\\\.|[^;\\\\])*)`, "i").exec(raw)
+    return m ? m[1].replace(/\\(.)/g, "$1").trim() : undefined
   }
   const sec = (get("T") ?? "nopass").toUpperCase()
   return {
