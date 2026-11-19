@@ -3,8 +3,9 @@ import {
   QrCode, Wifi, MessageCircle, Instagram, ArrowRight,
   Download, Palette, Phone, MessageSquare, ChevronDown,
   BarChart3, RefreshCw, Shield, Zap, IndianRupee,
-  Contact, Mail, MapPin, Type, Youtube, CheckCircle2,
+  Contact, Mail, MapPin, Type, Youtube, CheckCircle2, X,
 } from "lucide-react"
+import * as Dialog from "@radix-ui/react-dialog"
 import { useState, useEffect, useRef, useCallback } from "react"
 import QRCodeStyling, {
   type DotType,
@@ -336,38 +337,122 @@ function isSignedIn(): boolean {
   }
 }
 
-function TrialOffer({ type, data }: { type: QRTypeId; data: string }) {
+/** What the offer says and where it leads, shared by the pop-up and the card. */
+function useTrialOffer(type: QRTypeId, data: string) {
   const offer = TRIAL_OFFER[type]
-  const signedIn = isSignedIn()
   const editor = offer ? "/app/create?from=generator" : "/app/create"
-  const to = signedIn ? editor : `/signup?next=${encodeURIComponent(editor)}`
+  return {
+    to: isSignedIn() ? editor : `/signup?next=${encodeURIComponent(editor)}`,
+    title: offer ? offer.title : "Need to change a code after printing, or count scans?",
+    body: offer ? offer.body : "Dynamic QR codes do both, for links, menus, contact cards, PDFs and more.",
+    cta: offer ? "Make it dynamic, free for 14 days" : "Try dynamic codes free for 14 days",
+    footnote: `No card needed.${offer ? " We'll fill in what you just made." : ""}`,
+    onClick: (from: "popup" | "card") => {
+      if (offer) saveGeneratorDraft(data)
+      trackEvent("generator_trial_click", { qr_type: type, carried_over: !!offer, from })
+    },
+  }
+}
+
+/** The pop-up shows after the first download of a browser session only; later
+ *  downloads get the card. sessionStorage: a new tab or visit shows it again. */
+const OFFER_SHOWN_KEY = "genxqr_generator_offer_shown"
+
+function offerShownThisSession(): boolean {
+  try {
+    return sessionStorage.getItem(OFFER_SHOWN_KEY) === "1"
+  } catch {
+    return true // storage blocked: never pop up rather than on every download
+  }
+}
+
+function markOfferShown(): void {
+  try {
+    sessionStorage.setItem(OFFER_SHOWN_KEY, "1")
+  } catch {
+    /* ignore */
+  }
+}
+
+function TrialOfferDialog({
+  type, data, image, open, onClose,
+}: { type: QRTypeId; data: string; image: string | null; open: boolean; onClose: () => void }) {
+  const o = useTrialOffer(type, data)
   return (
-    <div className="rounded-xl border border-accent/30 bg-accent-soft p-4 text-left" role="status">
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        if (next) return
+        trackEvent("generator_offer_dismiss", { qr_type: type })
+        onClose()
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-[101] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto rounded-2xl border border-line bg-paper-pure p-6 text-left shadow-lift data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
+        >
+          <Dialog.Close
+            className="absolute right-3 top-3 rounded-lg p-1.5 text-ink-faint hover:bg-paper hover:text-ink transition-colors"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </Dialog.Close>
+          <div className="flex items-center gap-4 mb-5">
+            {image && (
+              <img src={image} alt="" className="h-20 w-20 shrink-0 rounded-lg border border-line" />
+            )}
+            <p className="flex items-center gap-1.5 text-ink text-sm font-semibold pr-6">
+              <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
+              Downloaded. Your free code works as it is, for good.
+            </p>
+          </div>
+          <Dialog.Title className="text-ink text-lg font-bold mb-2">{o.title}</Dialog.Title>
+          <Dialog.Description className="text-ink-soft text-sm leading-relaxed mb-5">
+            {o.body}
+          </Dialog.Description>
+          <Link to={o.to} onClick={() => o.onClick("popup")}>
+            <Button className="w-full" size="lg">
+              {o.cta}
+              <ArrowRight size={16} />
+            </Button>
+          </Link>
+          <p className="text-ink-faint text-xs mt-2 text-center">{o.footnote}</p>
+          <Dialog.Close className="mt-4 w-full text-center text-sm text-ink-soft hover:text-ink transition-colors">
+            No thanks, I'm done
+          </Dialog.Close>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function TrialOffer({ type, data }: { type: QRTypeId; data: string }) {
+  const o = useTrialOffer(type, data)
+  const ref = useRef<HTMLDivElement>(null)
+  // On a phone the card sits below the code; bring it into view.
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+  }, [])
+  return (
+    <div
+      ref={ref}
+      className="rounded-xl border-2 border-accent bg-accent-soft p-4 text-left shadow-[0_0_28px_-6px_rgba(124,58,237,0.55)] animate-fade-in"
+      role="status"
+    >
       <p className="flex items-center gap-1.5 text-ink text-xs font-semibold mb-3">
         <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden="true" />
         Downloaded. Your free code works as it is, for good.
       </p>
-      <p className="text-accent text-sm font-semibold mb-1">
-        {offer ? offer.title : "Need to change a code after printing, or count scans?"}
-      </p>
-      <p className="text-ink-soft text-xs leading-relaxed mb-3">
-        {offer ? offer.body : "Dynamic QR codes do both, for links, menus, contact cards, PDFs and more."}
-      </p>
-      <Link
-        to={to}
-        onClick={() => {
-          if (offer) saveGeneratorDraft(data)
-          trackEvent("generator_trial_click", { qr_type: type, carried_over: !!offer })
-        }}
-      >
+      <p className="text-accent text-sm font-semibold mb-1">{o.title}</p>
+      <p className="text-ink-soft text-xs leading-relaxed mb-3">{o.body}</p>
+      <Link to={o.to} onClick={() => o.onClick("card")}>
         <Button className="w-full" size="sm">
-          {offer ? "Make it dynamic, free for 14 days" : "Try dynamic codes free for 14 days"}
+          {o.cta}
           <ArrowRight size={14} />
         </Button>
       </Link>
-      <p className="text-ink-faint text-[11px] mt-2 text-center">
-        No card needed.{offer ? " We'll fill in what you just made." : ""}
-      </p>
+      <p className="text-ink-faint text-[11px] mt-2 text-center">{o.footnote}</p>
     </div>
   )
 }
@@ -552,6 +637,8 @@ export default function StaticGeneratePage() {
   const [eyeDotShape, setEyeDotShape] = useState<CornerDotType>("square")
   /** The type of the code last downloaded; shows the trial offer under the button. */
   const [downloadedType, setDownloadedType] = useState<QRTypeId | null>(null)
+  /** The pop-up after the session's first download, with a picture of the code. */
+  const [popup, setPopup] = useState<{ type: QRTypeId; data: string; image: string | null } | null>(null)
 
   const qrRef = useRef<HTMLDivElement>(null)
   const qrInstance = useRef<QRCodeStyling | null>(null)
@@ -612,6 +699,16 @@ export default function StaticGeneratePage() {
     downloadQR.download({ name: "GenXQR", extension: "png" })
     setDownloadedType(activeType)
     trackEvent("generator_download", { qr_type: activeType })
+    if (!offerShownThisSession()) {
+      markOfferShown()
+      const type = activeType
+      const data = buildQRData(activeType, fields)
+      downloadQR
+        .getRawData("png")
+        .then((blob) => (blob instanceof Blob ? URL.createObjectURL(blob) : null))
+        .catch(() => null)
+        .then((image) => setPopup({ type, data, image }))
+    }
   }
 
   return (
@@ -1173,6 +1270,19 @@ export default function StaticGeneratePage() {
             </div>
           </div>
         </div>
+
+        {popup && (
+          <TrialOfferDialog
+            type={popup.type}
+            data={popup.data}
+            image={popup.image}
+            open
+            onClose={() => {
+              if (popup.image) URL.revokeObjectURL(popup.image)
+              setPopup(null)
+            }}
+          />
+        )}
 
         {guide && <TypeGuide guide={guide} />}
 
