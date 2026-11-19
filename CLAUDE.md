@@ -1100,7 +1100,7 @@ Three layout types, rendered via React Router's nested `<Route element={<Layout 
 #### Static QR Generator (`/src/pages/static-qr/`)
 | File | Routes |
 |---|---|
-| `StaticGeneratePage.tsx` | `/generate` and `/generate/<type>`: url, wifi, whatsapp, instagram, upi, sms, phone, vcard, email, location, youtube, text. Everything it encodes goes through `toQRBytes` (UTF-8): the QR library otherwise keeps only the low byte of each character, so ₹ and Hindi came out garbled |
+| `StaticGeneratePage.tsx` | `/generate` and `/generate/<type>`: url, wifi, whatsapp, instagram, upi, sms, phone, vcard, email, location, youtube, text. Everything it encodes goes through `toQRBytes` (UTF-8): the QR library otherwise keeps only the low byte of each character, so ₹ and Hindi came out garbled. After a download it shows `TrialOffer`; "Make it dynamic" hands the code to the editor through `lib/generatorDraft` (localStorage, 6 h, deleted when read; the editor reads it on `?from=generator`, and the dashboard forwards there while one waits, for email sign-ups whose `?next` is lost). GA events `generator_download` / `generator_trial_click` |
 
 #### Dashboard Pages (`/src/pages/dashboard/`)
 | File | Route | Notes |

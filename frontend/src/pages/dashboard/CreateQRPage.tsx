@@ -26,7 +26,8 @@ import { UtmBuilder } from "@/components/dashboard/UtmBuilder"
 import { DesignTemplates } from "@/components/dashboard/DesignTemplates"
 import { FormBuilder, DEFAULT_FORM, formContent, formDraftFromContent, type FormDraft } from "@/components/dashboard/FormBuilder"
 import { ImportQRModal } from "@/components/dashboard/ImportQRModal"
-import type { ParsedQR } from "@/lib/qrDecode"
+import { parseQRData, type ParsedQR } from "@/lib/qrDecode"
+import { takeGeneratorDraft } from "@/lib/generatorDraft"
 import { useWorkspace } from "@/hooks/useWorkspace"
 import { RoleBlockedNotice } from "@/components/dashboard/RoleBlockedNotice"
 import { FramePicker } from "@/components/qr-frames/FramePicker"
@@ -681,6 +682,8 @@ export default function CreateQRPage() {
   const [expiryDate, setExpiryDate] = useState<string>("")
   const [showImportModal, setShowImportModal] = useState(false)
   const [importNotice, setImportNotice] = useState<string | null>(null)
+  /** Content was filled in from a code made on the free generator (/generate). */
+  const [fromGenerator, setFromGenerator] = useState(false)
 
   // Subscription info — needed to gate expiry picker and set max date
   const { data: subData } = useQuery({
@@ -797,6 +800,23 @@ export default function CreateQRPage() {
       }
     }
   }
+
+  // ?from=generator: "Make it dynamic" on the free generator saved the code it
+  // just made (lib/generatorDraft). Fill a NEW code with it, once — the draft
+  // is deleted as it is read, and the ref covers Strict Mode's double effect.
+  const generatorDraftRead = useRef(false)
+  useEffect(() => {
+    if (isEdit || generatorDraftRead.current || searchParams.get("from") !== "generator") return
+    generatorDraftRead.current = true
+    const raw = takeGeneratorDraft()
+    if (!raw) return
+    const parsed = parseQRData(raw)
+    // Only types the editor can fill; anything else just opens the type picker.
+    if (!["url", "wifi", "whatsapp", "vcard", "upi"].includes(parsed.type)) return
+    handleImportedQR(parsed)
+    setFromGenerator(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Fetch existing QR when editing
   const { data: existingQR } = useQuery({
@@ -1315,6 +1335,23 @@ export default function CreateQRPage() {
                 <h2 className="text-zinc-900 dark:text-white font-semibold text-lg mb-4">
                   {qrTypes.find((t) => t.id === selectedType)?.label} Content
                 </h2>
+                {fromGenerator && (
+                  <div className="mb-5 flex items-start gap-2.5 rounded-xl border border-violet-500/20 bg-violet-500/5 p-3.5 max-w-lg">
+                    <ScanLine size={15} className="text-violet-400 mt-0.5 shrink-0" />
+                    <p className="flex-1 min-w-0 text-zinc-700 dark:text-zinc-300 text-xs leading-relaxed">
+                      We've filled in the code you made on the free generator. Give it a name and check the details.
+                      This is a new, dynamic code: print it in place of the one you downloaded to count scans and edit it later.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setFromGenerator(false)}
+                      className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors shrink-0"
+                      aria-label="Dismiss"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="space-y-4 max-w-lg">
 
                   {/* Name — always required */}
