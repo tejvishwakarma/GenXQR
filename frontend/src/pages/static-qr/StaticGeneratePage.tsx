@@ -24,6 +24,7 @@ import { GENERATOR_GUIDES, type GeneratorGuide } from "@/content/generator-guide
 import { GuideSections, faqJsonLd } from "@/components/marketing/GuideContent"
 import { cn } from "@/lib/utils"
 import { saveGeneratorDraft } from "@/lib/generatorDraft"
+import { getSubscriptionQuietly } from "@/lib/api"
 import { trackEvent } from "@/lib/analytics"
 
 // ─── JSON-LD schema ───────────────────────────────────────────────────────────
@@ -338,19 +339,56 @@ function isSignedIn(): boolean {
 }
 
 /** What the offer says and where it leads, shared by the pop-up and the card. */
-function useTrialOffer(type: QRTypeId, data: string) {
+/**
+ * Who is downloading, for the wording of the offer:
+ * - guest: signed out — the 14-day trial, through sign-up
+ * - unknown: signed in, plan not known (still loading or the lookup failed) — as guest
+ * - plan: on a trial or paid plan — straight to the editor, nothing about a trial
+ * - free: on the Free plan (trial or plan ended; no second trial) — to Billing
+ */
+type OfferAccount = "guest" | "unknown" | "plan" | "free"
+
+/** What the offer says and where it leads, shared by the pop-up and the card. */
+function useTrialOffer(type: QRTypeId, data: string, account: OfferAccount) {
   const offer = TRIAL_OFFER[type]
   const editor = offer ? "/app/create?from=generator" : "/app/create"
+  const title = offer ? offer.title : "Need to change a code after printing, or count scans?"
+  const body = offer ? offer.body : "Dynamic QR codes do both, for links, menus, contact cards, PDFs and more."
+  const track = (from: "popup" | "card", kind: "trial" | "create" | "upgrade", carried: boolean) =>
+    trackEvent("generator_trial_click", { qr_type: type, carried_over: carried, from, offer: kind })
+
+  if (account === "free") {
+    // No draft: the editor would show the plan-limit screen and use it up.
+    return {
+      to: "/app/billing",
+      title,
+      body,
+      cta: "Upgrade to make it dynamic",
+      footnote: "Your account is on the Free plan, which has no dynamic codes.",
+      onClick: (from: "popup" | "card") => track(from, "upgrade", false),
+    }
+  }
+  const carryOver = (from: "popup" | "card", kind: "trial" | "create") => {
+    if (offer) saveGeneratorDraft(data)
+    track(from, kind, !!offer)
+  }
+  if (account === "plan") {
+    return {
+      to: editor,
+      title,
+      body,
+      cta: offer ? "Make it dynamic" : "Create a dynamic code",
+      footnote: offer ? "We'll fill in what you just made." : "",
+      onClick: (from: "popup" | "card") => carryOver(from, "create"),
+    }
+  }
   return {
-    to: isSignedIn() ? editor : `/signup?next=${encodeURIComponent(editor)}`,
-    title: offer ? offer.title : "Need to change a code after printing, or count scans?",
-    body: offer ? offer.body : "Dynamic QR codes do both, for links, menus, contact cards, PDFs and more.",
+    to: account === "unknown" ? editor : `/signup?next=${encodeURIComponent(editor)}`,
+    title,
+    body,
     cta: offer ? "Make it dynamic, free for 14 days" : "Try dynamic codes free for 14 days",
     footnote: `No card needed.${offer ? " We'll fill in what you just made." : ""}`,
-    onClick: (from: "popup" | "card") => {
-      if (offer) saveGeneratorDraft(data)
-      trackEvent("generator_trial_click", { qr_type: type, carried_over: !!offer, from })
-    },
+    onClick: (from: "popup" | "card") => carryOver(from, "trial"),
   }
 }
 
@@ -375,9 +413,16 @@ function markOfferShown(): void {
 }
 
 function TrialOfferDialog({
-  type, data, image, open, onClose,
-}: { type: QRTypeId; data: string; image: string | null; open: boolean; onClose: () => void }) {
-  const o = useTrialOffer(type, data)
+  type, data, image, account, open, onClose,
+}: {
+  type: QRTypeId
+  data: string
+  image: string | null
+  account: OfferAccount
+  open: boolean
+  onClose: () => void
+}) {
+  const o = useTrialOffer(type, data, account)
   return (
     <Dialog.Root
       open={open}
@@ -417,7 +462,7 @@ function TrialOfferDialog({
               <ArrowRight size={16} />
             </Button>
           </Link>
-          <p className="text-ink-faint text-xs mt-2 text-center">{o.footnote}</p>
+          {o.footnote && <p className="text-ink-faint text-xs mt-2 text-center">{o.footnote}</p>}
           <Dialog.Close className="mt-4 w-full text-center text-sm text-ink-soft hover:text-ink transition-colors">
             No thanks, I'm done
           </Dialog.Close>
@@ -427,8 +472,8 @@ function TrialOfferDialog({
   )
 }
 
-function TrialOffer({ type, data }: { type: QRTypeId; data: string }) {
-  const o = useTrialOffer(type, data)
+function TrialOffer({ type, data, account }: { type: QRTypeId; data: string; account: OfferAccount }) {
+  const o = useTrialOffer(type, data, account)
   const ref = useRef<HTMLDivElement>(null)
   // On a phone the card sits below the code; bring it into view.
   useEffect(() => {
@@ -452,7 +497,7 @@ function TrialOffer({ type, data }: { type: QRTypeId; data: string }) {
           <ArrowRight size={14} />
         </Button>
       </Link>
-      <p className="text-ink-faint text-[11px] mt-2 text-center">{o.footnote}</p>
+      {o.footnote && <p className="text-ink-faint text-[11px] mt-2 text-center">{o.footnote}</p>}
     </div>
   )
 }
@@ -639,6 +684,16 @@ export default function StaticGeneratePage() {
   const [downloadedType, setDownloadedType] = useState<QRTypeId | null>(null)
   /** The pop-up after the session's first download, with a picture of the code. */
   const [popup, setPopup] = useState<{ type: QRTypeId; data: string; image: string | null } | null>(null)
+  /** Signed-in visitors: their plan decides the offer (a Free account can't start a trial). */
+  const [account, setAccount] = useState<OfferAccount>(() => (isSignedIn() ? "unknown" : "guest"))
+  useEffect(() => {
+    if (!isSignedIn()) return
+    let live = true
+    getSubscriptionQuietly().then((sub) => {
+      if (live && sub) setAccount(sub.planName === "FREE" ? "free" : "plan")
+    })
+    return () => { live = false }
+  }, [])
 
   const qrRef = useRef<HTMLDivElement>(null)
   const qrInstance = useRef<QRCodeStyling | null>(null)
@@ -1249,7 +1304,7 @@ export default function StaticGeneratePage() {
               {/* After a download: the trial offer for THAT code (carries it over).
                   Before: the quiet nudge — no "sign up" verb. */}
               {downloadedType === activeType ? (
-                <TrialOffer type={activeType} data={buildQRData(activeType, fields)} />
+                <TrialOffer type={activeType} data={buildQRData(activeType, fields)} account={account} />
               ) : (
                 <div className="rounded-xl border border-accent/20 bg-accent-soft p-4 text-left">
                   <p className="text-accent text-xs font-semibold mb-1">
@@ -1276,6 +1331,7 @@ export default function StaticGeneratePage() {
             type={popup.type}
             data={popup.data}
             image={popup.image}
+            account={account}
             open
             onClose={() => {
               if (popup.image) URL.revokeObjectURL(popup.image)

@@ -2178,6 +2178,35 @@ export function getSubscription() {
   })
 }
 
+/**
+ * For public pages: the signed-in visitor's subscription, or null when signed
+ * out, the session can't be renewed, or anything fails. Unlike apiFetch it never
+ * clears the session or redirects to /login, which would throw a visitor off a
+ * public page because an old token was left in this browser.
+ */
+export async function getSubscriptionQuietly(): Promise<SubscriptionInfo | null> {
+  const get = (token: string) =>
+    fetch(`${BASE_URL}/api/billing/subscription`, {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  try {
+    const token = localStorage.getItem("access_token")
+    if (!token) return null
+    let res = await get(token)
+    if (res.status === 401) {
+      const fresh = await silentRefresh()
+      if (!fresh) return null
+      res = await get(fresh)
+    }
+    if (!res.ok) return null
+    const body = (await res.json()) as { data?: SubscriptionInfo }
+    return body.data ?? null
+  } catch {
+    return null
+  }
+}
+
 export function getBillingUsage() {
   return apiFetch<{ success: boolean; data: BillingUsage }>("/api/billing/usage", {
     headers: authHeader(),
